@@ -15,49 +15,56 @@ import { useAccessibility } from '../../context/AccessibilityContext';
 
 const { width, height } = Dimensions.get('window');
 
-// --- Componente dedicado para cada hoja animada ---
+// --- COMPONENTE DE HOJA ANIMADA (VERSIÓN CORREGIDA Y MEJORADA) ---
 const AnimatedLeaf = () => {
   const initialX = useSharedValue(Math.random() * width);
-  const initialY = useSharedValue(Math.random() * height * 1.2 - height * 0.1);
-  const rotate = useSharedValue(`${Math.random() * 360}deg`);
-  const size = useSharedValue(20 + Math.random() * 15);
-  const progress = useSharedValue(0);
+  const initialY = useSharedValue(Math.random() * height);
+  const size = useSharedValue(20 + Math.random() * 20);
+  const progress = useSharedValue(Math.random()); // Inicia en un punto aleatorio de la animación
+
+  // --- CORRECCIÓN: Calculamos los valores aleatorios UNA SOLA VEZ aquí ---
+  // Estos valores definen a dónde se moverá la hoja y cuánto rotará.
+  const xEnd = Math.random() * 40 - 20; // Movimiento horizontal entre -20 y +20
+  const yEnd = Math.random() * 40 - 20; // Movimiento vertical entre -20 y +20
+  const rotationEnd = Math.random() * 360;
 
   useEffect(() => {
     progress.value = withRepeat(
       withTiming(1, { 
-        duration: 3000 + Math.random() * 2000,
+        duration: 4000 + Math.random() * 3000, // Duración más lenta y aleatoria
         easing: Easing.inOut(Easing.ease),
       }),
-      -1,
-      true
+      -1, // Repetir infinitamente
+      true // Animación de ida y vuelta (yoyo)
     );
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => {
-    const translateX = interpolate(progress.value, [0, 1], [0, 15 - Math.random() * 30]);
-    const translateY = interpolate(progress.value, [0, 1], [0, 15 - Math.random() * 30]);
+    // Usamos los valores fijos para un movimiento suave y predecible
+    const translateX = interpolate(progress.value, [0, 1], [0, xEnd]);
+    const translateY = interpolate(progress.value, [0, 1], [0, yEnd]);
+    const rotate = interpolate(progress.value, [0, 1], [0, rotationEnd]);
+    
+    // --- MEJORA: Añadimos una animación de opacidad para un efecto más suave ---
+    const opacity = interpolate(progress.value, [0, 0.5, 1], [0.5, 1, 0.5]);
 
     return {
       position: 'absolute',
       left: initialX.value,
       top: initialY.value,
       fontSize: size.value,
-      opacity: 1, 
-      transform: [
-        { translateX },
-        { translateY },
-        { rotate: rotate.value },
+      opacity: opacity, 
+      transform: [ 
+        { translateX }, 
+        { translateY }, 
+        { rotate: `${rotate}deg` } 
       ],
     };
   });
 
-  return (
-    <Animated.Text style={animatedStyle}>
-      🍃
-    </Animated.Text>
-  );
+  return ( <Animated.Text style={animatedStyle}>🍃</Animated.Text> );
 };
+
 
 const getWeatherEmoji = (temp: number) => {
   if (temp < 5) return '🌨️';
@@ -289,8 +296,21 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
+   decoration: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
+    zIndex: 0,
+  },
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    backgroundColor: 'transparent',
+    zIndex: 1,
+  },
   gradientBackground: { flex: 1 },
-  decoration: { position: 'absolute', width: '100%', height: '100%', overflow: 'hidden', zIndex: -1 },
   scrollContent: { paddingBottom: 120 },
   header: { paddingTop: 60, paddingHorizontal: 24, marginBottom: 24 },
   welcomeContainer: {

@@ -55,11 +55,14 @@ export default function ResultsScreen() {
         white: '#fff',
         sano: isColorblindMode ? '#42A5F5' : '#2ecc71',
         enfermo: isColorblindMode ? '#0D47A1' : '#e74c3c',
-        enfermoAlt1: isColorblindMode ? '#0D47A1' : '#e74c3c', // Rojo
-        enfermoAlt2: isColorblindMode ? '#FFC107' : '#e67e22', // Amarillo/Naranja
-        enfermoAlt3: isColorblindMode ? '#42A5F5' : '#f1c40f', // Azul Claro/Amarillo
+        enfermoAlt1: isColorblindMode ? '#0D47A1' : '#e74c3c', // Rojo -> Azul Oscuro
+        enfermoAlt2: isColorblindMode ? '#FFC107' : '#FFC107', // Naranja -> Amarillo
+        enfermoAlt3: isColorblindMode ? '#42A5F5' : '#42A5F5', // Amarillo -> Azul Claro
         toggleActive: isColorblindMode ? '#0D47A1' : '#66bb6a',
-        toggleInactive: '#e8f5e9',
+        toggleInactive: isColorblindMode ? '#D1E7FD' : '#e8f5e9',
+        statCardTotal: isColorblindMode ? '#E3F2FD' : '#e8f5e9',
+        statCardHealthy: isColorblindMode ? '#FFF8E1' : '#e8f5e9',
+        statCardDisease: isColorblindMode ? '#E3F2FD' : '#ffebee',
     }), [isColorblindMode]);
 
     const chartConfigBase = useMemo(() => ({
@@ -75,13 +78,12 @@ export default function ResultsScreen() {
     
     const barChartConfig = useMemo(() => ({
         ...chartConfigBase,
-        backgroundGradientFrom: "#f4f4f4",
-        backgroundGradientTo: "#f4f4f4",
-        color: (opacity = 1) => isColorblindMode ? `rgba(66, 165, 245, ${opacity})` : `rgba(150, 150, 150, ${opacity})`,
-        labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+        backgroundGradientFrom: "#fafafa",
+        backgroundGradientTo: "#fafafa",
+        color: (opacity = 1) => isColorblindMode ? `rgba(66, 165, 245, ${opacity})` : `rgba(102, 187, 106, ${opacity})`,
+        labelColor: (opacity = 1) => `rgba(100, 100, 100, ${opacity})`,
         decimalPlaces: 0,
     }), [isColorblindMode, chartConfigBase]);
-
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => setUser(currentUser));
@@ -110,20 +112,16 @@ export default function ResultsScreen() {
             const counts: { [key: string]: number } = {};
             let healthyCount = 0;
             const scansByDay: { [key: string]: { [label: string]: number } } = {};
-
             scans.forEach(scan => {
                 counts[scan.label] = (counts[scan.label] || 0) + 1;
-                if (scan.label.toLowerCase().includes('saludable')) {
-                    healthyCount++;
-                }
+                if (scan.label.toLowerCase().includes('saludable')) { healthyCount++; }
                 const date = new Date(scan.created_at).toLocaleDateString('es-MX', {day: '2-digit', month: 'short'});
                 if (!scansByDay[date]) scansByDay[date] = {};
                 scansByDay[date][scan.label] = (scansByDay[date][scan.label] || 0) + 1;
             });
-
             const totalScans = scans.length;
-            const healthyPercentage = (healthyCount / totalScans) * 100;
-            let mostFrequentDisease = 'N/A';
+            const healthyPercentage = totalScans > 0 ? (healthyCount / totalScans) * 100 : 0;
+            let mostFrequentDisease = 'Ninguna';
             let maxCount = 0;
             Object.keys(counts).forEach(label => {
                 if (!label.toLowerCase().includes('saludable') && counts[label] > maxCount) {
@@ -132,7 +130,6 @@ export default function ResultsScreen() {
                 }
             });
             setStats({ totalScans, healthyPercentage, mostFrequentDisease });
-            
             const DISEASE_COLORS = [colors.enfermoAlt1, colors.enfermoAlt2, colors.enfermoAlt3];
             const pieChartData = Object.keys(counts).map((label, index) => ({
                 name: label,
@@ -141,26 +138,18 @@ export default function ResultsScreen() {
                 legendFontColor: "#333",
                 legendFontSize: 14,
             }));
-
             const barChartData = {
-                labels: Object.keys(counts),
+                labels: Object.keys(counts).map(l => l.substring(0,10)),
                 datasets: [{ data: Object.values(counts) }]
             };
-
             const lineChartLabels = Object.keys(scansByDay).reverse();
             const allDiagnoses = Object.keys(counts);
             const lineChartDatasets = allDiagnoses.map((label, index) => ({
                 data: lineChartLabels.map(day => scansByDay[day][label] || 0),
-                color: (opacity = 1) => label.toLowerCase().includes('saludable') ? `${colors.sano.slice(0, -2)}${opacity})` : `${DISEASE_COLORS[index % DISEASE_COLORS.length].slice(0, -2)}${opacity})`,
+                color: (opacity = 1) => label.toLowerCase().includes('saludable') ? colors.sano.replace(/, 1\)$/, `, ${opacity})`) : DISEASE_COLORS[index % DISEASE_COLORS.length].replace(/, 1\)$/, `, ${opacity})`),
                 strokeWidth: 3,
             }));
-
-            const lineChartData = {
-                labels: lineChartLabels,
-                datasets: lineChartDatasets,
-                legend: allDiagnoses,
-            };
-
+            const lineChartData = { labels: lineChartLabels, datasets: lineChartDatasets, legend: allDiagnoses };
             setChartData({ pie: pieChartData, bar: barChartData, line: lineChartData });
         }
     }, [scans, colors]);
@@ -181,43 +170,20 @@ export default function ResultsScreen() {
                 </View>
             );
         }
-
         switch (activeView) {
-            case 'line':
-                return (
-                    <View style={styles.chartContainer}>
-                        <Text style={styles.chartTitle}>Tendencia de Diagnósticos por Día</Text>
-                        {chartData?.line && (
-                            <LineChart data={chartData.line} width={screenWidth - 48} height={250} chartConfig={chartConfigBase} bezier style={{ borderRadius: 16 }} />
-                        )}
+            case 'line': return ( <View style={styles.chartContainer}> <Text style={styles.chartTitle}>Tendencia de Diagnósticos</Text> {chartData?.line && <LineChart data={chartData.line} width={screenWidth - 48} height={250} chartConfig={chartConfigBase} bezier style={{ borderRadius: 16 }} />} </View> );
+            case 'pie': return ( <View style={styles.chartContainer}> <Text style={styles.chartTitle}>Distribución de Diagnósticos</Text> {chartData?.pie && <PieChart data={chartData.pie} width={screenWidth - 48} height={200} chartConfig={chartConfigBase} accessor="population" backgroundColor="transparent" paddingLeft="8" absolute />} </View> );
+            case 'bar': return ( <View style={styles.chartContainer}> <Text style={styles.chartTitle}>Conteo de Diagnósticos</Text> {chartData?.bar && <BarChart data={chartData.bar} width={screenWidth - 48} height={230} yAxisLabel="" yAxisSuffix="" chartConfig={barChartConfig} style={{ borderRadius: 16 }} fromZero />} </View> );
+            case 'list': default: return scans.map((scan) => (
+                <View key={scan.id} style={styles.scanCard}>
+                    <Image source={scan.label.toLowerCase().includes('saludable') ? avotexSanoImage : avotexEnfermoImage} style={styles.scanImage} />
+                    <View style={styles.scanInfo}>
+                        <Text style={[styles.scanLabel, {backgroundColor: scan.label.toLowerCase().includes('saludable') ? colors.sano : colors.enfermo}]}>{scan.label}</Text>
+                        <Text style={styles.scanScore}>Confianza: {(scan.score * 100).toFixed(1)}%</Text>
+                        <Text style={styles.scanDate}>{formatScanDate(scan.created_at)}</Text>
                     </View>
-                );
-            case 'pie':
-                return (
-                    <View style={styles.chartContainer}>
-                        <Text style={styles.chartTitle}>Distribución de Diagnósticos</Text>
-                        {chartData?.pie && <PieChart data={chartData.pie} width={screenWidth - 48} height={200} chartConfig={chartConfigBase} accessor="population" backgroundColor="transparent" paddingLeft="8" absolute />}
-                    </View>
-                );
-            case 'bar':
-                return (
-                    <View style={styles.chartContainer}>
-                        <Text style={styles.chartTitle}>Conteo de Diagnósticos</Text>
-                        {chartData?.bar && <BarChart data={chartData.bar} width={screenWidth - 48} height={230} yAxisLabel="" yAxisSuffix="" chartConfig={barChartConfig} style={{ borderRadius: 16 }} fromZero />}
-                    </View>
-                );
-            case 'list':
-            default:
-                return scans.map((scan) => (
-                    <View key={scan.id} style={styles.scanCard}>
-                        <Image source={scan.label.toLowerCase().includes('saludable') ? avotexSanoImage : avotexEnfermoImage} style={styles.scanImage} />
-                        <View style={styles.scanInfo}>
-                            <Text style={[styles.scanLabel, {backgroundColor: scan.label.toLowerCase().includes('saludable') ? colors.sano : colors.enfermo}]}>{scan.label}</Text>
-                            <Text style={styles.scanScore}>Confianza: {(scan.score * 100).toFixed(1)}%</Text>
-                            <Text style={styles.scanDate}>{formatScanDate(scan.created_at)}</Text>
-                        </View>
-                    </View>
-                ));
+                </View>
+            ));
         }
     };
 
@@ -227,7 +193,6 @@ export default function ResultsScreen() {
             <View style={styles.header}>
                 <Text style={[styles.title, { color: colors.primary }]}>Resultados</Text>
                 <Text style={styles.subtitle}>Historial de análisis</Text>
-
                 <View style={[styles.toggleContainer, { backgroundColor: colors.toggleInactive }]}>
                     <TouchableOpacity onPress={() => setActiveView('list')} style={[styles.toggleButton, activeView === 'list' && { backgroundColor: colors.toggleActive }]}>
                         <List size={20} color={activeView === 'list' ? colors.white : colors.primary} />
@@ -244,20 +209,20 @@ export default function ResultsScreen() {
                 </View>
             </View>
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollViewContent}>
-                {scans.length > 0 && (
+                {scans.length > 0 && !isLoading && (
                     <>
                         <Text style={styles.sectionTitle}>Resumen General</Text>
                         <View style={styles.statsRow}>
-                            <View style={[styles.statCard, {backgroundColor: '#e8f5e9'}]}>
+                            <View style={[styles.statCard, {backgroundColor: colors.statCardTotal}]}>
                                 <Text style={styles.statValue}>{stats.totalScans}</Text>
                                 <Text style={styles.statLabel}>Escaneos Totales</Text>
                             </View>
-                            <View style={[styles.statCard, {backgroundColor: '#fff3e0'}]}>
+                            <View style={[styles.statCard, {backgroundColor: colors.statCardHealthy}]}>
                                 <Text style={styles.statValue}>{stats.healthyPercentage.toFixed(0)}%</Text>
                                 <Text style={styles.statLabel}>Saludables</Text>
                             </View>
                         </View>
-                        <View style={[styles.statCard, {backgroundColor: '#ffebee', marginBottom: 24 }]}>
+                        <View style={[styles.statCard, {backgroundColor: colors.statCardDisease, marginBottom: 24 }]}>
                             <Text style={styles.statValue}>{stats.mostFrequentDisease}</Text>
                             <Text style={styles.statLabel}>Enfermedad más común</Text>
                         </View>
@@ -274,10 +239,10 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f9f9f9' },
     gradient: { position: 'absolute', left: 0, right: 0, top: 0, height: 300 },
     header: { paddingTop: 60, paddingHorizontal: 24, marginBottom: 12 },
-    title: { fontSize: 32, fontFamily: 'Poppins_600SemiBold' },
-    subtitle: { fontSize: 16, fontFamily: 'Poppins_400Regular', color: '#666' },
+    title: { fontSize: 32, fontFamily: 'Poppins_600SemiBold', textAlign: 'center' },
+    subtitle: { fontSize: 16, fontFamily: 'Poppins_400Regular', color: '#666', textAlign: 'center' },
     scrollView: { flex: 1 },
-    scrollViewContent: { paddingHorizontal: 24, paddingBottom: 100 },
+    scrollViewContent: { paddingHorizontal: 24, paddingBottom: 120 },
     sectionTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 20, color: '#2a2a2a', marginBottom: 16, marginTop: 16 },
     emptyStateContainer: { padding: 30, backgroundColor: '#fff', borderRadius: 16, alignItems: 'center', marginTop: 20 },
     emptyStateText: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#666' },
@@ -286,13 +251,11 @@ const styles = StyleSheet.create({
     scanImage: { width: 100, height: '100%', resizeMode: 'cover' },
     scanInfo: { flex: 1, padding: 12, justifyContent: 'center' },
     scanLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#fff', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', overflow: 'hidden', marginBottom: 6 },
-    sano: { backgroundColor: '#2ecc71' },
-    enfermo: { backgroundColor: '#e74c3c' },
     scanScore: { fontFamily: 'Poppins_400Regular', fontSize: 14, color: '#2a2a2a' },
     scanDate: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#999', marginTop: 6 },
     toggleContainer: { flexDirection: 'row', backgroundColor: '#e8f5e9', borderRadius: 25, marginTop: 20, alignSelf: 'center', padding: 4 },
     toggleButton: { paddingVertical: 8, paddingHorizontal: 20, borderRadius: 20 },
-    toggleButtonActive: { backgroundColor: '#66bb6a' },
+    toggleButtonActive: { }, 
     chartContainer: { alignItems: 'center', marginBottom: 24, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 16, paddingHorizontal: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 5 },
     chartTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 18, color: '#333', marginTop: 8, marginBottom: 12 },
     statsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },

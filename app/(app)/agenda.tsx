@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo} from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { Stack } from 'expo-router';
 import { Calendar, CheckCircle, Plus, BrainCircuit, ShieldCheck, AlertTriangle, ShieldAlert, Trash2 } from 'lucide-react-native';
-
-// --- Importaciones de Firebase y Supabase ---
 import { auth } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { supabase } from '../../supabaseConfig';
+import { useAccessibility } from '../../context/AccessibilityContext';
 
 // --- Interfaces para los datos ---
 interface Scan {
@@ -30,6 +29,8 @@ type Task = {
 };
 
 export default function AgendaScreen() {
+  const { isColorblindMode } = useAccessibility();
+
   const [user, setUser] = useState<User | null>(null);
   const [scans, setScans] = useState<Scan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,7 +42,21 @@ export default function AgendaScreen() {
   const [newDetail, setNewDetail] = useState('');
   const [showForm, setShowForm] = useState(false);
   
-  // Obtener usuario actual
+  // --- Paleta de colores dinámica ---
+  const colors = useMemo(() => ({
+    primary: isColorblindMode ? '#0D47A1' : '#66bb6a',
+    accent: isColorblindMode ? '#42A5F5' : '#50c878',
+    saveButton: isColorblindMode ? '#1976D2' : '#4fbcff',
+    deleteButton: isColorblindMode ? '#0D47A1' : '#e74c3c',
+    textPrimary: '#2a2a2a',
+    textSecondary: '#666',
+    white: '#ffffff',
+    positive: { bg: isColorblindMode ? '#E3F2FD' : '#e8f5e9', border: isColorblindMode ? '#42A5F5' : '#27ae60' },
+    info: { bg: isColorblindMode ? '#FFF8E1' : '#eaf4fc', border: isColorblindMode ? '#FFC107' : '#2980b9' },
+    warning: { bg: isColorblindMode ? '#FFF8E1' : '#fef5e7', border: isColorblindMode ? '#F57F17' : '#f39c12' },
+    danger: { bg: isColorblindMode ? '#E3F2FD' : '#fbebed', border: isColorblindMode ? '#0D47A1' : '#c0392b' },
+  }), [isColorblindMode]);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -54,7 +69,6 @@ export default function AgendaScreen() {
     return () => unsubscribe();
   }, []);
 
-  // Obtener escaneos y tareas cuando el usuario se carga
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
@@ -78,41 +92,27 @@ export default function AgendaScreen() {
     fetchData();
   }, [user]);
 
-  // Motor de recomendaciones
   useEffect(() => {
     if (scans.length > 0) {
       const totalScans = scans.length;
       const enfermos = scans.filter(s => !s.label.toLowerCase().includes('saludable'));
       const enfermosCount = enfermos.length;
       const enfermosRatio = enfermosCount / totalScans;
-
       const newRecommendations: Recommendation[] = [];
 
-      if (totalScans < 10) {
-        newRecommendations.push({ id: 'rec1', text: `Has realizado ${totalScans} escaneos. ¡Sigue así! Se recomiendan al menos 20 para un análisis más preciso.`, type: 'info' });
-      }
-
-      if (enfermosRatio === 0) {
-        newRecommendations.push({ id: 'rec2', text: '¡Excelente trabajo! Todos tus escaneos recientes indican una huerta saludable. No se requieren acciones correctivas.', type: 'positive' });
-      } else if (enfermosRatio <= 0.20) {
-        newRecommendations.push({ id: 'rec3', text: `Bajo riesgo detectado (${(enfermosRatio*100).toFixed(0)}% de escaneos no saludables). Considera tratamientos preventivos y monitoreo constante.`, type: 'warning' });
-      } else if (enfermosRatio <= 0.50) {
-        newRecommendations.push({ id: 'rec4', text: `Riesgo moderado (${(enfermosRatio*100).toFixed(0)}% de escaneos no saludables). Es momento de aplicar tratamientos específicos en las zonas afectadas.`, type: 'danger' });
-      } else {
-        newRecommendations.push({ id: 'rec5', text: `¡ALERTA ALTA! Más de la mitad de tus escaneos (${(enfermosRatio*100).toFixed(0)}%) muestran problemas. Se recomienda una acción correctiva general y consultar a un agrónomo.`, type: 'danger' });
-      }
+      if (totalScans < 10) { newRecommendations.push({ id: 'rec1', text: `Has realizado ${totalScans} escaneos. ¡Sigue así! Se recomiendan al menos 20 para un análisis más preciso.`, type: 'info' }); }
+      if (enfermosRatio === 0) { newRecommendations.push({ id: 'rec2', text: '¡Excelente trabajo! Todos tus escaneos recientes indican una huerta saludable. No se requieren acciones correctivas.', type: 'positive' }); }
+      else if (enfermosRatio <= 0.20) { newRecommendations.push({ id: 'rec3', text: `Bajo riesgo detectado (${(enfermosRatio*100).toFixed(0)}% de escaneos no saludables). Considera tratamientos preventivos y monitoreo constante.`, type: 'warning' }); }
+      else if (enfermosRatio <= 0.50) { newRecommendations.push({ id: 'rec4', text: `Riesgo moderado (${(enfermosRatio*100).toFixed(0)}% de escaneos no saludables). Es momento de aplicar tratamientos específicos en las zonas afectadas.`, type: 'danger' }); }
+      else { newRecommendations.push({ id: 'rec5', text: `¡ALERTA ALTA! Más de la mitad de tus escaneos (${(enfermosRatio*100).toFixed(0)}%) muestran problemas. Se recomienda una acción correctiva general y consultar a un agrónomo.`, type: 'danger' }); }
       
       const diseaseCounts: { [key: string]: number } = {};
       enfermos.forEach(scan => { diseaseCounts[scan.label] = (diseaseCounts[scan.label] || 0) + 1; });
       const commonDisease = Object.keys(diseaseCounts).sort((a, b) => diseaseCounts[b] - diseaseCounts[a])[0];
 
       if (commonDisease) {
-          if (commonDisease.toLowerCase().includes('antracnosis')) {
-            newRecommendations.push({ id: 'rec6', text: 'Se detecta una presencia notable de Antracnosis. Prioriza la poda sanitaria para mejorar la ventilación y considera fungicidas a base de cobre.', type: 'warning' });
-          }
-          if (commonDisease.toLowerCase().includes('roya')) {
-            newRecommendations.push({ id: 'rec7', text: 'La Roya parece ser tu principal problema. Asegura un buen drenaje y aplica tratamientos con azufre o fungicidas específicos.', type: 'warning' });
-          }
+          if (commonDisease.toLowerCase().includes('antracnosis')) { newRecommendations.push({ id: 'rec6', text: 'Se detecta una presencia notable de Antracnosis. Prioriza la poda sanitaria para mejorar la ventilación y considera fungicidas a base de cobre.', type: 'warning' }); }
+          if (commonDisease.toLowerCase().includes('roya')) { newRecommendations.push({ id: 'rec7', text: 'La Roya parece ser tu principal problema. Asegura un buen drenaje y aplica tratamientos con azufre o fungicidas específicos.', type: 'warning' }); }
       }
       
       if (enfermosRatio > 0.1) {
@@ -124,22 +124,19 @@ export default function AgendaScreen() {
       } else {
         newRecommendations.push({ id: 'rec11', text: 'Documenta las zonas tratadas en tu agenda personal para un mejor seguimiento de la efectividad.', type: 'info'});
       }
-
       setRecommendations(newRecommendations);
     } else if (!isLoading) {
         setRecommendations([{ id: 'rec_initial', text: 'Realiza algunos escaneos en la pestaña "Escanear" para empezar a recibir recomendaciones personalizadas.', type: 'info' }]);
     }
   }, [scans, isLoading]);
-
+  
   const toggleComplete = async (task: Task) => {
     try {
       const newCompletedStatus = !task.completed;
       const { error } = await supabase.from('tasks').update({ completed: newCompletedStatus }).eq('id', task.id);
       if (error) throw error;
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: newCompletedStatus } : t));
-    } catch (error) {
-      console.error("Error al actualizar tarea:", error);
-    }
+    } catch (error) { console.error("Error al actualizar tarea:", error); }
   };
 
   const addTask = async () => {
@@ -152,9 +149,7 @@ export default function AgendaScreen() {
       setNewTitle('');
       setNewDetail('');
       setShowForm(false);
-    } catch (error) {
-      console.error("Error al añadir tarea:", error);
-    }
+    } catch (error) { console.error("Error al añadir tarea:", error); }
   };
 
   const deleteTask = async (taskId: number) => {
@@ -162,36 +157,34 @@ export default function AgendaScreen() {
         const { error } = await supabase.from('tasks').delete().eq('id', taskId);
         if (error) throw error;
         setTasks(tasks.filter(t => t.id !== taskId));
-    } catch (error) {
-        console.error("Error al eliminar tarea:", error);
-    }
+    } catch (error) { console.error("Error al eliminar tarea:", error); }
   };
 
   const getRecommendationIcon = (type: Recommendation['type']) => {
+    const iconColor = colors[type].border;
     switch (type) {
-      case 'positive': return <ShieldCheck size={24} color="#27ae60" />;
-      case 'info': return <BrainCircuit size={24} color="#2980b9" />;
-      case 'warning': return <AlertTriangle size={24} color="#f39c12" />;
-      case 'danger': return <ShieldAlert size={24} color="#c0392b" />;
+      case 'positive': return <ShieldCheck size={24} color={iconColor} />;
+      case 'info': return <BrainCircuit size={24} color={iconColor} />;
+      case 'warning': return <AlertTriangle size={24} color={iconColor} />;
+      case 'danger': return <ShieldAlert size={24} color={iconColor} />;
       default: return null;
     }
   };
 
   return (
-    // --- CAMBIO 1: Se usa 'contentContainerStyle' en lugar de 'style' ---
-    <ScrollView contentContainerStyle={styles.scrollContainer}>
+    <ScrollView contentContainerStyle={styles.scrollContainer} style={{backgroundColor: colors.white}}>
       <Stack.Screen options={{ title: 'Agenda y Recomendaciones' }} />
       <View style={styles.header}>
-        <BrainCircuit size={32} color="#50c878" />
-        <Text style={styles.title}>Recomendaciones por Avotex</Text>
-        <Text style={styles.subtitle}>Análisis y acciones sugeridas basadas en tus escaneos</Text>
+        <BrainCircuit size={32} color={colors.primary} />
+        <Text style={[styles.title, { color: colors.primary }]}>Recomendaciones por Avotex</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Análisis y acciones sugeridas basadas en tus escaneos</Text>
       </View>
 
       {isLoading ? (
-        <ActivityIndicator size="large" color="#66bb6a" style={{ marginVertical: 40 }} />
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 40 }} />
       ) : (
         recommendations.map(rec => (
-          <View key={rec.id} style={[styles.recCard, styles[`recCard_${rec.type}`]]}>
+          <View key={rec.id} style={[styles.recCard, { backgroundColor: colors[rec.type].bg, borderColor: colors[rec.type].border }]}>
             {getRecommendationIcon(rec.type)}
             <Text style={styles.recText}>{rec.text}</Text>
           </View>
@@ -202,8 +195,8 @@ export default function AgendaScreen() {
         <Text style={styles.separatorText}>Mis Tareas Personales</Text>
       </View>
       
-      <TouchableOpacity style={styles.addButton} onPress={() => setShowForm(!showForm)}>
-        <Plus size={20} color="#ffffff" />
+      <TouchableOpacity style={[styles.addButton, { backgroundColor: colors.accent }]} onPress={() => setShowForm(!showForm)}>
+        <Plus size={20} color={colors.white} />
         <Text style={styles.addButtonText}>{showForm ? 'Ocultar Formulario' : 'Agregar Tarea'}</Text>
       </TouchableOpacity>
 
@@ -211,7 +204,7 @@ export default function AgendaScreen() {
         <View style={styles.form}>
           <TextInput style={styles.input} placeholder="Título de la tarea" value={newTitle} onChangeText={setNewTitle} />
           <TextInput style={styles.input} placeholder="Detalle (opcional)" value={newDetail} onChangeText={setNewDetail} />
-          <TouchableOpacity style={styles.saveButton} onPress={addTask}>
+          <TouchableOpacity style={[styles.saveButton, { backgroundColor: colors.saveButton }]} onPress={addTask}>
             <Text style={styles.saveButtonText}>Guardar Tarea</Text>
           </TouchableOpacity>
         </View>
@@ -225,7 +218,7 @@ export default function AgendaScreen() {
         <View key={task.id} style={[styles.taskCard, task.completed && styles.completedCard]}>
           <View style={styles.taskContent}>
             <TouchableOpacity style={styles.taskTouchableArea} onPress={() => toggleComplete(task)}>
-                <CheckCircle size={28} color={task.completed ? '#50c878' : '#e0e0e0'} style={{marginRight: 15}}/>
+                <CheckCircle size={28} color={task.completed ? colors.accent : '#e0e0e0'} style={{marginRight: 15}}/>
                 <View style={styles.taskTextContainer}>
                     <Text style={[styles.taskTitle, task.completed && styles.completedText]}>{task.title}</Text>
                     {task.detail ? (
@@ -234,7 +227,7 @@ export default function AgendaScreen() {
                 </View>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => deleteTask(task.id)} style={styles.deleteButton}>
-              <Trash2 size={22} color="#e74c3c" />
+              <Trash2 size={22} color={colors.deleteButton} />
             </TouchableOpacity>
           </View>
         </View>
@@ -244,14 +237,12 @@ export default function AgendaScreen() {
 }
 
 const styles = StyleSheet.create({
-  // --- CAMBIO 2: Se crea 'scrollContainer' y se ajusta 'container' ---
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
   },
   scrollContainer: {
     padding: 20,
-    paddingBottom: 120, // <-- LA LÍNEA MÁGICA: Añade espacio extra al final
+    paddingBottom: 120,
   },
   header: {
     alignItems: 'center',
@@ -261,13 +252,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#66bb6a',
     marginTop: 10,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
-    color: '#666',
     textAlign: 'center',
     marginTop: 4,
   },
@@ -284,10 +273,6 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 1,
   },
-  recCard_positive: { backgroundColor: '#e8f5e9', borderColor: '#27ae60' },
-  recCard_info: { backgroundColor: '#eaf4fc', borderColor: '#2980b9' },
-  recCard_warning: { backgroundColor: '#fef5e7', borderColor: '#f39c12' },
-  recCard_danger: { backgroundColor: '#fbebed', borderColor: '#c0392b' },
   recText: {
     fontSize: 15,
     color: '#34495e',
@@ -313,7 +298,6 @@ const styles = StyleSheet.create({
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#50c878',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -343,7 +327,6 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   saveButton: {
-    backgroundColor: '#4fbcff',
     padding: 12,
     borderRadius: 12,
     alignItems: 'center',

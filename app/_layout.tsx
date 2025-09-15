@@ -5,11 +5,13 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import Toast from 'react-native-toast-message';
 import { View, Text, Image, StyleSheet } from 'react-native';
-
-// --- NUEVO: Importamos el proveedor de contexto que creamos ---
+import { LogBox } from 'react-native';
 import { AccessibilityProvider } from '../context/AccessibilityContext';
 
-// --- Configuración del Toast personalizado ---
+
+
+LogBox.ignoreAllLogs(true);
+
 const toastConfig = {
   avotexError: ({ props }: any) => (
     <LinearGradient

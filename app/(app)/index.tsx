@@ -195,7 +195,7 @@ export default function Home() {
             <Animated.View entering={FadeInDown.delay(200).duration(1000)}>
               <TouchableOpacity style={[styles.welcomeContainer, { borderColor: colors.welcomeBorder }]} activeOpacity={0.8}>
                 <View style={styles.welcomeTextBox}>
-                  <Text style={styles.greetingText}>HOLA DE NUEVO,</Text>
+                  <Text style={styles.greetingText}>HOLA DE NUEVO 🥑,</Text>
                   <Text style={[styles.userNameText, {color: colors.textPrimary}]}>{user.displayName || user.email}</Text>
                    <Text style={styles.toggleLabel}>Modo Daltonismo                   <Switch
                 trackColor={{ false: "#d3d3d3", true: "#81b0ff" }}
@@ -239,7 +239,7 @@ export default function Home() {
             </View>
             <View style={styles.statCard}>
               <Leaf color={colors.primary} size={24} />
-              <Text style={{ fontSize: 11, fontFamily: 'Poppins_600SemiBold', color: colors.textPrimary }}>Huerta sin escanear</Text>
+              <Text style={{ fontSize: 10.5, fontFamily: 'Poppins_600SemiBold', color: colors.textPrimary, marginTop: 10 }}>Accede a Results</Text>
               <Text style={styles.statLabel}>Salud</Text>
             </View>
           </Animated.View>

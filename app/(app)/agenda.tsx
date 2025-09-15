@@ -61,12 +61,10 @@ export default function AgendaScreen() {
       
       setIsLoading(true);
       try {
-        // Obtener escaneos (para recomendaciones)
         const { data: scansData, error: scansError } = await supabase.from('scans').select('label, score').eq('user_id', user.uid);
         if (scansError) throw scansError;
         if (scansData) setScans(scansData);
 
-        // Obtener tareas (de la agenda)
         const { data: tasksData, error: tasksError } = await supabase.from('tasks').select('*').eq('user_id', user.uid).order('created_at', { ascending: false });
         if (tasksError) throw tasksError;
         if (tasksData) setTasks(tasksData);
@@ -132,7 +130,7 @@ export default function AgendaScreen() {
         setRecommendations([{ id: 'rec_initial', text: 'Realiza algunos escaneos en la pestaña "Escanear" para empezar a recibir recomendaciones personalizadas.', type: 'info' }]);
     }
   }, [scans, isLoading]);
-  
+
   const toggleComplete = async (task: Task) => {
     try {
       const newCompletedStatus = !task.completed;
@@ -180,7 +178,8 @@ export default function AgendaScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    // --- CAMBIO 1: Se usa 'contentContainerStyle' en lugar de 'style' ---
+    <ScrollView contentContainerStyle={styles.scrollContainer}>
       <Stack.Screen options={{ title: 'Agenda y Recomendaciones' }} />
       <View style={styles.header}>
         <BrainCircuit size={32} color="#50c878" />
@@ -226,7 +225,7 @@ export default function AgendaScreen() {
         <View key={task.id} style={[styles.taskCard, task.completed && styles.completedCard]}>
           <View style={styles.taskContent}>
             <TouchableOpacity style={styles.taskTouchableArea} onPress={() => toggleComplete(task)}>
-                <CheckCircle size={28} color={task.completed ? '#50c878' : '#e0e0e0'} />
+                <CheckCircle size={28} color={task.completed ? '#50c878' : '#e0e0e0'} style={{marginRight: 15}}/>
                 <View style={styles.taskTextContainer}>
                     <Text style={[styles.taskTitle, task.completed && styles.completedText]}>{task.title}</Text>
                     {task.detail ? (
@@ -245,10 +244,14 @@ export default function AgendaScreen() {
 }
 
 const styles = StyleSheet.create({
+  // --- CAMBIO 2: Se crea 'scrollContainer' y se ajusta 'container' ---
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  scrollContainer: {
     padding: 20,
+    paddingBottom: 120, // <-- LA LÍNEA MÁGICA: Añade espacio extra al final
   },
   header: {
     alignItems: 'center',

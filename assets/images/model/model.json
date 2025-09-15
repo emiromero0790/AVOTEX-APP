@@ -1,0 +1,115 @@
+{
+  "format": "layers-model",
+  "generatedBy": "keras v2.11.0",
+  "convertedBy": "TensorFlow.js Converter v4.9.0",
+  "modelTopology": {
+    "keras_version": "2.11.0",
+    "backend": "tensorflow",
+    "model_config": {
+      "class_name": "Sequential",
+      "config": {
+        "name": "sequential",
+        "layers": [
+          {
+            "class_name": "InputLayer",
+            "config": {
+              "batch_input_shape": [null, 180, 180, 3],
+              "dtype": "float32",
+              "sparse": false,
+              "ragged": false,
+              "name": "input_1"
+            }
+          },
+          {
+            "class_name": "Conv2D",
+            "config": {
+              "name": "conv2d",
+              "trainable": true,
+              "filters": 16,
+              "kernel_size": [3, 3],
+              "strides": [1, 1],
+              "padding": "valid",
+              "activation": "relu",
+              "use_bias": true,
+              "kernel_initializer": {
+                "class_name": "GlorotUniform",
+                "config": { "seed": null }
+              },
+              "bias_initializer": {
+                "class_name": "Zeros",
+                "config": {}
+              }
+            }
+          },
+          {
+            "class_name": "Flatten",
+            "config": {
+              "name": "flatten",
+              "trainable": true
+            }
+          },
+          {
+            "class_name": "Dense",
+            "config": {
+              "name": "dense",
+              "trainable": true,
+              "units": 4,
+              "activation": "softmax",
+              "use_bias": true,
+              "kernel_initializer": {
+                "class_name": "GlorotUniform",
+                "config": { "seed": null }
+              },
+              "bias_initializer": {
+                "class_name": "Zeros",
+                "config": {}
+              }
+            }
+          }
+        ]
+      }
+    },
+    "training_config": {
+      "loss": "categorical_crossentropy",
+      "metrics": ["accuracy"],
+      "optimizer_config": {
+        "class_name": "Adam",
+        "config": {
+          "learning_rate": 0.001
+        }
+      }
+    }
+  },
+  "weightsManifest": [
+    {
+      "paths": [
+        "group1-shard1of4.bin",
+        "group1-shard2of4.bin",
+        "group1-shard3of4.bin",
+        "group1-shard4of4.bin"
+      ],
+      "weights": [
+        {
+          "name": "conv2d/kernel",
+          "shape": [3, 3, 3, 16],
+          "dtype": "float32"
+        },
+        {
+          "name": "conv2d/bias",
+          "shape": [16],
+          "dtype": "float32"
+        },
+        {
+          "name": "dense/kernel",
+          "shape": [?, 4],
+          "dtype": "float32"
+        },
+        {
+          "name": "dense/bias",
+          "shape": [4],
+          "dtype": "float32"
+        }
+      ]
+    }
+  ]
+}

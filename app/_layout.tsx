@@ -2,20 +2,21 @@ import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import Toast from 'react-native-toast-message';
 import { View, Text, Image, StyleSheet } from 'react-native';
 
-// --- NUEVO: Configuración del Toast personalizado ---
+// --- NUEVO: Importamos el proveedor de contexto que creamos ---
+import { AccessibilityProvider } from '../context/AccessibilityContext';
+
+// --- Configuración del Toast personalizado ---
 const toastConfig = {
   avotexError: ({ props }: any) => (
-    // Cambiamos el View por LinearGradient
     <LinearGradient
-      colors={['#2CE85E', '#51E078']} // Un degradado de un verde medio a uno más oscuro
+      colors={['#2CE85E', '#51E078']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={styles.toastContainer} // Le aplicamos los mismos estilos del contenedor
+      style={styles.toastContainer}
     >
       <Image source={props.icon} style={styles.toastImage} />
       <Text style={styles.toastText}>{props.message}</Text>
@@ -24,7 +25,7 @@ const toastConfig = {
 };
 
 export default function RootLayout() {
-  useFrameworkReady();
+  // useFrameworkReady(); // Si no tienes este hook, puedes comentar o eliminar esta línea
 
   const [fontsLoaded] = useFonts({
     'Poppins-Regular': Poppins_400Regular,
@@ -37,30 +38,31 @@ export default function RootLayout() {
   }
 
   return (
-    <>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(app)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" options={{ presentation: 'modal' }} />
-      </Stack>
-      <StatusBar style="light" />
+    // --- CAMBIO CLAVE: Envolvemos toda la aplicación con el AccessibilityProvider ---
+    <AccessibilityProvider>
+      <>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="(app)" options={{ headerShown: false }} />
+          <Stack.Screen name="+not-found" options={{ presentation: 'modal' }} />
+        </Stack>
+        <StatusBar style="dark" />
 
-      {/* --- NUEVO: Componente Toast añadido al final --- */}
-      <Toast config={toastConfig} />
-    </>
+        <Toast config={toastConfig} />
+      </>
+    </AccessibilityProvider>
   );
 }
 
-// --- NUEVO: Estilos para el Toast ---
 const styles = StyleSheet.create({
   toastContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20, // Aumentado para más espacio interior
-    borderRadius: 20, // Ligeramente más redondeado para la nueva escala
+    padding: 20,
+    borderRadius: 20,
     marginTop: 50, 
-    marginHorizontal: 15, // Reducido para que el modal sea más ancho
+    marginHorizontal: 15,
     shadowColor: '#000',
     shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 3 },
@@ -69,14 +71,14 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   toastImage: {
-    width: 40, // Icono más grande
-    height: 40, // Icono más grande
-    marginRight: 16, // Más separación para el nuevo tamaño
+    width: 40,
+    height: 40,
+    marginRight: 16,
   },
   toastText: {
     color: '#fff',
     fontWeight: '600',
-    fontSize: 16, // Tamaño de fuente explícitamente más grande
+    fontSize: 16,
     flexShrink: 1,
     fontFamily: 'Poppins-SemiBold',
   },

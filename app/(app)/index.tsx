@@ -1,19 +1,63 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Platform, ActivityIndicator } from 'react-native';
-import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Calendar, AlertTriangle } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Switch } from 'react-native';
+import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, AlertTriangle } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing, interpolate, FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import * as Location from 'expo-location';
 import MapViewComponent from '../../components/MapViewComponent';
-import { auth } from '../../firebaseConfig'; 
+import { auth } from '../../firebaseConfig';
 import Avatar from '../../components/Avatar';
-import { onAuthStateChanged, User } from 'firebase/auth'; 
-//import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import axios from 'axios';
+import { useAccessibility } from '../../context/AccessibilityContext';
 
 const { width, height } = Dimensions.get('window');
+
+// --- Componente dedicado para cada hoja animada ---
+const AnimatedLeaf = () => {
+  const initialX = useSharedValue(Math.random() * width);
+  const initialY = useSharedValue(Math.random() * height * 1.2 - height * 0.1);
+  const rotate = useSharedValue(`${Math.random() * 360}deg`);
+  const size = useSharedValue(20 + Math.random() * 15);
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = withRepeat(
+      withTiming(1, { 
+        duration: 3000 + Math.random() * 2000,
+        easing: Easing.inOut(Easing.ease),
+      }),
+      -1,
+      true
+    );
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    const translateX = interpolate(progress.value, [0, 1], [0, 15 - Math.random() * 30]);
+    const translateY = interpolate(progress.value, [0, 1], [0, 15 - Math.random() * 30]);
+
+    return {
+      position: 'absolute',
+      left: initialX.value,
+      top: initialY.value,
+      fontSize: size.value,
+      opacity: 1, 
+      transform: [
+        { translateX },
+        { translateY },
+        { rotate: rotate.value },
+      ],
+    };
+  });
+
+  return (
+    <Animated.Text style={animatedStyle}>
+      🍃
+    </Animated.Text>
+  );
+};
 
 const getWeatherEmoji = (temp: number) => {
   if (temp < 5) return '🌨️';
@@ -45,14 +89,15 @@ export default function Home() {
     Poppins_700Bold
   });
 
+  const { isColorblindMode, toggleColorblindMode } = useAccessibility();
+
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [temperature, setTemperature] = useState<number | null>(null);
   const [humidity, setHumidity] = useState<number | null>(null);
-  const [weatherDescription, setWeatherDescription] = useState<string | null>(null);
   const [dateTime, setDateTime] = useState<{ date: string; time: string }>({ date: '', time: '' });
   const [municipioEstado, setMunicipioEstado] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null); 
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -61,16 +106,10 @@ export default function Home() {
         setErrorMsg('El permiso para acceder a la ubicación fue denegado');
         return;
       }
-
       try {
         const loc = await Location.getCurrentPositionAsync({});
         setLocation(loc);
-
-        const places = await Location.reverseGeocodeAsync({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        });
-
+        const places = await Location.reverseGeocodeAsync({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
         if (places.length > 0) {
           const place = places[0];
           const municipio = place.city || place.subregion || '';
@@ -78,8 +117,8 @@ export default function Home() {
           setMunicipioEstado(`${municipio}, ${estado}`);
         }
       } catch (error) {
-          setErrorMsg('No se pudo obtener la ubicación actual');
-          console.error(error);
+        setErrorMsg('No se pudo obtener la ubicación actual');
+        console.error(error);
       }
     })();
   }, []);
@@ -89,14 +128,10 @@ export default function Home() {
       const fetchWeather = async () => {
         try {
           const { latitude, longitude } = location.coords;
-          const API_KEY = '02a20e008e6564743d58753851aea172'; // Considera mover esto a una variable de entorno
-          const response = await axios.get(
-            `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=metric&lang=es&appid=${API_KEY}`
-          );
-
+          const API_KEY = '02a20e008e6564743d58753851aea172';
+          const response = await axios.get( `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=metric&lang=es&appid=${API_KEY}` );
           setTemperature(response.data.main.temp);
           setHumidity(response.data.main.humidity);
-          setWeatherDescription(response.data.weather[0].description);
         } catch (error) {
           console.error('Error al obtener clima:', error);
         }
@@ -108,148 +143,141 @@ export default function Home() {
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
-      setDateTime({
-        date: formatDate(now),
-        time: formatTime12h(now),
-      });
+      setDateTime({ date: formatDate(now), time: formatTime12h(now) });
     }, 1000);
     return () => clearInterval(interval);
   }, []);
 
-    useEffect(() => {
-
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-      } else {
-        setUser(null);
-      }
+      setUser(currentUser);
     });
-
     return () => unsubscribe();
-  }, []); 
+  }, []);
 
   const navigateTo = (route: string) => router.push(route);
 
   if (!fontsLoaded) {
     return (
-        <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-            <ActivityIndicator size="large" />
-        </View>
+      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+        <ActivityIndicator size="large" />
+      </View>
     );
   }
 
+  const colors = {
+    primary: isColorblindMode ? '#0D47A1' : '#50c878',
+    primaryDark: isColorblindMode ? '#0D47A1' : '#2e8b57',
+    secondary: isColorblindMode ? '#FFC107' : '#ffaa4f',
+    secondaryDark: isColorblindMode ? '#F57F17' : '#ff8c00',
+    accent: isColorblindMode ? '#42A5F5' : '#4fbcff',
+    accentDark: isColorblindMode ? '#1976D2' : '#2e8bc0',
+    danger: isColorblindMode ? '#0D47A1' : '#F54927',
+    dangerDark: isColorblindMode ? '#0D47A1' : '#E04324',
+    background: isColorblindMode ? ['#E3F2FD', '#ffffff'] : ['#e0f7ec', '#ffffff'],
+    welcomeBorder: isColorblindMode ? '#FFC107' : '#30E636',
+    textPrimary: isColorblindMode ? '#0D47A1' : '#2a2a2a',
+    textSecondary: '#666',
+    white: '#ffffff'
+  };
+
   return (
-    <LinearGradient colors={['#e0f7ec', '#ffffff']} style={styles.gradientBackground}>
-      {/* Hojas decorativas */}
-      <View style={styles.decoration}>
-        {Array.from({ length: 15 }).map((_, i) => (
-          <Animated.Text
-            key={i}
-            entering={FadeInDown.delay(i * 100).duration(1500)}
-            style={[
-              styles.leaf,
-              {
-                left: Math.random() * width,
-                top: Math.random() * height,
-                transform: [{ rotate: `${Math.random() * 360}deg` }],
-                opacity: 0.05 + Math.random() * 0.1,
-              },
-            ]}
-          >
-            🍃
-          </Animated.Text>
+    <LinearGradient colors={colors.background} style={styles.gradientBackground}>
+      <View style={styles.decoration} pointerEvents="none">
+        {Array.from({ length: 40 }).map((_, i) => (
+          <AnimatedLeaf key={i} />
         ))}
       </View>
-      <ScrollView 
-      style={styles.scrollView}
-      contentContainerStyle={styles.scrollContent} 
-      showsVerticalScrollIndicator={false}>
+      
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-
-                    {user && (
-                        <Animated.View entering={FadeInDown.delay(200).duration(1000)}>
-                            <TouchableOpacity style={styles.welcomeContainer} activeOpacity={0.8}>
-                                <View style={styles.welcomeTextBox}>
-                                    <Text style={styles.greetingText}>HOLA DE NUEVO,</Text>
-                                    <Text style={styles.userNameText} numberOfLines={1}>
-                                        {user.displayName || user.email}
-                                    </Text>
-                                </View>
-                                <Avatar user={user} />
-                            </TouchableOpacity>
-                        </Animated.View>
-                    )}
+          {user && (
+            <Animated.View entering={FadeInDown.delay(200).duration(1000)}>
+              <TouchableOpacity style={[styles.welcomeContainer, { borderColor: colors.welcomeBorder }]} activeOpacity={0.8}>
+                <View style={styles.welcomeTextBox}>
+                  <Text style={styles.greetingText}>HOLA DE NUEVO,</Text>
+                  <Text style={[styles.userNameText, {color: colors.textPrimary}]}>{user.displayName || user.email}</Text>
+                   <Text style={styles.toggleLabel}>Modo Daltonismo                   <Switch
+                trackColor={{ false: "#d3d3d3", true: "#81b0ff" }}
+                thumbColor={isColorblindMode ? colors.accent : "#f4f3f4"}
+                ios_backgroundColor="#3e3e3e"
+                onValueChange={toggleColorblindMode}
+                value={isColorblindMode}
+              /></Text>
+  
+                </View>
+                <Avatar user={user} />
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+{/* 
+          <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Modo Daltonismo</Text>
+              <Switch
+                trackColor={{ false: "#d3d3d3", true: "#81b0ff" }}
+                thumbColor={isColorblindMode ? colors.accent : "#f4f3f4"}
+                ios_backgroundColor="#3e3e3e"
+                onValueChange={toggleColorblindMode}
+                value={isColorblindMode}
+              />
+          </View> */}
 
           {municipioEstado.length > 0 && (
-            <Text style={styles.municipioEstado}>📍{municipioEstado} {dateTime.time} {dateTime.date}</Text>
+            <Text style={[styles.municipioEstado, { color: colors.textPrimary }]}>📍{municipioEstado} {dateTime.time} {dateTime.date}</Text>
           )}
 
           <Animated.View entering={FadeInDown.delay(400).duration(1000)} style={styles.statsContainer}>
             <View style={styles.statCard}>
-              <Sun color="#50c878" size={24} />
-              <Text style={styles.statValue}>
-                {temperature !== null ? `${getWeatherEmoji(temperature)} ${temperature.toFixed(1)}°C` : '...'}
-              </Text>
+              <Sun color={colors.primary} size={24} />
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{temperature !== null ? `${getWeatherEmoji(temperature)} ${temperature.toFixed(1)}°C` : '...'}</Text>
               <Text style={styles.statLabel}>Temperatura</Text>
             </View>
             <View style={styles.statCard}>
-              <Droplets color="#4fbcff" size={24} />
-              <Text style={styles.statValue}>
-                {humidity !== null ? `${humidity}%` : '...'}
-              </Text>
+              <Droplets color={colors.accent} size={24} />
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{humidity !== null ? `${humidity}%` : '...'}</Text>
               <Text style={styles.statLabel}>Humedad</Text>
             </View>
             <View style={styles.statCard}>
-              <Leaf color="#50c878" size={24} />
-              <Text style={{ fontSize: 11, fontFamily: 'Poppins_600SemiBold' }}>
-                Huerta sin escanear
-              </Text>
+              <Leaf color={colors.primary} size={24} />
+              <Text style={{ fontSize: 11, fontFamily: 'Poppins_600SemiBold', color: colors.textPrimary }}>Huerta sin escanear</Text>
               <Text style={styles.statLabel}>Salud</Text>
             </View>
           </Animated.View>
         </View>
         
-        {/* --- MAPA --- */}
-        <Animated.View entering={FadeInUp.delay(500).duration(1000)}>
+          <Animated.View 
+            entering={FadeInUp.delay(500).duration(1000)} 
+            style={{ marginTop: -30 }}
+          >
           <MapViewComponent location={location} errorMsg={errorMsg} />
         </Animated.View>
-        {/* --- FIN DEL MAPA --- */}
 
         <Animated.View entering={FadeInUp.delay(600).duration(1000)} style={styles.grid}>
           <TouchableOpacity style={styles.mainCard} onPress={() => navigateTo('/scan')}>
-            <LinearGradient colors={['#4fbcff', '#2e8bc0']} style={styles.cardGradient}>
-              <View style={styles.cardIconContainer}>
-                <Camera color="#ffffff" size={25} />
-              </View>
+            <LinearGradient colors={[colors.accent, colors.accentDark]} style={styles.cardGradient}>
+              <View style={styles.cardIconContainer}><Camera color={colors.white} size={25} /></View>
               <Text style={styles.cardTitle}>Escanear</Text>
             </LinearGradient>
           </TouchableOpacity>
 
           <View style={styles.secondaryCardsContainer}>
             <TouchableOpacity style={[styles.secondaryCard, { marginBottom: 16 }]} onPress={() => navigateTo('/mapping')}>
-              <LinearGradient colors={['#50c878', '#2e8b57']} style={styles.cardGradient}>
-                <View style={styles.cardIconContainer}>
-                  <Map color="#ffffff" size={25} />
-                </View>
+              <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.cardGradient}>
+                <View style={styles.cardIconContainer}><Map color={colors.white} size={25} /></View>
                 <Text style={styles.secondaryCardTitle}>Mapeo</Text>
               </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity style={[styles.secondaryCard, { marginBottom: 16 }]} onPress={() => navigateTo('/results')}>
-              <LinearGradient colors={['#ffaa4f', '#ff8c00']} style={styles.cardGradient}>
-                <View style={styles.cardIconContainer}>
-                  <LineChart color="#ffffff" size={25} />
-                </View>
+              <LinearGradient colors={[colors.secondary, colors.secondaryDark]} style={styles.cardGradient}>
+                <View style={styles.cardIconContainer}><LineChart color={colors.white} size={25} /></View>
                 <Text style={styles.secondaryCardTitle}>Resultados</Text>
               </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.secondaryCard} onPress={() => navigateTo('/agenda')}>
-              <LinearGradient colors={['#F54927', '#E04324']} style={styles.cardGradient}>
-                <View style={styles.cardIconContainer}>
-                  <AlertTriangle color="#ffffff" size={25} />
-                </View>
+              <LinearGradient colors={[colors.danger, colors.dangerDark]} style={styles.cardGradient}>
+                <View style={styles.cardIconContainer}><AlertTriangle color={colors.white} size={25} /></View>
                 <Text style={styles.secondaryCardTitle}>Medidas</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -261,152 +289,72 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
+  gradientBackground: { flex: 1 },
+  decoration: { position: 'absolute', width: '100%', height: '100%', overflow: 'hidden', zIndex: -1 },
+  scrollContent: { paddingBottom: 120 },
+  header: { paddingTop: 60, paddingHorizontal: 24, marginBottom: 24 },
   welcomeContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-        paddingVertical: 10,
-        paddingLeft: 24,
-        paddingRight: 10,
-        borderWidth: 2,
-        borderColor: '#30E636', // El verde vibrante que te gustó
-        borderTopLeftRadius: 30,
-        borderBottomLeftRadius: 30,
-        borderTopRightRadius: 60,
-        borderBottomRightRadius: 60,
-        elevation: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-        marginBottom: 16,
-    },
-    welcomeTextBox: {
-        flex: 1, 
-        marginRight: 12,
-    },
-    greetingText: {
-        fontFamily: 'Poppins_400Regular',
-        fontSize: 14,
-        color: '#666',
-        opacity: 0.8,
-    },
-    userNameText: {
-        fontFamily: 'Poppins_600SemiBold',
-        fontSize: 16,
-        color: '#2a2a2a',
-    },
-  gradientBackground: {
-    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingVertical: 10,
+    paddingLeft: 24,
+    paddingRight: 10,
+    borderWidth: 2,
+    borderTopLeftRadius: 30,
+    borderBottomLeftRadius: 30,
+    borderTopRightRadius: 60,
+    borderBottomRightRadius: 60,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
   },
-  scrollContent: {
-    paddingBottom: 40,
-  },
- decoration: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  scrollView: {
-    ...StyleSheet.absoluteFillObject, 
-  },
-  leaf: {
-    position: 'absolute',
-    fontSize: 26 + Math.random() * 12,
-  },
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 24,
-    marginBottom: 0,
-  },
-  welcomeText: {
-    fontSize: 16,
-    color: '#666',
-    fontFamily: 'Poppins_400Regular',
-  },
-  title: {
-    fontSize: 32,
-    fontFamily: 'Poppins_700Bold',
-    color: '#2a2a2a',
-    marginTop: -5,
-  },
+  welcomeTextBox: { flex: 1, marginRight: 12 },
+  greetingText: { fontFamily: 'Poppins_400Regular', fontSize: 14, color: '#666', opacity: 0.8 },
+  userNameText: { fontFamily: 'Poppins_600SemiBold', fontSize: 16 },
+toggleRow: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginTop: 10,        // antes 10
+  marginBottom: 4,     // antes 8
+  backgroundColor: 'rgba(255, 255, 255, 0.7)',
+  borderRadius: 10,    // un poco menor
+  paddingVertical: 4,  // antes 8
+  paddingHorizontal: 10, // antes 16
+},
+toggleLabel: {
+  fontFamily: 'Poppins_600SemiBold',
+  fontSize: 13,   // antes 15
+  color: '#333'
+},
   municipioEstado: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Poppins_600SemiBold',
-    color: '#2a2a2a',
-    marginTop: 0,
+    marginTop: 8,
     textAlign: 'center',
+    marginBottom: 16,
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderRadius: 20,
     padding: 16,
     elevation: 5,
   },
-  statCard: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statValue: {
-    fontSize: 16,
-    fontFamily: 'Poppins_600SemiBold',
-    color: '#2a2a2a',
-    marginTop: 2,
-  },
-  statLabel: {
-    fontSize: 11,
-    fontFamily: 'Poppins_400Regular',
-    color: '#666',
-  },
-  grid: {
-    flexDirection: 'row',
-    paddingHorizontal: 24,
-    gap: 16,
-  },
-  mainCard: {
-    flex: 1,
-    height: 270,
-    borderRadius: 24,
-    overflow: 'hidden',
-    elevation: 8,
-  },
-  secondaryCardsContainer: {
-    flex: 1,
-  },
-  secondaryCard: {
-    flex: 1,
-    height: 130,
-    borderRadius: 24,
-    overflow: 'hidden',
-    elevation: 8,
-  },
-  cardGradient: {
-    flex: 1,
-    padding: 24,
-  },
-  cardIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontFamily: 'Poppins_600SemiBold',
-    color: '#ffffff',
-    marginTop: 8,
-  },
-  secondaryCardTitle: {
-    fontSize: 16,
-    fontFamily: 'Poppins_600SemiBold',
-    color: '#ffffff',
-    marginTop: 4,
-  },
+  statCard: { alignItems: 'center', flex: 1 },
+  statValue: { fontSize: 16, fontFamily: 'Poppins_600SemiBold', marginTop: 2 },
+  statLabel: { fontSize: 11, fontFamily: 'Poppins_400Regular', color: '#666' },
+  grid: { flexDirection: 'row', paddingHorizontal: 24, gap: 16, marginTop: 0 },
+  mainCard: { flex: 1, height: 270, borderRadius: 24, overflow: 'hidden', elevation: 8 },
+  secondaryCardsContainer: { flex: 1 },
+  secondaryCard: { flex: 1, height: 130, borderRadius: 24, overflow: 'hidden', elevation: 8 },
+  cardGradient: { flex: 1, padding: 24 },
+  cardIconContainer: { width: 50, height: 50, borderRadius: 30, backgroundColor: 'rgba(255, 255, 255, 0.2)', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  cardTitle: { fontSize: 20, fontFamily: 'Poppins_600SemiBold', color: '#ffffff', marginTop: 8 },
+  secondaryCardTitle: { fontSize: 16, fontFamily: 'Poppins_600SemiBold', color: '#ffffff', marginTop: 4 },
 });

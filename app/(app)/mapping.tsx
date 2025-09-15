@@ -1,6 +1,4 @@
-// archivo: (app)/mapping.tsx
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ScrollView, View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -11,10 +9,11 @@ import Animated, {
 import PolygonSlider from '../../components/PolygonSlider';
 import PolygonMap from '../../components/PolygonMap';
 import * as Location from 'expo-location';
+import { useAccessibility } from '../../context/AccessibilityContext'; // <-- 1. IMPORTAMOS EL CONTEXTO
 
-
+// El componente AnimatedCell no necesita cambios, solo recibe el color
 const AnimatedCell = ({ color }) => {
-  const isWarning = color === '#F44336';
+  const isWarning = color === '#F44336' || color === '#0D47A1'; // <-- Se ajusta para el color de alerta en ambos modos
   const isReady = color === '#FFC107';
   const opacity = useSharedValue(1);
 
@@ -22,13 +21,11 @@ const AnimatedCell = ({ color }) => {
     if (isWarning) {
       opacity.value = withRepeat(withTiming(0.3, { duration: 500 }), -1, true);
     }
-  }, [isWarning]);
+  }, [isWarning, color]);
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: isWarning ? opacity.value : 1,
-    };
-  });
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: isWarning ? opacity.value : 1,
+  }));
 
   return (
     <View style={{ position: 'relative' }}>
@@ -38,19 +35,33 @@ const AnimatedCell = ({ color }) => {
   );
 };
 
-// --- Datos para el Mapa de Calor (Grid) ---
-const sampleHealthMap = [
-  '#4CAF50', '#4CAF50', '#FFC107', '#4CAF50',
-  '#FFC107', '#4CAF50', '#F44336', '#4CAF50',
-  '#4CAF50', '#4CAF50', '#FFC107', '#4CAF50',
-  '#4CAF50', '#F44336', '#4CAF50', '#4CAF50',
-];
 
 export default function Mapping() {
+  // --- 2. USAMOS EL CONTEXTO PARA SABER EL MODO ACTUAL ---
+  const { isColorblindMode } = useAccessibility();
+
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [polygonOffset, setPolygonOffset] = useState(0.001);
+
+  // --- 3. CREAMOS LA PALETA DE COLORES Y DATOS DINÁMICOS ---
+  const colors = useMemo(() => ({
+    title: isColorblindMode ? '#0D47A1' : '#66bb6a', // Azul oscuro vs Verde
+    subtitle: '#666',
+    legendTitle: isColorblindMode ? '#0D47A1' : '#3b1260', // Azul oscuro vs Morado
+    legendText: '#000000',
+    healthy: isColorblindMode ? '#42A5F5' : '#4CAF50',   // Azul claro vs Verde
+    ready: '#FFC107',                                    // Amarillo (se mantiene)
+    alert: isColorblindMode ? '#0D47A1' : '#F44336',     // Azul oscuro vs Rojo
+  }), [isColorblindMode]);
+  
+  const healthMapData = useMemo(() => ([
+    colors.healthy, colors.healthy, colors.ready, colors.healthy,
+    colors.ready, colors.healthy, colors.alert, colors.healthy,
+    colors.healthy, colors.healthy, colors.ready, colors.healthy,
+    colors.healthy, colors.alert, colors.healthy, colors.healthy,
+  ]), [colors]);
 
   useEffect(() => {
     (async () => {
@@ -75,14 +86,14 @@ export default function Mapping() {
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={true}>
       <View style={styles.container}>
-        <Text style={styles.title}>Mapeo de Cultivo</Text>
+        <Text style={[styles.title, { color: colors.title }]}>Mapeo de Cultivo</Text>
 
         <View style={styles.subTitleContainer}>
           <Image 
             source={require('../../assets/images/avotexMapa.png')} 
             style={styles.subTitleIcon}
           />
-          <Text style={styles.subTitle}>Ubicación Geográfica</Text>
+          <Text style={[styles.subTitle, { color: colors.subtitle }]}>Ubicación Geográfica</Text>
         </View>
 
         <PolygonSlider 
@@ -92,7 +103,7 @@ export default function Mapping() {
 
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#4CAF50" />
+            <ActivityIndicator size="large" color={colors.healthy} />
             <Text style={styles.loadingText}>Obteniendo tu ubicación...</Text>
           </View>
         ) : (
@@ -103,28 +114,29 @@ export default function Mapping() {
           />
         )}
 
-        <Text style={[styles.subTitle, { marginTop: 30 }]}>Estado de la Huerta por Zonas</Text>
+        <Text style={[styles.subTitle, { marginTop: 30, color: colors.subtitle }]}>Estado de la Huerta por Zonas</Text>
         <View style={styles.dataGridContainer}>
           <View style={styles.grid}>
-            {sampleHealthMap.map((color, index) => (
+            {/* --- 4. USAMOS LOS DATOS DE COLOR DINÁMICOS --- */}
+            {healthMapData.map((color, index) => (
               <AnimatedCell key={index} color={color} />
             ))}
           </View>
         </View>
 
         <View style={styles.legend}>
-          <Text style={styles.legendTitle}>Leyenda</Text>
+          <Text style={[styles.legendTitle, { color: colors.legendTitle }]}>Leyenda</Text>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#4CAF50' }]} />
-            <Text style={styles.legendText}>Saludable</Text>
+            <View style={[styles.legendDot, { backgroundColor: colors.healthy }]} />
+            <Text style={[styles.legendText, { color: colors.legendText }]}>Saludable</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#FFC107' }]} />
-            <Text style={styles.legendText}>Listo para cosecha</Text>
+            <View style={[styles.legendDot, { backgroundColor: colors.ready }]} />
+            <Text style={[styles.legendText, { color: colors.legendText }]}>Listo para cosecha</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#F44336' }]} />
-            <Text style={styles.legendText}>Alerta</Text>
+            <View style={[styles.legendDot, { backgroundColor: colors.alert }]} />
+            <Text style={[styles.legendText, { color: colors.legendText }]}>Alerta</Text>
           </View>
         </View>
       </View>
@@ -134,7 +146,7 @@ export default function Mapping() {
 
 const styles = StyleSheet.create({
   scrollContainer: {
-    paddingBottom: 40,
+    paddingBottom: 120, // Espacio extra para la barra de navegación
   },
   container: {
     flex: 1,
@@ -144,8 +156,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#66bb6a',
-    marginTop: 10,
+    marginTop: 18,
     textShadowColor: 'rgba(0, 0, 0, 0.1)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 3,
@@ -163,7 +174,6 @@ const styles = StyleSheet.create({
   },
   subTitle: {
     fontSize: 20,
-    color: '#666',
   },
   loadingContainer: {
     height: 300,
@@ -210,7 +220,6 @@ const styles = StyleSheet.create({
   legendTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#3b1260',
     marginBottom: 16,
   },
   legendItem: {
@@ -226,6 +235,5 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 16,
-    color: '#000000',
   },
 });

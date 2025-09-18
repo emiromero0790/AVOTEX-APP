@@ -80,7 +80,6 @@ export default function Scan() {
       
       if (pred?.label && pred.score != null) {
         setPrediction(`${pred.label}: ${(pred.score * 100).toFixed(1)}%`);
-        // --- MODIFICADO: La llamada ya no envía la foto, solo la predicción ---
         await saveScanResult(pred);
       } else {
         setPrediction("Respuesta inválida");

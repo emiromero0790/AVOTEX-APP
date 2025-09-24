@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Switch } from 'react-native';
-import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, AlertTriangle } from 'lucide-react-native';
+import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, AlertTriangle, LogOut } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing, interpolate, FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -12,40 +12,37 @@ import Avatar from '../../components/Avatar';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import axios from 'axios';
 import { useAccessibility } from '../../context/AccessibilityContext';
+import { signOut } from 'firebase/auth';
 
 const { width, height } = Dimensions.get('window');
 
-// --- COMPONENTE DE HOJA ANIMADA (VERSIÓN CORREGIDA Y MEJORADA) ---
 const AnimatedLeaf = () => {
   const initialX = useSharedValue(Math.random() * width);
   const initialY = useSharedValue(Math.random() * height);
   const size = useSharedValue(20 + Math.random() * 20);
-  const progress = useSharedValue(Math.random()); // Inicia en un punto aleatorio de la animación
+  const progress = useSharedValue(Math.random()); 
 
-  // --- CORRECCIÓN: Calculamos los valores aleatorios UNA SOLA VEZ aquí ---
-  // Estos valores definen a dónde se moverá la hoja y cuánto rotará.
-  const xEnd = Math.random() * 40 - 20; // Movimiento horizontal entre -20 y +20
-  const yEnd = Math.random() * 40 - 20; // Movimiento vertical entre -20 y +20
+ 
+  const xEnd = Math.random() * 40 - 20; 
+  const yEnd = Math.random() * 40 - 20;
   const rotationEnd = Math.random() * 360;
 
   useEffect(() => {
     progress.value = withRepeat(
       withTiming(1, { 
-        duration: 4000 + Math.random() * 3000, // Duración más lenta y aleatoria
+        duration: 4000 + Math.random() * 3000,
         easing: Easing.inOut(Easing.ease),
       }),
-      -1, // Repetir infinitamente
-      true // Animación de ida y vuelta (yoyo)
+      -1, 
+      true 
     );
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => {
-    // Usamos los valores fijos para un movimiento suave y predecible
     const translateX = interpolate(progress.value, [0, 1], [0, xEnd]);
     const translateY = interpolate(progress.value, [0, 1], [0, yEnd]);
     const rotate = interpolate(progress.value, [0, 1], [0, rotationEnd]);
-    
-    // --- MEJORA: Añadimos una animación de opacidad para un efecto más suave ---
+  
     const opacity = interpolate(progress.value, [0, 0.5, 1], [0.5, 1, 0.5]);
 
     return {
@@ -105,6 +102,7 @@ export default function Home() {
   const [municipioEstado, setMunicipioEstado] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [loadingUser, setLoadingUser] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -156,11 +154,39 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+  const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    if (currentUser) {
+      console.log('Usuario logueado:', currentUser.email);
       setUser(currentUser);
+    } else {
+      console.log('No hay usuario logueado.');
+      setUser(null);
+    }
+    setLoadingUser(false);
+  });
+
+  return () => unsubscribe();
+}, []);
+
+
+  const handleLogout = () => {
+    signOut(auth).then(() => {
+      router.push('/+not-found'); 
+    }).catch((error) => {
+      console.error("Error al cerrar sesión: ", error);
     });
-    return () => unsubscribe();
-  }, []);
+  };
+
+  if (!fontsLoaded || loadingUser) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#e0f7ec' }}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+        <Text style={{ marginTop: 16, fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#2a2a2a' }}>
+          Cargando sesión… 🥑
+        </Text>
+      </View>
+    );
+  }
 
   const navigateTo = (route: string) => router.push(route);
 
@@ -190,6 +216,11 @@ export default function Home() {
 
   return (
     <LinearGradient colors={colors.background} style={styles.gradientBackground}>
+  <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+    <LogOut color="#D32F2F" size={15} />
+    <Text style={styles.logoutText}>Cerrar sesión</Text>
+  </TouchableOpacity>
+
       <View style={styles.decoration} pointerEvents="none">
         {Array.from({ length: 40 }).map((_, i) => (
           <AnimatedLeaf key={i} />
@@ -251,13 +282,22 @@ export default function Home() {
             </View>
           </Animated.View>
         </View>
-        
-          <Animated.View 
-            entering={FadeInUp.delay(500).duration(1000)} 
-            style={{ marginTop: -30 }}
-          >
-          <MapViewComponent location={location} errorMsg={errorMsg} />
+
+
+        <Animated.View 
+          entering={FadeInUp.delay(500).duration(1000)} 
+          style={{ marginTop: -30 }}
+        >
+          {(!location || !location.coords) ? (
+            <View style={{ height: 200, justifyContent: 'center', alignItems: 'center' }}>
+              <Text>Ubicación no disponible</Text>
+            </View>
+          ) : (
+            <MapViewComponent location={location} errorMsg={errorMsg} />
+          )}
         </Animated.View>
+
+
 
         <Animated.View entering={FadeInUp.delay(600).duration(1000)} style={styles.grid}>
           <TouchableOpacity style={styles.mainCard} onPress={() => navigateTo('/scan')}>
@@ -296,6 +336,23 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
+   logoutButton: {
+    position: 'absolute',
+    top: 15,
+    right: 20,
+    zIndex: 10,
+    padding: 8,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: 'rgba(255, 255, 255, 0.7)', 
+    borderRadius: 20, 
+  },
+  logoutText: {
+    color: '#D32F2F',
+    fontSize: 13,
+    fontFamily: 'Poppins_600SemiBold',
+    marginLeft: 5,
+  },
    decoration: {
     position: 'absolute',
     width: '100%',
@@ -339,16 +396,16 @@ toggleRow: {
   flexDirection: 'row',
   justifyContent: 'space-between',
   alignItems: 'center',
-  marginTop: 10,        // antes 10
-  marginBottom: 4,     // antes 8
+  marginTop: 10,       
+  marginBottom: 4,    
   backgroundColor: 'rgba(255, 255, 255, 0.7)',
-  borderRadius: 10,    // un poco menor
-  paddingVertical: 4,  // antes 8
-  paddingHorizontal: 10, // antes 16
+  borderRadius: 10,   
+  paddingVertical: 4,  
+  paddingHorizontal: 10, 
 },
 toggleLabel: {
   fontFamily: 'Poppins_600SemiBold',
-  fontSize: 13,   // antes 15
+  fontSize: 13,   
   color: '#333'
 },
   municipioEstado: {
@@ -365,7 +422,9 @@ toggleLabel: {
     borderRadius: 20,
     padding: 16,
     elevation: 5,
+    marginTop: 10,
   },
+  
   statCard: { alignItems: 'center', flex: 1 },
   statValue: { fontSize: 16, fontFamily: 'Poppins_600SemiBold', marginTop: 2 },
   statLabel: { fontSize: 11, fontFamily: 'Poppins_400Regular', color: '#666' },

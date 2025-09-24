@@ -3,11 +3,30 @@ import { View, StyleSheet, Platform, ActivityIndicator, Text } from 'react-nativ
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 
 export default function MapViewComponent({ location, errorMsg }) {
-  if (!location) {
+  // Si no hay ubicación todavía
+  if (!location || !location.coords) {
     return (
       <View style={styles.mapContainer}>
         <ActivityIndicator size="large" color="#4CAF50"/>
-        <Text style={styles.mapLoadingText}>{errorMsg ? errorMsg : 'Obteniendo ubicación...'}</Text>
+        <Text style={styles.mapLoadingText}>
+          {errorMsg ? errorMsg : 'Obteniendo ubicación...'}
+        </Text>
+      </View>
+    );
+  }
+
+  const { latitude, longitude } = location.coords ?? {};
+
+  const isValidCoords =
+    typeof latitude === 'number' &&
+    !isNaN(latitude) &&
+    typeof longitude === 'number' &&
+    !isNaN(longitude);
+
+  if (!isValidCoords) {
+    return (
+      <View style={styles.mapContainer}>
+        <Text style={styles.mapLoadingText}>Ubicación no disponible</Text>
       </View>
     );
   }
@@ -18,8 +37,8 @@ export default function MapViewComponent({ location, errorMsg }) {
         provider={Platform.OS === 'android' ? PROVIDER_DEFAULT : null}
         style={styles.map}
         initialRegion={{
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
+          latitude,
+          longitude,
           latitudeDelta: 0.02,
           longitudeDelta: 0.02,
         }}
@@ -27,7 +46,10 @@ export default function MapViewComponent({ location, errorMsg }) {
         scrollEnabled={false}
         zoomEnabled={false}
       >
-        <Marker coordinate={location.coords} title="Tu Ubicación" />
+        {/* Renderizamos Marker solo si coords son válidas */}
+        {isValidCoords && (
+          <Marker coordinate={{ latitude, longitude }} title="Tu Ubicación" />
+        )}
       </MapView>
     </View>
   );
@@ -50,7 +72,7 @@ const styles = StyleSheet.create({
   },
   mapLoadingText: {
     marginTop: 10,
-    fontFamily: 'Poppins_400Regular', 
+    fontFamily: 'Poppins_400Regular',
     color: '#666',
   },
 });

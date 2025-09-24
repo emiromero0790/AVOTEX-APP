@@ -286,7 +286,7 @@ export default function Home() {
 
         <Animated.View 
           entering={FadeInUp.delay(500).duration(1000)} 
-          style={{ marginTop: -30 }}
+          style={{ marginTop: -5, marginBottom: 10 }}
         >
           {(!location || !location.coords) ? (
             <View style={{ height: 200, justifyContent: 'center', alignItems: 'center' }}>
@@ -424,7 +424,7 @@ toggleLabel: {
     elevation: 5,
     marginTop: 10,
   },
-  
+
   statCard: { alignItems: 'center', flex: 1 },
   statValue: { fontSize: 16, fontFamily: 'Poppins_600SemiBold', marginTop: 2 },
   statLabel: { fontSize: 11, fontFamily: 'Poppins_400Regular', color: '#666' },

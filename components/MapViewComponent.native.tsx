@@ -1,22 +1,23 @@
 import React from 'react';
-import { View, StyleSheet, Platform, ActivityIndicator, Text } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
+// Cambiamos la importación para usar PROVIDER_GOOGLE explícitamente
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
 export default function MapViewComponent({ location, errorMsg }) {
-  // Si no hay ubicación todavía
   if (!location || !location.coords) {
     return (
       <View style={styles.mapContainer}>
         <ActivityIndicator size="large" color="#4CAF50"/>
         <Text style={styles.mapLoadingText}>
-          {errorMsg ? errorMsg : 'Obteniendo ubicación...'}
+          {errorMsg ? errorMsg : 'Cargando ubicaación 🥑...'}
         </Text>
       </View>
     );
   }
 
-  const { latitude, longitude } = location.coords ?? {};
+  const { latitude, longitude } = location.coords;
 
+  // El chequeo de coordenadas válidas ya está bien implementado
   const isValidCoords =
     typeof latitude === 'number' &&
     !isNaN(latitude) &&
@@ -34,7 +35,8 @@ export default function MapViewComponent({ location, errorMsg }) {
   return (
     <View style={styles.mapContainer}>
       <MapView
-        provider={Platform.OS === 'android' ? PROVIDER_DEFAULT : null}
+        // Forzamos el uso de Google Maps en AMBAS plataformas (iOS y Android)
+        provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={{
           latitude,
@@ -46,10 +48,7 @@ export default function MapViewComponent({ location, errorMsg }) {
         scrollEnabled={false}
         zoomEnabled={false}
       >
-        {/* Renderizamos Marker solo si coords son válidas */}
-        {isValidCoords && (
-          <Marker coordinate={{ latitude, longitude }} title="Tu Ubicación" />
-        )}
+        <Marker coordinate={{ latitude, longitude }} title="Tu Ubicación" />
       </MapView>
     </View>
   );
@@ -59,7 +58,7 @@ const styles = StyleSheet.create({
   mapContainer: {
     height: 200,
     marginHorizontal: 24,
-    marginVertical: 24,
+    marginTop: -5,
     borderRadius: 24,
     overflow: 'hidden',
     elevation: 8,

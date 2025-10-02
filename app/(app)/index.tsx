@@ -16,52 +16,55 @@ import { signOut } from 'firebase/auth';
 
 const { width, height } = Dimensions.get('window');
 
+// --- COMPONENTE DE HOJA ANIMADA (VERSIÓN DE not-found.tsx) ---
 const AnimatedLeaf = () => {
-  const initialX = useSharedValue(Math.random() * width);
-  const initialY = useSharedValue(Math.random() * height);
-  const size = useSharedValue(20 + Math.random() * 20);
-  const progress = useSharedValue(Math.random()); 
+  const initialX = useSharedValue(Math.random() * width);
+  const initialY = useSharedValue(Math.random() * height);
+  const size = useSharedValue(20 + Math.random() * 20);
+  const progress = useSharedValue(Math.random()); // Inicia en un punto aleatorio de la animación
 
- 
-  const xEnd = Math.random() * 40 - 20; 
-  const yEnd = Math.random() * 40 - 20;
-  const rotationEnd = Math.random() * 360;
+  // Estos valores definen a dónde se moverá la hoja y cuánto rotará.
+  // Se calculan UNA SOLA VEZ para que la animación sea consistente.
+  const xEnd = Math.random() * 40 - 20; // Movimiento horizontal entre -20 y +20
+  const yEnd = Math.random() * 40 - 20; // Movimiento vertical entre -20 y +20
+  const rotationEnd = Math.random() * 360;
 
-  useEffect(() => {
-    progress.value = withRepeat(
-      withTiming(1, { 
-        duration: 4000 + Math.random() * 3000,
-        easing: Easing.inOut(Easing.ease),
-      }),
-      -1, 
-      true 
-    );
-  }, []);
+  useEffect(() => {
+    progress.value = withRepeat(
+      withTiming(1, { 
+        duration: 4000 + Math.random() * 3000, // Duración más lenta y aleatoria
+        easing: Easing.inOut(Easing.ease),
+      }),
+      -1, // Repetir infinitamente
+      true // Animación de ida y vuelta (yoyo)
+    );
+  }, []);
 
-  const animatedStyle = useAnimatedStyle(() => {
-    const translateX = interpolate(progress.value, [0, 1], [0, xEnd]);
-    const translateY = interpolate(progress.value, [0, 1], [0, yEnd]);
-    const rotate = interpolate(progress.value, [0, 1], [0, rotationEnd]);
-  
-    const opacity = interpolate(progress.value, [0, 0.5, 1], [0.5, 1, 0.5]);
+  const animatedStyle = useAnimatedStyle(() => {
+    // Se usan los valores fijos para un movimiento suave y predecible
+    const translateX = interpolate(progress.value, [0, 1], [0, xEnd]);
+    const translateY = interpolate(progress.value, [0, 1], [0, yEnd]);
+    const rotate = interpolate(progress.value, [0, 1], [0, rotationEnd]);
+    
+    // La animación de opacidad ayuda a suavizar el efecto
+    const opacity = interpolate(progress.value, [0, 0.5, 1], [0.5, 1, 0.5]);
 
-    return {
-      position: 'absolute',
-      left: initialX.value,
-      top: initialY.value,
-      fontSize: size.value,
-      opacity: opacity, 
-      transform: [ 
-        { translateX }, 
-        { translateY }, 
-        { rotate: `${rotate}deg` } 
-      ],
-    };
-  });
+    return {
+      position: 'absolute',
+      left: initialX.value,
+      top: initialY.value,
+      fontSize: size.value,
+      opacity: opacity, 
+      transform: [ 
+        { translateX }, 
+        { translateY }, 
+        { rotate: `${rotate}deg` } 
+      ],
+    };
+  });
 
-  return ( <Animated.Text style={animatedStyle}>🍃</Animated.Text> );
+  return ( <Animated.Text style={animatedStyle}>🍃</Animated.Text> );
 };
-
 
 const getWeatherEmoji = (temp: number) => {
   if (temp < 5) return '🌨️';

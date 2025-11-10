@@ -10,7 +10,7 @@ import { auth } from "../../firebaseConfig";
 import { User, onAuthStateChanged } from "firebase/auth";
 import { supabase } from "../../supabaseConfig";
 
-const URL_PREDICT_FILE = "https://tflite-service-630562712876.us-central1.run.app/predict";
+const URL_PREDICT_FILE = "https://tflite-service-116255691430.us-central1.run.app/predict";
 
 export default function Scan() {
     const [permission, requestPermission] = useCameraPermissions();

@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
-// Cambiamos la importación para usar PROVIDER_GOOGLE explícitamente
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
 export default function MapViewComponent({ location, errorMsg }) {
@@ -17,7 +16,6 @@ export default function MapViewComponent({ location, errorMsg }) {
 
   const { latitude, longitude } = location.coords;
 
-  // El chequeo de coordenadas válidas ya está bien implementado
   const isValidCoords =
     typeof latitude === 'number' &&
     !isNaN(latitude) &&
@@ -35,7 +33,6 @@ export default function MapViewComponent({ location, errorMsg }) {
   return (
     <View style={styles.mapContainer}>
       <MapView
-        // Forzamos el uso de Google Maps en AMBAS plataformas (iOS y Android)
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={{

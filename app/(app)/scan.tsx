@@ -5,7 +5,6 @@ import { RotateCw as RotateCwIcon } from "lucide-react-native";
 import Toast from 'react-native-toast-message';
 import { useFocusEffect } from "expo-router";
 
-// --- Importaciones de Firebase (para usuario) y Supabase (para guardar datos) ---
 import { auth } from "../../firebaseConfig";
 import { User, onAuthStateChanged } from "firebase/auth";
 import { supabase } from "../../supabaseConfig";
@@ -118,12 +117,10 @@ export default function Scan() {
 
     useFocusEffect(
         useCallback(() => {
-            // Se ejecuta cuando la pantalla está en foco
             if (permission?.granted) {
                 startCapturing();
             }
 
-            // Se ejecuta cuando sales de la pantalla
             return () => {
                 stopCapturing();
             };

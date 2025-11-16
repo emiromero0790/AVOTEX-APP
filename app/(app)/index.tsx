@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Switch } from 'react-native';
-import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, AlertTriangle, LogOut } from 'lucide-react-native';
+import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, AlertTriangle, LogOut, Eye } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing, interpolate, FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -13,6 +13,11 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import axios from 'axios';
 import { useAccessibility } from '../../context/AccessibilityContext';
 import { signOut } from 'firebase/auth';
+import { supabase } from '../../supabaseConfig';
+
+interface Scan {
+  label: string;
+}
 
 const { width, height } = Dimensions.get('window');
 
@@ -102,6 +107,9 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
 
+  const [scans, setScans] = useState<Scan[]>([]);
+  const [healthPercentage, setHealthPercentage] = useState<number | null>(null);
+
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -166,6 +174,41 @@ export default function Home() {
   return () => unsubscribe();
 }, []);
 
+useEffect(() => {
+   
+    if (!user) {
+      setScans([]); 
+      return;
+    }
+
+    const fetchScans = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('scans')
+          .select('label')
+          .eq('user_id', user.uid);
+          
+        if (error) throw error;
+        if (data) setScans(data);
+
+      } catch (error) {
+        console.error("Error al obtener escaneos para el resumen:", error);
+      }
+    };
+
+    fetchScans();
+  }, [user]);
+
+  useEffect(() => {
+    if (scans.length > 0) {
+      const totalScans = scans.length;
+      const healthyCount = scans.filter(s => s.label.toLowerCase().includes('saludable')).length;
+      const percentage = (healthyCount / totalScans) * 100;
+      setHealthPercentage(percentage);
+    } else {
+      setHealthPercentage(null); 
+    }
+  }, [scans]);
 
   const handleLogout = () => {
     signOut(auth).then(() => {
@@ -196,6 +239,7 @@ export default function Home() {
     );
   }
 
+  
   const colors = {
     primary: isColorblindMode ? '#0D47A1' : '#50c878',
     primaryDark: isColorblindMode ? '#0D47A1' : '#2e8b57',
@@ -209,7 +253,8 @@ export default function Home() {
     welcomeBorder: isColorblindMode ? '#FFC107' : '#30E636',
     textPrimary: isColorblindMode ? '#0D47A1' : '#2a2a2a',
     textSecondary: '#666',
-    white: '#ffffff'
+    white: '#ffffff',
+    cardBg: 'rgba(255, 255, 255, 0.95)'
   };
 
   return (
@@ -218,6 +263,20 @@ export default function Home() {
     <LogOut color="#D32F2F" size={15} />
     <Text style={styles.logoutText}>Cerrar sesión</Text>
   </TouchableOpacity>
+
+<TouchableOpacity style={styles.daltonismoButton} onPress={toggleColorblindMode}>
+  <Eye size={16} color="#0377fc" style={{ marginRight: 6 }} />
+  <Text style={styles.toggleLabel}>Daltonismo </Text>
+  <Switch
+    trackColor={{ false: "#d3d3d3", true: "#81b0ff" }}
+    thumbColor={isColorblindMode ? colors.accent : "#f4f3f4"}
+    ios_backgroundColor="#3e3e3e"
+    onValueChange={toggleColorblindMode}
+    value={isColorblindMode}
+    style={{ transform: [{ scaleX: 1 }, { scaleY: 1 }], marginLeft: 4 }}
+  />
+</TouchableOpacity>
+
 
       <View style={styles.decoration} pointerEvents="none">
         {Array.from({ length: 40 }).map((_, i) => (
@@ -233,13 +292,6 @@ export default function Home() {
                 <View style={styles.welcomeTextBox}>
                   <Text style={styles.greetingText}>HOLA DE NUEVO 🥑,</Text>
                   <Text style={[styles.userNameText, {color: colors.textPrimary}]}>{user.displayName || user.email}</Text>
-                   <Text style={styles.toggleLabel}>Modo Daltonismo                   <Switch
-                trackColor={{ false: "#d3d3d3", true: "#81b0ff" }}
-                thumbColor={isColorblindMode ? colors.accent : "#f4f3f4"}
-                ios_backgroundColor="#3e3e3e"
-                onValueChange={toggleColorblindMode}
-                value={isColorblindMode}
-              /></Text>
   
                 </View>
                 <Avatar user={user} />
@@ -258,8 +310,17 @@ export default function Home() {
               />
           </View> */}
 
-          {municipioEstado.length > 0 && (
-            <Text style={[styles.municipioEstado, { color: colors.textPrimary }]}>📍{municipioEstado} {dateTime.time} {dateTime.date}</Text>
+
+         {municipioEstado.length > 0 && (
+            <Animated.View entering={FadeInDown.delay(300).duration(1000)} style={styles.locationTimeContainer}>
+              <View style={[styles.locationBadge, { backgroundColor: colors.cardBg }]}>
+                <Text style={[styles.locationText, { color: colors.textPrimary }]}>📍 {municipioEstado}</Text>
+              </View>
+              <View style={[styles.timeBadge, { backgroundColor: colors.cardBg }]}>
+                <Text style={[styles.timeText, { color: colors.textPrimary }]}>{dateTime.time}</Text>
+                <Text style={[styles.dateText, { color: colors.textSecondary }]}>{dateTime.date}</Text>
+              </View>
+            </Animated.View>
           )}
 
           <Animated.View entering={FadeInDown.delay(400).duration(1000)} style={styles.statsContainer}>
@@ -273,11 +334,19 @@ export default function Home() {
               <Text style={[styles.statValue, { color: colors.textPrimary }]}>{humidity !== null ? `${humidity}%` : '...'}</Text>
               <Text style={styles.statLabel}>Humedad</Text>
             </View>
-            <View style={styles.statCard}>
-              <Leaf color={colors.primary} size={24} />
-              <Text style={{ fontSize: 10.5, fontFamily: 'Poppins_600SemiBold', color: colors.textPrimary, marginTop: 10 }}>Accede a Results</Text>
-              <Text style={styles.statLabel}>Salud</Text>
-            </View>
+              <View style={styles.statCard}>
+              <Leaf color={colors.primary} size={24} />
+              {healthPercentage !== null ? (
+                <Text style={[styles.statValue, { color: colors.textPrimary }]}>
+                  {healthPercentage.toFixed(0)}%
+                </Text>
+              ) : (
+                <Text style={[styles.statValue, { fontSize: 14, color: colors.textPrimary, marginTop: 4 }]}>
+                  N/A
+                </Text>
+              )}
+              <Text style={styles.statLabel}>Salud</Text>
+            </View>
           </Animated.View>
         </View>
 
@@ -336,7 +405,7 @@ export default function Home() {
 const styles = StyleSheet.create({
    logoutButton: {
     position: 'absolute',
-    top: 15,
+    top: 25,
     right: 20,
     zIndex: 10,
     padding: 8,
@@ -345,6 +414,23 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.7)', 
     borderRadius: 20, 
   },
+    daltonismoButton: {
+      position: 'absolute',
+      top: 15,
+      left: 10,  
+      zIndex: 10,
+      padding: 4, 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      backgroundColor: 'rgba(255, 255, 255, 0.7)', 
+      borderRadius: 15, 
+    },
+
+    toggleLabel: {
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 10,   
+      color: '#333'
+},
   logoutText: {
     color: '#D32F2F',
     fontSize: 13,
@@ -401,18 +487,6 @@ toggleRow: {
   paddingVertical: 4,  
   paddingHorizontal: 10, 
 },
-toggleLabel: {
-  fontFamily: 'Poppins_600SemiBold',
-  fontSize: 13,   
-  color: '#333'
-},
-  municipioEstado: {
-    fontSize: 13,
-    fontFamily: 'Poppins_600SemiBold',
-    marginTop: 8,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -421,6 +495,49 @@ toggleLabel: {
     padding: 16,
     elevation: 5,
     marginTop: 10,
+  },
+
+    locationTimeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 12,
+  },
+  locationBadge: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+  },
+  locationText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: width > 768 ? 15 : 13,
+  },
+  timeBadge: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    elevation: 3,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+  },
+  timeText: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: width > 768 ? 18 : 16,
+  },
+  dateText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: width > 768 ? 13 : 11,
+    marginTop: 2,
   },
 
   statCard: { alignItems: 'center', flex: 1 },

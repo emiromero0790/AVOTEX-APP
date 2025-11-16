@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Image, TouchableOpacity, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
-
 import { auth } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { supabase } from '../../supabaseConfig';
@@ -34,6 +33,22 @@ const formatScanDate = (dateString: string) => {
   });
 };
 
+// --- Función Auxiliar para convertir HEX a RGBA ---
+const hexToRgba = (hex: string, opacity: number) => {
+  let c: any;
+  if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
+    c = hex.substring(1).split('');
+    if (c.length === 3) {
+      c = [c[0], c[0], c[1], c[1], c[2], c[2]];
+    }
+    c = '0x' + c.join('');
+    return `rgba(${[(c >> 16) & 255, (c >> 8) & 255, c & 255].join(',')},${opacity})`;
+  }
+  // Si el color ya es rgba o no es un hex válido, lo devuelve
+  if (hex.startsWith('rgba')) return hex;
+  throw new Error('Bad Hex');
+};
+
 const screenWidth = Dimensions.get('window').width;
 
 export default function ResultsScreen() {
@@ -53,16 +68,13 @@ export default function ResultsScreen() {
         textPrimary: '#333',
         textSecondary: '#666',
         white: '#fff',
-        sano: isColorblindMode ? '#42A5F5' : '#2ecc71',
-        enfermo: isColorblindMode ? '#0D47A1' : '#e74c3c',
-        enfermoAlt1: isColorblindMode ? '#0D47A1' : '#e74c3c', // Rojo -> Azul Oscuro
-        enfermoAlt2: isColorblindMode ? '#FFC107' : '#FFC107', // Naranja -> Amarillo
-        enfermoAlt3: isColorblindMode ? '#42A5F5' : '#42A5F5', // Amarillo -> Azul Claro
+        sano: isColorblindMode ? '#42A5F5' : '#10b981',
+        enfermo: isColorblindMode ? '#0D47A1' : '#ef4444',
+        alt1: isColorblindMode ? '#0D47A1' : '#ef4444',
+        alt2: isColorblindMode ? '#F2F527' : '#e67e22',
+        alt3: isColorblindMode ? '#42A5F5' : '#f1c40f',
         toggleActive: isColorblindMode ? '#0D47A1' : '#66bb6a',
         toggleInactive: isColorblindMode ? '#D1E7FD' : '#e8f5e9',
-        statCardTotal: isColorblindMode ? '#E3F2FD' : '#e8f5e9',
-        statCardHealthy: isColorblindMode ? '#FFF8E1' : '#e8f5e9',
-        statCardDisease: isColorblindMode ? '#E3F2FD' : '#ffebee',
     }), [isColorblindMode]);
 
     const chartConfigBase = useMemo(() => ({
@@ -80,7 +92,7 @@ export default function ResultsScreen() {
         ...chartConfigBase,
         backgroundGradientFrom: "#fafafa",
         backgroundGradientTo: "#fafafa",
-        color: (opacity = 1) => isColorblindMode ? `rgba(66, 165, 245, ${opacity})` : `rgba(102, 187, 106, ${opacity})`,
+        color: (opacity = 1) => isColorblindMode ? `rgba(242, 245, 39, ${opacity})` : `rgba(102, 187, 106, ${opacity})`,
         labelColor: (opacity = 1) => `rgba(100, 100, 100, ${opacity})`,
         decimalPlaces: 0,
     }), [isColorblindMode, chartConfigBase]);
@@ -130,7 +142,8 @@ export default function ResultsScreen() {
                 }
             });
             setStats({ totalScans, healthyPercentage, mostFrequentDisease });
-            const DISEASE_COLORS = [colors.enfermoAlt1, colors.enfermoAlt2, colors.enfermoAlt3];
+            
+            const DISEASE_COLORS = [colors.alt1, colors.alt2, colors.alt3];
             const pieChartData = Object.keys(counts).map((label, index) => ({
                 name: label,
                 population: counts[label],
@@ -144,13 +157,20 @@ export default function ResultsScreen() {
             };
             const lineChartLabels = Object.keys(scansByDay).reverse();
             const allDiagnoses = Object.keys(counts);
-            const lineChartDatasets = allDiagnoses.map((label, index) => ({
-                data: lineChartLabels.map(day => scansByDay[day][label] || 0),
-                color: (opacity = 1) => label.toLowerCase().includes('saludable') ? colors.sano.replace(/, 1\)$/, `, ${opacity})`) : DISEASE_COLORS[index % DISEASE_COLORS.length].replace(/, 1\)$/, `, ${opacity})`),
-                strokeWidth: 3,
-            }));
+            const lineChartDatasets = allDiagnoses.map((label, index) => {
+                const baseColor = label.toLowerCase().includes('saludable') 
+                    ? colors.sano 
+                    : DISEASE_COLORS[index % DISEASE_COLORS.length];
+                return {
+                    data: lineChartLabels.map(day => scansByDay[day][label] || 0),
+                    color: (opacity = 1) => hexToRgba(baseColor, opacity),
+                    strokeWidth: 3,
+                };
+            });
             const lineChartData = { labels: lineChartLabels, datasets: lineChartDatasets, legend: allDiagnoses };
             setChartData({ pie: pieChartData, bar: barChartData, line: lineChartData });
+        } else {
+            setChartData(null); // Limpiar datos si no hay escaneos
         }
     }, [scans, colors]);
 
@@ -171,7 +191,7 @@ export default function ResultsScreen() {
             );
         }
         switch (activeView) {
-            case 'line': return ( <View style={styles.chartContainer}> <Text style={styles.chartTitle}>Tendencia de Diagnósticos</Text> {chartData?.line && <LineChart data={chartData.line} width={screenWidth - 48} height={250} chartConfig={chartConfigBase} bezier style={{ borderRadius: 16 }} />} </View> );
+            case 'line': return ( <View style={styles.chartContainer}> <Text style={styles.chartTitle}>Tendencia de Diagnósticos</Text> {chartData?.line && chartData.line.labels.length > 0 ? <LineChart data={chartData.line} width={screenWidth - 48} height={250} chartConfig={chartConfigBase} bezier style={{ borderRadius: 16 }} /> : <Text>No hay suficientes datos para una tendencia.</Text>} </View> );
             case 'pie': return ( <View style={styles.chartContainer}> <Text style={styles.chartTitle}>Distribución de Diagnósticos</Text> {chartData?.pie && <PieChart data={chartData.pie} width={screenWidth - 48} height={200} chartConfig={chartConfigBase} accessor="population" backgroundColor="transparent" paddingLeft="8" absolute />} </View> );
             case 'bar': return ( <View style={styles.chartContainer}> <Text style={styles.chartTitle}>Conteo de Diagnósticos</Text> {chartData?.bar && <BarChart data={chartData.bar} width={screenWidth - 48} height={230} yAxisLabel="" yAxisSuffix="" chartConfig={barChartConfig} style={{ borderRadius: 16 }} fromZero />} </View> );
             case 'list': default: return scans.map((scan) => (
@@ -212,19 +232,15 @@ export default function ResultsScreen() {
                 {scans.length > 0 && !isLoading && (
                     <>
                         <Text style={styles.sectionTitle}>Resumen General</Text>
-                        <View style={styles.statsRow}>
-                            <View style={[styles.statCard, {backgroundColor: colors.statCardTotal}]}>
-                                <Text style={styles.statValue}>{stats.totalScans}</Text>
-                                <Text style={styles.statLabel}>Escaneos Totales</Text>
-                            </View>
-                            <View style={[styles.statCard, {backgroundColor: colors.statCardHealthy}]}>
-                                <Text style={styles.statValue}>{stats.healthyPercentage.toFixed(0)}%</Text>
-                                <Text style={styles.statLabel}>Saludables</Text>
-                            </View>
-                        </View>
-                        <View style={[styles.statCard, {backgroundColor: colors.statCardDisease, marginBottom: 24 }]}>
-                            <Text style={styles.statValue}>{stats.mostFrequentDisease}</Text>
-                            <Text style={styles.statLabel}>Enfermedad más común</Text>
+                        <View style={styles.statsCompactContainer}>
+                            <Text style={styles.statCompactText}>
+                                <Text style={styles.statNumber}>{stats.totalScans}</Text>
+                                <Text style={styles.statDescription}> escaneos • </Text>
+                                <Text style={[styles.statNumber, { color: colors.sano }]}>{stats.healthyPercentage.toFixed(0)}%</Text>
+                                <Text style={[styles.statDescription, { color: colors.sano }]}> saludables • </Text>
+                                <Text style={[styles.statNumber, { color: colors.enfermo }]}>{stats.mostFrequentDisease}</Text>
+                                <Text style={[styles.statDescription, { color: colors.enfermo }]}> más común</Text>
+                            </Text>
                         </View>
                     </>
                 )}
@@ -243,13 +259,13 @@ const styles = StyleSheet.create({
     subtitle: { fontSize: 16, fontFamily: 'Poppins_400Regular', color: '#666', textAlign: 'center' },
     scrollView: { flex: 1 },
     scrollViewContent: { paddingHorizontal: 24, paddingBottom: 120 },
-    sectionTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 20, color: '#2a2a2a', marginBottom: 16, marginTop: 16 },
+    sectionTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 20, color: '#2a2a2a', marginBottom: 16, marginTop: 5 },
     emptyStateContainer: { padding: 30, backgroundColor: '#fff', borderRadius: 16, alignItems: 'center', marginTop: 20 },
     emptyStateText: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#666' },
     emptyStateSubtext: { fontFamily: 'Poppins_400Regular', fontSize: 14, color: '#999', marginTop: 4 },
     scanCard: { backgroundColor: '#ffffff', borderRadius: 16, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 5, flexDirection: 'row', overflow: 'hidden' },
-    scanImage: { width: 100, height: '100%', resizeMode: 'cover' },
-    scanInfo: { flex: 1, padding: 12, justifyContent: 'center' },
+    scanImage: { width: 100, height: '100%',resizeMode: 'cover'},
+    scanInfo: { flex: 1, padding: 12, justifyContent: 'center'},
     scanLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#fff', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', overflow: 'hidden', marginBottom: 6 },
     scanScore: { fontFamily: 'Poppins_400Regular', fontSize: 14, color: '#2a2a2a' },
     scanDate: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#999', marginTop: 6 },
@@ -258,8 +274,32 @@ const styles = StyleSheet.create({
     toggleButtonActive: { }, 
     chartContainer: { alignItems: 'center', marginBottom: 24, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 16, paddingHorizontal: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 5 },
     chartTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 18, color: '#333', marginTop: 8, marginBottom: 12 },
-    statsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-    statCard: { flex: 1, borderRadius: 16, padding: 16, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, marginHorizontal: 4 },
-    statValue: { fontFamily: 'Poppins_600SemiBold', fontSize: 24, color: '#333' },
-    statLabel: { fontFamily: 'Poppins_400Regular', fontSize: 14, color: '#555', marginTop: 4 },
+    statsCompactContainer: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        marginBottom: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    statCompactText: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    statNumber: {
+        fontFamily: 'Poppins_600SemiBold',
+        fontSize: 16,
+        color: '#333',
+    },
+    statDescription: {
+        fontFamily: 'Poppins_400Regular',
+        fontSize: 14,
+        color: '#666',
+    },
 });

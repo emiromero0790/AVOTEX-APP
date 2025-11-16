@@ -36,13 +36,12 @@ export default function AgendaScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 
-  // --- Estados de la Agenda ---
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTitle, setNewTitle] = useState('');
   const [newDetail, setNewDetail] = useState('');
   const [showForm, setShowForm] = useState(false);
   
-  // --- Paleta de colores dinámica ---
   const colors = useMemo(() => ({
     primary: isColorblindMode ? '#0D47A1' : '#66bb6a',
     accent: isColorblindMode ? '#42A5F5' : '#50c878',

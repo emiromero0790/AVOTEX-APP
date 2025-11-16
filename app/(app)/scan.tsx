@@ -115,6 +115,11 @@ export default function Scan() {
         }
     };
 
+    // --- CÓDIGO ELIMINADO ---
+    // Se eliminó el 'useEffect' que dependía de [permission?.granted, type]
+    // porque causaba que la cámara se activara en segundo plano.
+    
+    // Este es el Hook correcto que SÍ debe quedarse.
     useFocusEffect(
         useCallback(() => {
             if (permission?.granted) {

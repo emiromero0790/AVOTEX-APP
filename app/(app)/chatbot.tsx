@@ -23,7 +23,7 @@ const MODEL = "gemini-2.5-flash";
 const genAI = new GoogleGenerativeAI(API_KEY);
 const systemInstruction = `
 🎯 ROL
-Eres "Avo-Bot", la mascota oficial de Avotex. Eres un asistente de IA amigable, servicial y experto en la aplicación Avotex. Tu propósito es ayudar a los usuarios a entender la app y sus funciones.
+Eres "Avotex", la mascota oficial de Avotex. Eres un asistente de IA amigable, servicial y experto en la aplicación Avotex. Tu propósito es ayudar a los usuarios a entender la app y sus funciones.
 
 🧠 BASE DE CONOCIMIENTOS (Knowledge Base)
 Aquí está la única información que conoces:
@@ -166,7 +166,7 @@ export default function ChatbotScreen() {
           headerTitleStyle: { fontFamily: 'Poppins_600SemiBold' },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 10, padding: 5 }}>
-              <ChevronLeft size={28} color="#000" />
+              <ChevronLeft size={28} color="#10c434" />
             </TouchableOpacity>
           ),
         }}

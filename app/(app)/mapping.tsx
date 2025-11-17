@@ -9,11 +9,10 @@ import Animated, {
 import PolygonSlider from '../../components/PolygonSlider';
 import PolygonMap from '../../components/PolygonMap';
 import * as Location from 'expo-location';
-import { useAccessibility } from '../../context/AccessibilityContext'; // <-- 1. IMPORTAMOS EL CONTEXTO
+import { useAccessibility } from '../../context/AccessibilityContext'; 
 
-// El componente AnimatedCell no necesita cambios, solo recibe el color
 const AnimatedCell = ({ color }) => {
-  const isWarning = color === '#F44336' || color === '#0D47A1'; // <-- Se ajusta para el color de alerta en ambos modos
+  const isWarning = color === '#F44336' || color === '#0D47A1';
   const isReady = color === '#FFC107';
   const opacity = useSharedValue(1);
 
@@ -35,9 +34,7 @@ const AnimatedCell = ({ color }) => {
   );
 };
 
-
 export default function Mapping() {
-  // --- 2. USAMOS EL CONTEXTO PARA SABER EL MODO ACTUAL ---
   const { isColorblindMode } = useAccessibility();
 
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
@@ -45,15 +42,14 @@ export default function Mapping() {
   const [isLoading, setIsLoading] = useState(true);
   const [polygonOffset, setPolygonOffset] = useState(0.001);
 
-  // --- 3. CREAMOS LA PALETA DE COLORES Y DATOS DINÁMICOS ---
   const colors = useMemo(() => ({
-    title: isColorblindMode ? '#0D47A1' : '#66bb6a', // Azul oscuro vs Verde
+    title: isColorblindMode ? '#0D47A1' : '#66bb6a',
     subtitle: '#666',
-    legendTitle: isColorblindMode ? '#0D47A1' : '#3b1260', // Azul oscuro vs Morado
+    legendTitle: isColorblindMode ? '#0D47A1' : '#2d5016',
     legendText: '#000000',
-    healthy: isColorblindMode ? '#42A5F5' : '#4CAF50',   // Azul claro vs Verde
-    ready: '#FFC107',                                    // Amarillo (se mantiene)
-    alert: isColorblindMode ? '#0D47A1' : '#F44336',     // Azul oscuro vs Rojo
+    healthy: isColorblindMode ? '#42A5F5' : '#4CAF50',
+    ready: '#FFC107',
+    alert: isColorblindMode ? '#0D47A1' : '#F44336',
   }), [isColorblindMode]);
   
   const healthMapData = useMemo(() => ([
@@ -88,13 +84,9 @@ export default function Mapping() {
       <View style={styles.container}>
         <Text style={[styles.title, { color: colors.title }]}>Mapeo de Cultivo</Text>
 
-        <View style={styles.subTitleContainer}>
-          <Image 
-            source={require('../../assets/images/avotexMapa.png')} 
-            style={styles.subTitleIcon}
-          />
+        {/* <View style={styles.subTitleContainer}>
           <Text style={[styles.subTitle, { color: colors.subtitle }]}>Ubicación Geográfica</Text>
-        </View>
+        </View> */}
 
         <PolygonSlider 
             offset={polygonOffset} 
@@ -117,26 +109,51 @@ export default function Mapping() {
         <Text style={[styles.subTitle, { marginTop: 30, color: colors.subtitle }]}>Estado de la Huerta por Zonas</Text>
         <View style={styles.dataGridContainer}>
           <View style={styles.grid}>
-            {/* --- 4. USAMOS LOS DATOS DE COLOR DINÁMICOS --- */}
             {healthMapData.map((color, index) => (
               <AnimatedCell key={index} color={color} />
             ))}
           </View>
+          
+          <Image 
+            source={require('../../assets/images/avotexMapa.png')} 
+            style={styles.avocadoMascot}
+            resizeMode="contain"
+          />
         </View>
 
+
         <View style={styles.legend}>
-          <Text style={[styles.legendTitle, { color: colors.legendTitle }]}>Leyenda</Text>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: colors.healthy }]} />
-            <Text style={[styles.legendText, { color: colors.legendText }]}>Saludable</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: colors.ready }]} />
-            <Text style={[styles.legendText, { color: colors.legendText }]}>Listo para cosecha</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: colors.alert }]} />
-            <Text style={[styles.legendText, { color: colors.legendText }]}>Alerta</Text>
+          <Text style={[styles.legendTitle, { color: '#05ab52' }]}>Leyenda</Text>
+          <View style={styles.legendGrid}>
+            <View style={[styles.legendCard, { borderLeftColor: colors.healthy }]}>
+              <View style={[styles.legendIconCircle, { backgroundColor: colors.healthy + '20' }]}>
+                <View style={[styles.legendDot, { backgroundColor: colors.healthy }]} />
+              </View>
+              <View style={styles.legendCardContent}>
+                <Text style={styles.legendCardTitle}>Saludable</Text>
+                <Text style={styles.legendCardDescription}>Plantas en óptimas condiciones</Text>
+              </View>
+            </View>
+
+            <View style={[styles.legendCard, { borderLeftColor: colors.ready }]}>
+              <View style={[styles.legendIconCircle, { backgroundColor: colors.ready + '20' }]}>
+                <View style={[styles.legendDot, { backgroundColor: colors.ready }]} />
+              </View>
+              <View style={styles.legendCardContent}>
+                <Text style={styles.legendCardTitle}>Listo para cosecha</Text>
+                <Text style={styles.legendCardDescription}>Frutos maduros listos</Text>
+              </View>
+            </View>
+
+            <View style={[styles.legendCard, { borderLeftColor: colors.alert }]}>
+              <View style={[styles.legendIconCircle, { backgroundColor: colors.alert + '20' }]}>
+                <View style={[styles.legendDot, { backgroundColor: colors.alert }]} />
+              </View>
+              <View style={styles.legendCardContent}>
+                <Text style={styles.legendCardTitle}>Alerta</Text>
+                <Text style={styles.legendCardDescription}>Requiere atención inmediata</Text>
+              </View>
+            </View>
           </View>
         </View>
       </View>
@@ -146,7 +163,7 @@ export default function Mapping() {
 
 const styles = StyleSheet.create({
   scrollContainer: {
-    paddingBottom: 120, // Espacio extra para la barra de navegación
+    paddingBottom: 120,
   },
   container: {
     flex: 1,
@@ -167,7 +184,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
     marginBottom: 12,
   },
-  subTitleIcon: {
+  subTitleIcon: { // Este estilo era el que estaba mal aplicado a tu aguacate
     width: 32,
     height: 32, 
     marginRight: 10,
@@ -190,12 +207,14 @@ const styles = StyleSheet.create({
   dataGridContainer: {
     backgroundColor: '#f5f5f5',
     borderRadius: 16,
-    paddingVertical: 20,
+    padding: 20,
     alignItems: 'center',
     marginBottom: 20,
+    flexDirection: 'row', 
+    justifyContent: 'space-around', 
   },
   grid: {
-    width: 200,
+    width: 200, 
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
@@ -212,26 +231,74 @@ const styles = StyleSheet.create({
     right: -8,
     fontSize: 18,
   },
+  avocadoMascot: {
+    marginLeft: -20,
+    width: 140,
+    height: 140,
+  },
   legend: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
   legendTitle: {
-    fontSize: 18,
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 20,
+    letterSpacing: 0.3,
+  },
+  legendGrid: {
+    gap: 16,
+  },
+  legendCard: {
+    backgroundColor: '#fafafa',
+    borderRadius: 14,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  legendIconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  legendDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+  },
+  legendCardContent: {
+    flex: 1,
+  },
+  legendCardTitle: {
+    fontSize: 17,
     fontWeight: '600',
-    marginBottom: 16,
+    color: '#1a1a1a',
+    marginBottom: 4,
+  },
+  legendCardDescription: {
+    fontSize: 13,
+    color: '#666',
+    lineHeight: 18,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-  },
-  legendDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    marginRight: 12,
   },
   legendText: {
     fontSize: 16,

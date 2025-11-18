@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView, 
   ActivityIndicator,
   Image,
-  Linking 
+  Linking,
 } from "react-native";
 import { Stack, router } from "expo-router";
 import { ChevronLeft, Send, Plus, Mic } from "lucide-react-native";
@@ -21,8 +21,7 @@ const API_KEY = "AIzaSyBwB3y5Ndq46_5_spByjrv3kseuKjPrmT0";
 const MODEL = "gemini-2.5-flash"; 
 
 const genAI = new GoogleGenerativeAI(API_KEY);
-const systemInstruction = `
-🎯 ROL
+const systemInstruction = `🎯 ROL
 Eres "Avotex", la mascota oficial de Avotex. Eres un asistente de IA amigable, servicial y experto en la aplicación Avotex. Tu propósito es ayudar a los usuarios a entender la app y sus funciones.
 
 🧠 BASE DE CONOCIMIENTOS (Knowledge Base)
@@ -70,8 +69,7 @@ User: ¿Quién hizo la app? Bot: ¡Hola! 🥑 Avotex fue desarrollado por Bruno 
 
 User: ¿Cuánto cuesta? Bot: Lo siento, esa información está fuera de mi conocimiento. ¡Solo puedo ayudarte con las funciones de Avotex! 🌱
 
-User: ¿Tienen Instagram? Bot: ¡Sí! 🥑 Puedes seguirnos en Instagram para ver novedades y consejos. Búscanos como @avotex.mx o entra a https://www.instagram.com/avotex.mx/
-`;
+User: ¿Tienen Instagram? Bot: ¡Sí! 🥑 Puedes seguirnos en Instagram para ver novedades y consejos. Búscanos como @avotex.mx o entra a https://www.instagram.com/avotex.mx/`; 
 
 const model = genAI.getGenerativeModel({ 
   model: MODEL,
@@ -92,7 +90,6 @@ export default function ChatbotScreen() {
   const openEmail = (userMessage: Message) => {
     const subject = 'Consulta desde la App Avotex';
     const body = `¡Hola, equipo de VEX! 🥑\n\nTengo la siguiente consulta:\n\n"${userMessage.text}"\n\nQuedo al pendiente,\nSaludos.`;
-    
     const mailtoUrl = `mailto:vexmxoficial@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     
     Linking.openURL(mailtoUrl).catch(err => {
@@ -126,7 +123,6 @@ export default function ChatbotScreen() {
 
       const result = await chat.sendMessage(userMessage.text);
       const botResponse = result.response.text();
-
       let botMessage: Message;
 
       if (botResponse.trim() === "ACTION:CONTACT") {
@@ -156,20 +152,31 @@ export default function ChatbotScreen() {
   return (
     <KeyboardAvoidingView 
       style={styles.container} 
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={100}
+      behavior={Platform.OS === "ios" ? "padding" : undefined} 
+      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
     >
+      <Image 
+        source={require("../../assets/images/chatbg.jpg")} 
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      />
+      
       <Stack.Screen
         options={{
           headerShown: true,
           title: "Asistente Avotex",
           headerTitleStyle: { fontFamily: 'Poppins_600SemiBold' },
+          headerTransparent: true, 
+          headerTintColor: '#000', 
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 10, padding: 5 }}>
+            <TouchableOpacity onPress={() => router.back()} style={{ padding: 10, marginLeft: 5 }}>
               <ChevronLeft size={28} color="#10c434" />
             </TouchableOpacity>
           ),
-        }}
+          headerBackground: () => (
+            <View style={{ flex: 1, backgroundColor: 'rgba(255, 255, 255, 0.9)' }} />
+          ),
+        }} 
       />
 
       <ScrollView 
@@ -231,14 +238,33 @@ export default function ChatbotScreen() {
   );
 }
 
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { 
+    flex: 1, 
+  },
+
+  backgroundImage: {
+    position: 'absolute',
+    resizeMode: "cover",
+    top: 0,
+    left: 0,
+    bottom: 0,
+    right: 0,
+    width: '100%',
+    height: '100%',
+    opacity: 0.25, 
+    zIndex: -1,
+  },
+
   chatArea: { flex: 1 },
-  chatContent: { padding: 15, paddingBottom: 20 },
+  chatContent: { 
+    padding: 15, 
+    paddingBottom: 20,
+    paddingTop: 100, 
+  },
   welcomeContainer: {
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 20,
     paddingHorizontal: 20,
   },
   logo: {
@@ -280,10 +306,12 @@ const styles = StyleSheet.create({
     alignSelf: "flex-end",
     backgroundColor: "#2BC45B", 
     marginLeft: 'auto',
+    borderTopRightRadius: 4,
   },
   botMsg: {
     alignSelf: "flex-start",
-    backgroundColor: "#f0f0f0",
+    backgroundColor: "#f0f0f0", 
+    borderTopLeftRadius: 4,
   },
   userMsgText: {
     color: "#fff",
@@ -299,12 +327,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     margin: 16,
-    backgroundColor: '#f0f0f0',
+    marginBottom: Platform.OS === 'ios' ? 20 : 16, 
+    backgroundColor: '#ffffff',
     borderRadius: 30,
     borderWidth: 1,
     borderColor: '#eee',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   input: {
     flex: 1,
@@ -312,6 +349,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Poppins_400Regular',
     color: '#000',
+    height: 40,
   },
   iconButton: {
     padding: 8,

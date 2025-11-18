@@ -13,7 +13,7 @@ import {
   Linking,
 } from "react-native";
 import { Stack, router } from "expo-router";
-import { ChevronLeft, Send, Plus, Mic } from "lucide-react-native";
+import { ChevronLeft, Send, Plus, Mic, Phone, Check } from "lucide-react-native";
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -62,14 +62,7 @@ Si no sabes, dilo: Si el usuario pregunta por precios, otras enfermedades, o cua
 
 Sé amigable: Usa emojis 🥑🌱😉😅😎📲 siempre que sea apropiado.
 
-No inventes: Nunca inventes respuestas.
-
-💬 EJEMPLOS
-User: ¿Quién hizo la app? Bot: ¡Hola! 🥑 Avotex fue desarrollado por Bruno Leonardo Parra Fernandez Emiliano Romero García y Paulo Aquiles Sandoval Mercado, con la asesoría de Aurelio Amaury Coria Ramírez del Instituto Tecnológico de Morelia.
-
-User: ¿Cuánto cuesta? Bot: Lo siento, esa información está fuera de mi conocimiento. ¡Solo puedo ayudarte con las funciones de Avotex! 🌱
-
-User: ¿Tienen Instagram? Bot: ¡Sí! 🥑 Puedes seguirnos en Instagram para ver novedades y consejos. Búscanos como @avotex.mx o entra a https://www.instagram.com/avotex.mx/`; 
+No inventes: Nunca inventes respuestas.`; 
 
 const model = genAI.getGenerativeModel({ 
   model: MODEL,
@@ -78,7 +71,16 @@ const model = genAI.getGenerativeModel({
 interface Message {
   role: 'user' | 'bot';
   text: string;
+  timestamp: Date;
 }
+
+// Componente de palomitas usando lucide-react-native
+const CheckMarks = () => (
+  <View style={styles.checkMarksContainer}>
+    <Check size={14} color="#53BDEB" strokeWidth={2.5} style={{ position: 'absolute', left: 0 }} />
+    <Check size={14} color="#53BDEB" strokeWidth={2.5} style={{ position: 'absolute', left: 4 }} />
+  </View>
+);
 
 export default function ChatbotScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -96,15 +98,19 @@ export default function ChatbotScreen() {
       console.error('Error al abrir mailto:', err);
       setMessages((prev) => [
         ...prev,
-        { role: "bot", text: "No pude abrir tu app de correo, pero puedes escribirnos a: vexmxoficial@gmail.com" },
+        { role: "bot", text: "No pude abrir tu app de correo, pero puedes escribirnos a: vexmxoficial@gmail.com", timestamp: new Date() },
       ]);
     });
+  };
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
   };
 
   async function sendMessage() {
     if (!input.trim() || loading) return;
 
-    const userMessage = { role: "user", text: input };
+    const userMessage: Message = { role: "user", text: input, timestamp: new Date() };
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setLoading(true);
@@ -113,7 +119,6 @@ export default function ChatbotScreen() {
       role: msg.role === 'bot' ? 'model' : 'user',
       parts: [{ text: msg.text }]
     }));
-    const currentMessageForAPI = { role: "user", parts: [{ text: userMessage.text }] };
 
     try {
       const chat = model.startChat({
@@ -128,11 +133,12 @@ export default function ChatbotScreen() {
       if (botResponse.trim() === "ACTION:CONTACT") {
         botMessage = { 
           role: "bot", 
-          text: "¡Claro! Esa es una consulta que el equipo de VEX puede resolver mejor. Te ayudo a enviarles un correo. 🥑" 
+          text: "¡Claro! Esa es una consulta que el equipo de VEX puede resolver mejor. Te ayudo a enviarles un correo. 🥑",
+          timestamp: new Date()
         };
         openEmail(userMessage);
       } else {
-        botMessage = { role: "bot", text: botResponse };
+        botMessage = { role: "bot", text: botResponse, timestamp: new Date() };
       }
       
       setMessages((prev) => [...prev, botMessage]);
@@ -141,7 +147,7 @@ export default function ChatbotScreen() {
       console.log(err);
       setMessages((prev) => [
         ...prev,
-        { role: "bot", text: "Error al conectarse a Gemini." },
+        { role: "bot", text: "Error al conectarse a Gemini.", timestamp: new Date() },
       ]);
     }
     setLoading(false);
@@ -155,29 +161,41 @@ export default function ChatbotScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined} 
       keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
     >
-      <Image 
+      
+       <Image 
         source={require("../../assets/images/chatbg.jpg")} 
         style={styles.backgroundImage}
         resizeMode="cover"
       />
-      
       <Stack.Screen
         options={{
           headerShown: true,
-          title: "Asistente Avotex",
-          headerTitleStyle: { fontFamily: 'Poppins_600SemiBold' },
-          headerTransparent: true, 
-          headerTintColor: '#000', 
+          headerTitle: "",
+          headerStyle: {
+            backgroundColor: '#075E54',
+          },
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ padding: 10, marginLeft: 5 }}>
-              <ChevronLeft size={28} color="#10c434" />
-            </TouchableOpacity>
+            <View style={styles.headerLeft}>
+              <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <ChevronLeft size={24} color="#fff" />
+              </TouchableOpacity>
+              <Image 
+                source={require('../../assets/images/AvotexLogo.png')} 
+                style={styles.headerAvatar} 
+              />
+              <Text style={styles.headerTitle}>Avotex</Text>
+            </View>
           ),
-          headerBackground: () => (
-            <View style={{ flex: 1, backgroundColor: 'rgba(255, 255, 255, 0.9)' }} />
+          headerRight: () => (
+            <TouchableOpacity style={styles.phoneButton}>
+              <Phone size={22} color="#fff" />
+            </TouchableOpacity>
           ),
         }} 
       />
+
+      {/* Fondo estilo WhatsApp */}
+      <View style={styles.whatsappBackground} />
 
       <ScrollView 
         style={styles.chatArea} 
@@ -187,50 +205,63 @@ export default function ChatbotScreen() {
       >
         {messages.length === 0 && (
           <View style={styles.welcomeContainer}>
-            <Image source={require('../../assets/images/AvotexLogo.png')} style={styles.logo} />
-            <Text style={styles.welcomeTitle}>AVOTEX BOT</Text>
-            <Text style={styles.welcomeSubtitle}>¡Hola! Soy Avotex, tu aliado en la huerta. ¿En qué te ayudo hoy?</Text>
+            <View style={styles.welcomeBubble}>
+              <Text style={styles.welcomeText}>
+                ¡Hola! Soy Avotex 🥑{'\n'}Tu aliado en la huerta.{'\n\n'}¿En qué te ayudo hoy?
+              </Text>
+            </View>
           </View>
         )}
 
         {messages.map((m, i) => (
-          <View key={i} style={styles.messageRow}>
-            {m.role === 'bot' && (
-              <Image source={require('../../assets/images/AvotexLogo.png')} style={styles.botAvatar} />
-            )}
-            <View style={[ styles.messageBubble, m.role === "user" ? styles.userMsg : styles.botMsg ]}>
-              <Text style={m.role === 'user' ? styles.userMsgText : styles.botMsgText}>{m.text}</Text>
+          <View key={i} style={[styles.messageContainer, m.role === 'user' ? styles.userContainer : styles.botContainer]}>
+            <View style={[styles.messageBubble, m.role === "user" ? styles.userMsg : styles.botMsg]}>
+              <Text style={styles.messageText}>{m.text}</Text>
+              <View style={styles.messageFooter}>
+                <Text style={styles.timestamp}>{formatTime(m.timestamp)}</Text>
+                {m.role === 'user' && <CheckMarks />}
+              </View>
             </View>
           </View>
         ))}
 
         {loading && (
-          <View style={styles.messageRow}>
-            <Image source={require('../../assets/images/AvotexLogo.png')} style={styles.botAvatar} />
+          <View style={[styles.messageContainer, styles.botContainer]}>
             <View style={[styles.messageBubble, styles.botMsg]}>
-              <ActivityIndicator color="#666" />
+              <ActivityIndicator color="#666" size="small" />
             </View>
           </View>
         )}
       </ScrollView>
 
+      {/* Input estilo WhatsApp */}
       <View style={styles.inputContainer}>
-        <TouchableOpacity style={styles.iconButton}>
-          <Plus size={24} color="#555" />
-        </TouchableOpacity>
-        <TextInput
-          value={input}
-          onChangeText={setInput}
-          placeholder="Hola"
-          placeholderTextColor="#999"
-          style={styles.input}
-          onSubmitEditing={sendMessage}
-        />
-        <TouchableOpacity style={styles.iconButton} onPress={sendMessage} disabled={loading}>
+        <View style={styles.inputWrapper}>
+          <TouchableOpacity style={styles.emojiButton}>
+            <Text style={styles.emojiIcon}></Text>
+          </TouchableOpacity>
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder="Mensaje"
+            placeholderTextColor="#8B9199"
+            style={styles.input}
+            onSubmitEditing={sendMessage}
+            multiline
+          />
+          <TouchableOpacity style={styles.attachButton}>
+            <Plus size={22} color="#8B9199" />
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity 
+          style={styles.sendButton} 
+          onPress={sendMessage} 
+          disabled={loading || !input.trim()}
+        >
           {input.trim().length > 0 ? (
-            <Send size={24} color="#2BC45B" />
+            <Send size={20} color="#fff" />
           ) : (
-            <Mic size={24} color="#555" />
+            <Mic size={22} color="#fff" />
           )}
         </TouchableOpacity>
       </View>
@@ -240,7 +271,7 @@ export default function ChatbotScreen() {
 
 const styles = StyleSheet.create({
   container: { 
-    flex: 1, 
+    flex: 1,
   },
 
   backgroundImage: {
@@ -255,103 +286,142 @@ const styles = StyleSheet.create({
     opacity: 0.25, 
     zIndex: -1,
   },
-
-  chatArea: { flex: 1 },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: -10,
+  },
+  backButton: {
+    padding: 8,
+  },
+  headerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 10,
+    backgroundColor: '#fff',
+  },
+  headerTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+  phoneButton: {
+    padding: 8,
+    marginRight: 10,
+  },
+  chatArea: { 
+    flex: 1,
+  },
   chatContent: { 
-    padding: 15, 
-    paddingBottom: 20,
-    paddingTop: 100, 
+    padding: 8,
+    paddingBottom: 10,
   },
   welcomeContainer: {
     alignItems: 'center',
     paddingVertical: 20,
-    paddingHorizontal: 20,
   },
-  logo: {
-    width: 100,
-    height: 100,
-    resizeMode: 'contain',
+  welcomeBubble: {
+    backgroundColor: '#FFF9C4',
+    padding: 12,
+    borderRadius: 8,
+    maxWidth: '80%',
   },
-  welcomeTitle: {
-    fontSize: 22,
-    fontFamily: 'Poppins_600SemiBold',
+  welcomeText: {
     color: '#000',
-    marginTop: 16,
-  },
-  welcomeSubtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 8,
+    fontSize: 14,
     fontFamily: 'Poppins_400Regular',
+    textAlign: 'center',
   },
-  messageRow: {
-    flexDirection: 'row',
+  messageContainer: {
+    marginVertical: 2,
+    paddingHorizontal: 8,
+  },
+  userContainer: {
     alignItems: 'flex-end',
-    marginBottom: 10,
   },
-  botAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 8,
-    marginBottom: 2,
+  botContainer: {
+    alignItems: 'flex-start',
   },
   messageBubble: {
-    padding: 12,
-    borderRadius: 18,
-    maxWidth: "80%",
+    padding: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    maxWidth: '80%',
+    minWidth: 80,
   },
   userMsg: {
-    alignSelf: "flex-end",
-    backgroundColor: "#2BC45B", 
-    marginLeft: 'auto',
-    borderTopRightRadius: 4,
+    backgroundColor: '#DCF8C6',
+    borderTopRightRadius: 2,
   },
   botMsg: {
-    alignSelf: "flex-start",
-    backgroundColor: "#f0f0f0", 
-    borderTopLeftRadius: 4,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 2,
   },
-  userMsgText: {
-    color: "#fff",
+  messageText: {
+    color: '#000',
     fontSize: 15,
     fontFamily: 'Poppins_400Regular',
+    marginBottom: 4,
   },
-  botMsgText: {
-    color: "#000",
-    fontSize: 15,
+  messageFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 2,
+    gap: 4,
+  },
+  timestamp: {
+    color: '#667781',
+    fontSize: 11,
     fontFamily: 'Poppins_400Regular',
+  },
+  checkMarksContainer: {
+    width: 18,
+    height: 14,
+    position: 'relative',
   },
   inputContainer: {
-    flexDirection: "row",
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    backgroundColor: '#F0F0F0',
+    gap: 8,
+  },
+  inputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 24,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    margin: 16,
-    marginBottom: Platform.OS === 'ios' ? 20 : 16, 
-    backgroundColor: '#ffffff',
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: '#eee',
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    minHeight: 42,
+  },
+  emojiButton: {
+    padding: 4,
+  },
+  emojiIcon: {
+    fontSize: 22,
   },
   input: {
     flex: 1,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     fontSize: 16,
     fontFamily: 'Poppins_400Regular',
     color: '#000',
-    height: 40,
+    maxHeight: 100,
   },
-  iconButton: {
-    padding: 8,
+  attachButton: {
+    padding: 4,
+  },
+  sendButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#075E54',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

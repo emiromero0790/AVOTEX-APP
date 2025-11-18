@@ -405,7 +405,7 @@ useEffect(() => {
 const styles = StyleSheet.create({
    logoutButton: {
     position: 'absolute',
-    top: 25,
+    top: 30,
     right: 20,
     zIndex: 10,
     padding: 8,
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
   },
     daltonismoButton: {
       position: 'absolute',
-      top: 15,
+      top: 25,
       left: 10,  
       zIndex: 10,
       padding: 4, 

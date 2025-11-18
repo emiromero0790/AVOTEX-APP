@@ -10,17 +10,22 @@ import {
   KeyboardAvoidingView, 
   ActivityIndicator,
   Image,
-  Linking,
 } from "react-native";
 import { Stack, router } from "expo-router";
-import { ChevronLeft, Send, Plus, Mic, Phone, Check } from "lucide-react-native";
+import { ChevronLeft, Send, Plus, Mic } from "lucide-react-native";
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import emailjs from '@emailjs/browser';
+
+const EMAILJS_SERVICE_ID = 'service_92stt0p';
+const EMAILJS_TEMPLATE_ID = 'template_i1dzybe';
+const EMAILJS_PUBLIC_KEY = 'BSxLEeaCjlR33sZkl';
 
 const API_KEY = "AIzaSyBwB3y5Ndq46_5_spByjrv3kseuKjPrmT0"; 
 const MODEL = "gemini-2.5-flash"; 
 
 const genAI = new GoogleGenerativeAI(API_KEY);
+
 const systemInstruction = `🎯 ROL
 Eres "Avotex", la mascota oficial de Avotex. Eres un asistente de IA amigable, servicial y experto en la aplicación Avotex. Tu propósito es ayudar a los usuarios a entender la app y sus funciones.
 
@@ -58,11 +63,25 @@ Instagram de Avotex: ¡Síguenos en Instagram para ver novedades, consejos y má
 📜 REGLAS
 Tu conocimiento es LIMITADO: Solo puedes responder usando la información de la "BASE DE CONOCIMIENTOS" anterior (Secciones 1, 2, 3 y 4).
 
-Si no sabes, dilo: Si el usuario pregunta por precios, otras enfermedades, o cualquier cosa que no esté en la base, debes responder amablemente: "Lo siento, esa información está fuera de mi conocimiento. Solo puedo ayudarte con las funciones de Avotex."
+Si el usuario pregunta algo que NO está en tu base de conocimiento (como precios, soporte técnico específico, problemas de la app, solicitudes de nuevas funciones, etc.), responde EXACTAMENTE con: "ACTION:CONTACT"
 
 Sé amigable: Usa emojis 🥑🌱😉😅😎📲 siempre que sea apropiado.
 
-No inventes: Nunca inventes respuestas.`; 
+No inventes: Nunca inventes respuestas.
+
+💬 EJEMPLOS
+User: ¿Quién hizo la app? 
+Bot: ¡Hola! 🥑 Avotex fue desarrollado por Bruno Leonardo Parra Fernandez y Emiliano Romero García, con la asesoría de Aurelio Amaury Coria Ramírez del Instituto Tecnológico de Morelia.
+
+User: ¿Cuánto cuesta? 
+Bot: ACTION:CONTACT
+
+User: Tengo un problema con mi cuenta
+Bot: ACTION:CONTACT
+
+User: ¿Tienen Instagram? 
+Bot: ¡Sí! 🥑 Puedes seguirnos en Instagram para ver novedades y consejos. Búscanos como @avotex.mx o entra a https://www.instagram.com/avotex.mx/
+`; 
 
 const model = genAI.getGenerativeModel({ 
   model: MODEL,
@@ -74,14 +93,6 @@ interface Message {
   timestamp: Date;
 }
 
-// Componente de palomitas usando lucide-react-native
-const CheckMarks = () => (
-  <View style={styles.checkMarksContainer}>
-    <Check size={14} color="#53BDEB" strokeWidth={2.5} style={{ position: 'absolute', left: 0 }} />
-    <Check size={14} color="#53BDEB" strokeWidth={2.5} style={{ position: 'absolute', left: 4 }} />
-  </View>
-);
-
 export default function ChatbotScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -89,22 +100,65 @@ export default function ChatbotScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold });
 
-  const openEmail = (userMessage: Message) => {
-    const subject = 'Consulta desde la App Avotex';
-    const body = `¡Hola, equipo de VEX! 🥑\n\nTengo la siguiente consulta:\n\n"${userMessage.text}"\n\nQuedo al pendiente,\nSaludos.`;
-    const mailtoUrl = `mailto:vexmxoficial@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    
-    Linking.openURL(mailtoUrl).catch(err => {
-      console.error('Error al abrir mailto:', err);
-      setMessages((prev) => [
-        ...prev,
-        { role: "bot", text: "No pude abrir tu app de correo, pero puedes escribirnos a: vexmxoficial@gmail.com", timestamp: new Date() },
-      ]);
-    });
+  const [waitingForEmail, setWaitingForEmail] = useState(false);
+  const [pendingUserMessage, setPendingUserMessage] = useState("");
+
+
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  const processEmailSending = async (userMessage: string, userEmail: string) => {
+    setMessages((prev) => [...prev, {
+      role: "bot",
+      text: "📧 Enviando tu consulta al equipo de VEX...",
+      timestamp: new Date()
+    }]);
+
+    try {
+      emailjs.init(EMAILJS_PUBLIC_KEY);
+
+      const templateParams = {
+        from_name: 'Usuario de Avotex App',
+        user_email: userEmail,
+        user_message: userMessage,
+        to_email: 'vexmxoficial@gmail.com',
+        reply_to: userEmail, 
+        date: new Date().toLocaleString('es-MX', {
+          year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        }),
+      };
+
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
+
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        newMessages[newMessages.length - 1] = {
+          role: "bot",
+          text: `✅ ¡Perfecto! Tu consulta ha sido enviada.\n\nTe responderán pronto a: ${userEmail} 📧\n\n¿Hay algo más en lo que pueda ayudarte?`,
+          timestamp: new Date()
+        };
+        return newMessages;
+      });
+
+      setWaitingForEmail(false);
+      setPendingUserMessage("");
+
+    } catch (error) {
+      console.error('❌ Error al enviar email:', error);
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        newMessages[newMessages.length - 1] = {
+          role: "bot",
+          text: `❌ Hubo un problema al enviar el correo.\n\nPor favor contacta directamente a:\n📧 vexmxoficial@gmail.com`,
+          timestamp: new Date()
+        };
+        return newMessages;
+      });
+      setWaitingForEmail(false);
+      setPendingUserMessage("");
+    }
   };
 
   async function sendMessage() {
@@ -112,13 +166,42 @@ export default function ChatbotScreen() {
 
     const userMessage: Message = { role: "user", text: input, timestamp: new Date() };
     setMessages((prev) => [...prev, userMessage]);
+    const currentInput = input;
     setInput("");
+
+    if (waitingForEmail) {
+      setLoading(true);
+      
+      if (currentInput.toLowerCase() === 'cancelar') {
+        setWaitingForEmail(false);
+        setPendingUserMessage("");
+        setMessages((prev) => [...prev, {
+          role: "bot",
+          text: "Entendido. ¿En qué más puedo ayudarte con la app? 🥑",
+          timestamp: new Date()
+        }]);
+      } else if (isValidEmail(currentInput)) {
+        await processEmailSending(pendingUserMessage, currentInput.trim());
+      } else {
+        setMessages((prev) => [...prev, {
+          role: "bot",
+          text: "❌ Correo no válido. Intenta de nuevo o escribe 'cancelar'.",
+          timestamp: new Date()
+        }]);
+      }
+      
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
-    const historyForAPI = messages.map(msg => ({
-      role: msg.role === 'bot' ? 'model' : 'user',
-      parts: [{ text: msg.text }]
-    }));
+    const historyForAPI = messages
+      .filter(msg => !msg.text.includes("Para enviarte una respuesta") && !msg.text.includes("Enviando tu consulta"))
+      .map(msg => ({
+        role: msg.role === 'bot' ? 'model' : 'user',
+        parts: [{ text: msg.text }]
+      }));
 
     try {
       const chat = model.startChat({
@@ -126,28 +209,31 @@ export default function ChatbotScreen() {
         history: historyForAPI,
       });
 
-      const result = await chat.sendMessage(userMessage.text);
-      const botResponse = result.response.text();
-      let botMessage: Message;
-
-      if (botResponse.trim() === "ACTION:CONTACT") {
-        botMessage = { 
-          role: "bot", 
-          text: "¡Claro! Esa es una consulta que el equipo de VEX puede resolver mejor. Te ayudo a enviarles un correo. 🥑",
-          timestamp: new Date()
-        };
-        openEmail(userMessage);
-      } else {
-        botMessage = { role: "bot", text: botResponse, timestamp: new Date() };
-      }
+      const result = await chat.sendMessage(currentInput);
+      const botResponse = result.response.text().trim();
       
-      setMessages((prev) => [...prev, botMessage]);
+      if (botResponse === "ACTION:CONTACT") {
+        setWaitingForEmail(true);
+        setPendingUserMessage(currentInput);
+        
+        setMessages((prev) => [...prev, { 
+          role: "bot", 
+          text: "Para esa consulta necesito conectarte con el equipo. 📧\n\nPor favor escribe tu correo electrónico aquí (o escribe 'cancelar').",
+          timestamp: new Date()
+        }]);
+      } else {
+        setMessages((prev) => [...prev, { 
+          role: "bot", 
+          text: botResponse, 
+          timestamp: new Date() 
+        }]);
+      }
 
     } catch (err) {
       console.log(err);
       setMessages((prev) => [
         ...prev,
-        { role: "bot", text: "Error al conectarse a Gemini.", timestamp: new Date() },
+        { role: "bot", text: "Error de conexión. Intenta de nuevo. 😓", timestamp: new Date() },
       ]);
     }
     setLoading(false);
@@ -158,44 +244,25 @@ export default function ChatbotScreen() {
   return (
     <KeyboardAvoidingView 
       style={styles.container} 
-      behavior={Platform.OS === "ios" ? "padding" : undefined} 
-      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={100}
     >
       
-       <Image 
-        source={require("../../assets/images/chatbg.jpg")} 
-        style={styles.backgroundImage}
-        resizeMode="cover"
-      />
       <Stack.Screen
         options={{
           headerShown: true,
-          headerTitle: "",
-          headerStyle: {
-            backgroundColor: '#075E54',
-          },
+          title: "Asistente Avotex",
+          headerTitleStyle: { fontFamily: 'Poppins_600SemiBold' },
+          headerStyle: { backgroundColor: '#fff' }, 
+          headerShadowVisible: false, 
           headerLeft: () => (
-            <View style={styles.headerLeft}>
-              <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                <ChevronLeft size={24} color="#fff" />
-              </TouchableOpacity>
-              <Image 
-                source={require('../../assets/images/AvotexLogo.png')} 
-                style={styles.headerAvatar} 
-              />
-              <Text style={styles.headerTitle}>Avotex</Text>
-            </View>
-          ),
-          headerRight: () => (
-            <TouchableOpacity style={styles.phoneButton}>
-              <Phone size={22} color="#fff" />
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 10, padding: 5 }}>
+              <ChevronLeft size={28} color="#000" />
             </TouchableOpacity>
           ),
-        }} 
+          headerRight: () => null, 
+        }}
       />
-
-      {/* Fondo estilo WhatsApp */}
-      <View style={styles.whatsappBackground} />
 
       <ScrollView 
         style={styles.chatArea} 
@@ -205,63 +272,55 @@ export default function ChatbotScreen() {
       >
         {messages.length === 0 && (
           <View style={styles.welcomeContainer}>
-            <View style={styles.welcomeBubble}>
-              <Text style={styles.welcomeText}>
-                ¡Hola! Soy Avotex 🥑{'\n'}Tu aliado en la huerta.{'\n\n'}¿En qué te ayudo hoy?
-              </Text>
-            </View>
+            <Image source={require('../../assets/images/AvotexLogo.png')} style={styles.logo} />
+            <Text style={styles.welcomeTitle}>AVOTEX BOT</Text>
+            <Text style={styles.welcomeSubtitle}>¡Hola! Soy Avotex, tu aliado en la huerta. ¿En qué te ayudo hoy?</Text>
           </View>
         )}
 
         {messages.map((m, i) => (
-          <View key={i} style={[styles.messageContainer, m.role === 'user' ? styles.userContainer : styles.botContainer]}>
-            <View style={[styles.messageBubble, m.role === "user" ? styles.userMsg : styles.botMsg]}>
-              <Text style={styles.messageText}>{m.text}</Text>
-              <View style={styles.messageFooter}>
-                <Text style={styles.timestamp}>{formatTime(m.timestamp)}</Text>
-                {m.role === 'user' && <CheckMarks />}
-              </View>
+          <View key={i} style={styles.messageRow}>
+            {m.role === 'bot' && (
+              <Image source={require('../../assets/images/AvotexLogo.png')} style={styles.botAvatar} />
+            )}
+            <View style={[ styles.messageBubble, m.role === "user" ? styles.userMsg : styles.botMsg ]}>
+              <Text style={m.role === 'user' ? styles.userMsgText : styles.botMsgText}>{m.text}</Text>
             </View>
           </View>
         ))}
 
         {loading && (
-          <View style={[styles.messageContainer, styles.botContainer]}>
+          <View style={styles.messageRow}>
+            <Image source={require('../../assets/images/AvotexLogo.png')} style={styles.botAvatar} />
             <View style={[styles.messageBubble, styles.botMsg]}>
-              <ActivityIndicator color="#666" size="small" />
+              <ActivityIndicator color="#666" />
             </View>
           </View>
         )}
       </ScrollView>
 
-      {/* Input estilo WhatsApp */}
       <View style={styles.inputContainer}>
-        <View style={styles.inputWrapper}>
-          <TouchableOpacity style={styles.emojiButton}>
-            <Text style={styles.emojiIcon}></Text>
-          </TouchableOpacity>
-          <TextInput
-            value={input}
-            onChangeText={setInput}
-            placeholder="Mensaje"
-            placeholderTextColor="#8B9199"
-            style={styles.input}
-            onSubmitEditing={sendMessage}
-            multiline
-          />
-          <TouchableOpacity style={styles.attachButton}>
-            <Plus size={22} color="#8B9199" />
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity 
-          style={styles.sendButton} 
-          onPress={sendMessage} 
-          disabled={loading || !input.trim()}
-        >
+        <TouchableOpacity style={styles.iconButton}>
+          <Plus size={24} color="#555" />
+        </TouchableOpacity>
+        
+        <TextInput
+          value={input}
+          onChangeText={setInput}
+          placeholder={waitingForEmail ? "Escribe tu correo..." : "Hola"}
+          placeholderTextColor="#999"
+          style={styles.input}
+          onSubmitEditing={sendMessage}
+          multiline={!waitingForEmail}
+          keyboardType={waitingForEmail ? "email-address" : "default"}
+          autoCapitalize={waitingForEmail ? "none" : "sentences"}
+        />
+        
+        <TouchableOpacity style={styles.iconButton} onPress={sendMessage} disabled={loading}>
           {input.trim().length > 0 ? (
-            <Send size={20} color="#fff" />
+            <Send size={24} color="#2BC45B" />
           ) : (
-            <Mic size={22} color="#fff" />
+            <Mic size={24} color="#555" />
           )}
         </TouchableOpacity>
       </View>
@@ -269,159 +328,90 @@ export default function ChatbotScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { 
-    flex: 1,
-  },
 
-  backgroundImage: {
-    position: 'absolute',
-    resizeMode: "cover",
-    top: 0,
-    left: 0,
-    bottom: 0,
-    right: 0,
-    width: '100%',
-    height: '100%',
-    opacity: 0.25, 
-    zIndex: -1,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: -10,
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginRight: 10,
-    backgroundColor: '#fff',
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontFamily: 'Poppins_600SemiBold',
-  },
-  phoneButton: {
-    padding: 8,
-    marginRight: 10,
-  },
-  chatArea: { 
-    flex: 1,
-  },
-  chatContent: { 
-    padding: 8,
-    paddingBottom: 10,
-  },
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#fff" },
+  chatArea: { flex: 1 },
+  chatContent: { padding: 15, paddingBottom: 20 },
   welcomeContainer: {
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 40,
+    paddingHorizontal: 20,
   },
-  welcomeBubble: {
-    backgroundColor: '#FFF9C4',
-    padding: 12,
-    borderRadius: 8,
-    maxWidth: '80%',
+  logo: {
+    width: 100,
+    height: 100,
+    resizeMode: 'contain',
   },
-  welcomeText: {
+  welcomeTitle: {
+    fontSize: 22,
+    fontFamily: 'Poppins_600SemiBold',
     color: '#000',
-    fontSize: 14,
-    fontFamily: 'Poppins_400Regular',
+    marginTop: 16,
+  },
+  welcomeSubtitle: {
+    fontSize: 16,
+    color: '#666',
     textAlign: 'center',
+    marginTop: 8,
+    fontFamily: 'Poppins_400Regular',
   },
-  messageContainer: {
-    marginVertical: 2,
-    paddingHorizontal: 8,
-  },
-  userContainer: {
+  messageRow: {
+    flexDirection: 'row',
     alignItems: 'flex-end',
+    marginBottom: 10,
   },
-  botContainer: {
-    alignItems: 'flex-start',
+  botAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 8,
+    marginBottom: 2,
   },
   messageBubble: {
-    padding: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    maxWidth: '80%',
-    minWidth: 80,
+    padding: 12,
+    borderRadius: 18,
+    maxWidth: "80%",
   },
   userMsg: {
-    backgroundColor: '#DCF8C6',
-    borderTopRightRadius: 2,
+    alignSelf: "flex-end",
+    backgroundColor: "#2BC45B", // Verde original
+    marginLeft: 'auto',
   },
   botMsg: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 2,
+    alignSelf: "flex-start",
+    backgroundColor: "#f0f0f0", // Gris claro
   },
-  messageText: {
-    color: '#000',
+  userMsgText: {
+    color: "#fff",
     fontSize: 15,
     fontFamily: 'Poppins_400Regular',
-    marginBottom: 4,
   },
-  messageFooter: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    marginTop: 2,
-    gap: 4,
-  },
-  timestamp: {
-    color: '#667781',
-    fontSize: 11,
+  botMsgText: {
+    color: "#000",
+    fontSize: 15,
     fontFamily: 'Poppins_400Regular',
   },
-  checkMarksContainer: {
-    width: 18,
-    height: 14,
-    position: 'relative',
-  },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    backgroundColor: '#F0F0F0',
-    gap: 8,
-  },
-  inputWrapper: {
-    flex: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 24,
     paddingHorizontal: 12,
-    minHeight: 42,
-  },
-  emojiButton: {
-    padding: 4,
-  },
-  emojiIcon: {
-    fontSize: 22,
+    paddingVertical: 8,
+    margin: 16,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: '#eee',
   },
   input: {
     flex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
     fontSize: 16,
     fontFamily: 'Poppins_400Regular',
     color: '#000',
-    maxHeight: 100,
+    maxHeight: 100, // Para que no crezca infinito si es multiline
   },
-  attachButton: {
-    padding: 4,
-  },
-  sendButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#075E54',
-    justifyContent: 'center',
-    alignItems: 'center',
+  iconButton: {
+    padding: 8,
   },
 });

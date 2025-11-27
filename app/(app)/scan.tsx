@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
-import { RotateCw as RotateCwIcon } from "lucide-react-native";
+import { RotateCw as RotateCwIcon, Camera as CameraIcon } from "lucide-react-native";
 import Toast from "react-native-toast-message";
 import { useFocusEffect } from "expo-router";
 import * as FileSystem from "expo-file-system";
@@ -25,7 +25,6 @@ export default function Scan() {
   const [type, setType] = useState<CameraType>("back");
   const [prediction, setPrediction] = useState<NormalizedPrediction | null>(null);
   const cameraRef = useRef<any>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const [user, setUser] = useState<User | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -65,20 +64,13 @@ export default function Scan() {
     return () => unsubscribe();
   }, []);
 
-  const stopCapturing = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  };
-
   const normalizeServerResponse = (data: any): NormalizedPrediction | null => {
     try {
       if (!data) return null;
       if (data.class_index !== undefined && data.class_name && data.confidence !== undefined) {
         return {
           label: data.class_name,
-            score: Number(data.confidence),
+          score: Number(data.confidence),
           classIndex: Number(data.class_index),
           raw: data
         };
@@ -134,7 +126,6 @@ export default function Scan() {
         user_email: user.email,
         label: pred.label,
         score: pred.score,
-        //class_index: pred.classIndex ?? null,
         created_at: new Date().toISOString()
       };
       const { error } = await supabase.from("scans").insert([scanRecord]);
@@ -221,6 +212,8 @@ export default function Scan() {
     console.log("📸 Iniciando captura...");
     isBusyRef.current = true;
     setIsProcessing(true);
+    // Ocultar predicción anterior al iniciar nuevo escaneo
+    setPrediction(null);
     
     try {
       const photo = await cameraRef.current.takePictureAsync({
@@ -260,24 +253,6 @@ export default function Scan() {
     }
   };
 
-  const startCapturing = () => {
-    stopCapturing();
-    intervalRef.current = setInterval(() => {
-      takePicture();
-    }, 2500); 
-  };
-
-  useFocusEffect(
-    useCallback(() => {
-      if (permission?.granted) {
-        startCapturing();
-      }
-      return () => {
-        stopCapturing();
-      };
-    }, [permission?.granted])
-  );
-
   if (!permission) return <View />;
 
   if (!permission.granted) {
@@ -316,23 +291,38 @@ export default function Scan() {
             <TouchableOpacity style={styles.flipButton} onPress={toggleCameraType} disabled={isProcessing}>
               <RotateCwIcon color="#eee" size={28} />
             </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.captureButton, (isProcessing || isSaving) && styles.captureButtonDisabled]} 
+              onPress={takePicture}
+              disabled={isProcessing || isSaving}
+            >
+              <View style={styles.captureButtonInner}>
+                <CameraIcon color="#fff" size={32} />
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
       </CameraView>
 
       {(isSaving || isProcessing) && (
         <View style={styles.savingOverlay}>
-          <Animated.Text 
-            style={[
-              styles.avocadoEmoji,
-              { transform: [{ rotate: spin }] }
-            ]}
-          >
-            🥑
-          </Animated.Text>
-          <Text style={styles.savingText}>
-            {isSaving ? "Guardando resultado..." : "Procesando..."}
-          </Text>
+          <View style={styles.loadingContainer}>
+            <Animated.View 
+              style={[
+                styles.avocadoContainer,
+                { transform: [{ rotate: spin }] }
+              ]}
+            >
+              <Text style={styles.avocadoEmoji}>🥑</Text>
+            </Animated.View>
+            <Text style={styles.savingTitle}>
+              {isSaving ? "Guardando" : "Analizando"}
+            </Text>
+            <Text style={styles.savingSubtitle}>
+              {isSaving ? "Tu diagnóstico se está guardando..." : "Detectando estado del aguacate..."}
+            </Text>
+          </View>
         </View>
       )}
 
@@ -349,6 +339,7 @@ export default function Scan() {
     </View>
   );
 }
+
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#000000" },
     camera: { flex: 1 },
@@ -357,22 +348,44 @@ const styles = StyleSheet.create({
     headerText: { color: "#ffffff", fontSize: 24, fontFamily: "Poppins-SemiBold" },
     controls: {
         position: 'absolute',
-        bottom: 0,
-        left: 0,
+        bottom: 100,
+        left: -100,
         right: 0,
         flexDirection: "row",
         justifyContent: "center",
         alignItems: "center",
-        paddingBottom: 40,
+        paddingHorizontal: 40,
+        gap: 60,
     },
     flipButton: {
         backgroundColor: "rgba(0,0,0,0.4)",
         borderRadius: 30,
         padding: 12,
     },
+    captureButton: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: "rgba(255,255,255,0.3)",
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 4,
+        borderColor: "#ffffff",
+    },
+    captureButtonDisabled: {
+        opacity: 0.5,
+    },
+    captureButtonInner: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: "#219bef",
+        justifyContent: "center",
+        alignItems: "center",
+    },
     predictionContainer: {
         position: "absolute",
-        bottom: 120,
+        bottom: 200,
         alignSelf: "center",
         paddingHorizontal: 20,
         paddingVertical: 12,
@@ -388,18 +401,41 @@ const styles = StyleSheet.create({
     savingOverlay: {
         position: 'absolute',
         left: 0, right: 0, top: 0, bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: 'rgba(0, 0, 0, 0.85)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    savingText: {
-        color: '#ffffff',
-        fontSize: 18,
-        fontFamily: "Poppins-SemiBold",
-        marginTop: 12,
+    loadingContainer: {
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 24,
+        padding: 32,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+    },
+    avocadoContainer: {
+        width: 100,
+        height: 100,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(46, 204, 113, 0.2)',
+        borderRadius: 50,
+        marginBottom: 20,
     },
     avocadoEmoji: {
-        fontSize: 80,
-        marginBottom: 20,
+        fontSize: 50,
+    },
+    savingTitle: {
+        color: '#ffffff',
+        fontSize: 22,
+        fontFamily: "Poppins-Bold",
+        marginBottom: 8,
+    },
+    savingSubtitle: {
+        color: 'rgba(255, 255, 255, 0.8)',
+        fontSize: 14,
+        fontFamily: "Poppins-Regular",
+        textAlign: 'center',
+        maxWidth: 250,
     },
 });

@@ -1,0 +1,121 @@
+~/workspace$ eas build --platform ios
+eas: command not installed, but was located via Nix.
+package: eas-cli  14.7.1  EAS command line tool from submodule
+Would you like to run eas from Nix and add it to your project? [Yn]: Y
+eas-cli  14.7.1  EAS command line tool from submodule
+Adding eas-cli to .replit
+You are on eas-cli@14.7.1 which does not satisfy the CLI version constraint defined in eas.json (>= 16.28.0).
+
+This error probably means that you need update your eas-cli to a newer version.
+Run npm install -g eas-cli to update the eas-cli to the latest version.
+    Error: build command failed.
+~/workspace$ ^C
+~/workspace$ eas build --platform ios
+★ eas-cli@18.11.0 is now available.
+To upgrade, run:
+npm install -g eas-cli
+Proceeding with outdated version.
+
+You are on eas-cli@14.7.1 which does not satisfy the CLI version constraint defined in eas.json (>= 16.28.0).
+
+This error probably means that you need update your eas-cli to a newer version.
+Run npm install -g eas-cli to update the eas-cli to the latest version.
+    Error: build command failed.
+~/workspace$ npm run eas:build:ios
+
+> avocado-pest-detection@1.0.0 eas:build:ios
+> /home/runner/workspace/.config/npm/node_global/bin/eas build --platform ios
+
+
+EAS Build is experiencing a partial outage.
+Reason: Increased EAS jobs wait times for free tier users.
+All information on service status and incidents available at https://status.expo.dev/
+
+Failed to read the app config from the project using "npx expo config" command: npx expo config --json exited with non-zero code: 1.
+Falling back to the version of "@expo/config" shipped with the EAS CLI.
+Error parsing JSON: {
+  "expo": {
+    "name": "Avotex",
+    "slug": "avotex",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ecfdf5"
+    },
+    "newArchEnabled": true,
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.vex.avotex",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Usamos tu ubicación para obtener condiciones climáticas y mejorar el análisis de cultivos.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Usamos tu ubicación para mejorar diagnósticos agrícolas en tiempo real.",
+        "NSCameraUsageDescription": "Necesitamos acceso a la cámara para escanear y analizar tus cultivos con Inteligencia Artificial.",
+        "NSPhotoLibraryUsageDescription": "Permite seleccionar imágenes de tus cultivos para su análisis.",
+        "NSPhotoLibraryAddUsageDescription": "Permite guardar capturas del análisis de tus cultivos.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Usamos tu ubicación para obtener condiciones climáticas y mejorar el análisis de cultivos.",
+          "locationWhenInUsePermission": "Usamos tu ubicación para obtener condiciones climáticas y mejorar el análisis de cultivos.",
+          "isIosBackgroundLocationEnabled": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Necesitamos acceso a la cámara para escanear y analizar tus cultivos con Inteligencia Artificial."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "android": {
+      "package": "com.vex.avotex",
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.CAMERA"
+      ]
+    },
+    "owner": "emilianoromerog",
+    }
+  }
+}
+
+├─ File: /home/runner/workspace/app.json
+└─ Cause: SyntaxError: JSON5: invalid character '}' at 76:1
+  74 |     }
+  75 |   }
+> 76 | }
+     | ^
+  77 |
+    Error: build command failed.
+~/workspace$ ^C

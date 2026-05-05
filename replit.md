@@ -51,7 +51,7 @@ All credentials stored as `EXPO_PUBLIC_*` shared env vars in Replit secrets:
 
 ## Gotchas
 - `react-native-maps` no funciona en Expo Go (requiere build nativo). Los componentes `MapViewComponent.native.tsx` y `PolygonMap.native.tsx` usan `require()` con try-catch para degradar elegantemente en Expo Go mostrando un mensaje de aviso.
-- `react` y `react-dom` están fijados a `19.1.0` exacto (no `^19.1.0`) para evitar mismatch con `react-native-renderer` que usa SDK 54.
+- `react` y `react-dom` están fijados a `19.1.4` exacto (no `^19.1.0`) para evitar mismatch con `react-native-renderer@19.1.4` que incluye `react-native@0.81.6`.
 - npm install requiere `--legacy-peer-deps` por conflictos de peer deps con `@react-navigation/native`.
 
 ## Key Features Implemented

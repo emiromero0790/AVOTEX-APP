@@ -1,6 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
-import MapView, { Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
+
+let MapView: any = null;
+let Polygon: any = null;
+let PROVIDER_GOOGLE: any = null;
+let mapsAvailable = false;
+
+try {
+  const maps = require('react-native-maps');
+  MapView = maps.default;
+  Polygon = maps.Polygon;
+  PROVIDER_GOOGLE = maps.PROVIDER_GOOGLE;
+  mapsAvailable = true;
+} catch (_e) {
+  mapsAvailable = false;
+}
 
 const generatePolygonAround = (location: any, offset: number) => {
   const { latitude, longitude } = location.coords;
@@ -12,25 +26,32 @@ const generatePolygonAround = (location: any, offset: number) => {
   ];
 };
 
-export default function PolygonMap({ location, errorMsg, offset }) {
-  const [mapRegion, setMapRegion] = useState(null);
+export default function PolygonMap({ location, errorMsg, offset }: { location: any; errorMsg: string | null; offset: number }) {
+  const [mapRegion, setMapRegion] = useState<any>(null);
 
   useEffect(() => {
     if (location) {
-      const newRegion = {
+      setMapRegion({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         latitudeDelta: offset * 5,
         longitudeDelta: offset * 5,
-      };
-      setMapRegion(newRegion);
+      });
     }
   }, [location, offset]);
+
+  if (!mapsAvailable) {
+    return (
+      <View style={[styles.mapContainer, styles.centered]}>
+        <Text style={styles.errorText}>🗺️ El mapa no está disponible en Expo Go.{'\n'}Usa un desarrollo nativo.</Text>
+      </View>
+    );
+  }
 
   if (!location || !mapRegion) {
     return (
       <View style={[styles.mapContainer, styles.centered]}>
-        <Text style={styles.errorText}>{errorMsg || 'Cargando ubicaación 🥑...'}</Text>
+        <Text style={styles.errorText}>{errorMsg || 'Cargando ubicación 🥑...'}</Text>
       </View>
     );
   }
@@ -63,7 +84,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     elevation: 4,
-    backgroundColor: '#e0e0e0'
+    backgroundColor: '#e0e0e0',
   },
   map: {
     ...StyleSheet.absoluteFillObject,
@@ -71,9 +92,12 @@ const styles = StyleSheet.create({
   centered: {
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 16,
   },
   errorText: {
     color: '#333',
     fontWeight: '500',
-  }
+    textAlign: 'center',
+    fontSize: 13,
+  },
 });

@@ -49,6 +49,11 @@ All credentials stored as `EXPO_PUBLIC_*` shared env vars in Replit secrets:
 - `EXPO_PUBLIC_OPENWEATHER_API_KEY`
 - `EXPO_PUBLIC_PREDICT_URL`
 
+## Gotchas
+- `react-native-maps` no funciona en Expo Go (requiere build nativo). Los componentes `MapViewComponent.native.tsx` y `PolygonMap.native.tsx` usan `require()` con try-catch para degradar elegantemente en Expo Go mostrando un mensaje de aviso.
+- `react` y `react-dom` están fijados a `19.1.0` exacto (no `^19.1.0`) para evitar mismatch con `react-native-renderer` que usa SDK 54.
+- npm install requiere `--legacy-peer-deps` por conflictos de peer deps con `@react-navigation/native`.
+
 ## Key Features Implemented
 1. **Location toggle (when-in-use only)** — Switch in Home and Mapping screens; off by default; uses `requestForegroundPermissionsAsync`; clears data when toggled off
 2. **Chatbot disclaimer modal** — Always shown on mount; "Cancelar" returns to previous screen; "Continuar" enables chat input; shield icon re-opens modal if not accepted

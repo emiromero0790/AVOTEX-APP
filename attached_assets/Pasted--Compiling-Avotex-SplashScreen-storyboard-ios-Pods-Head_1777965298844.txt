@@ -1,0 +1,41 @@
+› Compiling Avotex » SplashScreen.storyboard
+
+❌  (ios/Pods/Headers/Public/React-jsi/jsi/jsi.h:10:10)
+
+   8 | #pragma once
+   9 | 
+> 10 | #include <cassert>
+     |          ^ 'cassert' file not found
+  11 | #include <cstring>
+  12 | #include <exception>
+  13 | #include <functional>
+› Preparing Avotex » Info.plist
+    Run script build phase '[CP-User] [Hermes] Replace Hermes for the right configuration, if needed' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'hermes-engine' from project 'Pods')
+    Run script build phase '[CP-User] react-native-maps patches' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'react-native-maps' from project 'Pods')
+▸ ** ARCHIVE FAILED **
+▸ The following build commands failed:
+▸ 	SwiftCompile normal arm64 Compiling\ ExpoModulesProvider.swift /Users/expo/workingdir/build/ios/Pods/Target\ Support\ Files/Pods-Avotex/ExpoModulesProvider.swift (in target 'Avotex' from project 'Avotex')
+▸ 	SwiftCompile normal arm64 /Users/expo/workingdir/build/ios/Pods/Target\ Support\ Files/Pods-Avotex/ExpoModulesProvider.swift (in target 'Avotex' from project 'Avotex')
+▸ 	Archiving workspace Avotex with scheme Avotex
+▸ (3 failures)
+Exit status: 65
++---------------------------------------+
+|           Build environment           |
++-------------+-------------------------+
+| xcode_path  | /Applications/Xcode.app |
+| gym_version | 2.228.0                 |
+| sdk         | iPhoneOS26.0.sdk        |
++-------------+-------------------------+
+Looks like fastlane ran into a build/archive error with your project
+It's hard to tell what's causing the error, so we wrote some guides on how
+to troubleshoot build and signing issues: https://docs.fastlane.tools/codesigning/getting-started/
+Before submitting an issue on GitHub, please follow the guide above and make
+sure your project is set up correctly.
+fastlane uses `xcodebuild` commands to generate your binary, you can see the
+the full commands printed out in yellow in the above log.
+Make sure to inspect the output above, as usually you'll find more error information there
+[!] Error building the application - see the log above
+Error: The "Run fastlane" step failed because of an error in the Xcode build process. We automatically detected following errors in your Xcode build logs:
+- 'cassert' file not found
+- could not build Objective-C module 'ExpoGL'
+Refer to "Xcode Logs" below for additional, more detailed logs.

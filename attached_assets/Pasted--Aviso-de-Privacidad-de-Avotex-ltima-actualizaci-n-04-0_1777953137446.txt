@@ -1,0 +1,110 @@
+**Aviso de Privacidad de Avotex**
+
+Última actualización: 04/05/2026
+
+Avotex es una aplicación desarrollada por VEX, enfocada en brindar herramientas inteligentes para el análisis de cultivos mediante el uso de Inteligencia Artificial.
+
+La privacidad de nuestros usuarios es una prioridad. Este Aviso de Privacidad explica qué información se recopila, cómo se utiliza y cómo se protege.
+
+---
+
+## 1. Información que recopilamos
+
+Avotex puede recopilar la siguiente información:
+
+* Imágenes capturadas por el usuario mediante la función de escaneo
+* Ubicación del dispositivo (GPS)
+* Datos de uso de la aplicación (historial de escaneos y resultados)
+* Información técnica del dispositivo
+
+---
+
+## 2. Uso de la información
+
+La información se utiliza exclusivamente para:
+
+* Análisis de imágenes mediante Inteligencia Artificial
+* Generación de diagnósticos de probabilidad de enfermedades en cultivos
+* Obtención de datos climáticos (temperatura, humedad)
+* Mejora de la experiencia del usuario
+* Visualización de historial, estadísticas y recomendaciones
+
+---
+
+## 3. Uso de imágenes (IMPORTANTE)
+
+* Las imágenes **NO se almacenan en servidores ni bases de datos**
+* Se envían temporalmente a una API de Inteligencia Artificial para su análisis
+* Una vez procesadas, **la imagen se elimina y no se conserva**
+
+Solo se almacena el resultado del análisis (porcentaje de probabilidad de enfermedad y diagnóstico).
+
+---
+
+## 4. Ubicación del usuario
+
+La ubicación se utiliza únicamente para:
+
+* Obtener condiciones climáticas locales
+* Mejorar la precisión de los análisis agrícolas
+
+---
+
+## 5. Servicios de terceros
+
+Avotex utiliza servicios externos para su funcionamiento:
+
+* **Google Maps** (geolocalización y mapas)
+* **OpenWeatherMap** (datos climáticos)
+* Servicios de Inteligencia Artificial para análisis de imágenes
+
+Estos servicios procesan datos únicamente para cumplir su función dentro de la aplicación.
+
+---
+
+## 6. Compartición de información
+
+* No vendemos información personal
+* No compartimos datos con terceros con fines comerciales
+* Los datos solo se utilizan para el funcionamiento de la aplicación
+
+---
+
+## 7. Chatbot y recomendaciones
+
+* El chatbot funciona con Inteligencia Artificial
+* Sus respuestas son orientativas
+* No sustituye asesoría profesional agrícola
+* Puede cometer errores
+
+---
+
+## 8. Seguridad
+
+Se aplican medidas razonables de seguridad, aunque ningún sistema es completamente seguro.
+
+---
+
+## 9. Derechos del usuario
+
+El usuario puede:
+
+* Desactivar ubicación o cámara en cualquier momento
+* Dejar de usar la aplicación
+
+---
+
+## 10. Contacto
+
+Correo electrónico: **[vexmxoficial@gmail.com](mailto:vexmxoficial@gmail.com)**
+https://www.instagram.com/avotex.mx/
+
+---
+
+## 11. Cambios al aviso
+
+Este aviso puede actualizarse en cualquier momento.
+
+---
+
+Al usar Avotex, aceptas este Aviso de Privacidad.

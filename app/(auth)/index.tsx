@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Mail, Lock, Eye, EyeOff, ChevronRight, X, KeyRound } from 'lucide-react-native';
@@ -427,9 +428,11 @@ export default function Login() {
           <View style={s.registerRow}>
             <Text style={s.registerText}>
               Envía un correo a{' '}
-              <Text style={s.registerEmail}>{CONTACT_EMAIL}</Text>
-              {' '}para registrarte.
             </Text>
+            <TouchableOpacity onPress={() => Linking.openURL(`mailto:${CONTACT_EMAIL}`)}>
+              <Text style={[s.registerEmail, s.registerEmailLink]}>{CONTACT_EMAIL}</Text>
+            </TouchableOpacity>
+            <Text style={s.registerText}>{' '}para registrarte.</Text>
           </View>
         </Animated.View>
       </KeyboardAvoidingView>
@@ -604,7 +607,10 @@ const s = StyleSheet.create({
   },
 
   registerRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 4,
   },
   registerText: {
@@ -617,6 +623,11 @@ const s = StyleSheet.create({
   registerEmail: {
     fontFamily: 'Poppins-SemiBold',
     color: '#2d8a3e',
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  registerEmailLink: {
+    textDecorationLine: 'underline',
   },
 
   // ── Forgot password modal ──

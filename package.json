@@ -9,7 +9,10 @@
     "build:web": "expo export --platform web",
     "lint": "expo lint",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "eas:build:ios": "/home/runner/workspace/.config/npm/node_global/bin/eas build --platform ios",
+    "eas:build:android": "/home/runner/workspace/.config/npm/node_global/bin/eas build --platform android",
+    "eas:build:preview": "/home/runner/workspace/.config/npm/node_global/bin/eas build --profile preview --platform all"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",

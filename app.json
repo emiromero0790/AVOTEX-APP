@@ -71,11 +71,6 @@
       ]
     },
     "owner": "emilianoromerog",
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "bfbd6f5b-7693-436d-8ed2-9ae113fb7b67"
-      }
     }
   }
 }

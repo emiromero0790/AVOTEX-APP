@@ -7,8 +7,9 @@ import Toast from 'react-native-toast-message';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { LogBox } from 'react-native';
 import { AccessibilityProvider } from '../context/AccessibilityContext';
+import * as SplashScreen from 'expo-splash-screen';
 
-
+SplashScreen.preventAutoHideAsync();
 
 LogBox.ignoreAllLogs(true);
 
@@ -27,20 +28,36 @@ const toastConfig = {
 };
 
 export default function RootLayout() {
-  // useFrameworkReady(); // Si no tienes este hook, puedes comentar o eliminar esta línea
-
   const [fontsLoaded] = useFonts({
     'Poppins-Regular': Poppins_400Regular,
     'Poppins-SemiBold': Poppins_600SemiBold,
     'Poppins-Bold': Poppins_700Bold,
   });
 
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
   if (!fontsLoaded) {
-    return null;
+    return (
+      <LinearGradient
+        colors={['#a7f3d0', '#ecfdf5', '#ffffff']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.splashContainer}
+      >
+        <Image
+          source={require('../assets/images/icon.png')}
+          style={styles.splashLogo}
+          resizeMode="contain"
+        />
+      </LinearGradient>
+    );
   }
 
   return (
-    // --- CAMBIO CLAVE: Envolvemos toda la aplicación con el AccessibilityProvider ---
     <AccessibilityProvider>
       <>
         <Stack screenOptions={{ headerShown: false }}>
@@ -50,7 +67,6 @@ export default function RootLayout() {
           <Stack.Screen name="+not-found" options={{ presentation: 'modal' }} />
         </Stack>
         <StatusBar style="dark" />
-
         <Toast config={toastConfig} />
       </>
     </AccessibilityProvider>
@@ -58,12 +74,21 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splashLogo: {
+    width: 260,
+    height: 260,
+  },
   toastContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 20,
     borderRadius: 20,
-    marginTop: 50, 
+    marginTop: 50,
     marginHorizontal: 15,
     shadowColor: '#000',
     shadowOpacity: 0.2,

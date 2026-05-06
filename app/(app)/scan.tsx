@@ -221,7 +221,7 @@ export default function Scan() {
       <View style={styles.container}>
         <Text style={styles.text}>Necesitamos acceso a la cámara</Text>
         <TouchableOpacity style={styles.button} onPress={requestPermission}>
-          <Text style={styles.buttonText}>Permitir acceso</Text>
+          <Text style={styles.buttonText}>Continuar</Text>
         </TouchableOpacity>
       </View>
     );

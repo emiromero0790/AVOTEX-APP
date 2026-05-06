@@ -3,6 +3,7 @@
 .env.local
 .env.*
 .replit
+attached_assets/
 
 # Expo and React Native
 .expo/

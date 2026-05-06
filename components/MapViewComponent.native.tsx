@@ -1,6 +1,52 @@
 import React from 'react';
 import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
-import MapView, { Marker, Circle } from 'react-native-maps';
+import { WebView } from 'react-native-webview';
+
+function buildMapHTML(lat: number, lng: number): string {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #map { width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    var map = L.map('map', { zoomControl: false, attributionControl: false })
+      .setView([${lat}, ${lng}], 16);
+
+    // Tiles tipo Google Maps (CartoDB Voyager) — sin API key
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd'
+    }).addTo(map);
+
+    // Marcador verde personalizado
+    var icon = L.divIcon({
+      html: '<div style="background:#16a34a;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
+      className: '',
+      iconSize: [16, 16],
+      iconAnchor: [8, 8]
+    });
+
+    L.marker([${lat}, ${lng}], { icon: icon }).addTo(map);
+
+    L.circle([${lat}, ${lng}], {
+      radius: 40,
+      color: '#16a34a',
+      fillColor: '#a7f3d0',
+      fillOpacity: 0.3,
+      weight: 2
+    }).addTo(map);
+  <\/script>
+</body>
+</html>`;
+}
 
 export default function MapViewComponent({
   location,
@@ -33,30 +79,15 @@ export default function MapViewComponent({
 
   return (
     <View style={styles.mapContainer}>
-      <MapView
+      <WebView
+        source={{ html: buildMapHTML(latitude, longitude) }}
         style={styles.map}
-        initialRegion={{
-          latitude,
-          longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }}
+        javaScriptEnabled={true}
+        domStorageEnabled={true}
+        originWhitelist={['*']}
         scrollEnabled={false}
-        zoomEnabled={false}
-        rotateEnabled={false}
-        pitchEnabled={false}
-        showsUserLocation={true}
-        showsMyLocationButton={false}
-      >
-        <Marker coordinate={{ latitude, longitude }} pinColor="#16a34a" />
-        <Circle
-          center={{ latitude, longitude }}
-          radius={40}
-          strokeColor="#16a34a"
-          fillColor="rgba(167,243,208,0.3)"
-          strokeWidth={2}
-        />
-      </MapView>
+        mixedContentMode="always"
+      />
     </View>
   );
 }
@@ -72,8 +103,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#d1fae5',
   },
   map: {
+    flex: 1,
     width: '100%',
     height: '100%',
+    backgroundColor: 'transparent',
   },
   loadingContainer: {
     height: 200,

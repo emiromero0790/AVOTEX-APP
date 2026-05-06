@@ -1,0 +1,116 @@
+
+> avocado-pest-detection@1.0.0 web
+> EXPO_NO_TELEMETRY=1 BROWSER=none expo start --web --port 5000 --tunnel
+
+[1G[0K[90mStarting project at /home/runner/workspace[39m
+[2mStarting Metro Bundler[22m
+Tunnel connected.
+Tunnel ready.
+[33mThe following packages should be updated for best compatibility with the installed [1mexpo[22m version:[39m
+[33m  [1m@react-native-community/slider[22m[36m@[39m[33m[31m5.2.0[39m[33m - expected version: [32m5.0.1[39m[33m[39m
+[33m  [1mexpo-build-properties[22m[36m@[39m[33m[31m55.0.13[39m[33m - expected version: [32m~1.0.10[39m[33m[39m
+[33m  [1mreact[22m[36m@[39m[33m[31m19.1.4[39m[33m - expected version: [32m19.1.0[39m[33m[39m
+[33m  [1mreact-dom[22m[36m@[39m[33m[31m19.1.4[39m[33m - expected version: [32m19.1.0[39m[33m[39m
+[33m  [1mreact-native[22m[36m@[39m[33m[31m0.81.6[39m[33m - expected version: [32m0.81.5[39m[33m[39m
+[33m  [1mreact-native-maps[22m[36m@[39m[33m[31m1.27.2[39m[33m - expected version: [32m1.20.1[39m[33m[39m
+[33m  [1mreact-native-svg[22m[36m@[39m[33m[31m15.15.4[39m[33m - expected version: [32m15.12.1[39m[33m[39m
+[33m  [1mreact-native-webview[22m[36m@[39m[33m[31m13.16.1[39m[33m - expected version: [32m13.15.0[39m[33m[39m
+[33m  [1mreact-native-worklets[22m[36m@[39m[33m[31m0.5.2[39m[33m - expected version: [32m0.5.1[39m[33m[39m
+[33m  [1m@types/react[22m[36m@[39m[33m[31m19.2.14[39m[33m - expected version: [32m~19.1.10[39m[33m[39m
+[33m  [1mtypescript[22m[36m@[39m[33m[31m5.8.3[39m[33m - expected version: [32m~5.9.2[39m[33m[39m
+[33mYour project may not work correctly until you install the expected versions of the packages.[39m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▄▄███▄ █ ██▄▄█ ▄▄▄▄▄ █
+█ █   █ █ ▀█ ▄ ▀▀█▀█▀▄█ █   █ █
+█ █▄▄▄█ █▄ ▄▄▀▀█▄ ▀▀ ██ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄▀▄▀▄█ ▀ ▀ ▀▄█▄▄▄▄▄▄▄█
+█▄  ▄█▀▄█ ▀███▀█▄▄  ▀▀ ▀▀ ▄ █ █
+█▄▀█▀▀▄▄████▀▀ ██▀▄ ▀█ ▄▄█▀██▀█
+█▄██ ▄▀▄ █▄▀ █▄  ▄ █▀█▄▀▄█▀▄ ▀█
+█▄  █▄▄▄▄█ ▄█ ▄▄▀▄█▄▄▄▄█▄ █▄ ▄█
+██▀▀▀██▄▄  █▄▀▄█▀ █ ▄ ▄█▀▄█▀▀▄█
+█▄█▄▀  ▄ █▄▄▄ ██▄█ ▄██▀█▀█▄ ▀██
+██▄▄██▄▄▄  ▄▄▀█ ██  █ ▄▄▄ █▄  █
+█ ▄▄▄▄▄ ██ ▀▄▀ ▄█▄█ ▄ █▄█ ██ ▀█
+█ █   █ █▀█ █▀▄  ▄ █▀  ▄▄ ▄ █ █
+█ █▄▄▄█ █ ▄ ▀ ▄ ▀▀▄▄▄ █▀ █▀▄▀▄█
+█▄▄▄▄▄▄▄█▄██▄█▄█▄███▄▄▄█▄█▄█▄██
+
+› Metro waiting on [4mexp://2ssrspo-emilianoromerog-5000.exp.direct[24m
+› Scan the QR code above with Expo Go (Android) or the Camera app (iOS)
+
+› Web is waiting on [4mhttp://localhost:5000[24m
+
+› Using [36mExpo Go[39m
+› Press [1ms[22m [2m│[22m switch to development build
+
+› Press [1ma[22m [2m│[22m open Android
+› Press [1mw[22m [2m│[22m open web
+
+› Press [1mj[22m [2m│[22m open debugger
+› Press [1mr[22m [2m│[22m reload app
+› Press [1mm[22m [2m│[22m toggle menu
+› [1mshift+m[22m [2m│[22m more tools
+› Press [1mo[22m [2m│[22m open project code in your editor
+
+› Press [1m?[22m [2m│[22m show all commands
+
+Logs for your project will appear below.[2m Press Ctrl+C to exit.[22m
+[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[113D[1A[0J[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  4.8% [22m[2m( 37/169)[22m
+[113D[1A[0J[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓[49m[39m[47m[37m░░░░░░░░░░░░░░[39m[49m[1m 16.3% [22m[2m(112/277)[22m
+[113D[1A[0J[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓[49m[39m[47m[37m░░░░░░░░░░░[39m[49m[1m 31.8% [22m[2m(243/431)[22m
+[113D[1A[0J[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░░░░░[39m[49m[1m 38.5% [22m[2m(369/595)[22m
+[113D[1A[0J[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░░░░[39m[49m[1m 47.4% [22m[2m(500/726)[22m
+[113D[1A[0J[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░░[39m[49m[1m 59.6% [22m[2m(649/841)[22m
+[113D[1A[0J[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░░[39m[49m[1m 59.6% [22m[2m(670/871)[22m
+[113D[1A[0J[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░░[39m[49m[1m 62.0% [22m[2m(778/988)[22m
+[113D[1A[0J[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░░[39m[49m[1m 62.0% [22m[2m( 779/2625)[22m
+[113D[1A[0J[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░░[39m[49m[1m 62.0% [22m[2m( 865/2658)[22m
+[113D[1A[0J[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░░[39m[49m[1m 62.0% [22m[2m(1107/2733)[22m
+[113D[1A[0J[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░[39m[49m[1m 90.4% [22m[2m(2634/2771)[22m
+[113D[1A[0J[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░[39m[49m[1m 90.4% [22m[2m(2659/2804)[22m
+[113D[1A[0J[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░[39m[49m[1m 95.4% [22m[2m(2838/2905)[22m
+[113D[1A[0J[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░[39m[49m[1m 98.7% [22m[2m(3016/3036)[22m
+[113D[1A[0J[32m[1mWeb[22m Bundled [39m[2m1787ms[22m[0m[2m node_modules/expo-router/entry.js (3036 modules)[22m[0m
+[1mWeb[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░[39m[49m[1m 98.7% [22m[2m(3016/3036)[22m
+[113D[1A[0J[7m[37m[1m LOG [22m[39m[27m [web] Logs will appear in the browser console
+[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  0.0% [22m[2m(0/1)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [47m[37m░░░░░░░░░░░░░░░░[39m[49m[1m  5.0% [22m[2m( 46/205)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓[49m[39m[47m[37m░░░░░░░░░░░░░░[39m[49m[1m 16.6% [22m[2m(134/329)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓[49m[39m[47m[37m░░░░░░░░░░░░░[39m[49m[1m 21.6% [22m[2m(190/409)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓[49m[39m[47m[37m░░░░░░░░░░░░[39m[49m[1m 25.5% [22m[2m(242/479)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓[49m[39m[47m[37m░░░░░░░░░░░[39m[49m[1m 33.3% [22m[2m(380/659)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░░░░[39m[49m[1m 49.9% [22m[2m(547/774)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░░░░[39m[49m[1m 49.9% [22m[2m(657/940)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░[39m[49m[1m 64.6% [22m[2m( 820/1020)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░[39m[49m[1m 64.8% [22m[2m( 889/1104)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░[39m[49m[1m 66.2% [22m[2m( 952/1170)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░░░[39m[49m[1m 68.0% [22m[2m( 974/1181)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░[39m[49m[1m 76.7% [22m[2m(1128/1288)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░[39m[49m[1m 76.7% [22m[2m(1146/1318)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░[39m[49m[1m 76.7% [22m[2m(1149/2955)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░[39m[49m[1m 76.7% [22m[2m(1187/2974)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░[39m[49m[1m 76.7% [22m[2m(1299/3064)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░░░[39m[49m[1m 76.7% [22m[2m(2685/3079)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░[39m[49m[1m 92.1% [22m[2m(2967/3092)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░[39m[49m[1m 92.1% [22m[2m(3068/3197)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░░[39m[49m[1m 92.1% [22m[2m(3080/3247)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░[39m[49m[1m 95.5% [22m[2m(3253/3328)[22m
+[113D[1A[0J[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░[39m[49m[1m 99.9% [22m[2m(3397/3397)[22m
+[113D[1A[0J[32m[1mAndroid[22m Bundled [39m[2m2427ms[22m[0m[2m node_modules/expo-router/entry.js (3397 modules)[22m[0m
+[1mAndroid[22m [0m[2mnode_modules/expo-router/[22m[0m[1mentry.js[22m [32m[42m▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓[49m[39m[47m[37m░[39m[49m[1m 99.9% [22m[2m(3397/3397)[22m
+[113D[1A[0J[7m[31m[1m ERROR [22m[39m[27m [Invariant Violation: TurboModuleRegistry.getEnforcing(...): 'RNMapsAirModule' could not be found. Verify that a module by this name is registered in the native binary.] 
+
+[1mCode: MapViewComponent.native.tsx[22m
+[0m [90m 1 |[39m [36mimport[39m [33mReact[39m [36mfrom[39m [32m'react'[39m[33m;[39m
+ [90m 2 |[39m [36mimport[39m { [33mView[39m[33m,[39m [33mStyleSheet[39m[33m,[39m [33mActivityIndicator[39m[33m,[39m [33mText[39m } [36mfrom[39m [32m'react-native'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 3 |[39m [36mimport[39m [33mMapView[39m[33m,[39m { [33mMarker[39m[33m,[39m [33mCircle[39m } [36mfrom[39m [32m'react-native-maps'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m
+ [90m 4 |[39m
+ [90m 5 |[39m [36mexport[39m [36mdefault[39m [36mfunction[39m [33mMapViewComponent[39m({
+ [90m 6 |[39m   location[33m,[39m[0m
+[1mCall Stack[22m
+[90m  <global> (components/MapViewComponent.native.tsx:3)[39m
+[?25l[37m⠋[39m Stopping server[2K[1G[37m⠙[39m Stopping server[2K[1G[?25h› Stopped server
+[?25h[1G[0K⠙[1G[0K

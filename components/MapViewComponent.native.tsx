@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, Platform } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
 
 export default function MapViewComponent({ location, errorMsg }: { location: any; errorMsg: string | null }) {
   if (!location || !location.coords) {
@@ -33,7 +33,6 @@ export default function MapViewComponent({ location, errorMsg }: { location: any
   return (
     <View style={styles.mapContainer}>
       <MapView
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         style={styles.map}
         initialRegion={{
           latitude,

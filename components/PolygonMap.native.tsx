@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, Platform } from 'react-native';
-import MapView, { Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
+import { View, StyleSheet, Text } from 'react-native';
+import MapView, { Polygon } from 'react-native-maps';
 
 const generatePolygonAround = (location: any, offset: number) => {
   const { latitude, longitude } = location.coords;
@@ -39,9 +39,8 @@ export default function PolygonMap({ location, errorMsg, offset }: { location: a
   return (
     <View style={styles.mapContainer}>
       <MapView
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         style={styles.map}
-        mapType={Platform.OS === 'android' ? 'satellite' : 'hybrid'}
+        mapType="satellite"
         region={mapRegion}
       >
         <Polygon

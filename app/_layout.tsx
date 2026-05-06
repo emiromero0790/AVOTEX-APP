@@ -7,6 +7,7 @@ import Toast from 'react-native-toast-message';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { LogBox } from 'react-native';
 import { AccessibilityProvider } from '../context/AccessibilityContext';
+import { GuestProvider } from '../context/GuestContext';
 import * as SplashScreen from 'expo-splash-screen';
 
 SplashScreen.preventAutoHideAsync();
@@ -58,18 +59,20 @@ export default function RootLayout() {
   }
 
   return (
-    <AccessibilityProvider>
-      <>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="(app)" options={{ headerShown: false }} />
-          <Stack.Screen name="+not-found" options={{ presentation: 'modal' }} />
-        </Stack>
-        <StatusBar style="dark" />
-        <Toast config={toastConfig} />
-      </>
-    </AccessibilityProvider>
+    <GuestProvider>
+      <AccessibilityProvider>
+        <>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(app)" options={{ headerShown: false }} />
+            <Stack.Screen name="+not-found" options={{ presentation: 'modal' }} />
+          </Stack>
+          <StatusBar style="dark" />
+          <Toast config={toastConfig} />
+        </>
+      </AccessibilityProvider>
+    </GuestProvider>
   );
 }
 

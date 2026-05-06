@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Image, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Image, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { auth } from '../../firebaseConfig';
@@ -49,9 +49,9 @@ const hexToRgba = (hex: string, opacity: number) => {
   throw new Error('Bad Hex');
 };
 
-const screenWidth = Dimensions.get('window').width;
-
 export default function ResultsScreen() {
+    const { width: screenWidth } = useWindowDimensions();
+    const isTablet = screenWidth >= 768;
     const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold });
     const { isColorblindMode } = useAccessibility();
 
@@ -207,6 +207,8 @@ export default function ResultsScreen() {
         }
     };
 
+    const chartWidth = isTablet ? Math.min(screenWidth - 96, 700) : screenWidth - 48;
+
 return (
     <View style={styles.container}>
         <LinearGradient
@@ -215,41 +217,41 @@ return (
             style={StyleSheet.absoluteFill}
         />
         <LinearGradient colors={colors.background} style={styles.gradient} />
-            <View style={styles.header}>
-                <Text style={[styles.title, { color: colors.primary }]}>Resultados</Text>
-                <Text style={styles.subtitle}>Historial de análisis</Text>
+            <View style={[styles.header, isTablet && styles.headerTablet]}>
+                <Text style={[styles.title, { color: colors.primary }, isTablet && styles.titleTablet]}>Resultados</Text>
+                <Text style={[styles.subtitle, isTablet && styles.subtitleTablet]}>Historial de análisis</Text>
                 <View style={[styles.toggleContainer, { backgroundColor: colors.toggleInactive }]}>
                     <TouchableOpacity onPress={() => setActiveView('list')} style={[styles.toggleButton, activeView === 'list' && { backgroundColor: colors.toggleActive }]}>
-                        <List size={20} color={activeView === 'list' ? colors.white : colors.primary} />
+                        <List size={isTablet ? 24 : 20} color={activeView === 'list' ? colors.white : colors.primary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => setActiveView('pie')} style={[styles.toggleButton, activeView === 'pie' && { backgroundColor: colors.toggleActive }]}>
-                        <PieChartIcon size={20} color={activeView === 'pie' ? colors.white : colors.primary} />
+                        <PieChartIcon size={isTablet ? 24 : 20} color={activeView === 'pie' ? colors.white : colors.primary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => setActiveView('bar')} style={[styles.toggleButton, activeView === 'bar' && { backgroundColor: colors.toggleActive }]}>
-                        <BarChart3 size={20} color={activeView === 'bar' ? colors.white : colors.primary} />
+                        <BarChart3 size={isTablet ? 24 : 20} color={activeView === 'bar' ? colors.white : colors.primary} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => setActiveView('line')} style={[styles.toggleButton, activeView === 'line' && { backgroundColor: colors.toggleActive }]}>
-                        <LineChartIcon size={20} color={activeView === 'line' ? colors.white : colors.primary} />
+                        <LineChartIcon size={isTablet ? 24 : 20} color={activeView === 'line' ? colors.white : colors.primary} />
                     </TouchableOpacity>
                 </View>
             </View>
-            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollViewContent}>
+            <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollViewContent, isTablet && styles.scrollViewContentTablet]}>
                 {scans.length > 0 && !isLoading && (
                     <>
-                        <Text style={styles.sectionTitle}>Resumen General</Text>
+                        <Text style={[styles.sectionTitle, isTablet && styles.sectionTitleTablet]}>Resumen General</Text>
                         <View style={styles.statsCompactContainer}>
                             <Text style={styles.statCompactText}>
-                                <Text style={styles.statNumber}>{stats.totalScans}</Text>
-                                <Text style={styles.statDescription}> escaneos • </Text>
-                                <Text style={[styles.statNumber, { color: colors.sano }]}>{stats.healthyPercentage.toFixed(0)}%</Text>
-                                <Text style={[styles.statDescription, { color: colors.sano }]}> saludables • </Text>
-                                <Text style={[styles.statNumber, { color: colors.enfermo }]}>{stats.mostFrequentDisease}</Text>
-                                <Text style={[styles.statDescription, { color: colors.enfermo }]}> más común</Text>
+                                <Text style={[styles.statNumber, isTablet && styles.statNumberTablet]}>{stats.totalScans}</Text>
+                                <Text style={[styles.statDescription, isTablet && styles.statDescriptionTablet]}> escaneos • </Text>
+                                <Text style={[styles.statNumber, { color: colors.sano }, isTablet && styles.statNumberTablet]}>{stats.healthyPercentage.toFixed(0)}%</Text>
+                                <Text style={[styles.statDescription, { color: colors.sano }, isTablet && styles.statDescriptionTablet]}> saludables • </Text>
+                                <Text style={[styles.statNumber, { color: colors.enfermo }, isTablet && styles.statNumberTablet]}>{stats.mostFrequentDisease}</Text>
+                                <Text style={[styles.statDescription, { color: colors.enfermo }, isTablet && styles.statDescriptionTablet]}> más común</Text>
                             </Text>
                         </View>
                     </>
                 )}
-                <Text style={styles.sectionTitle}>{activeView === 'list' ? 'Mis Escaneos Recientes' : 'Visualización de Datos'}</Text>
+                <Text style={[styles.sectionTitle, isTablet && styles.sectionTitleTablet]}>{activeView === 'list' ? 'Mis Escaneos Recientes' : 'Visualización de Datos'}</Text>
                 {renderContent()}
             </ScrollView>
         </View>
@@ -260,11 +262,16 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f9f9f9' },
     gradient: { position: 'absolute', left: 0, right: 0, top: 0, height: 300 },
     header: { paddingTop: 60, paddingHorizontal: 24, marginBottom: 12 },
+    headerTablet: { paddingTop: 80, paddingHorizontal: 40 },
     title: { fontSize: 32, fontFamily: 'Poppins_600SemiBold', textAlign: 'center' },
+    titleTablet: { fontSize: 40 },
     subtitle: { fontSize: 16, fontFamily: 'Poppins_400Regular', color: '#666', textAlign: 'center' },
+    subtitleTablet: { fontSize: 20 },
     scrollView: { flex: 1 },
     scrollViewContent: { paddingHorizontal: 24, paddingBottom: 120 },
+    scrollViewContentTablet: { paddingHorizontal: 48 },
     sectionTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 20, color: '#2a2a2a', marginBottom: 16, marginTop: 5 },
+    sectionTitleTablet: { fontSize: 26 },
     emptyStateContainer: { padding: 30, backgroundColor: '#fff', borderRadius: 16, alignItems: 'center', marginTop: 20 },
     emptyStateText: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#666' },
     emptyStateSubtext: { fontFamily: 'Poppins_400Regular', fontSize: 14, color: '#999', marginTop: 4 },
@@ -302,9 +309,12 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#333',
     },
+    statNumberTablet: { fontSize: 20 },
     statDescription: {
         fontFamily: 'Poppins_400Regular',
         fontSize: 14,
         color: '#666',
     },
+    statDescriptionTablet: { fontSize: 17 },
+    statCompactTextTablet: { fontSize: 17 },
 });

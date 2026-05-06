@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
-  Dimensions,
+  useWindowDimensions,
   Platform,
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -15,7 +15,7 @@ import {
   Linking,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Mail, Lock, Eye, EyeOff, ChevronRight, X, KeyRound } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, ChevronRight, X, KeyRound, UserX } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   signInWithEmailAndPassword,
@@ -35,8 +35,7 @@ import Animated, {
   withDelay,
   Easing,
 } from 'react-native-reanimated';
-
-const { width, height } = Dimensions.get('window');
+import { useGuest } from '../../context/GuestContext';
 
 const CONTACT_EMAIL = 'vexmxoficial@gmail.com';
 const ERROR_DURATION_MS = 4000;
@@ -53,8 +52,8 @@ const FRUIT_TAGS = [
 const BG_FRUITS = [
   { src: require('../../assets/images/bg_mango.jpg'),   style: { top: -40, left: -40, transform: [{ rotate: '15deg' }] } },
   { src: require('../../assets/images/bg_limon2.jpg'),  style: { top: -30, right: -40, transform: [{ rotate: '-12deg' }] } },
-  { src: require('../../assets/images/bg_aguacate.jpg'),style: { top: height * 0.28, left: -50, transform: [{ rotate: '8deg' }] } },
-  { src: require('../../assets/images/bg_guayaba.jpg'), style: { top: height * 0.30, right: -50, transform: [{ rotate: '-10deg' }] } },
+  { src: require('../../assets/images/bg_aguacate.jpg'),style: { top: '28%' as any, left: -50, transform: [{ rotate: '8deg' }] } },
+  { src: require('../../assets/images/bg_guayaba.jpg'), style: { top: '30%' as any, right: -50, transform: [{ rotate: '-10deg' }] } },
   { src: require('../../assets/images/bg_berries.jpg'), style: { bottom: 20, left: -30, transform: [{ rotate: '-14deg' }] } },
   { src: require('../../assets/images/bg_frutos.jpg'),  style: { bottom: -15, right: -30, transform: [{ rotate: '20deg' }] } },
   { src: require('../../assets/images/bg_cafe2.jpg'),   style: { bottom: 180, right: 70, transform: [{ rotate: '-10deg' }] } },
@@ -90,6 +89,10 @@ const AnimatedTag = ({ tag, index }: { tag: typeof FRUIT_TAGS[0]; index: number 
 };
 
 export default function Login() {
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const { enterGuestMode } = useGuest();
+
   const [email, setEmail]           = useState('');
   const [password, setPassword]     = useState('');
   const [error, setError]           = useState('');
@@ -106,7 +109,6 @@ export default function Login() {
     return () => { if (errorTimerRef.current) clearTimeout(errorTimerRef.current); };
   }, [error]);
 
-  // ── Forgot password modal state ──
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotEmail, setForgotEmail]               = useState('');
   const [forgotOldPw, setForgotOldPw]               = useState('');
@@ -199,6 +201,13 @@ export default function Login() {
     }
   };
 
+  const handleGuestAccess = () => {
+    enterGuestMode();
+    router.replace('/(app)');
+  };
+
+  const cardMaxWidth = isTablet ? 480 : undefined;
+
   return (
     <View style={s.root}>
       <LinearGradient
@@ -207,10 +216,10 @@ export default function Login() {
       />
 
       {BG_FRUITS.map((f, i) => (
-        <Image key={i} source={f.src} style={[s.fruitImg, f.style]} />
+        <Image key={i} source={f.src} style={[s.fruitImg, f.style as any, isTablet && s.fruitImgTablet]} />
       ))}
 
-      {/* ── Forgot password modal ── */}
+      {/* Forgot password modal */}
       <Modal
         visible={showForgotModal}
         transparent
@@ -338,103 +347,126 @@ export default function Login() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        {/* Logo + tags */}
-        <Animated.View entering={FadeInDown.delay(80).duration(700)} style={s.logoArea}>
-          <Image
-            source={require('../../assets/images/AvotexNuevoLogo.png')}
-            style={s.logo}
-            resizeMode="contain"
-          />
-
-          <View style={s.tagsRow}>
-            {FRUIT_TAGS.map((t, i) => (
-              <AnimatedTag key={i} tag={t} index={i} />
-            ))}
-          </View>
-        </Animated.View>
-
-        {/* Card de login */}
-        <Animated.View entering={FadeInDown.delay(260).duration(700)} style={s.card}>
-          <Text style={s.title}>Bienvenido</Text>
-          <Text style={s.subtitle}>Conecta con tus cultivos inteligentes</Text>
-
-          {error ? (
-            <Animated.View
-              entering={FadeInUp.duration(400)}
-              exiting={FadeOutUp.duration(300)}
-              style={s.errorBox}
-            >
-              <Text style={s.errorText}>⚠️ {error}</Text>
-            </Animated.View>
-          ) : null}
-
-          <Animated.View entering={FadeInUp.delay(360).duration(600)} style={s.inputRow}>
-            <Mail color="#3aaa5c" size={20} style={s.inputIcon} />
-            <TextInput
-              style={s.input}
-              placeholder="Correo electrónico"
-              value={email}
-              onChangeText={(t) => { setEmail(t); setError(''); }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholderTextColor="#a8c4a0"
+        <ScrollView
+          contentContainerStyle={[s.scrollContent, isTablet && s.scrollContentTablet]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Logo + tags */}
+          <Animated.View entering={FadeInDown.delay(80).duration(700)} style={[s.logoArea, isTablet && s.logoAreaTablet]}>
+            <Image
+              source={require('../../assets/images/AvotexNuevoLogo.png')}
+              style={[s.logo, isTablet && s.logoTablet]}
+              resizeMode="contain"
             />
+
+            <View style={s.tagsRow}>
+              {FRUIT_TAGS.map((t, i) => (
+                <AnimatedTag key={i} tag={t} index={i} />
+              ))}
+            </View>
           </Animated.View>
 
-          <Animated.View entering={FadeInUp.delay(470).duration(600)} style={s.inputRow}>
-            <Lock color="#3aaa5c" size={20} style={s.inputIcon} />
-            <TextInput
-              style={s.input}
-              placeholder="Contraseña"
-              value={password}
-              onChangeText={(t) => { setPassword(t); setError(''); }}
-              secureTextEntry={!showPassword}
-              placeholderTextColor="#a8c4a0"
-            />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={s.eyeBtn}>
-              {showPassword ? <Eye color="#7aad4c" size={20} /> : <EyeOff color="#7aad4c" size={20} />}
-            </TouchableOpacity>
-          </Animated.View>
+          {/* Card de login */}
+          <Animated.View entering={FadeInDown.delay(260).duration(700)} style={[s.card, { maxWidth: cardMaxWidth }, isTablet && s.cardTablet]}>
+            <Text style={[s.title, isTablet && s.titleTablet]}>Bienvenido</Text>
+            <Text style={[s.subtitle, isTablet && s.subtitleTablet]}>Conecta con tus cultivos inteligentes</Text>
 
-          <TouchableOpacity style={s.forgotBtn} onPress={openForgotModal}>
-            <Text style={s.forgotText}>¿Olvidaste tu contraseña?</Text>
-          </TouchableOpacity>
-
-          <Animated.View entering={FadeInUp.delay(570).duration(600)}>
-            <TouchableOpacity
-              style={[s.loginBtn, loading && { opacity: 0.75 }]}
-              onPress={handleLogin}
-              disabled={loading}
-              activeOpacity={0.88}
-            >
-              <LinearGradient
-                colors={['#42cc6a', '#27a849']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={s.loginGradient}
+            {error ? (
+              <Animated.View
+                entering={FadeInUp.duration(400)}
+                exiting={FadeOutUp.duration(300)}
+                style={s.errorBox}
               >
-                {loading ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <>
-                    <Text style={s.loginText}>Iniciar Sesión</Text>
-                    <ChevronRight color="#fff" size={22} />
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </Animated.View>
+                <Text style={s.errorText}>⚠️ {error}</Text>
+              </Animated.View>
+            ) : null}
 
-          <View style={s.registerRow}>
-            <Text style={s.registerText}>
-              Envía un correo a{' '}
-            </Text>
-            <TouchableOpacity onPress={() => Linking.openURL(`mailto:${CONTACT_EMAIL}`)}>
-              <Text style={[s.registerEmail, s.registerEmailLink]}>{CONTACT_EMAIL}</Text>
+            <Animated.View entering={FadeInUp.delay(360).duration(600)} style={[s.inputRow, isTablet && s.inputRowTablet]}>
+              <Mail color="#3aaa5c" size={20} style={s.inputIcon} />
+              <TextInput
+                style={[s.input, isTablet && s.inputTablet]}
+                placeholder="Correo electrónico"
+                value={email}
+                onChangeText={(t) => { setEmail(t); setError(''); }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholderTextColor="#a8c4a0"
+              />
+            </Animated.View>
+
+            <Animated.View entering={FadeInUp.delay(470).duration(600)} style={[s.inputRow, isTablet && s.inputRowTablet]}>
+              <Lock color="#3aaa5c" size={20} style={s.inputIcon} />
+              <TextInput
+                style={[s.input, isTablet && s.inputTablet]}
+                placeholder="Contraseña"
+                value={password}
+                onChangeText={(t) => { setPassword(t); setError(''); }}
+                secureTextEntry={!showPassword}
+                placeholderTextColor="#a8c4a0"
+              />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={s.eyeBtn}>
+                {showPassword ? <Eye color="#7aad4c" size={20} /> : <EyeOff color="#7aad4c" size={20} />}
+              </TouchableOpacity>
+            </Animated.View>
+
+            <TouchableOpacity style={s.forgotBtn} onPress={openForgotModal}>
+              <Text style={[s.forgotText, isTablet && s.forgotTextTablet]}>¿Olvidaste tu contraseña?</Text>
             </TouchableOpacity>
-            <Text style={s.registerText}>{' '}para registrarte.</Text>
-          </View>
-        </Animated.View>
+
+            <Animated.View entering={FadeInUp.delay(570).duration(600)}>
+              <TouchableOpacity
+                style={[s.loginBtn, loading && { opacity: 0.75 }]}
+                onPress={handleLogin}
+                disabled={loading}
+                activeOpacity={0.88}
+              >
+                <LinearGradient
+                  colors={['#42cc6a', '#27a849']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[s.loginGradient, isTablet && s.loginGradientTablet]}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Text style={[s.loginText, isTablet && s.loginTextTablet]}>Iniciar Sesión</Text>
+                      <ChevronRight color="#fff" size={22} />
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+
+            {/* Guest mode button */}
+            <Animated.View entering={FadeInUp.delay(650).duration(600)}>
+              <TouchableOpacity
+                style={[s.guestBtn, isTablet && s.guestBtnTablet]}
+                onPress={handleGuestAccess}
+                activeOpacity={0.82}
+              >
+                <UserX color="#64748b" size={isTablet ? 20 : 17} />
+                <Text style={[s.guestBtnText, isTablet && s.guestBtnTextTablet]}>
+                  Continuar como invitado (uso limitado)
+                </Text>
+              </TouchableOpacity>
+              <Text style={[s.guestNote, isTablet && s.guestNoteTablet]}>
+                ⚠️ El modo invitado tiene funciones limitadas. Solo podrás escanear hasta 10 veces.
+              </Text>
+            </Animated.View>
+
+            <View style={s.registerRow}>
+              <Text style={[s.registerText, isTablet && s.registerTextTablet]}>
+                Envía un correo a{' '}
+              </Text>
+              <TouchableOpacity onPress={() => Linking.openURL(`mailto:${CONTACT_EMAIL}`)}>
+                <Text style={[s.registerEmail, s.registerEmailLink, isTablet && s.registerTextTablet]}>{CONTACT_EMAIL}</Text>
+              </TouchableOpacity>
+              <Text style={[s.registerText, isTablet && s.registerTextTablet]}>{' '}para registrarte.</Text>
+            </View>
+          </Animated.View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
@@ -456,23 +488,44 @@ const s = StyleSheet.create({
     opacity: 0.9,
     zIndex: 0,
   },
+  fruitImgTablet: {
+    width: 220,
+    height: 220,
+    opacity: 0.6,
+  },
 
   kav: {
     flex: 1,
+    zIndex: 1,
+  },
+
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 22,
     paddingVertical: 24,
-    zIndex: 1,
+  },
+  scrollContentTablet: {
+    paddingHorizontal: 60,
+    paddingVertical: 40,
   },
 
   logoArea: {
     alignItems: 'center',
     marginBottom: 16,
+    width: '100%',
+  },
+  logoAreaTablet: {
+    marginBottom: 24,
   },
   logo: {
-    width: width * 0.82,
+    width: '82%',
     height: 140,
+  },
+  logoTablet: {
+    width: '60%',
+    height: 180,
   },
 
   tagsRow: {
@@ -522,6 +575,11 @@ const s = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(58,170,92,0.18)',
     zIndex: 2,
+    alignSelf: 'center',
+  },
+  cardTablet: {
+    padding: 32,
+    borderRadius: 36,
   },
 
   title: {
@@ -531,12 +589,19 @@ const s = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 4,
   },
+  titleTablet: {
+    fontSize: 36,
+  },
   subtitle: {
     fontFamily: 'Poppins-Regular',
     fontSize: 13,
     color: '#4d7040',
     textAlign: 'center',
     marginBottom: 18,
+  },
+  subtitleTablet: {
+    fontSize: 16,
+    marginBottom: 24,
   },
 
   errorBox: {
@@ -564,6 +629,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     marginBottom: 12,
   },
+  inputRowTablet: {
+    borderRadius: 20,
+    marginBottom: 16,
+  },
   inputIcon: { marginRight: 10 },
   input: {
     flex: 1,
@@ -571,6 +640,10 @@ const s = StyleSheet.create({
     fontSize: 15,
     color: '#1a2e0a',
     height: 48,
+  },
+  inputTablet: {
+    fontSize: 17,
+    height: 56,
   },
   eyeBtn: { paddingLeft: 8, paddingRight: 2 },
 
@@ -580,11 +653,14 @@ const s = StyleSheet.create({
     fontSize: 13,
     color: '#3aaa5c',
   },
+  forgotTextTablet: {
+    fontSize: 15,
+  },
 
   loginBtn: {
     borderRadius: 50,
     overflow: 'hidden',
-    marginBottom: 16,
+    marginBottom: 12,
     shadowColor: '#27a849',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.38,
@@ -599,11 +675,57 @@ const s = StyleSheet.create({
     gap: 8,
     borderRadius: 50,
   },
+  loginGradientTablet: {
+    paddingVertical: 18,
+  },
   loginText: {
     fontFamily: 'Poppins-SemiBold',
     fontSize: 17,
     color: '#fff',
     letterSpacing: 0.3,
+  },
+  loginTextTablet: {
+    fontSize: 20,
+  },
+
+  guestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 50,
+    borderWidth: 1.5,
+    borderColor: '#cbd5e1',
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    marginBottom: 8,
+    backgroundColor: 'rgba(248,250,252,0.85)',
+  },
+  guestBtnTablet: {
+    paddingVertical: 16,
+    marginBottom: 10,
+  },
+  guestBtnText: {
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 13,
+    color: '#64748b',
+  },
+  guestBtnTextTablet: {
+    fontSize: 15,
+  },
+  guestNote: {
+    fontFamily: 'Poppins-Regular',
+    fontSize: 11,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginBottom: 14,
+    lineHeight: 16,
+    paddingHorizontal: 8,
+  },
+  guestNoteTablet: {
+    fontSize: 13,
+    lineHeight: 20,
+    marginBottom: 18,
   },
 
   registerRow: {
@@ -620,6 +742,10 @@ const s = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
+  registerTextTablet: {
+    fontSize: 15,
+    lineHeight: 24,
+  },
   registerEmail: {
     fontFamily: 'Poppins-SemiBold',
     color: '#2d8a3e',
@@ -630,7 +756,6 @@ const s = StyleSheet.create({
     textDecorationLine: 'underline',
   },
 
-  // ── Forgot password modal ──
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -712,40 +837,35 @@ const s = StyleSheet.create({
     color: '#1a2e0a',
     height: 44,
   },
-  modalEyeBtn: { paddingLeft: 6, paddingRight: 2 },
+  modalEyeBtn: { paddingLeft: 6 },
   modalBtnRow: {
     flexDirection: 'row',
     gap: 10,
     marginTop: 6,
   },
   modalCancelBtn: {
-    flex: 1,
-    paddingVertical: 13,
     borderRadius: 50,
     borderWidth: 1.5,
-    borderColor: '#b8ddb0',
-    alignItems: 'center',
+    borderColor: '#cbd5e1',
+    paddingVertical: 12,
+    paddingHorizontal: 18,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   modalCancelText: {
     fontFamily: 'Poppins-SemiBold',
     fontSize: 14,
-    color: '#5a7a50',
+    color: '#64748b',
   },
   modalPrimaryBtn: {
     borderRadius: 50,
     overflow: 'hidden',
-    shadowColor: '#27a849',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
   modalPrimaryGrad: {
     paddingVertical: 13,
     paddingHorizontal: 18,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 50,
   },
   modalPrimaryText: {

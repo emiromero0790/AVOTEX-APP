@@ -1,15 +1,26 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, Modal } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  Animated,
+  Modal,
+  useWindowDimensions,
+} from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
-import { RotateCw as RotateCwIcon, Camera as CameraIcon, Shield } from "lucide-react-native";
+import { RotateCw as RotateCwIcon, Camera as CameraIcon, Shield, Lock } from "lucide-react-native";
 import Toast from "react-native-toast-message";
 import { useFocusEffect } from "expo-router";
 import * as FileSystem from "expo-file-system";
 import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 
 import { auth } from "../../firebaseConfig";
 import { User, onAuthStateChanged } from "firebase/auth";
 import { supabase } from "../../supabaseConfig";
+import { useGuest, GUEST_MAX_SCANS } from "../../context/GuestContext";
 
 const PREDICT_URL = process.env.EXPO_PUBLIC_PREDICT_URL!;
 const URL_PREDICT_FILE = `${PREDICT_URL}/predict`;
@@ -33,11 +44,16 @@ export default function Scan() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const isBusyRef = useRef(false);
-
   const spinValue = useRef(new Animated.Value(0)).current;
 
   const [scanModalVisible, setScanModalVisible] = useState(true);
   const [scanAccepted, setScanAccepted] = useState(false);
+
+  const { isGuest, guestScansLeft, decrementGuestScans } = useGuest();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+
+  const scanFrameSize = isTablet ? 320 : 240;
 
   useEffect(() => {
     if (isProcessing || isSaving) {
@@ -186,6 +202,18 @@ export default function Scan() {
     if (isBusyRef.current || isProcessing || isSaving) return;
     if (!cameraRef.current) return;
 
+    if (isGuest) {
+      const allowed = await decrementGuestScans();
+      if (!allowed) {
+        Toast.show({
+          type: "error",
+          text1: "Límite alcanzado",
+          text2: "Crea una cuenta para continuar escaneando."
+        });
+        return;
+      }
+    }
+
     isBusyRef.current = true;
     setIsProcessing(true);
     setPrediction(null);
@@ -201,7 +229,9 @@ export default function Scan() {
 
       if (pred) {
         setPrediction(pred);
-        await saveScanResult(pred);
+        if (!isGuest) {
+          await saveScanResult(pred);
+        }
       } else {
         setPrediction({ label: "Respuesta inválida", score: 0 });
       }
@@ -241,9 +271,11 @@ export default function Scan() {
 
   const isHealthy = prediction?.label?.toLowerCase().includes("salud") || prediction?.label?.toLowerCase().includes("healthy");
 
+  const guestLimitReached = isGuest && guestScansLeft <= 0;
+
   return (
     <View style={styles.container}>
-      {/* ── Scan privacy modal – always shown ── */}
+      {/* Scan privacy modal */}
       <Modal
         visible={scanModalVisible}
         transparent
@@ -251,23 +283,31 @@ export default function Scan() {
         statusBarTranslucent
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, isTablet && styles.modalCardTablet]}>
             <View style={styles.modalIconCircle}>
               <Shield size={30} color="#0f766e" />
             </View>
 
-            <Text style={styles.modalTitle}>📷 Uso de la Cámara e Imágenes</Text>
-            <Text style={styles.modalSubtitle}>Importante leer antes de escanear</Text>
+            <Text style={[styles.modalTitle, isTablet && styles.modalTitleTablet]}>📷 Uso de la Cámara e Imágenes</Text>
+            <Text style={[styles.modalSubtitle, isTablet && styles.modalSubtitleTablet]}>Importante leer antes de escanear</Text>
+
+            {isGuest && (
+              <View style={styles.guestScanInfo}>
+                <Text style={styles.guestScanInfoText}>
+                  🎯 Modo invitado: tienes <Text style={styles.guestScanCount}>{guestScansLeft} escaneos</Text> disponibles
+                </Text>
+              </View>
+            )}
 
             <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>🔍 ¿Cómo funciona el escaneo?</Text>
-              <Text style={styles.modalBodyText}>
+              <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>🔍 ¿Cómo funciona el escaneo?</Text>
+              <Text style={[styles.modalBodyText, isTablet && styles.modalBodyTextTablet]}>
                 La cámara captura una foto del cultivo o fruto y la envía a nuestra IA para su análisis en tiempo real.
               </Text>
             </View>
 
             <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>🗑️ Uso de imágenes (IMPORTANTE)</Text>
+              <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>🗑️ Uso de imágenes (IMPORTANTE)</Text>
               <View style={styles.highlightBox}>
                 <View style={styles.bulletRow}>
                   <Text style={styles.bulletDot}>•</Text>
@@ -285,9 +325,11 @@ export default function Scan() {
             </View>
 
             <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>✅ ¿Qué sí se guarda?</Text>
-              <Text style={styles.modalBodyText}>
-                Solo se almacena el resultado del análisis: el porcentaje de probabilidad de enfermedad y el diagnóstico obtenido.
+              <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>✅ ¿Qué sí se guarda?</Text>
+              <Text style={[styles.modalBodyText, isTablet && styles.modalBodyTextTablet]}>
+                {isGuest
+                  ? "En modo invitado, los resultados no se guardan en ninguna base de datos."
+                  : "Solo se almacena el resultado del análisis: el porcentaje de probabilidad de enfermedad y el diagnóstico obtenido."}
               </Text>
             </View>
 
@@ -297,7 +339,7 @@ export default function Scan() {
                 onPress={() => { setScanAccepted(true); setScanModalVisible(false); }}
               >
                 <LinearGradient colors={['#34d399', '#0f766e']} style={styles.acceptBtnGrad}>
-                  <Text style={styles.acceptBtnText}>Entendido, continuar</Text>
+                  <Text style={[styles.acceptBtnText, isTablet && styles.acceptBtnTextTablet]}>Entendido, continuar</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -305,61 +347,100 @@ export default function Scan() {
         </View>
       </Modal>
 
-      <CameraView style={styles.camera} type={type} ref={cameraRef} facing={type}>
-        <View style={styles.overlay}>
-          <View style={styles.header}>
-            <Text style={styles.headerText}>Escanear Fruto</Text>
-            <Text style={styles.headerSubtext}>Apunta al fruto para analizarlo</Text>
-          </View>
-
-          <View style={styles.scanFrame}>
-            <View style={[styles.corner, styles.cornerTL]} />
-            <View style={[styles.corner, styles.cornerTR]} />
-            <View style={[styles.corner, styles.cornerBL]} />
-            <View style={[styles.corner, styles.cornerBR]} />
-          </View>
-
-          <View style={styles.controls}>
-            <TouchableOpacity style={styles.flipButton} onPress={toggleCameraType} disabled={isProcessing}>
-              <RotateCwIcon color="#eee" size={28} />
-            </TouchableOpacity>
-
+      {/* Guest limit reached screen */}
+      {guestLimitReached ? (
+        <View style={styles.limitContainer}>
+          <LinearGradient colors={['#0f766e', '#134e4a']} style={StyleSheet.absoluteFill} />
+          <View style={[styles.limitCard, isTablet && styles.limitCardTablet]}>
+            <View style={styles.limitIconCircle}>
+              <Lock size={36} color="#0f766e" />
+            </View>
+            <Text style={[styles.limitTitle, isTablet && styles.limitTitleTablet]}>Límite alcanzado</Text>
+            <Text style={[styles.limitBody, isTablet && styles.limitBodyTablet]}>
+              Has alcanzado el límite del modo invitado.{'\n'}Crea una cuenta para continuar escaneando sin restricciones.
+            </Text>
             <TouchableOpacity
-              style={[styles.captureButton, (isProcessing || isSaving) && styles.captureButtonDisabled]}
-              onPress={takePicture}
-              disabled={isProcessing || isSaving}
+              style={styles.limitLoginBtn}
+              onPress={() => router.replace('/(auth)')}
             >
-              <View style={styles.captureButtonInner}>
-                <CameraIcon color="#fff" size={32} />
-              </View>
+              <LinearGradient colors={['#34d399', '#0f766e']} style={styles.limitBtnGrad}>
+                <Text style={[styles.limitBtnText, isTablet && styles.limitBtnTextTablet]}>Crear cuenta / Iniciar sesión</Text>
+              </LinearGradient>
             </TouchableOpacity>
-
-            <View style={{ width: 56 }} />
           </View>
         </View>
-      </CameraView>
+      ) : (
+        <CameraView style={styles.camera} type={type} ref={cameraRef} facing={type}>
+          <View style={styles.overlay}>
+            <View style={[styles.header, isTablet && styles.headerTablet]}>
+              <Text style={[styles.headerText, isTablet && styles.headerTextTablet]}>Escanear Fruto</Text>
+              <Text style={[styles.headerSubtext, isTablet && styles.headerSubtextTablet]}>Apunta al fruto para analizarlo</Text>
+              {isGuest && (
+                <View style={[styles.guestCounter, isTablet && styles.guestCounterTablet]}>
+                  <Text style={[styles.guestCounterText, isTablet && styles.guestCounterTextTablet]}>
+                    📷 {guestScansLeft}/{GUEST_MAX_SCANS} escaneos restantes
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={[styles.scanFrame, { width: scanFrameSize, height: scanFrameSize }]}>
+              <View style={[styles.corner, styles.cornerTL]} />
+              <View style={[styles.corner, styles.cornerTR]} />
+              <View style={[styles.corner, styles.cornerBL]} />
+              <View style={[styles.corner, styles.cornerBR]} />
+            </View>
+
+            <View style={[styles.controls, isTablet && styles.controlsTablet]}>
+              <TouchableOpacity
+                style={[styles.flipButton, isTablet && styles.flipButtonTablet]}
+                onPress={toggleCameraType}
+                disabled={isProcessing}
+              >
+                <RotateCwIcon color="#eee" size={isTablet ? 34 : 28} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.captureButton,
+                  isTablet && styles.captureButtonTablet,
+                  (isProcessing || isSaving) && styles.captureButtonDisabled
+                ]}
+                onPress={takePicture}
+                disabled={isProcessing || isSaving}
+              >
+                <View style={[styles.captureButtonInner, isTablet && styles.captureButtonInnerTablet]}>
+                  <CameraIcon color="#fff" size={isTablet ? 38 : 32} />
+                </View>
+              </TouchableOpacity>
+
+              <View style={{ width: isTablet ? 72 : 56 }} />
+            </View>
+          </View>
+        </CameraView>
+      )}
 
       {(isSaving || isProcessing) && (
         <View style={styles.savingOverlay}>
-          <View style={styles.loadingContainer}>
+          <View style={[styles.loadingContainer, isTablet && styles.loadingContainerTablet]}>
             <Animated.View
-              style={[styles.fruitSpinner, { transform: [{ rotate: spin }] }]}
+              style={[styles.fruitSpinner, isTablet && styles.fruitSpinnerTablet, { transform: [{ rotate: spin }] }]}
             >
-              <Text style={styles.fruitEmoji}>🌿</Text>
+              <Text style={[styles.fruitEmoji, isTablet && styles.fruitEmojiTablet]}>🌿</Text>
             </Animated.View>
-            <Text style={styles.savingTitle}>
+            <Text style={[styles.savingTitle, isTablet && styles.savingTitleTablet]}>
               {isSaving ? "Guardando" : "Analizando"}
             </Text>
-            <Text style={styles.savingSubtitle}>
+            <Text style={[styles.savingSubtitle, isTablet && styles.savingSubtitleTablet]}>
               {isSaving ? "Tu diagnóstico se está guardando..." : "Detectando estado del cultivo..."}
             </Text>
           </View>
         </View>
       )}
 
-      {prediction && !isSaving && !isProcessing && (
-        <View style={[styles.predictionContainer, isHealthy ? styles.sano : styles.enfermo]}>
-          <Text style={styles.predictionText}>{renderPredictionText()}</Text>
+      {prediction && !isSaving && !isProcessing && !guestLimitReached && (
+        <View style={[styles.predictionContainer, isHealthy ? styles.sano : styles.enfermo, isTablet && styles.predictionContainerTablet]}>
+          <Text style={[styles.predictionText, isTablet && styles.predictionTextTablet]}>{renderPredictionText()}</Text>
         </View>
       )}
     </View>
@@ -375,11 +456,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
+  headerTablet: {
+    paddingTop: 60,
+    marginBottom: 28,
+  },
   headerText: {
     color: "#ffffff",
     fontSize: 22,
     fontFamily: "Poppins-SemiBold",
     letterSpacing: 0.5,
+  },
+  headerTextTablet: {
+    fontSize: 28,
   },
   headerSubtext: {
     color: "rgba(255,255,255,0.75)",
@@ -387,9 +475,35 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Regular",
     marginTop: 4,
   },
+  headerSubtextTablet: {
+    fontSize: 16,
+    marginTop: 6,
+  },
+
+  guestCounter: {
+    marginTop: 10,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.6)',
+  },
+  guestCounterTablet: {
+    marginTop: 14,
+    paddingHorizontal: 22,
+    paddingVertical: 8,
+  },
+  guestCounterText: {
+    color: '#fbbf24',
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 13,
+  },
+  guestCounterTextTablet: {
+    fontSize: 16,
+  },
+
   scanFrame: {
-    width: 240,
-    height: 240,
     alignSelf: 'center',
     marginTop: 20,
   },
@@ -404,6 +518,7 @@ const styles = StyleSheet.create({
   cornerTR: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 6 },
   cornerBL: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 6 },
   cornerBR: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 6 },
+
   controls: {
     position: 'absolute',
     bottom: 100,
@@ -415,10 +530,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
     gap: 40,
   },
+  controlsTablet: {
+    bottom: 120,
+    gap: 60,
+  },
   flipButton: {
     backgroundColor: "rgba(0,0,0,0.5)",
     borderRadius: 30,
     padding: 12,
+  },
+  flipButtonTablet: {
+    padding: 16,
+    borderRadius: 36,
   },
   captureButton: {
     width: 80,
@@ -430,6 +553,11 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: "#ffffff",
   },
+  captureButtonTablet: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
   captureButtonDisabled: { opacity: 0.5 },
   captureButtonInner: {
     width: 64,
@@ -439,6 +567,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  captureButtonInnerTablet: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+
   predictionContainer: {
     position: "absolute",
     bottom: 200,
@@ -452,12 +586,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
   },
+  predictionContainerTablet: {
+    bottom: 240,
+    paddingHorizontal: 32,
+    paddingVertical: 18,
+  },
   predictionText: { fontSize: 18, fontWeight: "700", color: "#fff", fontFamily: "Poppins-SemiBold" },
+  predictionTextTablet: { fontSize: 22 },
   sano: { backgroundColor: "#2ecc71" },
   enfermo: { backgroundColor: "#e74c3c" },
+
   text: { color: "#ffffff", fontSize: 18, fontFamily: "Poppins-Regular", textAlign: "center", marginBottom: 20 },
   button: { backgroundColor: "#3aaa5c", padding: 16, borderRadius: 12, alignItems: "center" },
   buttonText: { color: "#ffffff", fontSize: 18, fontFamily: "Poppins-SemiBold" },
+
   savingOverlay: {
     position: 'absolute',
     left: 0, right: 0, top: 0, bottom: 0,
@@ -473,6 +615,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(58, 170, 92, 0.4)',
   },
+  loadingContainerTablet: {
+    padding: 48,
+    borderRadius: 36,
+  },
   fruitSpinner: {
     width: 100,
     height: 100,
@@ -482,12 +628,22 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     marginBottom: 20,
   },
+  fruitSpinnerTablet: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    marginBottom: 26,
+  },
   fruitEmoji: { fontSize: 50 },
+  fruitEmojiTablet: { fontSize: 64 },
   savingTitle: {
     color: '#ffffff',
     fontSize: 22,
     fontFamily: "Poppins-Bold",
     marginBottom: 8,
+  },
+  savingTitleTablet: {
+    fontSize: 28,
   },
   savingSubtitle: {
     color: 'rgba(255, 255, 255, 0.8)',
@@ -495,6 +651,84 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Regular",
     textAlign: 'center',
     maxWidth: 250,
+  },
+  savingSubtitleTablet: {
+    fontSize: 17,
+    maxWidth: 340,
+  },
+
+  limitContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 28,
+  },
+  limitCard: {
+    backgroundColor: '#fff',
+    borderRadius: 28,
+    padding: 32,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  limitCardTablet: {
+    maxWidth: 520,
+    padding: 48,
+    borderRadius: 36,
+  },
+  limitIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#d1fae5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  limitTitle: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 24,
+    color: '#134e4a',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  limitTitleTablet: {
+    fontSize: 30,
+  },
+  limitBody: {
+    fontFamily: 'Poppins-Regular',
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  limitBodyTablet: {
+    fontSize: 17,
+    lineHeight: 28,
+    marginBottom: 36,
+  },
+  limitLoginBtn: {
+    width: '100%',
+    borderRadius: 50,
+    overflow: 'hidden',
+  },
+  limitBtnGrad: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  limitBtnText: {
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 16,
+    color: '#fff',
+  },
+  limitBtnTextTablet: {
+    fontSize: 19,
   },
 
   modalOverlay: {
@@ -517,6 +751,11 @@ const styles = StyleSheet.create({
     elevation: 12,
     alignItems: 'center',
   },
+  modalCardTablet: {
+    maxWidth: 560,
+    padding: 36,
+    borderRadius: 36,
+  },
   modalIconCircle: {
     width: 60,
     height: 60,
@@ -533,13 +772,42 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 4,
   },
+  modalTitleTablet: {
+    fontSize: 22,
+  },
   modalSubtitle: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 12,
     color: '#94a3b8',
     textAlign: 'center',
+    marginBottom: 14,
+  },
+  modalSubtitleTablet: {
+    fontSize: 15,
     marginBottom: 18,
   },
+
+  guestScanInfo: {
+    backgroundColor: '#fffbeb',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    width: '100%',
+  },
+  guestScanInfoText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 13,
+    color: '#92400e',
+    textAlign: 'center',
+  },
+  guestScanCount: {
+    fontFamily: 'Poppins_600SemiBold',
+    color: '#b45309',
+  },
+
   modalSection: {
     width: '100%',
     marginBottom: 14,
@@ -550,11 +818,18 @@ const styles = StyleSheet.create({
     color: '#134e4a',
     marginBottom: 6,
   },
+  modalSectionTitleTablet: {
+    fontSize: 15,
+  },
   modalBodyText: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 13,
     color: '#334155',
     lineHeight: 19,
+  },
+  modalBodyTextTablet: {
+    fontSize: 15,
+    lineHeight: 23,
   },
   highlightBox: {
     backgroundColor: '#f0fdf4',
@@ -603,5 +878,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 16,
     color: '#ffffff',
+  },
+  acceptBtnTextTablet: {
+    fontSize: 19,
+    paddingVertical: 4,
   },
 });

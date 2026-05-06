@@ -4,6 +4,8 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Modal,
+  useWindowDimensions,
 } from 'react-native';
 import { Tabs, router, usePathname } from 'expo-router';
 import {
@@ -15,28 +17,95 @@ import {
   MessageCircle,
   Shield,
   User,
+  Lock,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_600SemiBold, Poppins_400Regular } from '@expo-google-fonts/poppins';
+import { useGuest } from '../../context/GuestContext';
+import { useState } from 'react';
+
+function GuestLockedModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
+      <View style={styles.lockOverlay}>
+        <View style={styles.lockCard}>
+          <View style={styles.lockIconCircle}>
+            <Lock size={30} color="#0f766e" />
+          </View>
+          <Text style={styles.lockTitle}>Función bloqueada</Text>
+          <Text style={styles.lockBody}>
+            Registra una cuenta con VEX para continuar y acceder a todas las funciones de Avotex.
+          </Text>
+          <TouchableOpacity
+            style={styles.lockLoginBtn}
+            onPress={() => { onClose(); router.replace('/(auth)'); }}
+          >
+            <LinearGradient colors={['#34d399', '#0f766e']} style={styles.lockBtnGrad}>
+              <Text style={styles.lockBtnText}>Crear cuenta / Iniciar sesión</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.lockCancelBtn} onPress={onClose}>
+            <Text style={styles.lockCancelText}>Volver</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 export default function TabLayout() {
   const pathname = usePathname();
   const shouldHideTabs = pathname === '/(app)/chatbot' || pathname === '/chatbot';
+  const { isGuest } = useGuest();
+  const [showLockModal, setShowLockModal] = useState(false);
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
 
   const [fontsLoaded] = useFonts({ Poppins_600SemiBold, Poppins_400Regular });
 
   if (!fontsLoaded) return null;
 
+  const tabHeight = isTablet ? 82 : 72;
+  const tabBottom = isTablet ? 24 : 18;
+  const tabLabelSize = isTablet ? 13 : 11;
+
+  const handleLockedPress = () => {
+    if (isGuest) setShowLockModal(true);
+  };
+
+  const LockedTabIcon = ({ color, focused }: { color: string; focused?: boolean }) => (
+    <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+      <Lock size={isTablet ? 26 : 22} color={isGuest ? '#cbd5e1' : color} />
+    </View>
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+      <GuestLockedModal visible={showLockModal} onClose={() => setShowLockModal(false)} />
+
+      {isGuest && (
+        <View style={[styles.guestBanner, isTablet && styles.guestBannerTablet]}>
+          <Text style={[styles.guestBannerText, isTablet && styles.guestBannerTextTablet]}>
+            ⚠️ Modo invitado — funciones limitadas
+          </Text>
+        </View>
+      )}
+
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarStyle: shouldHideTabs ? { display: 'none' } : styles.tabBar,
+          tabBarStyle: shouldHideTabs ? { display: 'none' } : [
+            styles.tabBar,
+            {
+              bottom: tabBottom,
+              height: tabHeight,
+            },
+            isTablet && styles.tabBarTablet,
+          ],
           tabBarActiveTintColor: '#0f766e',
           tabBarInactiveTintColor: '#94a3b8',
           tabBarShowLabel: true,
-          tabBarLabelStyle: styles.tabBarLabel,
+          tabBarLabelStyle: [styles.tabBarLabel, { fontSize: tabLabelSize }],
           tabBarItemStyle: styles.tabBarItem,
           tabBarBackground: () => (
             <LinearGradient
@@ -52,7 +121,7 @@ export default function TabLayout() {
             title: 'Inicio',
             tabBarIcon: ({ color, focused }) => (
               <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                <Home size={22} color={focused ? '#0f766e' : color} />
+                <Home size={isTablet ? 26 : 22} color={focused ? '#0f766e' : color} />
               </View>
             ),
           }}
@@ -62,49 +131,76 @@ export default function TabLayout() {
           options={{
             title: 'Escanear',
             tabBarIcon: () => (
-              <View style={styles.scanIconContainer}>
+              <View style={[styles.scanIconContainer, isTablet && styles.scanIconContainerTablet]}>
                 <LinearGradient
                   colors={['#34d399', '#14b8a6']}
-                  style={styles.scanGradient}
+                  style={[styles.scanGradient, isTablet && styles.scanGradientTablet]}
                 >
-                  <Camera size={24} color="#ffffff" />
+                  <Camera size={isTablet ? 28 : 24} color="#ffffff" />
                 </LinearGradient>
               </View>
             ),
-            tabBarLabelStyle: [styles.tabBarLabel, { color: '#0f766e' }],
+            tabBarLabelStyle: [styles.tabBarLabel, { color: '#0f766e', fontSize: tabLabelSize }],
           }}
         />
         <Tabs.Screen
           name="mapping"
           options={{
             title: 'Mapeo',
-            tabBarIcon: ({ color, focused }) => (
+            tabBarIcon: ({ color, focused }) => isGuest ? (
               <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                <Map size={22} color={focused ? '#0f766e' : color} />
+                <Lock size={isTablet ? 26 : 22} color="#cbd5e1" />
+              </View>
+            ) : (
+              <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                <Map size={isTablet ? 26 : 22} color={focused ? '#0f766e' : color} />
               </View>
             ),
+            tabBarButton: isGuest ? (props) => (
+              <TouchableOpacity {...props} onPress={handleLockedPress} style={props.style}>
+                {props.children}
+              </TouchableOpacity>
+            ) : undefined,
           }}
         />
         <Tabs.Screen
           name="results"
           options={{
             title: 'Resultados',
-            tabBarIcon: ({ color, focused }) => (
+            tabBarIcon: ({ color, focused }) => isGuest ? (
               <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                <BarChart3 size={22} color={focused ? '#0f766e' : color} />
+                <Lock size={isTablet ? 26 : 22} color="#cbd5e1" />
+              </View>
+            ) : (
+              <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                <BarChart3 size={isTablet ? 26 : 22} color={focused ? '#0f766e' : color} />
               </View>
             ),
+            tabBarButton: isGuest ? (props) => (
+              <TouchableOpacity {...props} onPress={handleLockedPress} style={props.style}>
+                {props.children}
+              </TouchableOpacity>
+            ) : undefined,
           }}
         />
         <Tabs.Screen
           name="agenda"
           options={{
             title: 'Medidas',
-            tabBarIcon: ({ color, focused }) => (
+            tabBarIcon: ({ color, focused }) => isGuest ? (
               <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                <AlertTriangle size={22} color={focused ? '#0f766e' : color} />
+                <Lock size={isTablet ? 26 : 22} color="#cbd5e1" />
+              </View>
+            ) : (
+              <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+                <AlertTriangle size={isTablet ? 26 : 22} color={focused ? '#0f766e' : color} />
               </View>
             ),
+            tabBarButton: isGuest ? (props) => (
+              <TouchableOpacity {...props} onPress={handleLockedPress} style={props.style}>
+                {props.children}
+              </TouchableOpacity>
+            ) : undefined,
           }}
         />
         <Tabs.Screen name="chatbot" options={{ href: null }} />
@@ -114,41 +210,60 @@ export default function TabLayout() {
 
       {!shouldHideTabs && (
         <>
-          {/* ── Bottom bar: Privacy + Mi Perfil ── */}
-          <View style={styles.bottomBar}>
+          <View style={[
+            styles.bottomBar,
+            { bottom: isTablet ? tabBottom + tabHeight + 8 : 100 },
+            isTablet && styles.bottomBarTablet,
+          ]}>
             <TouchableOpacity
               style={styles.privacyBtn}
               onPress={() => router.push('/(app)/privacy')}
               activeOpacity={0.75}
             >
-              <Shield size={13} color="#0f766e" />
-              <Text style={styles.privacyBtnText}>Aviso de Privacidad</Text>
+              <Shield size={isTablet ? 15 : 13} color="#0f766e" />
+              <Text style={[styles.privacyBtnText, isTablet && styles.barTextTablet]}>Aviso de Privacidad</Text>
             </TouchableOpacity>
 
             <View style={styles.barDivider} />
 
-            <TouchableOpacity
-              style={styles.profileBtn}
-              onPress={() => router.push('/(app)/profile')}
-              activeOpacity={0.75}
-            >
-              <User size={13} color="#0f766e" />
-              <Text style={styles.profileBtnText}>Mi Perfil</Text>
-            </TouchableOpacity>
+            {isGuest ? (
+              <TouchableOpacity
+                style={styles.profileBtn}
+                onPress={() => router.replace('/(auth)')}
+                activeOpacity={0.75}
+              >
+                <Lock size={isTablet ? 15 : 13} color="#0f766e" />
+                <Text style={[styles.profileBtnText, isTablet && styles.barTextTablet]}>Iniciar sesión</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.profileBtn}
+                onPress={() => router.push('/(app)/profile')}
+                activeOpacity={0.75}
+              >
+                <User size={isTablet ? 15 : 13} color="#0f766e" />
+                <Text style={[styles.profileBtnText, isTablet && styles.barTextTablet]}>Mi Perfil</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          {/* ── FAB Chatbot ── */}
-          <TouchableOpacity
-            style={styles.fab}
-            onPress={() => router.push('/(app)/chatbot')}
-          >
-            <LinearGradient
-              colors={['#34d399', '#14b8a6']}
-              style={styles.fabGradient}
+          {!isGuest && (
+            <TouchableOpacity
+              style={[
+                styles.fab,
+                { bottom: isTablet ? tabBottom + tabHeight + 68 : 170 },
+                isTablet && styles.fabTablet,
+              ]}
+              onPress={() => router.push('/(app)/chatbot')}
             >
-              <MessageCircle size={26} color="#ffffff" />
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={['#34d399', '#14b8a6']}
+                style={[styles.fabGradient, isTablet && styles.fabGradientTablet]}
+              >
+                <MessageCircle size={isTablet ? 30 : 26} color="#ffffff" />
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
         </>
       )}
     </View>
@@ -158,12 +273,10 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    bottom: 18,
     left: 16,
     right: 16,
     elevation: 0,
     borderRadius: 24,
-    height: 72,
     shadowColor: '#0f766e',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.14,
@@ -174,9 +287,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(20,184,166,0.12)',
   },
+  tabBarTablet: {
+    left: 40,
+    right: 40,
+    borderRadius: 28,
+    paddingHorizontal: 16,
+  },
   tabBarLabel: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 11,
     marginBottom: 6,
   },
   tabBarItem: {
@@ -201,6 +319,9 @@ const styles = StyleSheet.create({
     elevation: 8,
     borderRadius: 28,
   },
+  scanIconContainerTablet: {
+    marginTop: -22,
+  },
   scanGradient: {
     width: 54,
     height: 54,
@@ -210,10 +331,38 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: 'rgba(255,255,255,0.8)',
   },
+  scanGradientTablet: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+
+  guestBanner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    backgroundColor: '#f59e0b',
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  guestBannerTablet: {
+    paddingVertical: 8,
+  },
+  guestBannerText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12,
+    color: '#fff',
+    textAlign: 'center',
+  },
+  guestBannerTextTablet: {
+    fontSize: 14,
+  },
 
   bottomBar: {
     position: 'absolute',
-    bottom: 100,
     left: 16,
     right: 16,
     flexDirection: 'row',
@@ -229,6 +378,11 @@ const styles = StyleSheet.create({
     elevation: 3,
     overflow: 'hidden',
     marginBottom: 2,
+  },
+  bottomBarTablet: {
+    left: 40,
+    right: 40,
+    borderRadius: 20,
   },
   privacyBtn: {
     flex: 1,
@@ -264,10 +418,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#0f766e',
   },
+  barTextTablet: {
+    fontSize: 14,
+  },
 
   fab: {
     position: 'absolute',
-    bottom: 170,
     right: 22,
     borderRadius: 30,
     shadowColor: '#0f766e',
@@ -276,11 +432,89 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
+  fabTablet: {
+    right: 44,
+  },
   fabGradient: {
     width: 58,
     height: 58,
     borderRadius: 29,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  fabGradientTablet: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+  },
+
+  lockOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  lockCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#fff',
+    borderRadius: 28,
+    padding: 28,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  lockIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#d1fae5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  lockTitle: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 20,
+    color: '#134e4a',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  lockBody: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 22,
+    paddingHorizontal: 8,
+  },
+  lockLoginBtn: {
+    width: '100%',
+    borderRadius: 50,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  lockBtnGrad: {
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  lockBtnText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 15,
+    color: '#fff',
+  },
+  lockCancelBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+  },
+  lockCancelText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14,
+    color: '#94a3b8',
   },
 });

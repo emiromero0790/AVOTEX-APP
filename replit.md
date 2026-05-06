@@ -1,73 +1,71 @@
-# Avotex — Replit Project
+# Avotex — Expo/React Native app for avocado pest detection using AI
 
-## Overview
-Avotex is an Expo/React Native mobile application for avocado pest detection using AI. Developed by VEX (Bruno Parra & Emiliano Romero) with guidance from Instituto Tecnológico de Morelia.
+## Run & Operate
+- **Start**: `npm run web` → serves on port 5000
+- **Install**: `npm install --legacy-peer-deps` (required due to peer dep conflicts)
+- **Env vars**: All `EXPO_PUBLIC_*` in Replit shared secrets (see list below)
 
-## Tech Stack
-- **Framework**: Expo 54 / React Native 0.81.4
-- **Routing**: expo-router (file-based)
-- **Styling**: NativeWind 4 + React Native StyleSheet
-- **Auth**: Firebase Auth (with AsyncStorage persistence on native)
-- **Database**: Supabase (scan history storage)
-- **AI**: Google Gemini 2.5 Flash (chatbot)
-- **Image AI**: Custom CNN REST API on Google Cloud Run
+Required env vars:
+`EXPO_PUBLIC_FIREBASE_API_KEY`, `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`, `EXPO_PUBLIC_FIREBASE_PROJECT_ID`, `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET`, `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `EXPO_PUBLIC_FIREBASE_APP_ID`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_GEMINI_API_KEY`, `EXPO_PUBLIC_EMAILJS_SERVICE_ID`, `EXPO_PUBLIC_EMAILJS_TEMPLATE_ID`, `EXPO_PUBLIC_EMAILJS_PUBLIC_KEY`, `EXPO_PUBLIC_OPENWEATHER_API_KEY`, `EXPO_PUBLIC_PREDICT_URL`
+
+## Stack
+- **Framework**: Expo 54 / React Native 0.81.4 + expo-router (file-based)
+- **Styling**: NativeWind 4 + React Native StyleSheet + `useWindowDimensions` for iPad breakpoints (≥768px)
+- **Auth**: Firebase Auth (AsyncStorage persistence on native)
+- **Database**: Supabase (scan history)
+- **AI**: Google Gemini 2.5 Flash (chatbot) + Custom CNN on Google Cloud Run (image AI)
 - **Maps**: expo-location + react-native-maps
-- **Weather**: OpenWeatherMap API
-- **Email**: EmailJS (contact form from chatbot)
-- **Fonts**: @expo-google-fonts/poppins
+- **Weather**: OpenWeatherMap API | **Email**: EmailJS | **Fonts**: @expo-google-fonts/poppins
 
-## App Structure
+## Where things live
 ```
 app/
-  (auth)/          — Login, Register, Forgot Password
+  _layout.tsx          — Root: GuestProvider > AccessibilityProvider > Stack
+  (auth)/index.tsx     — Login + "Continuar como invitado" button
   (app)/
-    _layout.tsx    — Tab bar + Privacy bar + Mi Perfil button + FAB chatbot button
-    index.tsx      — Home dashboard (weather, map, stats, location toggle)
-    scan.tsx       — Camera scan with AI prediction + privacy modal
-    mapping.tsx    — GPS polygon map with location toggle
-    results.tsx    — Scan history with charts
-    agenda.tsx     — Recommendations & task management
-    chatbot.tsx    — Gemini AI chatbot with disclaimer modal
-    privacy.tsx    — Full Privacy Notice screen (11 sections)
-    profile.tsx    — User profile: email display, change password, delete account
+    _layout.tsx        — Tab bar + guest lock modal + bottom bar + FAB
+    index.tsx          — Home dashboard
+    scan.tsx           — Camera scan + guest counter
+    mapping.tsx        — GPS polygon map
+    results.tsx        — Scan history + charts
+    agenda.tsx         — Recommendations & tasks
+    chatbot.tsx        — Gemini AI chatbot
+    privacy.tsx        — Privacy notice
+    profile.tsx        — User profile
+context/
+  GuestContext.tsx     — isGuest, guestScansLeft, enter/exit/decrement
+  AccessibilityContext.tsx
 ```
+Schema: `supabase` table `scans` (id, user_id, user_email, label, score, created_at)
 
-## Environment Variables
-All credentials stored as `EXPO_PUBLIC_*` shared env vars in Replit secrets:
-- `EXPO_PUBLIC_FIREBASE_API_KEY`
-- `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`
-- `EXPO_PUBLIC_FIREBASE_PROJECT_ID`
-- `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET`
-- `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
-- `EXPO_PUBLIC_FIREBASE_APP_ID`
-- `EXPO_PUBLIC_SUPABASE_URL`
-- `EXPO_PUBLIC_SUPABASE_ANON_KEY`
-- `EXPO_PUBLIC_GEMINI_API_KEY`
-- `EXPO_PUBLIC_EMAILJS_SERVICE_ID`
-- `EXPO_PUBLIC_EMAILJS_TEMPLATE_ID`
-- `EXPO_PUBLIC_EMAILJS_PUBLIC_KEY`
-- `EXPO_PUBLIC_OPENWEATHER_API_KEY`
-- `EXPO_PUBLIC_PREDICT_URL`
+## Architecture decisions
+- **Guest mode**: stored in React state only (not Firebase); scan counter persisted in AsyncStorage (`guest_scans_remaining`, max 10). Guest scans are NOT saved to Supabase.
+- **iPad responsiveness**: `useWindowDimensions()` hook everywhere; `isTablet = width >= 768`; content centered with `maxWidth` constraints; larger fonts/buttons via `*Tablet` style keys.
+- **react-native-maps**: only in native builds; `.native.tsx` components wrap in try-catch and show fallback in Expo Go.
+- **react / react-dom** pinned to `19.1.4` exact to match `react-native-renderer@19.1.4`.
+- **GuestProvider** wraps the entire app (outside AccessibilityProvider) so all screens can read guest state.
+
+## Product
+1. Login with Firebase Auth or enter as guest (limited: 10 scans, only Home/Scan/Privacy)
+2. AI-powered leaf scan (CNN on Cloud Run) — results NOT stored for guests
+3. GPS polygon mapping of avocado parcels
+4. Scan history with bar/pie/line charts (Supabase)
+5. Recommendations & task agenda based on scan history
+6. Gemini AI chatbot with EmailJS contact
+7. OpenWeatherMap weather widget on home
+
+## User preferences
+- App in Spanish (Mexican)
+- Developed by VEX (Bruno Parra & Emiliano Romero) / Instituto Tecnológico de Morelia
+- No hardcoded credentials — all via `EXPO_PUBLIC_*` env vars
 
 ## Gotchas
-- `react-native-maps` no funciona en Expo Go (requiere build nativo). Los componentes `MapViewComponent.native.tsx` y `PolygonMap.native.tsx` usan `require()` con try-catch para degradar elegantemente en Expo Go mostrando un mensaje de aviso.
-- `react` y `react-dom` están fijados a `19.1.4` exacto (no `^19.1.0`) para evitar mismatch con `react-native-renderer@19.1.4` que incluye `react-native@0.81.6`.
-- npm install requiere `--legacy-peer-deps` por conflictos de peer deps con `@react-navigation/native`.
+- `npm install` requires `--legacy-peer-deps`
+- After setting env vars, **restart the workflow** for them to take effect
+- `react-native-maps` doesn't work in Expo Go; gracefully degrades with a warning message
+- Guest mode resets scan counter when `exitGuestMode()` is called (AsyncStorage cleared)
 
-## Key Features Implemented
-1. **Location toggle (when-in-use only)** — Switch in Home and Mapping screens; off by default; uses `requestForegroundPermissionsAsync`; clears data when toggled off
-2. **Chatbot disclaimer modal** — Always shown on mount; "Cancelar" returns to previous screen; "Continuar" enables chat input; shield icon re-opens modal if not accepted
-3. **Scan privacy modal** — Always shown on mount before camera is usable; single "Entendido, continuar" button; explains images are not stored
-4. **Privacy Notice screen** — Full 11-section screen at `/(app)/privacy`; accessible via "Aviso de Privacidad" bar above tab bar
-5. **Hardcoded credentials removed** — All API keys moved to `EXPO_PUBLIC_*` env vars; `firebaseConfig.js` and `supabaseConfig.ts` updated
-6. **app.json iOS infoPlist** — Full NSLocation/NSCamera permission strings; `isIosBackgroundLocationEnabled: false`
-7. **Mi Perfil screen** — Replaced "Eliminar Cuenta" in bottom bar with "Mi Perfil" button; new `profile.tsx` screen with email display, change password (same logic as login modal), and delete account (same confirmation modal)
-
-## Workflow
-- **Start application**: `npm run web` → serves on port 5000
-
-## App Store Submission Notes
-- iOS: `supportsTablet: false`
-- Location: foreground (when-in-use) only — no background location
-- Camera: used only for in-app scan feature
-- Images: never persisted; only analysis result is saved to Supabase
+## Pointers
+- Expo docs: https://docs.expo.dev
+- Firebase Web SDK v9 modular API
+- Supabase JS client v2

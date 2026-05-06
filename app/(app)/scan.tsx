@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
 
   controls: {
     position: 'absolute',
-    bottom: 100,
+    bottom: 190,
     left: 0,
     right: 0,
     flexDirection: "row",
@@ -531,7 +531,7 @@ const styles = StyleSheet.create({
     gap: 40,
   },
   controlsTablet: {
-    bottom: 120,
+    bottom: 260,
     gap: 60,
   },
   flipButton: {

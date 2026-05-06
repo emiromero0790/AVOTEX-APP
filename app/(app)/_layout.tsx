@@ -83,14 +83,6 @@ export default function TabLayout() {
     <View style={{ flex: 1, backgroundColor: 'transparent' }}>
       <GuestLockedModal visible={showLockModal} onClose={() => setShowLockModal(false)} />
 
-      {isGuest && (
-        <View style={[styles.guestBanner, isTablet && styles.guestBannerTablet]}>
-          <Text style={[styles.guestBannerText, isTablet && styles.guestBannerTextTablet]}>
-            ⚠️ Modo invitado — funciones limitadas
-          </Text>
-        </View>
-      )}
-
       <Tabs
         screenOptions={{
           headerShown: false,
@@ -157,7 +149,7 @@ export default function TabLayout() {
               </View>
             ),
             tabBarButton: isGuest ? (props) => (
-              <TouchableOpacity {...props} onPress={handleLockedPress} style={props.style}>
+              <TouchableOpacity style={props.style} onPress={handleLockedPress} activeOpacity={0.7}>
                 {props.children}
               </TouchableOpacity>
             ) : undefined,
@@ -177,7 +169,7 @@ export default function TabLayout() {
               </View>
             ),
             tabBarButton: isGuest ? (props) => (
-              <TouchableOpacity {...props} onPress={handleLockedPress} style={props.style}>
+              <TouchableOpacity style={props.style} onPress={handleLockedPress} activeOpacity={0.7}>
                 {props.children}
               </TouchableOpacity>
             ) : undefined,
@@ -197,7 +189,7 @@ export default function TabLayout() {
               </View>
             ),
             tabBarButton: isGuest ? (props) => (
-              <TouchableOpacity {...props} onPress={handleLockedPress} style={props.style}>
+              <TouchableOpacity style={props.style} onPress={handleLockedPress} activeOpacity={0.7}>
                 {props.children}
               </TouchableOpacity>
             ) : undefined,

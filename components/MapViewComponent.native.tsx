@@ -1,14 +1,20 @@
 import React from 'react';
 import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
-import { WebView } from 'react-native-webview';
+import MapView, { Marker, Circle } from 'react-native-maps';
 
-export default function MapViewComponent({ location, errorMsg }: { location: any; errorMsg: string | null }) {
+export default function MapViewComponent({
+  location,
+  errorMsg,
+}: {
+  location: any;
+  errorMsg: string | null;
+}) {
   if (!location || !location.coords) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#16a34a" />
         <Text style={styles.loadingText}>
-          {errorMsg ? errorMsg : 'Cargando ubicación 🥑...'}
+          {errorMsg ?? 'Cargando ubicación 🥑...'}
         </Text>
       </View>
     );
@@ -16,7 +22,8 @@ export default function MapViewComponent({ location, errorMsg }: { location: any
 
   const { latitude, longitude } = location.coords;
 
-  if (typeof latitude !== 'number' || isNaN(latitude) || typeof longitude !== 'number' || isNaN(longitude)) {
+  if (typeof latitude !== 'number' || isNaN(latitude) ||
+      typeof longitude !== 'number' || isNaN(longitude)) {
     return (
       <View style={styles.loadingContainer}>
         <Text style={styles.loadingText}>Ubicación no disponible</Text>
@@ -24,20 +31,32 @@ export default function MapViewComponent({ location, errorMsg }: { location: any
     );
   }
 
-  const delta = 0.008;
-  const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${longitude - delta},${latitude - delta},${longitude + delta},${latitude + delta}&layer=mapnik&marker=${latitude},${longitude}`;
-
   return (
     <View style={styles.mapContainer}>
-      <WebView
-        source={{ uri: mapUrl }}
+      <MapView
         style={styles.map}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
-        originWhitelist={['*']}
+        initialRegion={{
+          latitude,
+          longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }}
         scrollEnabled={false}
-        mixedContentMode="always"
-      />
+        zoomEnabled={false}
+        rotateEnabled={false}
+        pitchEnabled={false}
+        showsUserLocation={true}
+        showsMyLocationButton={false}
+      >
+        <Marker coordinate={{ latitude, longitude }} pinColor="#16a34a" />
+        <Circle
+          center={{ latitude, longitude }}
+          radius={40}
+          strokeColor="#16a34a"
+          fillColor="rgba(167,243,208,0.3)"
+          strokeWidth={2}
+        />
+      </MapView>
     </View>
   );
 }
@@ -53,10 +72,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#d1fae5',
   },
   map: {
-    flex: 1,
     width: '100%',
     height: '100%',
-    backgroundColor: 'transparent',
   },
   loadingContainer: {
     height: 200,

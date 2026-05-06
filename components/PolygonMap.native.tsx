@@ -1,20 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
-
-let MapView: any = null;
-let Polygon: any = null;
-let PROVIDER_GOOGLE: any = null;
-let mapsAvailable = false;
-
-try {
-  const maps = require('react-native-maps');
-  MapView = maps.default;
-  Polygon = maps.Polygon;
-  PROVIDER_GOOGLE = maps.PROVIDER_GOOGLE;
-  mapsAvailable = true;
-} catch (_e) {
-  mapsAvailable = false;
-}
+import { View, StyleSheet, Text, Platform } from 'react-native';
+import MapView, { Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
 
 const generatePolygonAround = (location: any, offset: number) => {
   const { latitude, longitude } = location.coords;
@@ -40,14 +26,6 @@ export default function PolygonMap({ location, errorMsg, offset }: { location: a
     }
   }, [location, offset]);
 
-  if (!mapsAvailable) {
-    return (
-      <View style={[styles.mapContainer, styles.centered]}>
-        <Text style={styles.errorText}>🗺️ El mapa no está disponible en Expo Go.{'\n'}Usa un desarrollo nativo.</Text>
-      </View>
-    );
-  }
-
   if (!location || !mapRegion) {
     return (
       <View style={[styles.mapContainer, styles.centered]}>
@@ -61,9 +39,9 @@ export default function PolygonMap({ location, errorMsg, offset }: { location: a
   return (
     <View style={styles.mapContainer}>
       <MapView
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         style={styles.map}
-        mapType="satellite"
+        mapType={Platform.OS === 'android' ? 'satellite' : 'hybrid'}
         region={mapRegion}
       >
         <Polygon

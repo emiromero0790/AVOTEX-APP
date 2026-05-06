@@ -1,30 +1,8 @@
 import React from 'react';
-import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
-
-let MapView: any = null;
-let Marker: any = null;
-let PROVIDER_GOOGLE: any = null;
-let mapsAvailable = false;
-
-try {
-  const maps = require('react-native-maps');
-  MapView = maps.default;
-  Marker = maps.Marker;
-  PROVIDER_GOOGLE = maps.PROVIDER_GOOGLE;
-  mapsAvailable = true;
-} catch (_e) {
-  mapsAvailable = false;
-}
+import { View, StyleSheet, ActivityIndicator, Text, Platform } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
 export default function MapViewComponent({ location, errorMsg }: { location: any; errorMsg: string | null }) {
-  if (!mapsAvailable) {
-    return (
-      <View style={styles.mapContainer}>
-        <Text style={styles.mapLoadingText}>🗺️ El mapa no está disponible en Expo Go.{'\n'}Usa un desarrollo nativo.</Text>
-      </View>
-    );
-  }
-
   if (!location || !location.coords) {
     return (
       <View style={styles.mapContainer}>
@@ -55,7 +33,7 @@ export default function MapViewComponent({ location, errorMsg }: { location: any
   return (
     <View style={styles.mapContainer}>
       <MapView
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         style={styles.map}
         initialRegion={{
           latitude,

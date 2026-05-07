@@ -356,14 +356,12 @@ export default function Home() {
             <Text style={[s.tokenLabel, isTablet && s.tokenLabelTablet]}>Tokens</Text>
           </View>
         </View>
-        {!isGuest && (
-          <TouchableOpacity
-            onPress={() => Linking.openURL('https://www.vex-mx.com/avotex.html')}
-            activeOpacity={0.7}
-          >
-            <Text style={[s.tokenMoreLink, isTablet && s.tokenMoreLinkTablet]}>¿Quieres más créditos?</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          onPress={() => Linking.openURL('https://www.vex-mx.com/avotex.html')}
+          activeOpacity={0.7}
+        >
+          <Text style={[s.tokenMoreLink, isTablet && s.tokenMoreLinkTablet]}>¿Quieres más créditos?</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={[s.scroll, isTablet && s.scrollTablet]} showsVerticalScrollIndicator={false}>

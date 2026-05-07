@@ -1,0 +1,7 @@
+
+> avocado-pest-detection@1.0.0 web
+> EXPO_NO_TELEMETRY=1 BROWSER=none expo start --web --port 5000 --tunnel --clear
+
+[1G[0K[90mStarting project at /home/runner/workspace[39m
+› Port [1m5000[22m is being used by another process
+[?25l[2K[1G[36m?[39m [1mUse port 5001 instead?[22m [90m›[39m [90m(Y/n)[39m

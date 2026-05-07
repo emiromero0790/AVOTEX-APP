@@ -12,7 +12,7 @@ import {
   Easing,
   useWindowDimensions,
 } from 'react-native';
-import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, AlertTriangle, LogOut, MapPin, MapPinOff, Lock } from 'lucide-react-native';
+import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, AlertTriangle, LogOut, MapPin, MapPinOff, Lock, User as UserIcon } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
@@ -321,23 +321,6 @@ export default function Home() {
       <ScrollView contentContainerStyle={[s.scroll, isTablet && s.scrollTablet]} showsVerticalScrollIndicator={false}>
         <View style={[s.contentWrapper, { maxWidth: contentMaxWidth }]}>
 
-          {isGuest && (
-            <Reanimated.View entering={FadeInDown.delay(100).duration(600)} style={[s.guestInfoCard, isTablet && s.guestInfoCardTablet]}>
-              <View style={s.guestInfoLeft}>
-                <Text style={[s.guestInfoTitle, isTablet && s.guestInfoTitleTablet]}>👋 Modo Invitado</Text>
-                <Text style={[s.guestInfoSub, isTablet && s.guestInfoSubTablet]}>
-                  Escaneos restantes: <Text style={s.guestInfoCount}>{guestScansLeft}/{GUEST_MAX_SCANS}</Text>
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[s.guestLoginBtn, isTablet && s.guestLoginBtnTablet]}
-                onPress={() => { exitGuestMode(); router.replace('/(auth)'); }}
-              >
-                <Text style={[s.guestLoginBtnText, isTablet && s.guestLoginBtnTextTablet]}>Registrarme</Text>
-              </TouchableOpacity>
-            </Reanimated.View>
-          )}
-
           <View style={[s.header, isTablet && s.headerTablet]}>
             <Image
               source={require('../../assets/images/AvotexNuevoLogo.png')}
@@ -345,17 +328,34 @@ export default function Home() {
               resizeMode="contain"
             />
 
-            {!isGuest && user && (
-              <Reanimated.View entering={FadeInDown.delay(200).duration(700)}>
-                <View style={[s.welcomeCard, { borderColor: colors.welcomeBorder }, isTablet && s.welcomeCardTablet]}>
-                  <View style={s.welcomeText}>
-                    <Text style={[s.greetLabel, isTablet && s.greetLabelTablet]}>BIENVENIDO</Text>
-                    <Text style={[s.userName, { color: colors.textPrimary }, isTablet && s.userNameTablet]}>{user.displayName || user.email}</Text>
-                  </View>
-                  <Avatar user={user} />
-                </View>
-              </Reanimated.View>
-            )}
+            <Reanimated.View entering={FadeInDown.delay(200).duration(700)}>
+              <View style={[s.welcomeCard, { borderColor: colors.welcomeBorder }, isTablet && s.welcomeCardTablet]}>
+                {isGuest ? (
+                  <>
+                    <View style={s.welcomeText}>
+                      <Text style={[s.greetLabel, isTablet && s.greetLabelTablet]}>MODO INVITADO</Text>
+                      <Text style={[s.userName, { color: colors.textPrimary }, isTablet && s.userNameTablet]}>
+                        {guestScansLeft} / {GUEST_MAX_SCANS} escaneos restantes
+                      </Text>
+                      <Text style={[s.guestRegisterHint, isTablet && s.guestRegisterHintTablet]}>
+                        Regístrate con VEX para más escaneos
+                      </Text>
+                    </View>
+                    <View style={[s.guestAvatarCircle, isTablet && s.guestAvatarCircleTablet]}>
+                      <UserIcon size={isTablet ? 26 : 22} color="#0f766e" />
+                    </View>
+                  </>
+                ) : user ? (
+                  <>
+                    <View style={s.welcomeText}>
+                      <Text style={[s.greetLabel, isTablet && s.greetLabelTablet]}>BIENVENIDO</Text>
+                      <Text style={[s.userName, { color: colors.textPrimary }, isTablet && s.userNameTablet]}>{user.displayName || user.email}</Text>
+                    </View>
+                    <Avatar user={user} />
+                  </>
+                ) : null}
+              </View>
+            </Reanimated.View>
 
             <Reanimated.View entering={FadeInDown.delay(260).duration(700)}>
               <View style={[s.locationToggleCard, isTablet && s.locationToggleCardTablet]}>
@@ -542,65 +542,28 @@ const s = StyleSheet.create({
     alignSelf: 'center',
   },
 
-  guestInfoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,251,235,0.96)',
-    borderRadius: 18,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    marginHorizontal: 22,
-    marginTop: 16,
-    marginBottom: -4,
-    borderWidth: 1.5,
-    borderColor: '#fcd34d',
-    shadowColor: '#f59e0b',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  guestInfoCardTablet: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 22,
-    marginHorizontal: 28,
-  },
-  guestInfoLeft: { flex: 1, marginRight: 12 },
-  guestInfoTitle: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 14,
-    color: '#92400e',
-    marginBottom: 2,
-  },
-  guestInfoTitleTablet: { fontSize: 17 },
-  guestInfoSub: {
+  guestRegisterHint: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
-    color: '#b45309',
+    fontSize: 10,
+    color: '#94a3b8',
+    marginTop: 3,
   },
-  guestInfoSubTablet: { fontSize: 15 },
-  guestInfoCount: {
-    fontFamily: 'Poppins_700Bold',
-    color: '#d97706',
+  guestRegisterHintTablet: { fontSize: 12 },
+  guestAvatarCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#d1fae5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#ffffff',
   },
-  guestLoginBtn: {
-    backgroundColor: '#0f766e',
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+  guestAvatarCircleTablet: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
   },
-  guestLoginBtnTablet: {
-    paddingVertical: 10,
-    paddingHorizontal: 22,
-  },
-  guestLoginBtnText: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 13,
-    color: '#fff',
-  },
-  guestLoginBtnTextTablet: { fontSize: 15 },
 
   header: { paddingTop: 90, paddingHorizontal: 22, marginBottom: 18 },
   headerTablet: { paddingTop: 100, paddingHorizontal: 28 },

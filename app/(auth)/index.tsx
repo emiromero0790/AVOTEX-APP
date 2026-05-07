@@ -448,12 +448,9 @@ export default function Login() {
               >
                 <UserX color="#64748b" size={isTablet ? 20 : 17} />
                 <Text style={[s.guestBtnText, isTablet && s.guestBtnTextTablet]}>
-                  Continuar como invitado (uso limitado)
+                  Continuar como invitado
                 </Text>
               </TouchableOpacity>
-              <Text style={[s.guestNote, isTablet && s.guestNoteTablet]}>
-                ⚠️ El modo invitado tiene funciones limitadas. Solo podrás escanear hasta 10 veces.
-              </Text>
             </Animated.View>
 
             <View style={s.registerRow}>

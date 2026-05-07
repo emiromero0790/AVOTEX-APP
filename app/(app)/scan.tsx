@@ -22,9 +22,7 @@ import { User, onAuthStateChanged } from "firebase/auth";
 import { supabase } from "../../supabaseConfig";
 import { useGuest, GUEST_MAX_SCANS } from "../../context/GuestContext";
 
-const PREDICT_URL = process.env.EXPO_PUBLIC_PREDICT_URL!;
-const URL_PREDICT_FILE = `${PREDICT_URL}/predict`;
-const URL_PREDICT_BASE64 = `${PREDICT_URL}/predict_base64`;
+const IA_ROW_ID = '7293688b-1ee9-469c-9679-d69d9a1089a5';
 
 type NormalizedPrediction = {
   label: string;
@@ -48,6 +46,9 @@ export default function Scan() {
 
   const [scanModalVisible, setScanModalVisible] = useState(true);
   const [scanAccepted, setScanAccepted] = useState(false);
+
+  const [predictUrl, setPredictUrl] = useState<string | null>(null);
+  const [userTokens, setUserTokens] = useState<number | null>(null);
 
   const { isGuest, guestScansLeft, decrementGuestScans } = useGuest();
   const { width } = useWindowDimensions();
@@ -75,11 +76,36 @@ export default function Scan() {
   });
 
   useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase.from('ia').select('url').eq('id', IA_ROW_ID).single();
+        if (data?.url) setPredictUrl(data.url);
+      } catch (e) {
+        console.warn('No se pudo obtener la URL del modelo IA:', e);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
     });
     return () => unsubscribe();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user || isGuest) return;
+      (async () => {
+        try {
+          const { data } = await supabase.from('users').select('tokens').eq('user_email', user.email).single();
+          if (data !== null) setUserTokens(data.tokens ?? 0);
+        } catch (e) {
+          console.warn('No se pudo obtener tokens del usuario:', e);
+        }
+      })();
+    }, [user, isGuest])
+  );
 
   const normalizeServerResponse = (data: any): NormalizedPrediction | null => {
     try {
@@ -158,6 +184,7 @@ export default function Scan() {
   };
 
   const sendImageMultipart = async (image: { uri: string }) => {
+    if (!predictUrl) return null;
     const formData = new FormData();
     formData.append("file", {
       uri: image.uri,
@@ -165,7 +192,7 @@ export default function Scan() {
       type: "image/jpeg"
     } as any);
     try {
-      const res = await fetch(URL_PREDICT_FILE, {
+      const res = await fetch(`${predictUrl}/predict`, {
         method: "POST",
         body: formData
       });
@@ -179,11 +206,12 @@ export default function Scan() {
   };
 
   const sendImageBase64 = async (image: { uri: string }) => {
+    if (!predictUrl) return null;
     try {
       const base64 = await FileSystem.readAsStringAsync(image.uri, {
         encoding: FileSystem.EncodingType.Base64
       });
-      const res = await fetch(URL_PREDICT_BASE64, {
+      const res = await fetch(`${predictUrl}/predict_base64`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: base64 })
@@ -211,6 +239,20 @@ export default function Scan() {
           text2: "Crea una cuenta para continuar escaneando."
         });
         return;
+      }
+    } else if (user) {
+      if (userTokens !== null && userTokens <= 0) {
+        Toast.show({
+          type: "error",
+          text1: "Sin escaneos disponibles",
+          text2: "Contacta a VEX para obtener más escaneos."
+        });
+        return;
+      }
+      if (userTokens !== null && userTokens > 0) {
+        const newTokens = userTokens - 1;
+        setUserTokens(newTokens);
+        supabase.from('users').update({ tokens: newTokens }).eq('user_email', user.email).then(() => {});
       }
     }
 
@@ -272,6 +314,8 @@ export default function Scan() {
   const isHealthy = prediction?.label?.toLowerCase().includes("salud") || prediction?.label?.toLowerCase().includes("healthy");
 
   const guestLimitReached = isGuest && guestScansLeft <= 0;
+  const userLimitReached = !isGuest && user !== null && userTokens !== null && userTokens <= 0;
+  const limitReached = guestLimitReached || userLimitReached;
 
   return (
     <View style={styles.container}>
@@ -291,13 +335,16 @@ export default function Scan() {
             <Text style={[styles.modalTitle, isTablet && styles.modalTitleTablet]}>📷 Uso de la Cámara e Imágenes</Text>
             <Text style={[styles.modalSubtitle, isTablet && styles.modalSubtitleTablet]}>Importante leer antes de escanear</Text>
 
-            {isGuest && (
-              <View style={styles.guestScanInfo}>
-                <Text style={styles.guestScanInfoText}>
-                  🎯 Modo invitado: tienes <Text style={styles.guestScanCount}>{guestScansLeft} escaneos</Text> disponibles
-                </Text>
-              </View>
-            )}
+            <View style={styles.guestScanInfo}>
+              <Text style={styles.guestScanInfoText}>
+                {isGuest
+                  ? <>🎯 Modo invitado: tienes <Text style={styles.guestScanCount}>{guestScansLeft} escaneos</Text> disponibles</>
+                  : userTokens !== null
+                    ? <>📷 Tienes <Text style={styles.guestScanCount}>{userTokens} escaneos</Text> disponibles</>
+                    : <>📷 Cargando escaneos disponibles...</>
+                }
+              </Text>
+            </View>
 
             <View style={styles.modalSection}>
               <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>🔍 ¿Cómo funciona el escaneo?</Text>
@@ -347,26 +394,32 @@ export default function Scan() {
         </View>
       </Modal>
 
-      {/* Guest limit reached screen */}
-      {guestLimitReached ? (
+      {/* Limit reached screen — guest or user with 0 tokens */}
+      {limitReached ? (
         <View style={styles.limitContainer}>
           <LinearGradient colors={['#0f766e', '#134e4a']} style={StyleSheet.absoluteFill} />
           <View style={[styles.limitCard, isTablet && styles.limitCardTablet]}>
             <View style={styles.limitIconCircle}>
               <Lock size={36} color="#0f766e" />
             </View>
-            <Text style={[styles.limitTitle, isTablet && styles.limitTitleTablet]}>Límite alcanzado</Text>
-            <Text style={[styles.limitBody, isTablet && styles.limitBodyTablet]}>
-              Has alcanzado el límite del modo invitado.{'\n'}Crea una cuenta para continuar escaneando sin restricciones.
+            <Text style={[styles.limitTitle, isTablet && styles.limitTitleTablet]}>
+              {userLimitReached ? 'Sin escaneos disponibles' : 'Límite alcanzado'}
             </Text>
-            <TouchableOpacity
-              style={styles.limitLoginBtn}
-              onPress={() => router.replace('/(auth)')}
-            >
-              <LinearGradient colors={['#34d399', '#0f766e']} style={styles.limitBtnGrad}>
-                <Text style={[styles.limitBtnText, isTablet && styles.limitBtnTextTablet]}>Crear cuenta / Iniciar sesión</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+            <Text style={[styles.limitBody, isTablet && styles.limitBodyTablet]}>
+              {userLimitReached
+                ? 'Has utilizado todos tus escaneos disponibles.\nContacta a VEX para recargar tu cuenta.'
+                : 'Has alcanzado el límite del modo invitado.\nCrea una cuenta para continuar escaneando.'}
+            </Text>
+            {guestLimitReached && (
+              <TouchableOpacity
+                style={styles.limitLoginBtn}
+                onPress={() => router.replace('/(auth)')}
+              >
+                <LinearGradient colors={['#34d399', '#0f766e']} style={styles.limitBtnGrad}>
+                  <Text style={[styles.limitBtnText, isTablet && styles.limitBtnTextTablet]}>Crear cuenta / Iniciar sesión</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       ) : (
@@ -375,13 +428,19 @@ export default function Scan() {
             <View style={[styles.header, isTablet && styles.headerTablet]}>
               <Text style={[styles.headerText, isTablet && styles.headerTextTablet]}>Escanear Fruto</Text>
               <Text style={[styles.headerSubtext, isTablet && styles.headerSubtextTablet]}>Apunta al fruto para analizarlo</Text>
-              {isGuest && (
+              {isGuest ? (
                 <View style={[styles.guestCounter, isTablet && styles.guestCounterTablet]}>
                   <Text style={[styles.guestCounterText, isTablet && styles.guestCounterTextTablet]}>
                     📷 {guestScansLeft}/{GUEST_MAX_SCANS} escaneos restantes
                   </Text>
                 </View>
-              )}
+              ) : userTokens !== null ? (
+                <View style={[styles.guestCounter, isTablet && styles.guestCounterTablet]}>
+                  <Text style={[styles.guestCounterText, isTablet && styles.guestCounterTextTablet]}>
+                    📷 {userTokens} escaneos disponibles
+                  </Text>
+                </View>
+              ) : null}
             </View>
 
             <View style={[styles.scanFrame, { width: scanFrameSize, height: scanFrameSize }]}>
@@ -438,7 +497,7 @@ export default function Scan() {
         </View>
       )}
 
-      {prediction && !isSaving && !isProcessing && !guestLimitReached && (
+      {prediction && !isSaving && !isProcessing && !limitReached && (
         <View style={[styles.predictionContainer, isHealthy ? styles.sano : styles.enfermo, isTablet && styles.predictionContainerTablet]}>
           <Text style={[styles.predictionText, isTablet && styles.predictionTextTablet]}>{renderPredictionText()}</Text>
         </View>

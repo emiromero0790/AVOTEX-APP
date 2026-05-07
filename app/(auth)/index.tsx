@@ -448,7 +448,7 @@ export default function Login() {
               >
                 <UserX color="#64748b" size={isTablet ? 20 : 17} />
                 <Text style={[s.guestBtnText, isTablet && s.guestBtnTextTablet]}>
-                  Continuar como invitado
+                  Empezar prueba gratuita
                 </Text>
               </TouchableOpacity>
             </Animated.View>

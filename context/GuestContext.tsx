@@ -2,7 +2,7 @@ import React, { createContext, useState, useContext, useEffect, ReactNode } from
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const GUEST_SCANS_KEY = 'guest_scans_remaining';
-const GUEST_MAX_SCANS = 10;
+const GUEST_MAX_SCANS = 25;
 
 interface GuestContextType {
   isGuest: boolean;

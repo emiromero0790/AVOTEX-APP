@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, AlertTriangle, LogOut, MapPin, MapPinOff, Lock, User as UserIcon } from 'lucide-react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import * as Location from 'expo-location';
@@ -167,6 +167,8 @@ export default function Home() {
   const { isColorblindMode } = useAccessibility();
   const { isGuest, guestScansLeft, exitGuestMode } = useGuest();
 
+  const [userTokens, setUserTokens] = useState<number | null>(null);
+
   const [location, setLocation]       = useState<Location.LocationObject | null>(null);
   const [temperature, setTemperature] = useState<number | null>(null);
   const [humidity, setHumidity]       = useState<number | null>(null);
@@ -249,6 +251,14 @@ export default function Home() {
     supabase.from('scans').select('label').eq('user_id', user.uid)
       .then(({ data }) => { if (data) setScans(data); });
   }, [user, isGuest]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user || isGuest) return;
+      supabase.from('users').select('tokens').eq('user_email', user.email).single()
+        .then(({ data }) => { if (data !== null) setUserTokens(data.tokens ?? 0); });
+    }, [user, isGuest])
+  );
 
   useEffect(() => {
     if (scans.length > 0) {
@@ -335,10 +345,7 @@ export default function Home() {
                     <View style={s.welcomeText}>
                       <Text style={[s.greetLabel, isTablet && s.greetLabelTablet]}>MODO INVITADO</Text>
                       <Text style={[s.userName, { color: colors.textPrimary }, isTablet && s.userNameTablet]}>
-                        {guestScansLeft} / {GUEST_MAX_SCANS} escaneos restantes
-                      </Text>
-                      <Text style={[s.guestRegisterHint, isTablet && s.guestRegisterHintTablet]}>
-                        Regístrate con VEX para más escaneos
+                        INVITADO
                       </Text>
                     </View>
                     <View style={[s.guestAvatarCircle, isTablet && s.guestAvatarCircleTablet]}>
@@ -354,6 +361,19 @@ export default function Home() {
                     <Avatar user={user} />
                   </>
                 ) : null}
+              </View>
+            </Reanimated.View>
+
+            <Reanimated.View entering={FadeInDown.delay(230).duration(700)}>
+              <View style={[s.scanCountCard, isTablet && s.scanCountCardTablet]}>
+                <Camera size={isTablet ? 16 : 13} color="#0f766e" />
+                <Text style={[s.scanCountText, isTablet && s.scanCountTextTablet]}>
+                  {isGuest
+                    ? `${guestScansLeft} / ${GUEST_MAX_SCANS} escaneos disponibles`
+                    : userTokens !== null
+                      ? `${userTokens} escaneos disponibles`
+                      : 'Cargando escaneos...'}
+                </Text>
               </View>
             </Reanimated.View>
 
@@ -541,6 +561,36 @@ const s = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
+
+  scanCountCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.90)',
+    borderWidth: 1.5,
+    borderColor: '#a7f3d0',
+    borderRadius: 20,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+    shadowColor: '#0f766e',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  scanCountCardTablet: {
+    paddingVertical: 9,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  scanCountText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12,
+    color: '#0f766e',
+  },
+  scanCountTextTablet: { fontSize: 14 },
 
   guestRegisterHint: {
     fontFamily: 'Poppins_400Regular',

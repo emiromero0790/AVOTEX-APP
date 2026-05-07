@@ -76,7 +76,7 @@ export default function PrivacyScreen() {
         {/* ── Link completo ── */}
         <TouchableOpacity
           style={s.linkCard}
-          onPress={() => Linking.openURL('https://avotex-pagina-web.vercel.app/avisosprivacidad.html')}
+          onPress={() => Linking.openURL('https://www.vex-mx.com/avisosprivacidadavotex.html')}
           activeOpacity={0.8}
         >
           <LinearGradient colors={['#0f766e', '#14b8a6']} style={s.linkCardGrad}>
@@ -190,7 +190,7 @@ export default function PrivacyScreen() {
 
         <TouchableOpacity
           style={s.linkCard}
-          onPress={() => Linking.openURL('https://avotex-pagina-web.vercel.app/avisosprivacidad.html')}
+          onPress={() => Linking.openURL('https://www.vex-mx.com/avisosprivacidadavotex.html')}
           activeOpacity={0.8}
         >
           <LinearGradient colors={['#0f766e', '#14b8a6']} style={s.linkCardGrad}>

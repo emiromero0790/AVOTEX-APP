@@ -83,7 +83,7 @@ export default function PrivacyScreen() {
             <Shield size={22} color="#fff" />
             <View style={{ flex: 1 }}>
               <Text style={s.linkCardLabel}>Aviso de Privacidad completo</Text>
-              <Text style={s.linkCardUrl}>avotex-pagina-web.vercel.app</Text>
+              <Text style={s.linkCardUrl}>https://www.vex-mx.com/avisosprivacidadavotex.html</Text>
             </View>
             <Text style={s.linkCardArrow}>↗</Text>
           </LinearGradient>
@@ -197,7 +197,7 @@ export default function PrivacyScreen() {
             <Shield size={22} color="#fff" />
             <View style={{ flex: 1 }}>
               <Text style={s.linkCardLabel}>Ver aviso completo en línea</Text>
-              <Text style={s.linkCardUrl}>avotex-pagina-web.vercel.app</Text>
+              <Text style={s.linkCardUrl}>https://www.vex-mx.com/avisosprivacidadavotex.html</Text>
             </View>
             <Text style={s.linkCardArrow}>↗</Text>
           </LinearGradient>

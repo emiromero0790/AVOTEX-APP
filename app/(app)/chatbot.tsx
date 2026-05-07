@@ -246,48 +246,55 @@ export default function ChatbotScreen() {
           <View style={styles.modalCard}>
             <View style={styles.modalIconRow}>
               <View style={styles.modalIconCircle}>
-                <Shield size={28} color="#0f766e" />
+                <Shield size={24} color="#0f766e" />
               </View>
             </View>
 
             <Text style={styles.modalTitle}>🌱 ¡Hola! Soy Avotex</Text>
 
-            <Text style={styles.modalBody}>
-              Soy un asistente inteligente impulsado por Inteligencia Artificial diseñado para ayudarte a entender el estado de tus cultivos y sacarle el máximo provecho a la app 📲
-            </Text>
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={true}
+              persistentScrollbar={true}
+            >
+              <Text style={styles.modalBody}>
+                Soy un asistente inteligente impulsado por Inteligencia Artificial diseñado para ayudarte a entender el estado de tus cultivos y sacarle el máximo provecho a la app 📲
+              </Text>
 
-            <Text style={styles.modalSubheading}>Antes de continuar, toma en cuenta lo siguiente:</Text>
+              <Text style={styles.modalSubheading}>Antes de continuar, toma en cuenta lo siguiente:</Text>
 
-            <View style={styles.modalBullets}>
-              <View style={styles.modalBulletRow}>
-                <Text style={styles.modalBulletDot}>•</Text>
-                <Text style={styles.modalBulletText}>Mis respuestas se basan en el análisis de imágenes, datos de la app y mi base de conocimientos</Text>
+              <View style={styles.modalBullets}>
+                <View style={styles.modalBulletRow}>
+                  <Text style={styles.modalBulletDot}>•</Text>
+                  <Text style={styles.modalBulletText}>Mis respuestas se basan en el análisis de imágenes, datos de la app y mi base de conocimientos</Text>
+                </View>
+                <View style={styles.modalBulletRow}>
+                  <Text style={styles.modalBulletDot}>•</Text>
+                  <Text style={styles.modalBulletText}>Los diagnósticos y recomendaciones son <Text style={styles.modalBold}>orientativos</Text> y no sustituyen la asesoría de un especialista agrícola</Text>
+                </View>
+                <View style={styles.modalBulletRow}>
+                  <Text style={styles.modalBulletDot}>•</Text>
+                  <Text style={styles.modalBulletText}>Puedo utilizar información como imágenes capturadas y tu ubicación para ofrecer resultados más precisos 🌍</Text>
+                </View>
+                <View style={styles.modalBulletRow}>
+                  <Text style={styles.modalBulletDot}>•</Text>
+                  <Text style={styles.modalBulletText}>Tu información puede ser procesada por servicios externos únicamente para el funcionamiento de la app</Text>
+                </View>
+                <View style={styles.modalBulletRow}>
+                  <Text style={styles.modalBulletDot}>•</Text>
+                  <Text style={[styles.modalBulletText, styles.modalBold]}>No vendemos ni compartimos tu información personal con terceros con fines comerciales 🔒</Text>
+                </View>
+                <View style={styles.modalBulletRow}>
+                  <Text style={styles.modalBulletDot}>•</Text>
+                  <Text style={styles.modalBulletText}>Aunque estoy diseñado para ayudarte, <Text style={styles.modalBold}>puedo cometer errores</Text></Text>
+                </View>
               </View>
-              <View style={styles.modalBulletRow}>
-                <Text style={styles.modalBulletDot}>•</Text>
-                <Text style={styles.modalBulletText}>Los diagnósticos y recomendaciones son <Text style={styles.modalBold}>orientativos</Text> y no sustituyen la asesoría de un especialista agrícola</Text>
-              </View>
-              <View style={styles.modalBulletRow}>
-                <Text style={styles.modalBulletDot}>•</Text>
-                <Text style={styles.modalBulletText}>Puedo utilizar información como imágenes capturadas y tu ubicación para ofrecer resultados más precisos 🌍</Text>
-              </View>
-              <View style={styles.modalBulletRow}>
-                <Text style={styles.modalBulletDot}>•</Text>
-                <Text style={styles.modalBulletText}>Tu información puede ser procesada por servicios externos (como clima o mapas) únicamente para el funcionamiento de la app</Text>
-              </View>
-              <View style={styles.modalBulletRow}>
-                <Text style={styles.modalBulletDot}>•</Text>
-                <Text style={[styles.modalBulletText, styles.modalBold]}>No vendemos ni compartimos tu información personal con terceros con fines comerciales 🔒</Text>
-              </View>
-              <View style={styles.modalBulletRow}>
-                <Text style={styles.modalBulletDot}>•</Text>
-                <Text style={styles.modalBulletText}>Aunque estoy diseñado para ayudarte, <Text style={styles.modalBold}>puedo cometer errores</Text></Text>
-              </View>
-            </View>
 
-            <Text style={styles.modalFootnote}>
-              Al continuar, aceptas usar este asistente bajo tu propia responsabilidad 😉
-            </Text>
+              <Text style={styles.modalFootnote}>
+                Al continuar, aceptas usar este asistente bajo tu propia responsabilidad 😉
+              </Text>
+            </ScrollView>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -425,14 +432,23 @@ const styles = StyleSheet.create({
   modalCard: {
     backgroundColor: '#ffffff',
     borderRadius: 28,
-    padding: 24,
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: 16,
     width: '100%',
     maxWidth: 420,
+    maxHeight: '72%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.22,
     shadowRadius: 24,
     elevation: 12,
+  },
+  modalScroll: {
+    maxHeight: 280,
+  },
+  modalScrollContent: {
+    paddingBottom: 4,
   },
   modalIconRow: {
     alignItems: 'center',

@@ -252,15 +252,26 @@ export default function Home() {
       .then(({ data }) => { if (data) setScans(data); });
   }, [user, isGuest]);
 
-  const fetchUserTokens = useCallback(() => {
+  useEffect(() => {
     if (!user || isGuest) return;
-    supabase.from('users').select('tokens').eq('user_email', user.email).single()
-      .then(({ data }) => { if (data !== null) setUserTokens(data.tokens ?? 0); });
-  }, [user, isGuest]);
+    supabase.from('users').select('tokens').eq('user_email', user.email).maybeSingle()
+      .then(({ data, error }) => {
+        if (error) { console.warn('[tokens] error:', error.message); setUserTokens(0); return; }
+        setUserTokens(data?.tokens ?? 0);
+      });
+  }, [user?.email, isGuest]);
 
-  useEffect(() => { fetchUserTokens(); }, [fetchUserTokens]);
-
-  useFocusEffect(fetchUserTokens);
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.email || isGuest) return;
+      const email = user.email;
+      supabase.from('users').select('tokens').eq('user_email', email).maybeSingle()
+        .then(({ data, error }) => {
+          if (error) { console.warn('[tokens focus] error:', error.message); setUserTokens(0); return; }
+          setUserTokens(data?.tokens ?? 0);
+        });
+    }, [user?.email, isGuest])
+  );
 
   useEffect(() => {
     if (scans.length > 0) {

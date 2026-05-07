@@ -93,16 +93,26 @@ export default function Scan() {
     return () => unsubscribe();
   }, []);
 
-  const fetchUserTokens = useCallback(() => {
-    if (!user || isGuest) return;
-    supabase.from('users').select('tokens').eq('user_email', user.email).single()
-      .then(({ data }) => { if (data !== null) setUserTokens(data.tokens ?? 0); })
-      .catch((e) => console.warn('No se pudo obtener tokens del usuario:', e));
-  }, [user, isGuest]);
+  useEffect(() => {
+    if (!user?.email || isGuest) return;
+    supabase.from('users').select('tokens').eq('user_email', user.email).maybeSingle()
+      .then(({ data, error }) => {
+        if (error) { console.warn('[tokens] error:', error.message); setUserTokens(0); return; }
+        setUserTokens(data?.tokens ?? 0);
+      });
+  }, [user?.email, isGuest]);
 
-  useEffect(() => { fetchUserTokens(); }, [fetchUserTokens]);
-
-  useFocusEffect(fetchUserTokens);
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.email || isGuest) return;
+      const email = user.email;
+      supabase.from('users').select('tokens').eq('user_email', email).maybeSingle()
+        .then(({ data, error }) => {
+          if (error) { console.warn('[tokens focus] error:', error.message); setUserTokens(0); return; }
+          setUserTokens(data?.tokens ?? 0);
+        });
+    }, [user?.email, isGuest])
+  );
 
   const normalizeServerResponse = (data: any): NormalizedPrediction | null => {
     try {

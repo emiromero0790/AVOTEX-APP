@@ -251,8 +251,8 @@ export default function Scan() {
       if (userTokens !== null && userTokens <= 0) {
         Toast.show({
           type: "error",
-          text1: "Sin escaneos disponibles",
-          text2: "Contacta a VEX para obtener más escaneos."
+          text1: "Sin Tokens disponibles",
+          text2: "Contacta a VEX para obtener más Tokens."
         });
         return;
       }
@@ -345,10 +345,10 @@ export default function Scan() {
             <View style={styles.guestScanInfo}>
               <Text style={styles.guestScanInfoText}>
                 {isGuest
-                  ? <>🎯 Modo invitado: tienes <Text style={styles.guestScanCount}>{guestScansLeft} escaneos</Text> disponibles</>
+                  ? <>🪙 Modo invitado: tienes <Text style={styles.guestScanCount}>{(guestScansLeft * 100).toLocaleString()} Tokens</Text> disponibles</>
                   : userTokens !== null
-                    ? <>📷 Tienes <Text style={styles.guestScanCount}>{userTokens} escaneos</Text> disponibles</>
-                    : <>📷 Cargando escaneos disponibles...</>
+                    ? <>🪙 Tienes <Text style={styles.guestScanCount}>{(userTokens * 100).toLocaleString()} Tokens</Text> disponibles</>
+                    : <>🪙 Cargando Tokens...</>
                 }
               </Text>
             </View>
@@ -410,11 +410,11 @@ export default function Scan() {
               <Lock size={36} color="#0f766e" />
             </View>
             <Text style={[styles.limitTitle, isTablet && styles.limitTitleTablet]}>
-              {userLimitReached ? 'Sin escaneos disponibles' : 'Límite alcanzado'}
+              {userLimitReached ? 'Sin Tokens disponibles' : 'Límite alcanzado'}
             </Text>
             <Text style={[styles.limitBody, isTablet && styles.limitBodyTablet]}>
               {userLimitReached
-                ? 'Has utilizado todos tus escaneos disponibles.\nContacta a VEX para recargar tu cuenta.'
+                ? 'Has utilizado todos tus Tokens.\nContacta a VEX para recargar tu cuenta.'
                 : 'Has alcanzado el límite del modo invitado.\nCrea una cuenta para continuar escaneando.'}
             </Text>
             {guestLimitReached && (
@@ -438,13 +438,13 @@ export default function Scan() {
               {isGuest ? (
                 <View style={[styles.guestCounter, isTablet && styles.guestCounterTablet]}>
                   <Text style={[styles.guestCounterText, isTablet && styles.guestCounterTextTablet]}>
-                    📷 {guestScansLeft}/{GUEST_MAX_SCANS} escaneos restantes
+                    🪙 {(guestScansLeft * 100).toLocaleString()} Tokens restantes
                   </Text>
                 </View>
               ) : userTokens !== null ? (
                 <View style={[styles.guestCounter, isTablet && styles.guestCounterTablet]}>
                   <Text style={[styles.guestCounterText, isTablet && styles.guestCounterTextTablet]}>
-                    📷 {userTokens} escaneos disponibles
+                    🪙 {(userTokens * 100).toLocaleString()} Tokens disponibles
                   </Text>
                 </View>
               ) : null}

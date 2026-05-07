@@ -12,7 +12,7 @@ import {
   Easing,
   useWindowDimensions,
 } from 'react-native';
-import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, AlertTriangle, LogOut, MapPin, MapPinOff, Lock, User as UserIcon } from 'lucide-react-native';
+import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, AlertTriangle, LogOut, MapPin, MapPinOff, Lock, User as UserIcon, Coins } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
@@ -341,6 +341,20 @@ export default function Home() {
         </Text>
       </TouchableOpacity>
 
+      <View style={[s.tokenWidget, isTablet && s.tokenWidgetTablet]} pointerEvents="none">
+        <Coins size={isTablet ? 30 : 26} color="#d97706" />
+        <View style={{ marginLeft: 6 }}>
+          <Text style={[s.tokenAmount, isTablet && s.tokenAmountTablet]}>
+            {isGuest
+              ? (guestScansLeft * 100).toLocaleString()
+              : userTokens !== null
+                ? (userTokens * 100).toLocaleString()
+                : '—'}
+          </Text>
+          <Text style={[s.tokenLabel, isTablet && s.tokenLabelTablet]}>Tokens</Text>
+        </View>
+      </View>
+
       <ScrollView contentContainerStyle={[s.scroll, isTablet && s.scrollTablet]} showsVerticalScrollIndicator={false}>
         <View style={[s.contentWrapper, { maxWidth: contentMaxWidth }]}>
 
@@ -402,18 +416,6 @@ export default function Home() {
               </View>
             </Reanimated.View>
 
-            <Reanimated.View entering={FadeInDown.delay(300).duration(700)} style={s.locRow}>
-              <View style={[s.scanCountCard, isTablet && s.scanCountCardTablet, { flex: 1 }]}>
-                <Camera size={isTablet ? 16 : 13} color="#0f766e" />
-                <Text style={[s.scanCountText, isTablet && s.scanCountTextTablet]}>
-                  {isGuest
-                    ? `${guestScansLeft} / ${GUEST_MAX_SCANS} escaneos disponibles`
-                    : userTokens !== null
-                      ? `${userTokens} escaneos disponibles`
-                      : 'Cargando escaneos...'}
-                </Text>
-              </View>
-            </Reanimated.View>
 
             <Reanimated.View entering={FadeInDown.delay(420).duration(700)} style={[s.stats, isTablet && s.statsTablet]}>
               <View style={s.statItem}>
@@ -532,6 +534,25 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.28)',
     zIndex: 1,
   },
+  tokenWidget: {
+    position: 'absolute', top: 36, left: 16, zIndex: 20,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
+    borderWidth: 1.5, borderColor: 'rgba(217,119,6,0.30)',
+    shadowColor: '#d97706', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18, shadowRadius: 6, elevation: 5,
+  },
+  tokenWidgetTablet: { top: 46, left: 28, paddingHorizontal: 16, paddingVertical: 10 },
+  tokenAmount: {
+    fontFamily: 'Poppins_700Bold', fontSize: 17, color: '#92400e', lineHeight: 20,
+  },
+  tokenAmountTablet: { fontSize: 22, lineHeight: 26 },
+  tokenLabel: {
+    fontFamily: 'Poppins_600SemiBold', fontSize: 9, color: '#d97706', letterSpacing: 1,
+  },
+  tokenLabelTablet: { fontSize: 11 },
+
   logoutBtn: {
     position: 'absolute', top: 40, right: 16, zIndex: 20,
     padding: 8, flexDirection: 'row', alignItems: 'center',

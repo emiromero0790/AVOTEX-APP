@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import {
   TriangleAlert,
   User,
   LogOut,
+  Coins,
 } from 'lucide-react-native';
 import {
   signInWithEmailAndPassword,
@@ -31,6 +32,7 @@ import {
   deleteUser,
 } from 'firebase/auth';
 import { auth } from '../../firebaseConfig';
+import { supabase } from '../../supabaseConfig';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 
 export default function ProfileScreen() {
@@ -38,6 +40,14 @@ export default function ProfileScreen() {
 
   const currentUser = auth.currentUser;
   const userEmail = currentUser?.email ?? '';
+
+  const [userTokens, setUserTokens] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!userEmail) return;
+    supabase.from('users').select('tokens').eq('user_email', userEmail).maybeSingle()
+      .then(({ data }) => { setUserTokens(data?.tokens ?? 0); });
+  }, [userEmail]);
 
   // ── Change password state ──
   const [oldPw, setOldPw] = useState('');
@@ -171,6 +181,22 @@ export default function ProfileScreen() {
             <Mail size={15} color="#0f766e" />
             <Text style={styles.emailText} numberOfLines={1}>{userEmail}</Text>
           </View>
+        </View>
+
+        {/* ── Tokens card ── */}
+        <View style={styles.tokenCard}>
+          <LinearGradient colors={['#fef3c7', '#fde68a']} style={styles.tokenCardGrad}>
+            <View style={styles.tokenCardLeft}>
+              <Coins size={36} color="#d97706" />
+            </View>
+            <View style={styles.tokenCardRight}>
+              <Text style={styles.tokenCardLabel}>Mis Tokens</Text>
+              <Text style={styles.tokenCardAmount}>
+                {userTokens !== null ? (userTokens * 100).toLocaleString() : '—'}
+              </Text>
+              <Text style={styles.tokenCardSub}>disponibles</Text>
+            </View>
+          </LinearGradient>
         </View>
 
         {/* ── Sign out button ── */}
@@ -422,6 +448,53 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 8,
+  },
+
+  tokenCard: {
+    borderRadius: 22,
+    overflow: 'hidden',
+    marginBottom: 16,
+    shadowColor: '#d97706',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  tokenCardGrad: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 22,
+  },
+  tokenCardLeft: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 18,
+  },
+  tokenCardRight: { flex: 1 },
+  tokenCardLabel: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12,
+    color: '#92400e',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  tokenCardAmount: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 32,
+    color: '#78350f',
+    lineHeight: 36,
+  },
+  tokenCardSub: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: '#b45309',
+    marginTop: 2,
   },
 
   avatarCard: {

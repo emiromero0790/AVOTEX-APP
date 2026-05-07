@@ -192,7 +192,7 @@ export default function ProfileScreen() {
             <View style={styles.tokenCardRight}>
               <Text style={styles.tokenCardLabel}>Mis Tokens</Text>
               <Text style={styles.tokenCardAmount}>
-                {userTokens !== null ? (userTokens * 100).toLocaleString() : '—'}
+                {userTokens !== null ? (userTokens * 100).toLocaleString('es-MX') : '—'}
               </Text>
               <Text style={styles.tokenCardSub}>disponibles</Text>
             </View>

@@ -345,9 +345,9 @@ export default function Scan() {
             <View style={styles.guestScanInfo}>
               <Text style={styles.guestScanInfoText}>
                 {isGuest
-                  ? <>🪙 Modo invitado: tienes <Text style={styles.guestScanCount}>{(guestScansLeft * 100).toLocaleString()} Tokens</Text> disponibles</>
+                  ? <>🪙 Modo invitado: tienes <Text style={styles.guestScanCount}>{(guestScansLeft * 100).toLocaleString('es-MX')} Tokens</Text> disponibles</>
                   : userTokens !== null
-                    ? <>🪙 Tienes <Text style={styles.guestScanCount}>{(userTokens * 100).toLocaleString()} Tokens</Text> disponibles</>
+                    ? <>🪙 Tienes <Text style={styles.guestScanCount}>{(userTokens * 100).toLocaleString('es-MX')} Tokens</Text> disponibles</>
                     : <>🪙 Cargando Tokens...</>
                 }
               </Text>
@@ -438,13 +438,13 @@ export default function Scan() {
               {isGuest ? (
                 <View style={[styles.guestCounter, isTablet && styles.guestCounterTablet]}>
                   <Text style={[styles.guestCounterText, isTablet && styles.guestCounterTextTablet]}>
-                    🪙 {(guestScansLeft * 100).toLocaleString()} Tokens restantes
+                    🪙 {(guestScansLeft * 100).toLocaleString('es-MX')} Tokens restantes
                   </Text>
                 </View>
               ) : userTokens !== null ? (
                 <View style={[styles.guestCounter, isTablet && styles.guestCounterTablet]}>
                   <Text style={[styles.guestCounterText, isTablet && styles.guestCounterTextTablet]}>
-                    🪙 {(userTokens * 100).toLocaleString()} Tokens disponibles
+                    🪙 {(userTokens * 100).toLocaleString('es-MX')} Tokens disponibles
                   </Text>
                 </View>
               ) : null}

@@ -346,9 +346,9 @@ export default function Home() {
         <View style={{ marginLeft: 6 }}>
           <Text style={[s.tokenAmount, isTablet && s.tokenAmountTablet]}>
             {isGuest
-              ? (guestScansLeft * 100).toLocaleString()
+              ? (guestScansLeft * 100).toLocaleString('es-MX')
               : userTokens !== null
-                ? (userTokens * 100).toLocaleString()
+                ? (userTokens * 100).toLocaleString('es-MX')
                 : '—'}
           </Text>
           <Text style={[s.tokenLabel, isTablet && s.tokenLabelTablet]}>Tokens</Text>

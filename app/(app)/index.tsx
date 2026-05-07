@@ -252,13 +252,15 @@ export default function Home() {
       .then(({ data }) => { if (data) setScans(data); });
   }, [user, isGuest]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!user || isGuest) return;
-      supabase.from('users').select('tokens').eq('email', user.email).single()
-        .then(({ data }) => { if (data !== null) setUserTokens(data.tokens ?? 0); });
-    }, [user, isGuest])
-  );
+  const fetchUserTokens = useCallback(() => {
+    if (!user || isGuest) return;
+    supabase.from('users').select('tokens').eq('user_email', user.email).single()
+      .then(({ data }) => { if (data !== null) setUserTokens(data.tokens ?? 0); });
+  }, [user, isGuest]);
+
+  useEffect(() => { fetchUserTokens(); }, [fetchUserTokens]);
+
+  useFocusEffect(fetchUserTokens);
 
   useEffect(() => {
     if (scans.length > 0) {

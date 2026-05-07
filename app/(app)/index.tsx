@@ -11,6 +11,7 @@ import {
   Animated,
   Easing,
   useWindowDimensions,
+  Linking,
 } from 'react-native';
 import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, AlertTriangle, LogOut, MapPin, MapPinOff, Lock, User as UserIcon, Coins } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
@@ -341,18 +342,28 @@ export default function Home() {
         </Text>
       </TouchableOpacity>
 
-      <View style={[s.tokenWidget, isTablet && s.tokenWidgetTablet]} pointerEvents="none">
-        <Coins size={isTablet ? 30 : 26} color="#d97706" />
-        <View style={{ marginLeft: 6 }}>
-          <Text style={[s.tokenAmount, isTablet && s.tokenAmountTablet]}>
-            {isGuest
-              ? (guestScansLeft * 100).toLocaleString('es-MX')
-              : userTokens !== null
-                ? (userTokens * 100).toLocaleString('es-MX')
-                : '—'}
-          </Text>
-          <Text style={[s.tokenLabel, isTablet && s.tokenLabelTablet]}>Tokens</Text>
+      <View style={[s.tokenWidgetContainer, isTablet && s.tokenWidgetContainerTablet]}>
+        <View style={s.tokenWidget} pointerEvents="none">
+          <Coins size={isTablet ? 30 : 26} color="#d97706" />
+          <View style={{ marginLeft: 6 }}>
+            <Text style={[s.tokenAmount, isTablet && s.tokenAmountTablet]}>
+              {isGuest
+                ? (guestScansLeft * 100).toLocaleString('es-MX')
+                : userTokens !== null
+                  ? (userTokens * 100).toLocaleString('es-MX')
+                  : '—'}
+            </Text>
+            <Text style={[s.tokenLabel, isTablet && s.tokenLabelTablet]}>Tokens</Text>
+          </View>
         </View>
+        {!isGuest && (
+          <TouchableOpacity
+            onPress={() => Linking.openURL('https://www.vex-mx.com/avotex.html')}
+            activeOpacity={0.7}
+          >
+            <Text style={[s.tokenMoreLink, isTablet && s.tokenMoreLinkTablet]}>¿Quieres más créditos?</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView contentContainerStyle={[s.scroll, isTablet && s.scrollTablet]} showsVerticalScrollIndicator={false}>
@@ -534,8 +545,12 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.28)',
     zIndex: 1,
   },
-  tokenWidget: {
+  tokenWidgetContainer: {
     position: 'absolute', top: 36, left: 16, zIndex: 20,
+    alignItems: 'flex-start',
+  },
+  tokenWidgetContainerTablet: { top: 46, left: 28 },
+  tokenWidget: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
@@ -543,7 +558,15 @@ const s = StyleSheet.create({
     shadowColor: '#d97706', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18, shadowRadius: 6, elevation: 5,
   },
-  tokenWidgetTablet: { top: 46, left: 28, paddingHorizontal: 16, paddingVertical: 10 },
+  tokenMoreLink: {
+    marginTop: 4,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 10,
+    color: '#0f766e',
+    textDecorationLine: 'underline',
+    paddingLeft: 4,
+  },
+  tokenMoreLinkTablet: { fontSize: 12, marginTop: 6 },
   tokenAmount: {
     fontFamily: 'Poppins_700Bold', fontSize: 17, color: '#92400e', lineHeight: 20,
   },

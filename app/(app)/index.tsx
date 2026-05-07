@@ -403,11 +403,6 @@ export default function Home() {
             </Reanimated.View>
 
             <Reanimated.View entering={FadeInDown.delay(300).duration(700)} style={s.locRow}>
-              {locationEnabled && municipio.length > 0 && (
-                <View style={[s.locBadge, { backgroundColor: colors.cardBg }]}>
-                  <Text style={[s.locText, { color: colors.textPrimary }, isTablet && s.locTextTablet]}>📍 {municipio}</Text>
-                </View>
-              )}
               <View style={[s.scanCountCard, isTablet && s.scanCountCardTablet, { flex: 1 }]}>
                 <Camera size={isTablet ? 16 : 13} color="#0f766e" />
                 <Text style={[s.scanCountText, isTablet && s.scanCountTextTablet]}>

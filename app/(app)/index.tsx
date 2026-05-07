@@ -377,19 +377,6 @@ export default function Home() {
               </View>
             </Reanimated.View>
 
-            <Reanimated.View entering={FadeInDown.delay(230).duration(700)}>
-              <View style={[s.scanCountCard, isTablet && s.scanCountCardTablet]}>
-                <Camera size={isTablet ? 16 : 13} color="#0f766e" />
-                <Text style={[s.scanCountText, isTablet && s.scanCountTextTablet]}>
-                  {isGuest
-                    ? `${guestScansLeft} / ${GUEST_MAX_SCANS} escaneos disponibles`
-                    : userTokens !== null
-                      ? `${userTokens} escaneos disponibles`
-                      : 'Cargando escaneos...'}
-                </Text>
-              </View>
-            </Reanimated.View>
-
             <Reanimated.View entering={FadeInDown.delay(260).duration(700)}>
               <View style={[s.locationToggleCard, isTablet && s.locationToggleCardTablet]}>
                 <View style={s.locationToggleLeft}>
@@ -415,26 +402,23 @@ export default function Home() {
               </View>
             </Reanimated.View>
 
-            {locationEnabled && municipio.length > 0 && (
-              <Reanimated.View entering={FadeInDown.delay(300).duration(700)} style={s.locRow}>
+            <Reanimated.View entering={FadeInDown.delay(300).duration(700)} style={s.locRow}>
+              {locationEnabled && municipio.length > 0 && (
                 <View style={[s.locBadge, { backgroundColor: colors.cardBg }]}>
                   <Text style={[s.locText, { color: colors.textPrimary }, isTablet && s.locTextTablet]}>📍 {municipio}</Text>
                 </View>
-                <View style={[s.timeBadge, { backgroundColor: colors.cardBg }]}>
-                  <Text style={[s.timeText, { color: colors.textPrimary }, isTablet && s.timeTextTablet]}>{dateTime.time}</Text>
-                  <Text style={[s.dateText, { color: colors.textSecondary }, isTablet && s.dateTextTablet]}>{dateTime.date}</Text>
-                </View>
-              </Reanimated.View>
-            )}
-
-            {!locationEnabled && (
-              <Reanimated.View entering={FadeInDown.delay(300).duration(700)} style={s.locRow}>
-                <View style={[s.timeBadge, { backgroundColor: colors.cardBg, flex: 1 }]}>
-                  <Text style={[s.timeText, { color: colors.textPrimary }, isTablet && s.timeTextTablet]}>{dateTime.time}</Text>
-                  <Text style={[s.dateText, { color: colors.textSecondary }, isTablet && s.dateTextTablet]}>{dateTime.date}</Text>
-                </View>
-              </Reanimated.View>
-            )}
+              )}
+              <View style={[s.scanCountCard, isTablet && s.scanCountCardTablet, { flex: 1 }]}>
+                <Camera size={isTablet ? 16 : 13} color="#0f766e" />
+                <Text style={[s.scanCountText, isTablet && s.scanCountTextTablet]}>
+                  {isGuest
+                    ? `${guestScansLeft} / ${GUEST_MAX_SCANS} escaneos disponibles`
+                    : userTokens !== null
+                      ? `${userTokens} escaneos disponibles`
+                      : 'Cargando escaneos...'}
+                </Text>
+              </View>
+            </Reanimated.View>
 
             <Reanimated.View entering={FadeInDown.delay(420).duration(700)} style={[s.stats, isTablet && s.statsTablet]}>
               <View style={s.statItem}>

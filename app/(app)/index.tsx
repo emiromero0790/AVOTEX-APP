@@ -255,7 +255,7 @@ export default function Home() {
   useFocusEffect(
     useCallback(() => {
       if (!user || isGuest) return;
-      supabase.from('users').select('tokens').eq('user_email', user.email).single()
+      supabase.from('users').select('tokens').eq('email', user.email).single()
         .then(({ data }) => { if (data !== null) setUserTokens(data.tokens ?? 0); });
     }, [user, isGuest])
   );

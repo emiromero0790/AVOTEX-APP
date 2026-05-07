@@ -98,7 +98,7 @@ export default function Scan() {
       if (!user || isGuest) return;
       (async () => {
         try {
-          const { data } = await supabase.from('users').select('tokens').eq('user_email', user.email).single();
+          const { data } = await supabase.from('users').select('tokens').eq('email', user.email).single();
           if (data !== null) setUserTokens(data.tokens ?? 0);
         } catch (e) {
           console.warn('No se pudo obtener tokens del usuario:', e);
@@ -252,7 +252,7 @@ export default function Scan() {
       if (userTokens !== null && userTokens > 0) {
         const newTokens = userTokens - 1;
         setUserTokens(newTokens);
-        supabase.from('users').update({ tokens: newTokens }).eq('user_email', user.email).then(() => {});
+        supabase.from('users').update({ tokens: newTokens }).eq('email', user.email).then(() => {});
       }
     }
 

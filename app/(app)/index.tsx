@@ -386,7 +386,7 @@ export default function Home() {
                   }
                   <View style={{ marginLeft: 10 }}>
                     <Text style={[s.locationToggleTitle, { color: locationEnabled ? '#0f766e' : '#64748b' }, isTablet && s.locationToggleTitleTablet]}>
-                      Ubicación
+                      {locationEnabled && municipio.length > 0 ? municipio : 'Ubicación'}
                     </Text>
                     <Text style={[s.locationToggleSub, isTablet && s.locationToggleSubTablet]}>
                       {locationEnabled ? 'Activa — solo mientras usas la app' : 'Desactivada'}

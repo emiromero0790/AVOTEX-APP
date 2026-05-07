@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
 
   predictionContainer: {
     position: "absolute",
-    bottom: 200,
+    bottom: 310,
     alignSelf: "center",
     paddingHorizontal: 24,
     paddingVertical: 14,
@@ -587,7 +587,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   predictionContainerTablet: {
-    bottom: 240,
+    bottom: 390,
     paddingHorizontal: 32,
     paddingVertical: 18,
   },

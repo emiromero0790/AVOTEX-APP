@@ -24,12 +24,30 @@ import { useGuest, GUEST_MAX_SCANS } from "../../context/GuestContext";
 
 const IA_ROW_ID = '7293688b-1ee9-469c-9679-d69d9a1089a5';
 
-type NormalizedPrediction = {
-  label: string;
-  score: number;
-  classIndex?: number;
-  raw?: any;
+type FruitPrediction = {
+  class_index: number;
+  class_name: string;
+  confidence: number;
 };
+
+type StatePrediction = {
+  class_index: number;
+  class_name: string;
+  confidence: number;
+};
+
+type NormalizedPrediction = {
+  fruit: FruitPrediction;       
+  state: StatePrediction;       
+  allFruits?: FruitPrediction[];
+  allStates?: StatePrediction[];
+};
+
+
+const HEALTHY_LABELS = ["saludable", "healthy", "sano", "fresh", "fresco"];
+
+const isHealthyLabel = (label: string) =>
+  HEALTHY_LABELS.some((h) => label.toLowerCase().includes(h));
 
 export default function Scan() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -114,47 +132,24 @@ export default function Scan() {
     }, [user?.email, isGuest])
   );
 
+  // Parse the new model response format:
+  // { result: { fruit: [...], state: [...] } }
   const normalizeServerResponse = (data: any): NormalizedPrediction | null => {
     try {
-      if (!data) return null;
-      if (data.class_index !== undefined && data.class_name && data.confidence !== undefined) {
-        return {
-          label: data.class_name,
-          score: Number(data.confidence),
-          classIndex: Number(data.class_index),
-          raw: data
-        };
-      }
-      if (Array.isArray(data.predictions)) {
-        const first = data.predictions[0];
-        if (first?.predictions && Array.isArray(first.predictions)) {
-          const top = first.predictions[0];
-          if (top) {
-            return {
-              label: top.class_name,
-              score: Number(top.confidence),
-              classIndex: Number(top.class_index),
-              raw: top
-            };
-          }
-        } else if (data.predictions[0]?.class_name) {
-          const top = data.predictions[0];
-          return {
-            label: top.class_name,
-            score: Number(top.confidence),
-            classIndex: Number(top.class_index),
-            raw: top
-          };
-        }
-      }
-      if (data.label && data.score !== undefined) {
-        return {
-          label: data.label,
-          score: Number(data.score),
-          raw: data
-        };
-      }
-      return null;
+      if (!data?.result) return null;
+
+      const fruits: FruitPrediction[] = data.result.fruit;
+      const states: StatePrediction[] = data.result.state;
+
+      if (!Array.isArray(fruits) || fruits.length === 0) return null;
+      if (!Array.isArray(states) || states.length === 0) return null;
+
+      return {
+        fruit: fruits[0],
+        state: states[0],
+        allFruits: fruits,
+        allStates: states,
+      };
     } catch {
       return null;
     }
@@ -162,7 +157,6 @@ export default function Scan() {
 
   const saveScanResult = async (pred: NormalizedPrediction) => {
     if (!user) return;
-    if (pred.label === "NoAguacate") return;
 
     setIsSaving(true);
     isBusyRef.current = true;
@@ -170,9 +164,10 @@ export default function Scan() {
       const scanRecord = {
         user_id: user.uid,
         user_email: user.email,
-        label: pred.label,
-        score: pred.score,
-        created_at: new Date().toISOString()
+        fruto: pred.fruit.class_name,          // new column: which fruit
+        label: pred.state.class_name,           // health state / disease
+        score: pred.state.confidence,
+        created_at: new Date().toISOString(),
       };
       const { error } = await supabase.from("scans").insert([scanRecord]);
       if (error) throw error;
@@ -182,7 +177,7 @@ export default function Scan() {
       Toast.show({
         type: "error",
         text1: "Error al Guardar",
-        text2: "No se pudieron guardar los datos."
+        text2: "No se pudieron guardar los datos.",
       });
     } finally {
       setIsSaving(false);
@@ -190,18 +185,19 @@ export default function Scan() {
     }
   };
 
+  // Primary: multipart/form-data with top_k=3
   const sendImageMultipart = async (image: { uri: string }) => {
     if (!predictUrl) return null;
     const formData = new FormData();
     formData.append("file", {
       uri: image.uri,
       name: "photo.jpg",
-      type: "image/jpeg"
+      type: "image/jpeg",
     } as any);
     try {
-      const res = await fetch(`${predictUrl}/predict`, {
+      const res = await fetch(`${predictUrl}/predict?top_k=3`, {
         method: "POST",
-        body: formData
+        body: formData,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -212,16 +208,17 @@ export default function Scan() {
     }
   };
 
+  // Fallback: base64
   const sendImageBase64 = async (image: { uri: string }) => {
     if (!predictUrl) return null;
     try {
       const base64 = await FileSystem.readAsStringAsync(image.uri, {
-        encoding: FileSystem.EncodingType.Base64
+        encoding: FileSystem.EncodingType.Base64,
       });
-      const res = await fetch(`${predictUrl}/predict_base64`, {
+      const res = await fetch(`${predictUrl}/predict_base64?top_k=3`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: base64 })
+        body: JSON.stringify({ data: base64 }),
       });
       if (!res.ok) throw new Error(`HTTP base64 ${res.status}`);
       const data = await res.json();
@@ -243,7 +240,7 @@ export default function Scan() {
         Toast.show({
           type: "error",
           text1: "Límite alcanzado",
-          text2: "Crea una cuenta para continuar escaneando."
+          text2: "Crea una cuenta para continuar escaneando.",
         });
         return;
       }
@@ -252,7 +249,7 @@ export default function Scan() {
         Toast.show({
           type: "error",
           text1: "Sin Tokens disponibles",
-          text2: "Contacta a VEX para obtener más Tokens."
+          text2: "Contacta a VEX para obtener más Tokens.",
         });
         return;
       }
@@ -270,7 +267,7 @@ export default function Scan() {
     try {
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.7,
-        skipProcessing: true
+        skipProcessing: true,
       });
 
       let pred = await sendImageMultipart(photo);
@@ -282,11 +279,13 @@ export default function Scan() {
           await saveScanResult(pred);
         }
       } else {
-        setPrediction({ label: "Respuesta inválida", score: 0 });
+        // Use a sentinel so the UI can show an error state without crashing
+        setPrediction(null);
+        Toast.show({ type: "error", text1: "No se pudo analizar la imagen", text2: "Intenta de nuevo." });
       }
     } catch (e) {
       console.error("Error capturando o procesando foto:", e);
-      setPrediction({ label: "Error de captura", score: 0 });
+      Toast.show({ type: "error", text1: "Error de captura" });
     } finally {
       setIsProcessing(false);
       isBusyRef.current = false;
@@ -310,15 +309,65 @@ export default function Scan() {
     setType((current) => (current === "back" ? "front" : "back"));
   };
 
-  const renderPredictionText = () => {
+  // Build the result card text
+  const renderPredictionContent = () => {
     if (!prediction) return null;
-    if (prediction.label === "Respuesta inválida" || prediction.label === "Error de captura") {
-      return `⚠️ ${prediction.label}`;
-    }
-    return `🎯 ${prediction.label}: ${(prediction.score * 100).toFixed(1)}%`;
+    const healthy = isHealthyLabel(prediction.state.class_name);
+    const fruitPct = (prediction.fruit.confidence * 100).toFixed(1);
+    const statePct = (prediction.state.confidence * 100).toFixed(1);
+
+    return (
+      <View style={[styles.predictionCard, isTablet && styles.predictionCardTablet]}>
+        {/* Fruit row */}
+        <View style={styles.predictionRow}>
+          <Text style={[styles.predictionEmoji, isTablet && styles.predictionEmojiTablet]}>🍑</Text>
+          <View style={styles.predictionInfo}>
+            <Text style={[styles.predictionLabel, isTablet && styles.predictionLabelTablet]}>
+              {prediction.fruit.class_name}
+            </Text>
+            <Text style={[styles.predictionSub, isTablet && styles.predictionSubTablet]}>
+              Confianza: {fruitPct}%
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.predictionDivider} />
+
+        {/* State / disease row */}
+        <View style={styles.predictionRow}>
+          <Text style={[styles.predictionEmoji, isTablet && styles.predictionEmojiTablet]}>
+            {healthy ? "✅" : "🦠"}
+          </Text>
+          <View style={styles.predictionInfo}>
+            <Text style={[
+              styles.predictionLabel,
+              isTablet && styles.predictionLabelTablet,
+              { color: healthy ? "#16a34a" : "#dc2626" }
+            ]}>
+              {prediction.state.class_name}
+            </Text>
+            <Text style={[styles.predictionSub, isTablet && styles.predictionSubTablet]}>
+              Confianza: {statePct}%
+            </Text>
+          </View>
+        </View>
+
+        {/* Alternatives (top 2 & 3) */}
+        {prediction.allFruits && prediction.allFruits.length > 1 && (
+          <View style={styles.altSection}>
+            <Text style={[styles.altTitle, isTablet && styles.altTitleTablet]}>Otras posibles frutas:</Text>
+            {prediction.allFruits.slice(1).map((f, i) => (
+              <Text key={i} style={[styles.altItem, isTablet && styles.altItemTablet]}>
+                • {f.class_name} ({(f.confidence * 100).toFixed(1)}%)
+              </Text>
+            ))}
+          </View>
+        )}
+      </View>
+    );
   };
 
-  const isHealthy = prediction?.label?.toLowerCase().includes("salud") || prediction?.label?.toLowerCase().includes("healthy");
+  const isHealthy = prediction ? isHealthyLabel(prediction.state.class_name) : false;
 
   const guestLimitReached = isGuest && guestScansLeft <= 0;
   const userLimitReached = !isGuest && user !== null && userTokens !== null && userTokens <= 0;
@@ -356,7 +405,7 @@ export default function Scan() {
             <View style={styles.modalSection}>
               <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>🔍 ¿Cómo funciona el escaneo?</Text>
               <Text style={[styles.modalBodyText, isTablet && styles.modalBodyTextTablet]}>
-                La cámara captura una foto del cultivo o fruto y la envía a nuestra IA para su análisis en tiempo real.
+                La cámara captura una foto del cultivo o fruto y la envía a nuestra IA para su análisis en tiempo real. El modelo detecta el tipo de fruta y su estado de salud.
               </Text>
             </View>
 
@@ -383,7 +432,7 @@ export default function Scan() {
               <Text style={[styles.modalBodyText, isTablet && styles.modalBodyTextTablet]}>
                 {isGuest
                   ? "En modo invitado, los resultados no se guardan en ninguna base de datos."
-                  : "Solo se almacena el resultado del análisis: el porcentaje de probabilidad de enfermedad y el diagnóstico obtenido."}
+                  : "Solo se almacena el resultado: el tipo de fruta detectada, el diagnóstico de salud y el porcentaje de confianza."}
               </Text>
             </View>
 
@@ -401,7 +450,7 @@ export default function Scan() {
         </View>
       </Modal>
 
-      {/* Limit reached screen — guest or user with 0 tokens */}
+      {/* Limit reached screen */}
       {limitReached ? (
         <View style={styles.limitContainer}>
           <LinearGradient colors={['#0f766e', '#134e4a']} style={StyleSheet.absoluteFill} />
@@ -470,7 +519,7 @@ export default function Scan() {
                 style={[
                   styles.captureButton,
                   isTablet && styles.captureButtonTablet,
-                  (isProcessing || isSaving) && styles.captureButtonDisabled
+                  (isProcessing || isSaving) && styles.captureButtonDisabled,
                 ]}
                 onPress={takePicture}
                 disabled={isProcessing || isSaving}
@@ -486,6 +535,7 @@ export default function Scan() {
         </CameraView>
       )}
 
+      {/* Spinner overlay */}
       {(isSaving || isProcessing) && (
         <View style={styles.savingOverlay}>
           <View style={[styles.loadingContainer, isTablet && styles.loadingContainerTablet]}>
@@ -498,15 +548,20 @@ export default function Scan() {
               {isSaving ? "Guardando" : "Analizando"}
             </Text>
             <Text style={[styles.savingSubtitle, isTablet && styles.savingSubtitleTablet]}>
-              {isSaving ? "Tu diagnóstico se está guardando..." : "Detectando estado del cultivo..."}
+              {isSaving ? "Tu diagnóstico se está guardando..." : "Detectando fruto y estado del cultivo..."}
             </Text>
           </View>
         </View>
       )}
 
+      {/* Result card */}
       {prediction && !isSaving && !isProcessing && !limitReached && (
-        <View style={[styles.predictionContainer, isHealthy ? styles.sano : styles.enfermo, isTablet && styles.predictionContainerTablet]}>
-          <Text style={[styles.predictionText, isTablet && styles.predictionTextTablet]}>{renderPredictionText()}</Text>
+        <View style={[
+          styles.predictionWrapper,
+          isHealthy ? styles.predictionWrapperHealthy : styles.predictionWrapperSick,
+          isTablet && styles.predictionWrapperTablet,
+        ]}>
+          {renderPredictionContent()}
         </View>
       )}
     </View>
@@ -517,34 +572,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000000" },
   camera: { flex: 1 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.25)", padding: 20 },
-  header: {
-    paddingTop: 50,
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  headerTablet: {
-    paddingTop: 60,
-    marginBottom: 28,
-  },
-  headerText: {
-    color: "#ffffff",
-    fontSize: 22,
-    fontFamily: "Poppins-SemiBold",
-    letterSpacing: 0.5,
-  },
-  headerTextTablet: {
-    fontSize: 28,
-  },
-  headerSubtext: {
-    color: "rgba(255,255,255,0.75)",
-    fontSize: 13,
-    fontFamily: "Poppins-Regular",
-    marginTop: 4,
-  },
-  headerSubtextTablet: {
-    fontSize: 16,
-    marginTop: 6,
-  },
+
+  header: { paddingTop: 50, alignItems: "center", marginBottom: 20 },
+  headerTablet: { paddingTop: 60, marginBottom: 28 },
+  headerText: { color: "#ffffff", fontSize: 22, fontFamily: "Poppins-SemiBold", letterSpacing: 0.5 },
+  headerTextTablet: { fontSize: 28 },
+  headerSubtext: { color: "rgba(255,255,255,0.75)", fontSize: 13, fontFamily: "Poppins-Regular", marginTop: 4 },
+  headerSubtextTablet: { fontSize: 16, marginTop: 6 },
 
   guestCounter: {
     marginTop: 10,
@@ -555,31 +589,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(245,158,11,0.6)',
   },
-  guestCounterTablet: {
-    marginTop: 14,
-    paddingHorizontal: 22,
-    paddingVertical: 8,
-  },
-  guestCounterText: {
-    color: '#fbbf24',
-    fontFamily: 'Poppins-SemiBold',
-    fontSize: 13,
-  },
-  guestCounterTextTablet: {
-    fontSize: 16,
-  },
+  guestCounterTablet: { marginTop: 14, paddingHorizontal: 22, paddingVertical: 8 },
+  guestCounterText: { color: '#fbbf24', fontFamily: 'Poppins-SemiBold', fontSize: 13 },
+  guestCounterTextTablet: { fontSize: 16 },
 
-  scanFrame: {
-    alignSelf: 'center',
-    marginTop: 20,
-  },
-  corner: {
-    position: 'absolute',
-    width: 30,
-    height: 30,
-    borderColor: '#3aaa5c',
-    borderWidth: 3,
-  },
+  scanFrame: { alignSelf: 'center', marginTop: 20 },
+  corner: { position: 'absolute', width: 30, height: 30, borderColor: '#3aaa5c', borderWidth: 3 },
   cornerTL: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 6 },
   cornerTR: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 6 },
   cornerBL: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 6 },
@@ -596,357 +611,165 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
     gap: 40,
   },
-  controlsTablet: {
-    bottom: 260,
-    gap: 60,
-  },
-  flipButton: {
-    backgroundColor: "rgba(0,0,0,0.5)",
-    borderRadius: 30,
-    padding: 12,
-  },
-  flipButtonTablet: {
-    padding: 16,
-    borderRadius: 36,
-  },
+  controlsTablet: { bottom: 260, gap: 60 },
+  flipButton: { backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 30, padding: 12 },
+  flipButtonTablet: { padding: 16, borderRadius: 36 },
   captureButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 80, height: 80, borderRadius: 40,
     backgroundColor: "rgba(255,255,255,0.3)",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 4,
-    borderColor: "#ffffff",
+    justifyContent: "center", alignItems: "center",
+    borderWidth: 4, borderColor: "#ffffff",
   },
-  captureButtonTablet: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-  },
+  captureButtonTablet: { width: 100, height: 100, borderRadius: 50 },
   captureButtonDisabled: { opacity: 0.5 },
   captureButtonInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 64, height: 64, borderRadius: 32,
     backgroundColor: "#3aaa5c",
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: "center", alignItems: "center",
   },
-  captureButtonInnerTablet: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-  },
+  captureButtonInnerTablet: { width: 80, height: 80, borderRadius: 40 },
 
-  predictionContainer: {
+  // ── New result card ──────────────────────────────────────
+  predictionWrapper: {
     position: "absolute",
-    bottom: 310,
-    alignSelf: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 25,
-    elevation: 6,
+    bottom: 110,
+    left: 16,
+    right: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
   },
-  predictionContainerTablet: {
-    bottom: 390,
-    paddingHorizontal: 32,
-    paddingVertical: 18,
+  predictionWrapperTablet: { bottom: 150, left: 40, right: 40, borderRadius: 26 },
+  predictionWrapperHealthy: { backgroundColor: 'rgba(20,83,45,0.92)' },
+  predictionWrapperSick: { backgroundColor: 'rgba(127,29,29,0.92)' },
+
+  predictionCard: { padding: 16 },
+  predictionCardTablet: { padding: 22 },
+
+  predictionRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  predictionEmoji: { fontSize: 28 },
+  predictionEmojiTablet: { fontSize: 36 },
+  predictionInfo: { flex: 1 },
+  predictionLabel: { color: '#fff', fontFamily: 'Poppins-SemiBold', fontSize: 15 },
+  predictionLabelTablet: { fontSize: 19 },
+  predictionSub: { color: 'rgba(255,255,255,0.7)', fontFamily: 'Poppins-Regular', fontSize: 12, marginTop: 2 },
+  predictionSubTablet: { fontSize: 14 },
+
+  predictionDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginVertical: 10,
   },
-  predictionText: { fontSize: 18, fontWeight: "700", color: "#fff", fontFamily: "Poppins-SemiBold" },
-  predictionTextTablet: { fontSize: 22 },
-  sano: { backgroundColor: "#2ecc71" },
-  enfermo: { backgroundColor: "#e74c3c" },
+
+  altSection: { marginTop: 10 },
+  altTitle: { color: 'rgba(255,255,255,0.6)', fontFamily: 'Poppins-SemiBold', fontSize: 11, marginBottom: 4 },
+  altTitleTablet: { fontSize: 13 },
+  altItem: { color: 'rgba(255,255,255,0.55)', fontFamily: 'Poppins-Regular', fontSize: 11 },
+  altItemTablet: { fontSize: 13 },
+  // ────────────────────────────────────────────────────────
 
   text: { color: "#ffffff", fontSize: 18, fontFamily: "Poppins-Regular", textAlign: "center", marginBottom: 20 },
   button: { backgroundColor: "#3aaa5c", padding: 16, borderRadius: 12, alignItems: "center" },
   buttonText: { color: "#ffffff", fontSize: 18, fontFamily: "Poppins-SemiBold" },
 
   savingOverlay: {
-    position: 'absolute',
-    left: 0, right: 0, top: 0, bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center', alignItems: 'center',
   },
   loadingContainer: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 28,
-    padding: 36,
-    borderWidth: 1,
-    borderColor: 'rgba(58, 170, 92, 0.4)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 28, padding: 36,
+    borderWidth: 1, borderColor: 'rgba(58,170,92,0.4)',
   },
-  loadingContainerTablet: {
-    padding: 48,
-    borderRadius: 36,
-  },
+  loadingContainerTablet: { padding: 48, borderRadius: 36 },
   fruitSpinner: {
-    width: 100,
-    height: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(58, 170, 92, 0.2)',
-    borderRadius: 50,
-    marginBottom: 20,
+    width: 100, height: 100,
+    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: 'rgba(58,170,92,0.2)',
+    borderRadius: 50, marginBottom: 20,
   },
-  fruitSpinnerTablet: {
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    marginBottom: 26,
-  },
+  fruitSpinnerTablet: { width: 130, height: 130, borderRadius: 65, marginBottom: 26 },
   fruitEmoji: { fontSize: 50 },
   fruitEmojiTablet: { fontSize: 64 },
-  savingTitle: {
-    color: '#ffffff',
-    fontSize: 22,
-    fontFamily: "Poppins-Bold",
-    marginBottom: 8,
-  },
-  savingTitleTablet: {
-    fontSize: 28,
-  },
-  savingSubtitle: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 14,
-    fontFamily: "Poppins-Regular",
-    textAlign: 'center',
-    maxWidth: 250,
-  },
-  savingSubtitleTablet: {
-    fontSize: 17,
-    maxWidth: 340,
-  },
+  savingTitle: { color: '#ffffff', fontSize: 22, fontFamily: "Poppins-Bold", marginBottom: 8 },
+  savingTitleTablet: { fontSize: 28 },
+  savingSubtitle: { color: 'rgba(255,255,255,0.8)', fontSize: 14, fontFamily: "Poppins-Regular", textAlign: 'center', maxWidth: 250 },
+  savingSubtitleTablet: { fontSize: 17, maxWidth: 340 },
 
-  limitContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 28,
-  },
+  limitContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 28 },
   limitCard: {
-    backgroundColor: '#fff',
-    borderRadius: 28,
-    padding: 32,
-    alignItems: 'center',
-    width: '100%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 24,
-    elevation: 12,
+    backgroundColor: '#fff', borderRadius: 28, padding: 32,
+    alignItems: 'center', width: '100%', maxWidth: 400,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25, shadowRadius: 24, elevation: 12,
   },
-  limitCardTablet: {
-    maxWidth: 520,
-    padding: 48,
-    borderRadius: 36,
-  },
+  limitCardTablet: { maxWidth: 520, padding: 48, borderRadius: 36 },
   limitIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 80, height: 80, borderRadius: 40,
     backgroundColor: '#d1fae5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 20,
   },
-  limitTitle: {
-    fontFamily: 'Poppins-Bold',
-    fontSize: 24,
-    color: '#134e4a',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  limitTitleTablet: {
-    fontSize: 30,
-  },
-  limitBody: {
-    fontFamily: 'Poppins-Regular',
-    fontSize: 14,
-    color: '#64748b',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 28,
-  },
-  limitBodyTablet: {
-    fontSize: 17,
-    lineHeight: 28,
-    marginBottom: 36,
-  },
-  limitLoginBtn: {
-    width: '100%',
-    borderRadius: 50,
-    overflow: 'hidden',
-  },
-  limitBtnGrad: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  limitBtnText: {
-    fontFamily: 'Poppins-SemiBold',
-    fontSize: 16,
-    color: '#fff',
-  },
-  limitBtnTextTablet: {
-    fontSize: 19,
-  },
+  limitTitle: { fontFamily: 'Poppins-Bold', fontSize: 24, color: '#134e4a', marginBottom: 12, textAlign: 'center' },
+  limitTitleTablet: { fontSize: 30 },
+  limitBody: { fontFamily: 'Poppins-Regular', fontSize: 14, color: '#64748b', textAlign: 'center', lineHeight: 22, marginBottom: 28 },
+  limitBodyTablet: { fontSize: 17, lineHeight: 28, marginBottom: 36 },
+  limitLoginBtn: { width: '100%', borderRadius: 50, overflow: 'hidden' },
+  limitBtnGrad: { paddingVertical: 16, alignItems: 'center' },
+  limitBtnText: { fontFamily: 'Poppins-SemiBold', fontSize: 16, color: '#fff' },
+  limitBtnTextTablet: { fontSize: 19 },
 
   modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center', alignItems: 'center', padding: 20,
   },
   modalCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 28,
-    padding: 24,
-    width: '100%',
-    maxWidth: 420,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 24,
-    elevation: 12,
-    alignItems: 'center',
+    backgroundColor: '#ffffff', borderRadius: 28, padding: 24,
+    width: '100%', maxWidth: 420,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25, shadowRadius: 24, elevation: 12, alignItems: 'center',
   },
-  modalCardTablet: {
-    maxWidth: 560,
-    padding: 36,
-    borderRadius: 36,
-  },
+  modalCardTablet: { maxWidth: 560, padding: 36, borderRadius: 36 },
   modalIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 60, height: 60, borderRadius: 30,
     backgroundColor: '#d1fae5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 14,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 14,
   },
-  modalTitle: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 18,
-    color: '#0f766e',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  modalTitleTablet: {
-    fontSize: 22,
-  },
-  modalSubtitle: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
-    color: '#94a3b8',
-    textAlign: 'center',
-    marginBottom: 14,
-  },
-  modalSubtitleTablet: {
-    fontSize: 15,
-    marginBottom: 18,
-  },
+  modalTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 18, color: '#0f766e', textAlign: 'center', marginBottom: 4 },
+  modalTitleTablet: { fontSize: 22 },
+  modalSubtitle: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#94a3b8', textAlign: 'center', marginBottom: 14 },
+  modalSubtitleTablet: { fontSize: 15, marginBottom: 18 },
 
   guestScanInfo: {
-    backgroundColor: '#fffbeb',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#fcd34d',
-    width: '100%',
+    backgroundColor: '#fffbeb', borderRadius: 12,
+    paddingHorizontal: 16, paddingVertical: 10, marginBottom: 14,
+    borderWidth: 1, borderColor: '#fcd34d', width: '100%',
   },
-  guestScanInfoText: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 13,
-    color: '#92400e',
-    textAlign: 'center',
-  },
-  guestScanCount: {
-    fontFamily: 'Poppins_600SemiBold',
-    color: '#b45309',
-  },
+  guestScanInfoText: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#92400e', textAlign: 'center' },
+  guestScanCount: { fontFamily: 'Poppins_600SemiBold', color: '#b45309' },
 
-  modalSection: {
-    width: '100%',
-    marginBottom: 14,
-  },
-  modalSectionTitle: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 13,
-    color: '#134e4a',
-    marginBottom: 6,
-  },
-  modalSectionTitleTablet: {
-    fontSize: 15,
-  },
-  modalBodyText: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 13,
-    color: '#334155',
-    lineHeight: 19,
-  },
-  modalBodyTextTablet: {
-    fontSize: 15,
-    lineHeight: 23,
-  },
+  modalSection: { width: '100%', marginBottom: 14 },
+  modalSectionTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#134e4a', marginBottom: 6 },
+  modalSectionTitleTablet: { fontSize: 15 },
+  modalBodyText: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#334155', lineHeight: 19 },
+  modalBodyTextTablet: { fontSize: 15, lineHeight: 23 },
   highlightBox: {
-    backgroundColor: '#f0fdf4',
-    borderRadius: 12,
-    padding: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: '#22c55e',
-    gap: 6,
+    backgroundColor: '#f0fdf4', borderRadius: 12, padding: 12,
+    borderLeftWidth: 3, borderLeftColor: '#22c55e', gap: 6,
   },
-  bulletRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  bulletDot: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 14,
-    color: '#0f766e',
-    marginRight: 7,
-    marginTop: 1,
-  },
-  bulletText: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
-    color: '#334155',
-    flex: 1,
-    lineHeight: 18,
-  },
-  boldText: {
-    fontFamily: 'Poppins_600SemiBold',
-    color: '#134e4a',
-  },
-  modalButtons: {
-    width: '100%',
-    marginTop: 6,
-  },
-  acceptScanBtn: {
-    borderRadius: 50,
-    overflow: 'hidden',
-  },
-  acceptBtnGrad: {
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  acceptBtnText: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 16,
-    color: '#ffffff',
-  },
-  acceptBtnTextTablet: {
-    fontSize: 19,
-    paddingVertical: 4,
-  },
+  bulletRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  bulletDot: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#0f766e', marginRight: 7, marginTop: 1 },
+  bulletText: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#334155', flex: 1, lineHeight: 18 },
+  boldText: { fontFamily: 'Poppins_600SemiBold', color: '#134e4a' },
+
+  modalButtons: { width: '100%', marginTop: 6 },
+  acceptScanBtn: { borderRadius: 50, overflow: 'hidden' },
+  acceptBtnGrad: { paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  acceptBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#ffffff' },
+  acceptBtnTextTablet: { fontSize: 19, paddingVertical: 4 },
 });

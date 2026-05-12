@@ -37,12 +37,11 @@ type StatePrediction = {
 };
 
 type NormalizedPrediction = {
-  fruit: FruitPrediction;       
-  state: StatePrediction;       
+  fruit: FruitPrediction;
+  state: StatePrediction;
   allFruits?: FruitPrediction[];
   allStates?: StatePrediction[];
 };
-
 
 const HEALTHY_LABELS = ["saludable", "healthy", "sano", "fresh", "fresco"];
 
@@ -132,18 +131,13 @@ export default function Scan() {
     }, [user?.email, isGuest])
   );
 
-  // Parse the new model response format:
-  // { result: { fruit: [...], state: [...] } }
   const normalizeServerResponse = (data: any): NormalizedPrediction | null => {
     try {
       if (!data?.result) return null;
-
       const fruits: FruitPrediction[] = data.result.fruit;
       const states: StatePrediction[] = data.result.state;
-
       if (!Array.isArray(fruits) || fruits.length === 0) return null;
       if (!Array.isArray(states) || states.length === 0) return null;
-
       return {
         fruit: fruits[0],
         state: states[0],
@@ -157,15 +151,14 @@ export default function Scan() {
 
   const saveScanResult = async (pred: NormalizedPrediction) => {
     if (!user) return;
-
     setIsSaving(true);
     isBusyRef.current = true;
     try {
       const scanRecord = {
         user_id: user.uid,
         user_email: user.email,
-        fruto: pred.fruit.class_name,          // new column: which fruit
-        label: pred.state.class_name,           // health state / disease
+        fruto: pred.fruit.class_name,
+        label: pred.state.class_name,
         score: pred.state.confidence,
         created_at: new Date().toISOString(),
       };
@@ -185,7 +178,6 @@ export default function Scan() {
     }
   };
 
-  // Primary: multipart/form-data with top_k=3
   const sendImageMultipart = async (image: { uri: string }) => {
     if (!predictUrl) return null;
     const formData = new FormData();
@@ -208,7 +200,6 @@ export default function Scan() {
     }
   };
 
-  // Fallback: base64
   const sendImageBase64 = async (image: { uri: string }) => {
     if (!predictUrl) return null;
     try {
@@ -279,7 +270,6 @@ export default function Scan() {
           await saveScanResult(pred);
         }
       } else {
-        // Use a sentinel so the UI can show an error state without crashing
         setPrediction(null);
         Toast.show({ type: "error", text1: "No se pudo analizar la imagen", text2: "Intenta de nuevo." });
       }
@@ -309,7 +299,7 @@ export default function Scan() {
     setType((current) => (current === "back" ? "front" : "back"));
   };
 
-  // Build the result card text
+  // ── Result card — sin "otras posibles frutas", con botón Aceptar ──
   const renderPredictionContent = () => {
     if (!prediction) return null;
     const healthy = isHealthyLabel(prediction.state.class_name);
@@ -342,7 +332,7 @@ export default function Scan() {
             <Text style={[
               styles.predictionLabel,
               isTablet && styles.predictionLabelTablet,
-              { color: healthy ? "#16a34a" : "#dc2626" }
+              { color: healthy ? "#86efac" : "#fca5a5" },
             ]}>
               {prediction.state.class_name}
             </Text>
@@ -352,17 +342,16 @@ export default function Scan() {
           </View>
         </View>
 
-        {/* Alternatives (top 2 & 3) */}
-        {prediction.allFruits && prediction.allFruits.length > 1 && (
-          <View style={styles.altSection}>
-            <Text style={[styles.altTitle, isTablet && styles.altTitleTablet]}>Otras posibles frutas:</Text>
-            {prediction.allFruits.slice(1).map((f, i) => (
-              <Text key={i} style={[styles.altItem, isTablet && styles.altItemTablet]}>
-                • {f.class_name} ({(f.confidence * 100).toFixed(1)}%)
-              </Text>
-            ))}
-          </View>
-        )}
+        {/* ── Botón Aceptar ── */}
+        <TouchableOpacity
+          style={[styles.acceptButton, isTablet && styles.acceptButtonTablet]}
+          onPress={() => setPrediction(null)}
+          activeOpacity={0.75}
+        >
+          <Text style={[styles.acceptButtonText, isTablet && styles.acceptButtonTextTablet]}>
+            Aceptar
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -554,7 +543,7 @@ export default function Scan() {
         </View>
       )}
 
-      {/* Result card */}
+      {/* ── Result card — centrado, sin alternativas, con Aceptar ── */}
       {prediction && !isSaving && !isProcessing && !limitReached && (
         <View style={[
           styles.predictionWrapper,
@@ -629,12 +618,12 @@ const styles = StyleSheet.create({
   },
   captureButtonInnerTablet: { width: 80, height: 80, borderRadius: 40 },
 
-  // ── New result card ──────────────────────────────────────
+  // ── Result card — centrado en pantalla ──────────────────
   predictionWrapper: {
     position: "absolute",
-    bottom: 110,
-    left: 16,
-    right: 16,
+    top: '35%',              // ~centro visual de la pantalla
+    left: 24,
+    right: 24,
     borderRadius: 20,
     overflow: 'hidden',
     elevation: 8,
@@ -643,33 +632,46 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 10,
   },
-  predictionWrapperTablet: { bottom: 150, left: 40, right: 40, borderRadius: 26 },
-  predictionWrapperHealthy: { backgroundColor: 'rgba(20,83,45,0.92)' },
-  predictionWrapperSick: { backgroundColor: 'rgba(127,29,29,0.92)' },
+  predictionWrapperTablet: { top: '38%', left: 60, right: 60, borderRadius: 26 },
+  predictionWrapperHealthy: { backgroundColor: 'rgba(20,83,45,0.95)' },
+  predictionWrapperSick:    { backgroundColor: 'rgba(127,29,29,0.95)' },
 
-  predictionCard: { padding: 16 },
-  predictionCardTablet: { padding: 22 },
+  predictionCard: { padding: 20 },
+  predictionCardTablet: { padding: 28 },
 
   predictionRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  predictionEmoji: { fontSize: 28 },
-  predictionEmojiTablet: { fontSize: 36 },
+  predictionEmoji: { fontSize: 30 },
+  predictionEmojiTablet: { fontSize: 38 },
   predictionInfo: { flex: 1 },
-  predictionLabel: { color: '#fff', fontFamily: 'Poppins-SemiBold', fontSize: 15 },
-  predictionLabelTablet: { fontSize: 19 },
+  predictionLabel: { color: '#fff', fontFamily: 'Poppins-SemiBold', fontSize: 16 },
+  predictionLabelTablet: { fontSize: 20 },
   predictionSub: { color: 'rgba(255,255,255,0.7)', fontFamily: 'Poppins-Regular', fontSize: 12, marginTop: 2 },
   predictionSubTablet: { fontSize: 14 },
 
   predictionDivider: {
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    marginVertical: 10,
+    marginVertical: 12,
   },
 
-  altSection: { marginTop: 10 },
-  altTitle: { color: 'rgba(255,255,255,0.6)', fontFamily: 'Poppins-SemiBold', fontSize: 11, marginBottom: 4 },
-  altTitleTablet: { fontSize: 13 },
-  altItem: { color: 'rgba(255,255,255,0.55)', fontFamily: 'Poppins-Regular', fontSize: 11 },
-  altItemTablet: { fontSize: 13 },
+  // ── Botón Aceptar ────────────────────────────────────────
+  acceptButton: {
+    marginTop: 16,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  acceptButtonTablet: { marginTop: 22, paddingVertical: 14, borderRadius: 16 },
+  acceptButtonText: {
+    color: '#ffffff',
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 15,
+    letterSpacing: 0.3,
+  },
+  acceptButtonTextTablet: { fontSize: 18 },
   // ────────────────────────────────────────────────────────
 
   text: { color: "#ffffff", fontSize: 18, fontFamily: "Poppins-Regular", textAlign: "center", marginBottom: 20 },

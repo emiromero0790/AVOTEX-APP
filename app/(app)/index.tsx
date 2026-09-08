@@ -141,11 +141,10 @@ const FloatingOrb = ({ orb, screenWidth }: { orb: typeof CROP_ORBS[0]; screenWid
 };
 
 const getWeatherEmoji = (temp: number) => {
-  if (temp < 5) return '❄️';
-  if (temp < 15) return '🌧️';
-  if (temp < 25) return '⛅';
-  if (temp < 32) return '☀️';
-  return '🌩️';
+  if (temp < 15) return 'Frío';
+  if (temp < 25) return 'Templado';
+  if (temp < 32) return 'Cálido';
+  return 'Calor';
 };
 const formatDate = (date: Date) => {
   const d = date.getDate().toString().padStart(2, '0');
@@ -320,17 +319,7 @@ export default function Home() {
 
   return (
     <View style={{ flex: 1 }}>
-      <LinearGradient
-        colors={colors.bg}
-        locations={[0, 0.38, 1]}
-        style={StyleSheet.absoluteFill}
-      />
-
-      <View style={s.bgLayer} pointerEvents="none">
-        {CROP_ORBS.map((orb) => <FloatingOrb key={orb.name} orb={orb} screenWidth={width} />)}
-      </View>
-
-      <View style={s.centerVignette} pointerEvents="none" />
+      <View style={s.pageBackground} />
 
       <TouchableOpacity
         style={[s.logoutBtn, isTablet && s.logoutBtnTablet]}
@@ -468,8 +457,8 @@ export default function Home() {
           <Reanimated.View entering={FadeInUp.delay(620).duration(700)} style={[s.grid, isTablet && s.gridTablet]}>
             {/* Escanear — always accessible */}
             <TouchableOpacity style={[s.mainCard, isTablet && s.mainCardTablet]} onPress={() => router.push('/scan')}>
-              <LinearGradient colors={['#6ee7b7', '#059669']} style={s.cardGrad}>
-                <View style={[s.cardIcon, isTablet && s.cardIconTablet]}><Camera color="#fff" size={isTablet ? 32 : 26} /></View>
+              <LinearGradient colors={['#F7FAF8', '#FFFFFF']} style={[s.cardGrad, s.outlinedAction]}>
+                <View style={[s.cardIcon, isTablet && s.cardIconTablet]}><Camera color="#2F7D55" size={isTablet ? 32 : 26} /></View>
                 <Text style={[s.cardTitle, isTablet && s.cardTitleTablet]}>Escanear</Text>
                 <Text style={[s.cardSub, isTablet && s.cardSubTablet]}>Detecta enfermedades{'\n'}en tus cultivos</Text>
                 {isGuest && (
@@ -487,9 +476,9 @@ export default function Home() {
                 onPress={() => isGuest ? null : router.push('/mapping')}
                 disabled={isGuest}
               >
-                <LinearGradient colors={isGuest ? ['#e2e8f0', '#cbd5e1'] : ['#fcd34d', '#f59e0b']} style={s.secGrad}>
+                <LinearGradient colors={['#FFFFFF', '#F7FAF8']} style={[s.secGrad, s.outlinedAction]}>
                   <View style={[s.secIcon, isTablet && s.secIconTablet]}>
-                    {isGuest ? <Lock color="#94a3b8" size={isTablet ? 24 : 20} /> : <Map color="#fff" size={isTablet ? 24 : 20} />}
+                     {isGuest ? <Lock color="#94a3b8" size={isTablet ? 24 : 20} /> : <Map color="#2F7D55" size={isTablet ? 24 : 20} />}
                   </View>
                   <Text style={[s.secTitle, isTablet && s.secTitleTablet, isGuest && s.secTitleLocked]}>Mapeo</Text>
                 </LinearGradient>
@@ -501,9 +490,9 @@ export default function Home() {
                 onPress={() => isGuest ? null : router.push('/results')}
                 disabled={isGuest}
               >
-                <LinearGradient colors={isGuest ? ['#e2e8f0', '#cbd5e1'] : ['#67e8f9', '#0891b2']} style={s.secGrad}>
+                <LinearGradient colors={['#FFFFFF', '#F7FAF8']} style={[s.secGrad, s.outlinedAction]}>
                   <View style={[s.secIcon, isTablet && s.secIconTablet]}>
-                    {isGuest ? <Lock color="#94a3b8" size={isTablet ? 24 : 20} /> : <LineChart color="#fff" size={isTablet ? 24 : 20} />}
+                     {isGuest ? <Lock color="#94a3b8" size={isTablet ? 24 : 20} /> : <LineChart color="#2F7D55" size={isTablet ? 24 : 20} />}
                   </View>
                   <Text style={[s.secTitle, isTablet && s.secTitleTablet, isGuest && s.secTitleLocked]}>Resultados</Text>
                 </LinearGradient>
@@ -515,9 +504,9 @@ export default function Home() {
                 onPress={() => isGuest ? null : router.push('/agenda')}
                 disabled={isGuest}
               >
-                <LinearGradient colors={isGuest ? ['#e2e8f0', '#cbd5e1'] : ['#86efac', '#16a34a']} style={s.secGrad}>
+                <LinearGradient colors={['#FFFFFF', '#F7FAF8']} style={[s.secGrad, s.outlinedAction]}>
                   <View style={[s.secIcon, isTablet && s.secIconTablet]}>
-                    {isGuest ? <Lock color="#94a3b8" size={isTablet ? 24 : 20} /> : <AlertTriangle color="#fff" size={isTablet ? 24 : 20} />}
+                     {isGuest ? <Lock color="#94a3b8" size={isTablet ? 24 : 20} /> : <AlertTriangle color="#2F7D55" size={isTablet ? 24 : 20} />}
                   </View>
                   <Text style={[s.secTitle, isTablet && s.secTitleTablet, isGuest && s.secTitleLocked]}>Medidas</Text>
                 </LinearGradient>
@@ -535,12 +524,13 @@ const s = StyleSheet.create({
   bgLayer: {
     position: 'absolute', width: '100%', height: '100%', overflow: 'hidden', zIndex: 0,
   },
+  pageBackground: { ...StyleSheet.absoluteFillObject, backgroundColor: '#FFFFFF', zIndex: 0 },
   centerVignette: {
     position: 'absolute',
     top: '15%', left: '8%',
     width: '84%', height: '70%',
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.28)',
+    backgroundColor: 'transparent',
     zIndex: 1,
   },
   tokenWidgetContainer: {
@@ -775,22 +765,23 @@ const s = StyleSheet.create({
   secCard: { flex: 1, height: 82, borderRadius: 20, overflow: 'hidden', elevation: 6 },
 
   cardGrad: { flex: 1, padding: 22, justifyContent: 'flex-end' },
+  outlinedAction: { borderWidth: 1, borderColor: '#B8DCC7', borderRadius: 20 },
   secGrad: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 10 },
-  cardIcon: {
+   cardIcon: {
     width: 48, height: 48, borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.22)', justifyContent: 'center', alignItems: 'center', marginBottom: 10,
+     backgroundColor: '#EAF4EE', justifyContent: 'center', alignItems: 'center', marginBottom: 10,
   },
   cardIconTablet: { width: 60, height: 60, borderRadius: 30, marginBottom: 14 },
   secIcon: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.22)', justifyContent: 'center', alignItems: 'center',
+     backgroundColor: '#EAF4EE', justifyContent: 'center', alignItems: 'center',
   },
   secIconTablet: { width: 44, height: 44, borderRadius: 22 },
-  cardTitle: { fontSize: 22, fontFamily: 'Poppins_600SemiBold', color: '#fff' },
+   cardTitle: { fontSize: 22, fontFamily: 'Poppins_600SemiBold', color: '#18352B' },
   cardTitleTablet: { fontSize: 28 },
-  cardSub: { fontSize: 12, fontFamily: 'Poppins_400Regular', color: 'rgba(255,255,255,0.82)', marginTop: 3 },
-  cardSubTablet: { fontSize: 15, marginTop: 5 },
-  secTitle: { fontSize: 15, fontFamily: 'Poppins_600SemiBold', color: '#fff' },
+   cardSub: { fontSize: 12, fontFamily: 'Poppins_400Regular', color: '#6D7D74', marginTop: 3 },
+   cardSubTablet: { fontSize: 15, marginTop: 5 },
+   secTitle: { fontSize: 15, fontFamily: 'Poppins_600SemiBold', color: '#18352B' },
   secTitleTablet: { fontSize: 18 },
   secTitleLocked: { color: '#94a3b8' },
 
@@ -805,6 +796,6 @@ const s = StyleSheet.create({
   guestScanBadgeText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 11,
-    color: '#fff',
+     color: '#2F7D55',
   },
 });

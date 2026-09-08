@@ -152,10 +152,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient
-        colors={['#f0fdf4', '#ecfdf5', '#f0fdf4']}
-        style={StyleSheet.absoluteFill}
-      />
+      <View style={StyleSheet.absoluteFillObject} />
 
       {/* Header */}
       <View style={styles.header}>
@@ -227,21 +224,21 @@ export default function ProfileScreen() {
 
           {pwSuccess ? (
             <View style={styles.successBox}>
-              <Text style={styles.successText}>✅ Contraseña actualizada exitosamente. Inicia sesión nuevamente.</Text>
+                  <Text style={styles.successText}>Contraseña actualizada exitosamente. Inicia sesión nuevamente.</Text>
               <TouchableOpacity
                 style={styles.successBtn}
                 onPress={() => { setPwSuccess(false); router.replace('/(auth)'); }}
               >
-                <LinearGradient colors={['#34d399', '#14b8a6']} style={styles.successBtnGrad}>
+                <View style={styles.successBtnGrad}>
                   <Text style={styles.successBtnText}>Ir al inicio de sesión</Text>
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </View>
           ) : (
             <>
               {pwError ? (
                 <View style={styles.errorBox}>
-                  <Text style={styles.errorText}>⚠️ {pwError}</Text>
+                   <Text style={styles.errorText}>{pwError}</Text>
                 </View>
               ) : null}
 
@@ -299,12 +296,12 @@ export default function ProfileScreen() {
                 disabled={pwLoading}
                 activeOpacity={0.88}
               >
-                <LinearGradient colors={['#34d399', '#14b8a6']} style={styles.primaryBtnGrad}>
+                <View style={styles.primaryBtnGrad}>
                   {pwLoading
                     ? <ActivityIndicator color="#fff" size="small" />
                     : <Text style={styles.primaryBtnText}>Confirmar cambio</Text>
                   }
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </>
           )}
@@ -378,7 +375,7 @@ export default function ProfileScreen() {
 
             {deleteError ? (
               <View style={styles.modalErrorBox}>
-                <Text style={styles.modalErrorText}>⚠️ {deleteError}</Text>
+                <Text style={styles.modalErrorText}>{deleteError}</Text>
               </View>
             ) : null}
 
@@ -420,7 +417,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#ffffff',
   },
   header: {
     flexDirection: 'row',
@@ -633,11 +630,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 50,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#B8DCC7',
   },
   primaryBtnText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 15,
-    color: '#fff',
+    color: '#2F7D55',
     letterSpacing: 0.2,
   },
 

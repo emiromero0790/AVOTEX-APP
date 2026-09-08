@@ -46,11 +46,7 @@ export default function PrivacyScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <LinearGradient
-        colors={['#a7f3d0', '#ecfdf5', '#ffffff']}
-        locations={[0, 0.35, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      <View style={StyleSheet.absoluteFillObject} />
 
       <View style={s.topBar}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
@@ -79,14 +75,14 @@ export default function PrivacyScreen() {
           onPress={() => Linking.openURL('https://www.vex-mx.com/avisosprivacidadavotex.html')}
           activeOpacity={0.8}
         >
-          <LinearGradient colors={['#0f766e', '#14b8a6']} style={s.linkCardGrad}>
-            <Shield size={22} color="#fff" />
+          <View style={s.linkCardGrad}>
+            <Shield size={22} color="#2F7D55" />
             <View style={{ flex: 1 }}>
               <Text style={s.linkCardLabel}>Aviso de Privacidad completo</Text>
               <Text style={s.linkCardUrl}>https://www.vex-mx.com/avisosprivacidadavotex.html</Text>
             </View>
             <Text style={s.linkCardArrow}>↗</Text>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
 
         <Section number="1" title="Información que recopilamos">
@@ -193,14 +189,14 @@ export default function PrivacyScreen() {
           onPress={() => Linking.openURL('https://www.vex-mx.com/avisosprivacidadavotex.html')}
           activeOpacity={0.8}
         >
-          <LinearGradient colors={['#0f766e', '#14b8a6']} style={s.linkCardGrad}>
-            <Shield size={22} color="#fff" />
+          <View style={s.linkCardGrad}>
+            <Shield size={22} color="#2F7D55" />
             <View style={{ flex: 1 }}>
               <Text style={s.linkCardLabel}>Ver aviso completo en línea</Text>
               <Text style={s.linkCardUrl}>https://www.vex-mx.com/avisosprivacidadavotex.html</Text>
             </View>
             <Text style={s.linkCardArrow}>↗</Text>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
 
         <View style={s.footer}>
@@ -317,7 +313,7 @@ const s = StyleSheet.create({
   },
   sectionBody: {},
   highlightBox: {
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 12,
     borderLeftWidth: 3,
@@ -376,21 +372,24 @@ const s = StyleSheet.create({
     paddingVertical: 18,
     paddingHorizontal: 20,
     borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#B8DCC7',
   },
   linkCardLabel: {
     fontFamily: 'Poppins_700Bold',
     fontSize: 16,
-    color: '#fff',
+    color: '#2F7D55',
     marginBottom: 2,
   },
   linkCardUrl: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
+    color: '#6D7D74',
   },
   linkCardArrow: {
     fontSize: 22,
-    color: '#fff',
+    color: '#2F7D55',
     fontWeight: 'bold',
   },
   footer: {

@@ -310,7 +310,7 @@ export default function Scan() {
       <View style={[styles.predictionCard, isTablet && styles.predictionCardTablet]}>
         {/* Fruit row */}
         <View style={styles.predictionRow}>
-          <Text style={[styles.predictionEmoji, isTablet && styles.predictionEmojiTablet]}>🍑</Text>
+           <View style={styles.predictionMarker} />
           <View style={styles.predictionInfo}>
             <Text style={[styles.predictionLabel, isTablet && styles.predictionLabelTablet]}>
               {prediction.fruit.class_name}
@@ -325,9 +325,7 @@ export default function Scan() {
 
         {/* State / disease row */}
         <View style={styles.predictionRow}>
-          <Text style={[styles.predictionEmoji, isTablet && styles.predictionEmojiTablet]}>
-            {healthy ? "✅" : "🦠"}
-          </Text>
+          <View style={[styles.predictionMarker, { backgroundColor: healthy ? '#6FB98F' : '#C7746E' }]} />
           <View style={styles.predictionInfo}>
             <Text style={[
               styles.predictionLabel,
@@ -377,29 +375,29 @@ export default function Scan() {
               <Shield size={30} color="#0f766e" />
             </View>
 
-            <Text style={[styles.modalTitle, isTablet && styles.modalTitleTablet]}>📷 Uso de la Cámara e Imágenes</Text>
+            <Text style={[styles.modalTitle, isTablet && styles.modalTitleTablet]}>Uso de la cámara e imágenes</Text>
             <Text style={[styles.modalSubtitle, isTablet && styles.modalSubtitleTablet]}>Importante leer antes de escanear</Text>
 
             <View style={styles.guestScanInfo}>
               <Text style={styles.guestScanInfoText}>
                 {isGuest
-                  ? <>🪙 Modo invitado: tienes <Text style={styles.guestScanCount}>{(guestScansLeft * 100).toLocaleString('es-MX')} Tokens</Text> disponibles</>
+                  ? <>Modo invitado: tienes <Text style={styles.guestScanCount}>{(guestScansLeft * 100).toLocaleString('es-MX')} Tokens</Text> disponibles</>
                   : userTokens !== null
-                    ? <>🪙 Tienes <Text style={styles.guestScanCount}>{(userTokens * 100).toLocaleString('es-MX')} Tokens</Text> disponibles</>
-                    : <>🪙 Cargando Tokens...</>
+                    ? <>Tienes <Text style={styles.guestScanCount}>{(userTokens * 100).toLocaleString('es-MX')} Tokens</Text> disponibles</>
+                    : <>Cargando Tokens...</>
                 }
               </Text>
             </View>
 
             <View style={styles.modalSection}>
-              <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>🔍 ¿Cómo funciona el escaneo?</Text>
+              <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>¿Cómo funciona el escaneo?</Text>
               <Text style={[styles.modalBodyText, isTablet && styles.modalBodyTextTablet]}>
                 La cámara captura una foto del cultivo o fruto y la envía a nuestra IA para su análisis en tiempo real. El modelo detecta el tipo de fruta y su estado de salud.
               </Text>
             </View>
 
             <View style={styles.modalSection}>
-              <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>🗑️ Uso de imágenes (IMPORTANTE)</Text>
+              <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>Uso de imágenes (IMPORTANTE)</Text>
               <View style={styles.highlightBox}>
                 <View style={styles.bulletRow}>
                   <Text style={styles.bulletDot}>•</Text>
@@ -442,7 +440,7 @@ export default function Scan() {
       {/* Limit reached screen */}
       {limitReached ? (
         <View style={styles.limitContainer}>
-          <LinearGradient colors={['#0f766e', '#134e4a']} style={StyleSheet.absoluteFill} />
+             <View style={StyleSheet.absoluteFillObject} />
           <View style={[styles.limitCard, isTablet && styles.limitCardTablet]}>
             <View style={styles.limitIconCircle}>
               <Lock size={36} color="#0f766e" />
@@ -476,13 +474,13 @@ export default function Scan() {
               {isGuest ? (
                 <View style={[styles.guestCounter, isTablet && styles.guestCounterTablet]}>
                   <Text style={[styles.guestCounterText, isTablet && styles.guestCounterTextTablet]}>
-                    🪙 {(guestScansLeft * 100).toLocaleString('es-MX')} Tokens restantes
+                    {(guestScansLeft * 100).toLocaleString('es-MX')} Tokens restantes
                   </Text>
                 </View>
               ) : userTokens !== null ? (
                 <View style={[styles.guestCounter, isTablet && styles.guestCounterTablet]}>
                   <Text style={[styles.guestCounterText, isTablet && styles.guestCounterTextTablet]}>
-                    🪙 {(userTokens * 100).toLocaleString('es-MX')} Tokens disponibles
+                    {(userTokens * 100).toLocaleString('es-MX')} Tokens disponibles
                   </Text>
                 </View>
               ) : null}
@@ -531,7 +529,7 @@ export default function Scan() {
             <Animated.View
               style={[styles.fruitSpinner, isTablet && styles.fruitSpinnerTablet, { transform: [{ rotate: spin }] }]}
             >
-              <Text style={[styles.fruitEmoji, isTablet && styles.fruitEmojiTablet]}>🌿</Text>
+               <View style={styles.fruitSpinnerMark} />
             </Animated.View>
             <Text style={[styles.savingTitle, isTablet && styles.savingTitleTablet]}>
               {isSaving ? "Guardando" : "Analizando"}
@@ -641,6 +639,7 @@ const styles = StyleSheet.create({
 
   predictionRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   predictionEmoji: { fontSize: 30 },
+  predictionMarker: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#6FB98F' },
   predictionEmojiTablet: { fontSize: 38 },
   predictionInfo: { flex: 1 },
   predictionLabel: { color: '#fff', fontFamily: 'Poppins-SemiBold', fontSize: 16 },
@@ -699,6 +698,7 @@ const styles = StyleSheet.create({
   fruitSpinnerTablet: { width: 130, height: 130, borderRadius: 65, marginBottom: 26 },
   fruitEmoji: { fontSize: 50 },
   fruitEmojiTablet: { fontSize: 64 },
+  fruitSpinnerMark: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#B8DCC7' },
   savingTitle: { color: '#ffffff', fontSize: 22, fontFamily: "Poppins-Bold", marginBottom: 8 },
   savingTitleTablet: { fontSize: 28 },
   savingSubtitle: { color: 'rgba(255,255,255,0.8)', fontSize: 14, fontFamily: "Poppins-Regular", textAlign: 'center', maxWidth: 250 },

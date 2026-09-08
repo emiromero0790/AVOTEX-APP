@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import Toast from 'react-native-toast-message';
@@ -16,15 +15,12 @@ LogBox.ignoreAllLogs(true);
 
 const toastConfig = {
   avotexError: ({ props }: any) => (
-    <LinearGradient
-      colors={['#2CE85E', '#51E078']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
+    <View
       style={styles.toastContainer}
     >
       <Image source={props.icon} style={styles.toastImage} />
       <Text style={styles.toastText}>{props.message}</Text>
-    </LinearGradient>
+    </View>
   ),
 };
 
@@ -43,18 +39,13 @@ export default function RootLayout() {
 
   if (!fontsLoaded && !fontError) {
     return (
-      <LinearGradient
-        colors={['#a7f3d0', '#ecfdf5', '#ffffff']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={styles.splashContainer}
-      >
+      <View style={[styles.splashContainer, { backgroundColor: '#FFFFFF' }]}>
         <Image
           source={require('../assets/images/icon.png')}
           style={styles.splashLogo}
           resizeMode="contain"
         />
-      </LinearGradient>
+      </View>
     );
   }
 

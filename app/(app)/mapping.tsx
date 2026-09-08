@@ -10,7 +10,6 @@ import PolygonSlider from '../../components/PolygonSlider';
 import PolygonMap from '../../components/PolygonMap';
 import * as Location from 'expo-location';
 import { useAccessibility } from '../../context/AccessibilityContext';
-import { LinearGradient } from 'expo-linear-gradient';
 import { MapPin, MapPinOff, FlaskConical } from 'lucide-react-native';
 
 const AnimatedCell = ({ color }: { color: string }) => {
@@ -31,7 +30,7 @@ const AnimatedCell = ({ color }: { color: string }) => {
   return (
     <View style={{ position: 'relative' }}>
       <Animated.View style={[styles.cell, { backgroundColor: color }, animatedStyle]} />
-      {isReady && <Text style={styles.emojiOverlay}>🥑</Text>}
+      {isReady && <View style={styles.readyMark} />}
     </View>
   );
 };
@@ -46,7 +45,7 @@ export default function Mapping() {
   const [locationEnabled, setLocationEnabled] = useState(false);
 
   const colors = useMemo(() => ({
-    title: isColorblindMode ? '#0D47A1' : '#66bb6a',
+    title: isColorblindMode ? '#0D47A1' : '#1F5E41',
     subtitle: '#666',
     healthy: isColorblindMode ? '#42A5F5' : '#3aaa5c',
     ready: '#f9a825',
@@ -92,11 +91,7 @@ export default function Mapping() {
 
   return (
     <View style={{ flex: 1 }}>
-      <LinearGradient
-        colors={['#a7f3d0', '#ecfdf5', '#ffff']}
-        locations={[0, 0.38, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      <View style={StyleSheet.absoluteFillObject} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
@@ -387,6 +382,7 @@ const styles = StyleSheet.create({
     right: -8,
     fontSize: 18,
   },
+  readyMark: { position: 'absolute', top: -4, right: -4, width: 12, height: 12, borderRadius: 6, backgroundColor: '#C88A2B', borderWidth: 2, borderColor: '#FFFFFF' },
   mascot: {
     marginLeft: -20,
     width: 140,

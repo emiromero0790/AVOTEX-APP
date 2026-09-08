@@ -29,10 +29,10 @@ const REPORT_EMAIL = 'vexmxoficial@gmail.com';
 
 const genAI = new GoogleGenerativeAI(API_KEY);
 
-const systemInstruction = `🎯 ROL
+const systemInstruction = `ROL
 Eres "Avotex", la mascota oficial de Avotex. Eres un asistente de IA amigable, servicial y experto en la aplicación Avotex. Tu propósito es ayudar a los usuarios a entender la app y sus funciones.
 
-🧠 BASE DE CONOCIMIENTOS (Knowledge Base)
+BASE DE CONOCIMIENTOS (Knowledge Base)
 Aquí está la única información que conoces:
 
 Sección 1: Sobre Nosotros (VEX y Avotex) VEX es una empresa innovadora enfocada en el desarrollo de soluciones tecnológicas prácticas. Su producto principal es Avotex, una aplicación móvil diseñada específicamente para el sector agroindustrial. Avotex funciona como un asistente inteligente que utiliza Inteligencia Artificial para analizar imágenes de frutos y cultivos, permitiendo detectar enfermedades de forma temprana, precisa y económica. La aplicación está diseñada para ser una herramienta accesible tanto para pequeños productores como para grandes agroindustrias. Este proyecto fue desarrollado por Bruno Leonardo Parra Fernandez y Emiliano Romero García, con la asesoría de Aurelio Amaury Coria Ramírez del Instituto Tecnológico de Morelia.
@@ -55,10 +55,10 @@ Sección 4: Contacto
 Página Oficial: https://www.vexmx.shop/
 Instagram: @avotex.mx — https://www.instagram.com/avotex.mx/
 
-📜 REGLAS
+REGLAS
 Tu conocimiento es LIMITADO: Solo puedes responder usando la "BASE DE CONOCIMIENTOS".
 Si el usuario pregunta algo fuera de tu base, responde EXACTAMENTE con: "ACTION:CONTACT"
-Sé amigable y usa emojis 🌱😉📲🍃 cuando sea apropiado.
+Sé amigable, claro y práctico.
 No inventes respuestas.
 `;
 
@@ -99,7 +99,7 @@ export default function ChatbotScreen() {
   const processEmailSending = async (userMessage: string, userEmail: string) => {
     setMessages((prev) => [...prev, {
       role: "bot",
-      text: "📧 Enviando tu consulta al equipo de VEX...",
+      text: "Enviando tu consulta al equipo de VEX...",
       timestamp: new Date()
     }]);
 
@@ -120,7 +120,7 @@ export default function ChatbotScreen() {
         const newMessages = [...prev];
         newMessages[newMessages.length - 1] = {
           role: "bot",
-          text: `✅ ¡Perfecto! Tu consulta ha sido enviada.\n\nTe responderán pronto a: ${userEmail} 📧\n\n¿Hay algo más en lo que pueda ayudarte?`,
+          text: `Perfecto. Tu consulta ha sido enviada.\n\nTe responderán pronto a: ${userEmail}\n\n¿Hay algo más en lo que pueda ayudarte?`,
           timestamp: new Date()
         };
         return newMessages;
@@ -132,7 +132,7 @@ export default function ChatbotScreen() {
         const newMessages = [...prev];
         newMessages[newMessages.length - 1] = {
           role: "bot",
-          text: `❌ Hubo un problema al enviar el correo.\n\nContacta directamente a:\n📧 ${REPORT_EMAIL}`,
+          text: `Hubo un problema al enviar el correo.\n\nContacta directamente a:\n${REPORT_EMAIL}`,
           timestamp: new Date()
         };
         return newMessages;
@@ -158,7 +158,7 @@ export default function ChatbotScreen() {
         setPendingUserMessage("");
         setMessages((prev) => [...prev, {
           role: "bot",
-          text: "Entendido. ¿En qué más puedo ayudarte? 🌱",
+          text: "Entendido. ¿En qué más puedo ayudarte?",
           timestamp: new Date()
         }]);
       } else if (isValidEmail(currentInput)) {
@@ -196,7 +196,7 @@ export default function ChatbotScreen() {
         setPendingUserMessage(currentInput);
         setMessages((prev) => [...prev, {
           role: "bot",
-          text: "Para esa consulta necesito conectarte con el equipo. 📧\n\nPor favor escribe tu correo electrónico aquí (o escribe 'cancelar').",
+          text: "Para esa consulta necesito conectarte con el equipo.\n\nPor favor escribe tu correo electrónico aquí (o escribe 'cancelar').",
           timestamp: new Date()
         }]);
       } else {
@@ -205,7 +205,7 @@ export default function ChatbotScreen() {
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        { role: "bot", text: "Error de conexión. Intenta de nuevo. 😓", timestamp: new Date() },
+        { role: "bot", text: "Error de conexión. Intenta de nuevo.", timestamp: new Date() },
       ]);
     }
     setLoading(false);
@@ -250,7 +250,7 @@ export default function ChatbotScreen() {
               </View>
             </View>
 
-            <Text style={styles.modalTitle}>🌱 ¡Hola! Soy Avotex</Text>
+            <Text style={styles.modalTitle}>¡Hola! Soy Avotex</Text>
 
             <ScrollView
               style={styles.modalScroll}
@@ -259,7 +259,7 @@ export default function ChatbotScreen() {
               persistentScrollbar={true}
             >
               <Text style={styles.modalBody}>
-                Soy un asistente inteligente impulsado por Inteligencia Artificial diseñado para ayudarte a entender el estado de tus cultivos y sacarle el máximo provecho a la app 📲
+                Soy un asistente inteligente impulsado por Inteligencia Artificial diseñado para ayudarte a entender el estado de tus cultivos y sacarle el máximo provecho a la app.
               </Text>
 
               <Text style={styles.modalSubheading}>Antes de continuar, toma en cuenta lo siguiente:</Text>
@@ -275,7 +275,7 @@ export default function ChatbotScreen() {
                 </View>
                 <View style={styles.modalBulletRow}>
                   <Text style={styles.modalBulletDot}>•</Text>
-                  <Text style={styles.modalBulletText}>Puedo utilizar información como imágenes capturadas y tu ubicación para ofrecer resultados más precisos 🌍</Text>
+                  <Text style={styles.modalBulletText}>Puedo utilizar información como imágenes capturadas y tu ubicación para ofrecer resultados más precisos.</Text>
                 </View>
                 <View style={styles.modalBulletRow}>
                   <Text style={styles.modalBulletDot}>•</Text>
@@ -283,7 +283,7 @@ export default function ChatbotScreen() {
                 </View>
                 <View style={styles.modalBulletRow}>
                   <Text style={styles.modalBulletDot}>•</Text>
-                  <Text style={[styles.modalBulletText, styles.modalBold]}>No vendemos ni compartimos tu información personal con terceros con fines comerciales 🔒</Text>
+                  <Text style={[styles.modalBulletText, styles.modalBold]}>No vendemos ni compartimos tu información personal con terceros con fines comerciales.</Text>
                 </View>
                 <View style={styles.modalBulletRow}>
                   <Text style={styles.modalBulletDot}>•</Text>
@@ -292,7 +292,7 @@ export default function ChatbotScreen() {
               </View>
 
               <Text style={styles.modalFootnote}>
-                Al continuar, aceptas usar este asistente bajo tu propia responsabilidad 😉
+                Al continuar, aceptas usar este asistente bajo tu propia responsabilidad.
               </Text>
             </ScrollView>
 
@@ -324,19 +324,16 @@ export default function ChatbotScreen() {
       >
         {messages.length === 0 && (
           <View style={styles.welcomeContainer}>
-            <LinearGradient
-              colors={['#eef7e8', '#dff2e3']}
-              style={styles.logoWrapper}
-            >
+            <View style={styles.logoWrapper}>
               <Image
                 source={require('../../assets/images/AvotexNuevoLogo.png')}
                 style={styles.logo}
                 resizeMode="contain"
               />
-            </LinearGradient>
+            </View>
             <Text style={styles.welcomeTitle}>Asistente Avotex</Text>
             <Text style={styles.welcomeSubtitle}>
-              ¡Hola! Soy tu aliado en el cultivo. ¿En qué te ayudo hoy? 🌱
+              Hola. Soy tu aliado en el cultivo. ¿En qué te ayudo hoy?
             </Text>
           </View>
         )}
@@ -404,12 +401,9 @@ export default function ChatbotScreen() {
               <Shield size={22} color="#0f766e" />
             </View>
           ) : (
-            <LinearGradient
-              colors={input.trim().length > 0 ? ['#4fc46a', '#2da84a'] : ['#d4ecc8', '#b8ddb0']}
-              style={styles.sendBtnGradient}
-            >
+            <View style={styles.sendBtnGradient}>
               <Send size={20} color="#ffffff" />
-            </LinearGradient>
+            </View>
           )}
         </TouchableOpacity>
       </View>
@@ -418,7 +412,7 @@ export default function ChatbotScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fafff7" },
+  container: { flex: 1, backgroundColor: "#ffffff" },
   chatArea: { flex: 1 },
   chatContent: { padding: 16, paddingBottom: 20 },
 
@@ -560,7 +554,8 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 20,
     marginBottom: 20,
-    shadowColor: '#2d6a1f',
+    backgroundColor: '#F7FAF8',
+    shadowColor: '#2F7D55',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
@@ -615,11 +610,13 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   userMsg: {
-    backgroundColor: "#3aaa5c",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: '#B8DCC7',
     borderBottomRightRadius: 4,
   },
   botMsg: {
-    backgroundColor: "#f0f7ec",
+    backgroundColor: "#F7FAF8",
     borderBottomLeftRadius: 4,
     borderWidth: 1,
     borderColor: '#d4ecc8',
@@ -653,7 +650,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     margin: 14,
-    backgroundColor: '#f0f7ec',
+    backgroundColor: '#FFFFFF',
     borderRadius: 30,
     borderWidth: 1.5,
     borderColor: '#c8dfc0',
@@ -687,6 +684,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#2F7D55',
   },
   sendBtnPlain: {
     width: 40,

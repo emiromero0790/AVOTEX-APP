@@ -3,7 +3,6 @@ import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator,
   Image, TouchableOpacity, useWindowDimensions,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { auth } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -25,8 +24,8 @@ const FRUIT_REMOTE_IMAGES: Record<string, string> = {
 };
 
 const FRUIT_EMOJI: Record<string, string> = {
-  aguacate: '🥑', mango: '🥭', limon: '🍋',
-  guayaba: '🍈', granada: '🍎', cafe: '☕',
+  aguacate: '•', mango: '•', limon: '•',
+  guayaba: '•', granada: '•', cafe: '•',
 };
 
 const CHART_COLORS = [
@@ -50,7 +49,7 @@ const getFruitImageSource = (fruto: string | undefined | null, healthy: boolean)
 };
 
 const getFruitEmoji = (fruto: string | undefined | null) =>
-  FRUIT_EMOJI[norm(fruto ?? '')] ?? '🍑';
+  FRUIT_EMOJI[norm(fruto ?? '')] ?? '•';
 
 const hexToRgba = (hex: string, opacity: number) => {
   if (hex.startsWith('rgba')) return hex;
@@ -463,11 +462,7 @@ export default function ResultsScreen() {
   // ── Main JSX ──────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#a7f3d0', '#ecfdf5', '#ffffff']}
-        locations={[0, 0.38, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      <View style={StyleSheet.absoluteFillObject} />
 
       {/* Header */}
       <View style={[styles.header, isTablet && styles.headerTablet]}>
@@ -526,7 +521,7 @@ const styles = StyleSheet.create({
 
   header:        { paddingTop: 60, paddingHorizontal: 24, marginBottom: 12, alignItems: 'center' },
   headerTablet:  { paddingTop: 80, paddingHorizontal: 40 },
-  title:         { fontSize: 32, fontFamily: 'Poppins_600SemiBold' },
+   title:         { fontSize: 32, fontFamily: 'Poppins_600SemiBold', color: '#18352B' },
   titleTablet:   { fontSize: 40 },
   subtitle:      { fontSize: 15, fontFamily: 'Poppins_400Regular', color: '#666', marginBottom: 4 },
   subtitleTablet:{ fontSize: 19 },

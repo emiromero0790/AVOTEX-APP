@@ -41,7 +41,7 @@ export default function AgendaScreen() {
   const [showForm, setShowForm] = useState(false);
 
   const colors = useMemo(() => ({
-    primary: isColorblindMode ? '#0D47A1' : '#3aaa5c',
+     primary: isColorblindMode ? '#0D47A1' : '#2F7D55',
     accent: isColorblindMode ? '#42A5F5' : '#4fc46a',
     saveButton: isColorblindMode ? '#1976D2' : '#3aaa5c',
     deleteButton: isColorblindMode ? '#0D47A1' : '#e74c3c',
@@ -182,11 +182,7 @@ export default function AgendaScreen() {
   return (
     <View style={{ flex: 1 }}>
       {/* Fondo degradado compartido */}
-      <LinearGradient
-        colors={['#a7f3d0', '#ecfdf5', '#ffff']}
-        locations={[0, 0.38, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      <View style={StyleSheet.absoluteFillObject} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
@@ -200,6 +196,23 @@ export default function AgendaScreen() {
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             Análisis y acciones sugeridas basadas en tus escaneos
           </Text>
+        </View>
+
+        <View style={styles.calendarCard}>
+          <View style={styles.calendarHeader}>
+            <Text style={styles.calendarMonth}>{new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}</Text>
+            <Calendar size={18} color="#2F7D55" />
+          </View>
+          <View style={styles.calendarDays}>
+            {Array.from({ length: 7 }, (_, i) => {
+              const date = new Date(); date.setDate(date.getDate() - 3 + i);
+              const today = i === 3;
+              return <View key={i} style={[styles.calendarDay, today && styles.calendarToday]}>
+                <Text style={[styles.calendarWeek, today && styles.calendarTodayText]}>{date.toLocaleDateString('es-MX', { weekday: 'short' }).slice(0, 2)}</Text>
+                <Text style={[styles.calendarNumber, today && styles.calendarTodayText]}>{date.getDate()}</Text>
+              </View>;
+            })}
+          </View>
         </View>
 
         {isLoading ? (
@@ -245,12 +258,9 @@ export default function AgendaScreen() {
               placeholderTextColor="#aaa"
             />
             <TouchableOpacity onPress={addTask}>
-              <LinearGradient
-                colors={['#4fc46a', '#2da84a']}
-                style={styles.saveButtonGradient}
-              >
+              <View style={styles.saveButtonGradient}>
                 <Text style={styles.saveButtonText}>Guardar Tarea</Text>
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
           </View>
         )}
@@ -389,9 +399,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#B8DCC7',
   },
   saveButtonText: {
-    color: '#fff',
+    color: '#2F7D55',
     fontSize: 15,
     fontWeight: '600',
   },
@@ -445,4 +458,13 @@ const styles = StyleSheet.create({
     marginVertical: 20,
     fontSize: 15,
   },
+  calendarCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DDE9E1', borderRadius: 20, padding: 16, marginBottom: 18 },
+  calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  calendarMonth: { fontSize: 15, fontWeight: '700', color: '#18352B', textTransform: 'capitalize' },
+  calendarDays: { flexDirection: 'row', justifyContent: 'space-between' },
+  calendarDay: { alignItems: 'center', paddingVertical: 7, paddingHorizontal: 8, borderRadius: 14 },
+  calendarToday: { backgroundColor: '#2F7D55' },
+  calendarWeek: { fontSize: 11, color: '#6D7D74', textTransform: 'uppercase' },
+  calendarNumber: { marginTop: 5, fontSize: 15, fontWeight: '700', color: '#18352B' },
+  calendarTodayText: { color: '#FFFFFF' },
 });

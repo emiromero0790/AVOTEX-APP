@@ -1,21 +1,12 @@
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { Stack, router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
 export default function NotFoundScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <LinearGradient colors={['#f2f8ec', '#faf5ee', '#eef7e6']} style={s.root}>
-
-        <View style={s.fruitRow}>
-          {['🥭', '🍋', '☕', '🫐', '🍓', '🥑'].map((e, i) => (
-            <Text key={i} style={s.fruitEmoji}>{e}</Text>
-          ))}
-        </View>
-
-        <Animated.View entering={FadeInDown.delay(100).duration(700)} style={s.center}>
+      <View style={s.root}>
+        <View style={s.center}>
           <Image
             source={require('../assets/images/AvotexNuevoLogo.png')}
             style={s.logo}
@@ -31,45 +22,30 @@ export default function NotFoundScreen() {
             La ruta que buscas no existe.{'\n'}Regresa al inicio para continuar.
           </Text>
 
-          <Animated.View entering={FadeInUp.delay(350).duration(600)}>
-            <TouchableOpacity style={s.btn} onPress={() => router.replace('/')} activeOpacity={0.88}>
-              <LinearGradient
-                colors={['#42cc6a', '#27a849']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={s.btnGradient}
-              >
-                <Text style={s.btnText}>🌿 Ir al inicio</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </Animated.View>
-        </Animated.View>
+          <TouchableOpacity style={s.btn} onPress={() => router.replace('/')} activeOpacity={0.88}>
+            <Text style={s.btnText}>Ir al inicio</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={s.footer}>
           <Text style={s.footerText}>Limón · Mango · Café · Guayaba · Berries · Aguacate</Text>
         </View>
-      </LinearGradient>
+      </View>
     </>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, justifyContent: 'space-between', alignItems: 'center', padding: 28 },
-
-  fruitRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 14,
-    marginTop: 60,
-  },
-  fruitEmoji: { fontSize: 32 },
+  root: { flex: 1, justifyContent: 'space-between', alignItems: 'center', padding: 28, backgroundColor: '#FFFFFF' },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%' },
 
   logo: { width: 260, height: 90, marginBottom: 24 },
 
   badge: {
-    backgroundColor: '#e84c4c',
+    backgroundColor: '#F7FAF8',
+    borderWidth: 1,
+    borderColor: '#B8DCC7',
     borderRadius: 20,
     paddingHorizontal: 28,
     paddingVertical: 10,
@@ -83,14 +59,14 @@ const s = StyleSheet.create({
   badgeText: {
     fontFamily: 'Poppins-Bold',
     fontSize: 38,
-    color: '#fff',
+    color: '#2F7D55',
     letterSpacing: 4,
   },
 
   title: {
     fontFamily: 'Poppins-Bold',
     fontSize: 24,
-    color: '#2d6a1f',
+    color: '#18352B',
     textAlign: 'center',
     marginBottom: 10,
   },
@@ -106,9 +82,9 @@ const s = StyleSheet.create({
   btn: {
     borderRadius: 50,
     overflow: 'hidden',
-    shadowColor: '#27a849',
+    shadowColor: '#2F7D55',
     shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.38,
+    shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 8,
   },
@@ -121,7 +97,7 @@ const s = StyleSheet.create({
   btnText: {
     fontFamily: 'Poppins-SemiBold',
     fontSize: 17,
-    color: '#fff',
+    color: '#2F7D55',
     letterSpacing: 0.3,
   },
 

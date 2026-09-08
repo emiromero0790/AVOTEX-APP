@@ -1,3 +1,6 @@
 {
-  "urlRandomness": "2sSrsPo"
+  "urlRandomness": "2sSrsPo",
+  "dev": true,
+  "minify": false,
+  "https": false
 }

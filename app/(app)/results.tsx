@@ -8,6 +8,7 @@ import { auth } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { supabase } from '../../supabaseConfig';
 import { PieChart as PieChartIcon, List, CalendarDays } from 'lucide-react-native';
+import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
 import { useAccessibility } from '../../context/AccessibilityContext';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
@@ -44,6 +45,84 @@ const getFruitImageSource = (fruto: string | undefined | null, healthy: boolean)
 };
 
 const getFruitEmoji = (_fruto: string | undefined | null) => '';
+
+const FruitIconSvg = ({ fruit, size = 25 }: { fruit: string; size?: number }) => {
+  const key = norm(fruit);
+
+  if (key === 'aguacate') {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 32 32">
+        <Path d="M16 3C12 3 6 13 6 20a10 10 0 0 0 20 0C26 13 20 3 16 3Z" fill="#78B84A" />
+        <Path d="M16 6c-2.8 0-7.2 8.6-7.2 14a7.2 7.2 0 0 0 14.4 0C23.2 14.6 18.8 6 16 6Z" fill="#D8F07C" />
+        <Circle cx="16" cy="21" r="4.6" fill="#9A5B32" />
+        <Path d="M17 4c1-2 3-2.5 5-2-1 2.2-2.8 3.2-5 3Z" fill="#2F7D3E" />
+      </Svg>
+    );
+  }
+
+  if (key === 'limon' || key === 'lima') {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 32 32">
+        <Ellipse cx="16" cy="18" rx="11" ry="8" fill="#E4F044" />
+        <Path d="M6 16 3 13l4-1M25 13c-1-4 1-7 5-8-.2 4-1.8 7-5 8Z" fill="#65A83D" />
+        <Path d="M9 18c2-3 5-4 8-4" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" opacity=".8" />
+      </Svg>
+    );
+  }
+
+  if (key === 'mango') {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 32 32">
+        <Path d="M25 8C19 3 8 7 6 17c-2 9 8 13 15 8 7-5 9-13 4-17Z" fill="#FFB52E" />
+        <Path d="M9 23c7 1 12-5 15-12" stroke="#F07835" strokeWidth="3" strokeLinecap="round" opacity=".8" />
+        <Path d="M22 7c1-4 4-5 8-4-1.5 3.5-4 5-8 5Z" fill="#4F9A43" />
+      </Svg>
+    );
+  }
+
+  if (key === 'cafe' || key === 'café') {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 32 32">
+        <Circle cx="12" cy="17" r="8" fill="#8B4A2D" />
+        <Circle cx="21" cy="15" r="7" fill="#B7683D" />
+        <Path d="M12 10c-3 4-3 9 0 14M21 9c-2 3-2 8 0 12" stroke="#F1C29D" strokeWidth="1.6" strokeLinecap="round" />
+        <Path d="M19 7c1-3 4-4 7-3-1 3-3.5 4.5-7 4Z" fill="#3F8B45" />
+      </Svg>
+    );
+  }
+
+  if (key === 'granada') {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 32 32">
+        <Path d="m12 8-2-5 5 2 3-3 2 4 5-1-2 5Z" fill="#B8324A" />
+        <Circle cx="17" cy="19" r="11" fill="#D94A5D" />
+        <Circle cx="13" cy="18" r="1.5" fill="#F9A4A9" />
+        <Circle cx="19" cy="15" r="1.5" fill="#F9A4A9" />
+        <Circle cx="20" cy="22" r="1.5" fill="#F9A4A9" />
+      </Svg>
+    );
+  }
+
+  if (key === 'guayaba') {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 32 32">
+        <Circle cx="16" cy="18" r="11" fill="#87C85A" />
+        <Circle cx="16" cy="18" r="7.5" fill="#F5A8A9" />
+        <Circle cx="13" cy="17" r="1" fill="#F9E4B2" />
+        <Circle cx="18" cy="20" r="1" fill="#F9E4B2" />
+        <Path d="M17 7c1-3 4-4 7-3-1 3-3 4-7 4Z" fill="#347D42" />
+      </Svg>
+    );
+  }
+
+  return (
+    <Svg width={size} height={size} viewBox="0 0 32 32">
+      <Circle cx="16" cy="18" r="11" fill="#72BD62" />
+      <Path d="M16 7c0-4 3-6 7-5-1 4-3.5 6-7 6Z" fill="#2F7D42" />
+      <Path d="M10 16c3-3 7-4 12-2" stroke="#DDF3A6" strokeWidth="2" strokeLinecap="round" />
+    </Svg>
+  );
+};
 
 const hexToRgba = (hex: string, opacity: number) => {
   if (hex.startsWith('rgba')) return hex;
@@ -246,15 +325,15 @@ export default function ResultsScreen() {
       {allFruits.map(fruit => (
         <TouchableOpacity
           key={fruit}
+          accessibilityLabel={`Filtrar por ${fruit}`}
           style={[
             styles.chip,
+            styles.fruitIconChip,
             listFruitFilter === fruit && { backgroundColor: colors.toggleActive },
           ]}
           onPress={() => setListFruitFilter(listFruitFilter === fruit ? null : fruit)}
         >
-          <Text style={[styles.chipText, listFruitFilter === fruit && { color: '#fff' }]}>
-            {getFruitEmoji(fruit)} {fruit} ({scansByFruit[fruit]?.length ?? 0})
-          </Text>
+          <FruitIconSvg fruit={fruit} />
         </TouchableOpacity>
       ))}
     </ScrollView>
@@ -270,15 +349,15 @@ export default function ResultsScreen() {
       {allFruits.map(fruit => (
         <TouchableOpacity
           key={fruit}
+          accessibilityLabel={`Ver gráficas de ${fruit}`}
           style={[
             styles.chip,
+            styles.fruitIconChip,
             chartFruit === fruit && { backgroundColor: colors.toggleActive },
           ]}
           onPress={() => setChartFruit(fruit)}
         >
-          <Text style={[styles.chipText, chartFruit === fruit && { color: '#fff' }]}>
-            {getFruitEmoji(fruit)} {fruit}
-          </Text>
+          <FruitIconSvg fruit={fruit} />
         </TouchableOpacity>
       ))}
     </ScrollView>
@@ -695,6 +774,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#E8F3F1', borderWidth: 1, borderColor: '#C5DFDA',
   },
   chipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#2e7d32' },
+  fruitIconChip: {
+    width: 44,
+    height: 40,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   sectionTitle: {
     fontFamily: 'Poppins_600SemiBold', fontSize: 18, color: '#163F3D',

@@ -55,7 +55,11 @@ function GuestLockedModal({ visible, onClose }: { visible: boolean; onClose: () 
 
 export default function TabLayout() {
   const pathname = usePathname();
-  const shouldHideTabs = pathname === '/(app)/chatbot' || pathname === '/chatbot';
+  const shouldHideTabs =
+    pathname === '/(app)/chatbot' ||
+    pathname === '/chatbot' ||
+    pathname === '/(app)/plans' ||
+    pathname === '/plans';
   const { isGuest } = useGuest();
   const [showLockModal, setShowLockModal] = useState(false);
   const { width } = useWindowDimensions();
@@ -198,6 +202,7 @@ export default function TabLayout() {
         <Tabs.Screen name="chatbot" options={{ href: null }} />
         <Tabs.Screen name="privacy" options={{ href: null }} />
         <Tabs.Screen name="profile" options={{ href: null }} />
+        <Tabs.Screen name="plans" options={{ href: null }} />
       </Tabs>
 
       {!shouldHideTabs && (

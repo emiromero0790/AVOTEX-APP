@@ -24,8 +24,8 @@ const FRUIT_REMOTE_IMAGES: Record<string, string> = {
 
 
 const CHART_COLORS = [
-  '#ef4444', '#e67e22', '#f1c40f', '#9b59b6',
-  '#3498db', '#1abc9c', '#e91e63', '#ff5722',
+  '#9B8AFB', '#F3A6C8', '#F6D365', '#75C9C3',
+  '#B8A7E8', '#F2B5A7', '#A9D8B8', '#C8B6E8',
 ];
 
 const norm = (s: string) =>
@@ -167,6 +167,10 @@ export default function ResultsScreen() {
     const most = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Ninguna';
     return { total, pct, most };
   }, [scans]);
+
+  const fruitRanking = useMemo(() => allFruits
+    .map(fruit => ({ fruit, count: scansByFruit[fruit]?.length ?? 0 }))
+    .sort((a, b) => b.count - a.count), [allFruits, scansByFruit]);
 
   // ── Chart data for the selected fruit ─────────────────────────────────
   const selectedFruitScans = useMemo(
@@ -436,6 +440,30 @@ export default function ResultsScreen() {
             </ScrollView>
           </View>
         )}
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryTitle}>Frutos más escaneados</Text>
+          <Text style={styles.summarySubtitle}>Distribución de tus análisis registrados</Text>
+          {fruitRanking.map(({ fruit, count }, index) => {
+            const percentage = Math.round((count / Math.max(1, scans.length)) * 100);
+            return (
+              <View key={fruit} style={styles.summaryRow}>
+                <Image source={getFruitImageSource(fruit, true)} style={styles.summaryImage} />
+                <View style={styles.summaryInfo}>
+                  <View style={styles.summaryLabels}>
+                    <Text style={styles.summaryFruit}>{fruit}</Text>
+                    <Text style={styles.summaryCount}>{count} · {percentage}%</Text>
+                  </View>
+                  <View style={styles.summaryTrack}>
+                    <View style={[styles.summaryFill, {
+                      width: `${Math.max(5, percentage)}%`,
+                      backgroundColor: CHART_COLORS[index % CHART_COLORS.length],
+                    }]} />
+                  </View>
+                </View>
+              </View>
+            );
+          })}
+        </View>
       </View>
     );
   };
@@ -627,6 +655,17 @@ const styles = StyleSheet.create({
   webTimelinePlot: { height: 112, flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
   webTimelineColumn: { width: 9, minHeight: 5, borderRadius: 5 },
   webTimelineLabel: { fontFamily: 'Poppins_400Regular', fontSize: 10, color: '#66807D' },
+  summaryCard: { backgroundColor: '#FFF9F0', borderRadius: 20, padding: 18, marginBottom: 22, borderWidth: 1, borderColor: '#F1DEC6' },
+  summaryTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 17, color: '#433B53' },
+  summarySubtitle: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#887A7A', marginTop: 3, marginBottom: 16 },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 11 },
+  summaryImage: { width: 42, height: 42, borderRadius: 12, resizeMode: 'cover' },
+  summaryInfo: { flex: 1 },
+  summaryLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  summaryFruit: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#433B53' },
+  summaryCount: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#766A78' },
+  summaryTrack: { height: 9, borderRadius: 6, backgroundColor: '#F1E8E5', overflow: 'hidden' },
+  summaryFill: { height: '100%', borderRadius: 6 },
 
   emptyBox: {
     backgroundColor: '#fff', borderRadius: 20, padding: 30,

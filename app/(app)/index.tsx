@@ -11,7 +11,6 @@ import {
   Animated,
   Easing,
   useWindowDimensions,
-  Linking,
 } from 'react-native';
 import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, AlertTriangle, LogOut, MapPin, MapPinOff, Lock, User as UserIcon, Coins } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
@@ -331,7 +330,13 @@ export default function Home() {
         </Text>
       </TouchableOpacity>
 
-      <View style={[s.tokenWidgetContainer, isTablet && s.tokenWidgetContainerTablet]}>
+      <TouchableOpacity
+        style={[s.tokenWidgetContainer, isTablet && s.tokenWidgetContainerTablet]}
+        onPress={() => router.push('/(app)/plans')}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Ver tokens y planes disponibles"
+      >
         <View style={s.tokenWidget} pointerEvents="none">
           <Coins size={isTablet ? 30 : 26} color="#d97706" />
           <View style={{ marginLeft: 6 }}>
@@ -345,13 +350,8 @@ export default function Home() {
             <Text style={[s.tokenLabel, isTablet && s.tokenLabelTablet]}>Tokens</Text>
           </View>
         </View>
-        <TouchableOpacity
-          onPress={() => Linking.openURL('https://www.vex-mx.com/avotex.html')}
-          activeOpacity={0.7}
-        >
-          <Text style={[s.tokenMoreLink, isTablet && s.tokenMoreLinkTablet]}>¿Quieres más créditos?</Text>
-        </TouchableOpacity>
-      </View>
+        <Text style={[s.tokenMoreLink, isTablet && s.tokenMoreLinkTablet]}>¿Quieres más créditos?</Text>
+      </TouchableOpacity>
 
       <ScrollView contentContainerStyle={[s.scroll, isTablet && s.scrollTablet]} showsVerticalScrollIndicator={false}>
         <View style={[s.contentWrapper, { maxWidth: contentMaxWidth }]}>

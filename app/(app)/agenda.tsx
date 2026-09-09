@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
-import { Stack } from 'expo-router';
-import { Calendar, CheckCircle, Plus, BrainCircuit, ShieldCheck, AlertTriangle, ShieldAlert, Trash2 } from 'lucide-react-native';
+import { Stack, router } from 'expo-router';
+import { CheckCircle, Plus, BrainCircuit, ShieldCheck, AlertTriangle, ShieldAlert, Trash2, ChevronLeft, ChevronRight, Camera } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { auth } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -39,6 +39,7 @@ export default function AgendaScreen() {
   const [newTitle, setNewTitle] = useState('');
   const [newDetail, setNewDetail] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [calendarDate, setCalendarDate] = useState(new Date());
 
   const colors = useMemo(() => ({
      primary: isColorblindMode ? '#145DA0' : '#0F766E',
@@ -179,6 +180,20 @@ export default function AgendaScreen() {
     }
   };
 
+  const calendarWeeks = useMemo(() => {
+    const year = calendarDate.getFullYear();
+    const month = calendarDate.getMonth();
+    const first = new Date(year, month, 1);
+    const start = new Date(year, month, 1 - first.getDay());
+    return Array.from({ length: 42 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      return date;
+    });
+  }, [calendarDate]);
+  const today = new Date();
+  const isToday = (date: Date) => date.toDateString() === today.toDateString();
+
   return (
     <View style={{ flex: 1 }}>
       {/* Fondo degradado compartido */}
@@ -200,20 +215,26 @@ export default function AgendaScreen() {
 
         <View style={styles.calendarCard}>
           <View style={styles.calendarHeader}>
-            <Text style={styles.calendarMonth}>{new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}</Text>
-            <Calendar size={18} color="#0F766E" />
+            <TouchableOpacity accessibilityLabel="Mes anterior" onPress={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1))}><ChevronLeft size={22} color="#0F766E" /></TouchableOpacity>
+            <Text style={styles.calendarMonth}>{calendarDate.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}</Text>
+            <TouchableOpacity accessibilityLabel="Mes siguiente" onPress={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1))}><ChevronRight size={22} color="#0F766E" /></TouchableOpacity>
           </View>
-          <View style={styles.calendarDays}>
-            {Array.from({ length: 7 }, (_, i) => {
-              const date = new Date(); date.setDate(date.getDate() - 3 + i);
-              const today = i === 3;
-              return <View key={i} style={[styles.calendarDay, today && styles.calendarToday]}>
-                <Text style={[styles.calendarWeek, today && styles.calendarTodayText]}>{date.toLocaleDateString('es-MX', { weekday: 'short' }).slice(0, 2)}</Text>
-                <Text style={[styles.calendarNumber, today && styles.calendarTodayText]}>{date.getDate()}</Text>
+          <View style={styles.weekLabels}>{['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, i) => <Text key={`${day}-${i}`} style={styles.weekLabel}>{day}</Text>)}</View>
+          <View style={styles.calendarGrid}>
+            {calendarWeeks.map((date, i) => {
+              const outside = date.getMonth() !== calendarDate.getMonth();
+              return <View key={i} style={[styles.calendarCell, isToday(date) && styles.calendarToday, outside && styles.calendarOutside]}>
+                <Text style={[styles.calendarNumber, isToday(date) && styles.calendarTodayText]}>{date.getDate()}</Text>
               </View>;
             })}
           </View>
         </View>
+
+        <TouchableOpacity style={styles.scanCta} onPress={() => router.push('/scan')} activeOpacity={0.88}>
+          <View style={styles.scanCtaIcon}><Camera size={38} color="#0F766E" /></View>
+          <View style={styles.scanCtaCopy}><Text style={styles.scanCtaTitle}>Escanea tus cultivos</Text><Text style={styles.scanCtaText}>Recibe recomendaciones claras para decidir qué hacer hoy.</Text></View>
+          <ChevronRight size={22} color="#0F766E" />
+        </TouchableOpacity>
 
         {isLoading ? (
           <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 40 }} />
@@ -458,13 +479,20 @@ const styles = StyleSheet.create({
     marginVertical: 20,
     fontSize: 15,
   },
-  calendarCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D5E6E2', borderRadius: 22, padding: 18, marginBottom: 22 },
-  calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  calendarCard: { width: '100%', maxWidth: 820, alignSelf: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D5E6E2', borderRadius: 22, padding: 18, marginBottom: 22 },
+  calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
   calendarMonth: { fontSize: 15, fontWeight: '700', color: '#18352B', textTransform: 'capitalize' },
-  calendarDays: { flexDirection: 'row', justifyContent: 'space-between' },
-  calendarDay: { alignItems: 'center', paddingVertical: 7, paddingHorizontal: 8, borderRadius: 14 },
+  weekLabels: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 8 },
+  weekLabel: { width: '14.28%', textAlign: 'center', fontSize: 11, fontWeight: '700', color: '#8A9A95' },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calendarCell: { width: '14.28%', aspectRatio: 1.25, alignItems: 'center', justifyContent: 'center', borderRadius: 15, marginBottom: 4 },
   calendarToday: { backgroundColor: '#0F766E' },
-  calendarWeek: { fontSize: 11, color: '#6D7D74', textTransform: 'uppercase' },
   calendarNumber: { marginTop: 5, fontSize: 15, fontWeight: '700', color: '#18352B' },
   calendarTodayText: { color: '#FFFFFF' },
+  calendarOutside: { opacity: 0.3 },
+  scanCta: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#EAF7F3', borderRadius: 22, padding: 18, marginBottom: 20, borderWidth: 1, borderColor: '#B9DED5' },
+  scanCtaIcon: { width: 64, height: 64, borderRadius: 20, backgroundColor: '#D2EFE8', alignItems: 'center', justifyContent: 'center' },
+  scanCtaCopy: { flex: 1 },
+  scanCtaTitle: { fontSize: 16, fontWeight: '700', color: '#104D49' },
+  scanCtaText: { fontSize: 12, color: '#55716D', lineHeight: 18, marginTop: 3 },
 });

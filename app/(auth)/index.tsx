@@ -282,27 +282,29 @@ export default function Login() {
         <LinearGradient colors={panelOpen
           ? ['rgba(5,18,19,0.68)', 'rgba(5,18,19,0.88)']
           : ['rgba(5,18,19,0.18)', 'rgba(5,18,19,0.68)']} style={StyleSheet.absoluteFill} />
-        <View style={s.brandMark}>
-          <Image source={require('../../assets/images/AvotexNuevoLogo.png')} style={s.brandLogo} resizeMode="contain" />
-        </View>
       </View>
 
       <KeyboardAvoidingView style={s.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={20}>
         {!panelOpen ? (
           <View style={s.coverContent}>
             <View style={s.coverCopy}>
+              <Image
+                source={require('../../assets/images/AvotexNuevoLogo.png')}
+                style={[s.brandLogo, isTablet && s.brandLogoTablet]}
+                resizeMode="contain"
+              />
               <Text style={s.coverEyebrow}>AVOTEX · INTELIGENCIA PARA EL CAMPO</Text>
               <Text style={[s.coverTitle, isTablet && s.coverTitleTablet]}>Lee tu viñedo. Decide con certeza.</Text>
               <Text style={s.coverSubtitle}>Cada hoja cuenta una historia. Nosotros te ayudamos a verla.</Text>
             </View>
             <View style={[s.coverActions, isTablet && s.coverActionsTablet]}>
-              <TouchableOpacity style={s.coverGuestButton} onPress={handleGuestAccess} activeOpacity={0.86}>
-                <UserX color="#E6F4F0" size={18} />
-                <Text style={s.coverGuestText}>Entrar como invitado</Text>
-              </TouchableOpacity>
               <TouchableOpacity style={s.coverLoginButton} onPress={() => togglePanel(true)} activeOpacity={0.86}>
                 <Text style={s.coverLoginText}>Iniciar sesión</Text>
                 <ChevronRight size={20} color="#0B3E3A" />
+              </TouchableOpacity>
+              <TouchableOpacity style={s.coverGuestButton} onPress={handleGuestAccess} activeOpacity={0.86}>
+                <UserX color="#E6F4F0" size={18} />
+                <Text style={s.coverGuestText}>Entrar como invitado</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -408,8 +410,8 @@ const s = StyleSheet.create({
   photoBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: '#18352B' },
   photoBackdropDim: { backgroundColor: '#061A1A' },
   backdropImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-  brandMark: { position: 'absolute', top: 54, left: 22, right: 22, alignItems: 'center' },
-  brandLogo: { width: 190, height: 68, tintColor: '#FFFFFF', opacity: 0.94 },
+  brandLogo: { width: 290, height: 104, alignSelf: 'flex-start', tintColor: '#FFFFFF', opacity: 0.98, marginBottom: 2 },
+  brandLogoTablet: { width: 380, height: 136 },
   coverContent: {
     flex: 1, justifyContent: 'flex-end', paddingHorizontal: 24, paddingBottom: 42,
   },

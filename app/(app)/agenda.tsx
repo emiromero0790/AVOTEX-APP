@@ -212,23 +212,29 @@ export default function AgendaScreen() {
           <Text style={[styles.activitySubtitle, isTablet && styles.activitySubtitleTablet]}>Historial de análisis</Text>
         </View>
 
-        <View style={styles.activityToggle}>
+        <View
+          style={[
+            styles.activityToggle,
+            isTablet && styles.activityToggleTablet,
+            { backgroundColor: isColorblindMode ? '#E4F0FA' : '#E1F2EF' },
+          ]}
+        >
           <TouchableOpacity
             style={styles.activityToggleBtn}
             onPress={() => router.replace({ pathname: '/(app)/results', params: { view: 'charts' } })}
           >
-            <PieChart size={20} color="#0F766E" />
-            <Text style={styles.activityToggleText}>Gráficas</Text>
+            <PieChart size={isTablet ? 24 : 20} color={colors.primary} />
+            <Text style={[styles.activityToggleText, { color: colors.primary }]}>Gráficas</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.activityToggleBtn}
             onPress={() => router.replace({ pathname: '/(app)/results', params: { view: 'list' } })}
           >
-            <List size={20} color="#0F766E" />
-            <Text style={styles.activityToggleText}>Lista</Text>
+            <List size={isTablet ? 24 : 20} color={colors.primary} />
+            <Text style={[styles.activityToggleText, { color: colors.primary }]}>Lista</Text>
           </TouchableOpacity>
-          <View style={[styles.activityToggleBtn, styles.activityToggleBtnActive]}>
-            <CalendarDays size={20} color="#FFFFFF" />
+          <View style={[styles.activityToggleBtn, { backgroundColor: colors.primary }]}>
+            <CalendarDays size={isTablet ? 24 : 20} color="#FFFFFF" />
             <Text style={[styles.activityToggleText, styles.activityToggleTextActive]}>Agenda</Text>
           </View>
         </View>
@@ -361,8 +367,7 @@ const styles = StyleSheet.create({
   },
   activityTitle: {
     color: '#0F766E',
-    fontFamily: 'System',
-    fontWeight: '600',
+    fontFamily: 'Poppins_600SemiBold',
     fontSize: 32,
   },
   activityTitleTablet: {
@@ -370,6 +375,7 @@ const styles = StyleSheet.create({
   },
   activitySubtitle: {
     color: '#66807D',
+    fontFamily: 'Poppins_400Regular',
     fontSize: 15,
     marginBottom: 4,
   },
@@ -381,26 +387,26 @@ const styles = StyleSheet.create({
     gap: 4,
     padding: 4,
     marginTop: 14,
-    marginBottom: 4,
+    marginHorizontal: 2,
+    marginBottom: 12,
     borderRadius: 16,
-    backgroundColor: '#E1F2EF',
+  },
+  activityToggleTablet: {
+    marginHorizontal: 18,
   },
   activityToggleBtn: {
     flex: 1,
-    minHeight: 40,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    borderRadius: 13,
-  },
-  activityToggleBtnActive: {
-    backgroundColor: '#0F766E',
+    paddingVertical: 8,
+    paddingHorizontal: 5,
+    borderRadius: 24,
   },
   activityToggleText: {
-    color: '#0F766E',
+    fontFamily: 'Poppins_600SemiBold',
     fontSize: 12,
-    fontWeight: '600',
   },
   activityToggleTextActive: {
     color: '#FFFFFF',

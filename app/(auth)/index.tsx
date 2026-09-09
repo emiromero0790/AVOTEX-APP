@@ -277,14 +277,18 @@ export default function Login() {
         </View>
       </Modal>
 
-      <View style={[s.photoBackdrop, panelOpen && s.photoBackdropDim]}>
+      <View pointerEvents="none" style={[s.photoBackdrop, panelOpen && s.photoBackdropDim]}>
         <Image source={require('../../assets/images/marcoroosink-winegrower-490486.jpg')} style={s.backdropImage} />
         <LinearGradient colors={panelOpen
           ? ['rgba(5,18,19,0.68)', 'rgba(5,18,19,0.88)']
           : ['rgba(5,18,19,0.18)', 'rgba(5,18,19,0.68)']} style={StyleSheet.absoluteFill} />
       </View>
 
-      <KeyboardAvoidingView style={s.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={20}>
+      <KeyboardAvoidingView
+        style={s.kav}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+      >
         {!panelOpen ? (
           <View style={s.coverContent}>
             <View style={s.coverCopy}>
@@ -473,7 +477,9 @@ const s = StyleSheet.create({
 
   kav: {
     flex: 1,
+    position: 'relative',
     zIndex: 1,
+    elevation: 1,
   },
 
   logoArea: {

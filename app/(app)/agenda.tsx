@@ -9,7 +9,7 @@ import { supabase } from '../../supabaseConfig';
 import { useAccessibility } from '../../context/AccessibilityContext';
 
 interface Scan {
-  id: number;
+  id?: number;
   label: string;
   score: number;
 }
@@ -41,17 +41,17 @@ export default function AgendaScreen() {
   const [showForm, setShowForm] = useState(false);
 
   const colors = useMemo(() => ({
-     primary: isColorblindMode ? '#0D47A1' : '#2F7D55',
-    accent: isColorblindMode ? '#42A5F5' : '#4fc46a',
-    saveButton: isColorblindMode ? '#1976D2' : '#3aaa5c',
+     primary: isColorblindMode ? '#145DA0' : '#0F766E',
+     accent: isColorblindMode ? '#3B82C4' : '#16877E',
+     saveButton: isColorblindMode ? '#1976D2' : '#0F766E',
     deleteButton: isColorblindMode ? '#0D47A1' : '#e74c3c',
     textPrimary: '#1a2e0a',
     textSecondary: '#666',
     white: '#ffffff',
-    positive: { bg: isColorblindMode ? '#E3F2FD' : '#e8f7ec', border: isColorblindMode ? '#42A5F5' : '#27ae60' },
+     positive: { bg: isColorblindMode ? '#E3F2FD' : '#E5F2EF', border: isColorblindMode ? '#42A5F5' : '#16877E' },
     info: { bg: isColorblindMode ? '#FFF8E1' : '#eaf4fc', border: isColorblindMode ? '#FFC107' : '#2980b9' },
-    warning: { bg: isColorblindMode ? '#FFF8E1' : '#fef9e7', border: isColorblindMode ? '#F57F17' : '#f39c12' },
-    danger: { bg: isColorblindMode ? '#E3F2FD' : '#fdf0f0', border: isColorblindMode ? '#0D47A1' : '#c0392b' },
+     warning: { bg: isColorblindMode ? '#FFF8E1' : '#FFF4E1', border: isColorblindMode ? '#F57F17' : '#C78335' },
+     danger: { bg: isColorblindMode ? '#E3F2FD' : '#FBEDEA', border: isColorblindMode ? '#0D47A1' : '#C75C4B' },
   }), [isColorblindMode]);
 
   useEffect(() => {
@@ -201,7 +201,7 @@ export default function AgendaScreen() {
         <View style={styles.calendarCard}>
           <View style={styles.calendarHeader}>
             <Text style={styles.calendarMonth}>{new Date().toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}</Text>
-            <Calendar size={18} color="#2F7D55" />
+            <Calendar size={18} color="#0F766E" />
           </View>
           <View style={styles.calendarDays}>
             {Array.from({ length: 7 }, (_, i) => {
@@ -298,12 +298,12 @@ export default function AgendaScreen() {
 
 const styles = StyleSheet.create({
   scrollContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 22,
     paddingBottom: 120,
   },
   headerGradient: {
-    alignItems: 'center',
-    paddingTop: 60,
+    alignItems: 'flex-start',
+    paddingTop: 54,
     paddingBottom: 28,
     paddingHorizontal: 20,
     marginHorizontal: -20,
@@ -313,12 +313,12 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: 'bold',
     marginTop: 10,
-    textAlign: 'center',
+    textAlign: 'left',
     fontFamily: 'System',
   },
   subtitle: {
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: 'left',
     marginTop: 6,
     lineHeight: 20,
   },
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
   separatorText: {
     backgroundColor: 'transparent',
     paddingHorizontal: 12,
-    color: '#7aad4c',
+    color: '#0F766E',
     fontSize: 14,
     fontWeight: '700',
     marginTop: -11,
@@ -379,16 +379,16 @@ const styles = StyleSheet.create({
   },
   form: {
     marginBottom: 20,
-    backgroundColor: 'rgba(240, 247, 236, 0.85)',
+    backgroundColor: '#EAF4F2',
     borderRadius: 18,
     padding: 20,
     gap: 12,
     borderWidth: 1,
-    borderColor: '#c8dfc0',
+    borderColor: '#C6DFDA',
   },
   input: {
     borderWidth: 1.5,
-    borderColor: '#c8dfc0',
+    borderColor: '#C6DFDA',
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 12,
@@ -404,19 +404,19 @@ const styles = StyleSheet.create({
     borderColor: '#B8DCC7',
   },
   saveButtonText: {
-    color: '#2F7D55',
+    color: '#0F766E',
     fontSize: 15,
     fontWeight: '600',
   },
   taskCard: {
-    backgroundColor: 'rgba(245, 253, 240, 0.9)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     paddingHorizontal: 18,
     paddingVertical: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#d4ecc8',
-    shadowColor: '#2d6a1f',
+    borderColor: '#D5E6E2',
+    shadowColor: '#0F766E',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 6,
@@ -458,12 +458,12 @@ const styles = StyleSheet.create({
     marginVertical: 20,
     fontSize: 15,
   },
-  calendarCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DDE9E1', borderRadius: 20, padding: 16, marginBottom: 18 },
+  calendarCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D5E6E2', borderRadius: 22, padding: 18, marginBottom: 22 },
   calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   calendarMonth: { fontSize: 15, fontWeight: '700', color: '#18352B', textTransform: 'capitalize' },
   calendarDays: { flexDirection: 'row', justifyContent: 'space-between' },
   calendarDay: { alignItems: 'center', paddingVertical: 7, paddingHorizontal: 8, borderRadius: 14 },
-  calendarToday: { backgroundColor: '#2F7D55' },
+  calendarToday: { backgroundColor: '#0F766E' },
   calendarWeek: { fontSize: 11, color: '#6D7D74', textTransform: 'uppercase' },
   calendarNumber: { marginTop: 5, fontSize: 15, fontWeight: '700', color: '#18352B' },
   calendarTodayText: { color: '#FFFFFF' },

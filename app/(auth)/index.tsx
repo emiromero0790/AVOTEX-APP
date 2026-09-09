@@ -182,7 +182,7 @@ export default function Login() {
             </TouchableOpacity>
 
             <View style={s.modalIconCircle}>
-              <KeyRound size={26} color="#3aaa5c" />
+              <KeyRound size={26} color="#0F766E" />
             </View>
 
             {forgotSuccess ? (
@@ -192,7 +192,7 @@ export default function Login() {
                   Tu contraseña se cambió exitosamente. Inicia sesión con tu nueva contraseña.
                 </Text>
                 <TouchableOpacity style={s.modalPrimaryBtn} onPress={closeForgotModal}>
-                  <LinearGradient colors={['#42cc6a', '#27a849']} style={s.modalPrimaryGrad}>
+                  <LinearGradient colors={['#159A8C', '#0F766E']} style={s.modalPrimaryGrad}>
                     <Text style={s.modalPrimaryText}>Volver al inicio de sesión</Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -211,7 +211,7 @@ export default function Login() {
                 ) : null}
 
                 <View style={s.modalInputRow}>
-                  <Mail color="#3aaa5c" size={18} style={s.modalInputIcon} />
+                  <Mail color="#0F766E" size={18} style={s.modalInputIcon} />
                   <TextInput
                     style={s.modalInput}
                     placeholder="Correo electrónico"
@@ -224,7 +224,7 @@ export default function Login() {
                 </View>
 
                 <View style={s.modalInputRow}>
-                  <Lock color="#3aaa5c" size={18} style={s.modalInputIcon} />
+                  <Lock color="#0F766E" size={18} style={s.modalInputIcon} />
                   <TextInput
                     style={s.modalInput}
                     placeholder="Contraseña actual"
@@ -239,7 +239,7 @@ export default function Login() {
                 </View>
 
                 <View style={s.modalInputRow}>
-                  <Lock color="#3aaa5c" size={18} style={s.modalInputIcon} />
+                  <Lock color="#0F766E" size={18} style={s.modalInputIcon} />
                   <TextInput
                     style={s.modalInput}
                     placeholder="Nueva contraseña"
@@ -254,7 +254,7 @@ export default function Login() {
                 </View>
 
                 <View style={s.modalInputRow}>
-                  <Lock color="#3aaa5c" size={18} style={s.modalInputIcon} />
+                  <Lock color="#0F766E" size={18} style={s.modalInputIcon} />
                   <TextInput
                     style={s.modalInput}
                     placeholder="Repetir nueva contraseña"
@@ -277,7 +277,7 @@ export default function Login() {
                     onPress={handleChangePassword}
                     disabled={forgotLoading}
                   >
-                    <LinearGradient colors={['#42cc6a', '#27a849']} style={s.modalPrimaryGrad}>
+                    <LinearGradient colors={['#159A8C', '#0F766E']} style={s.modalPrimaryGrad}>
                       {forgotLoading
                         ? <ActivityIndicator color="#fff" size="small" />
                         : <Text style={s.modalPrimaryText}>Confirmar</Text>
@@ -324,7 +324,7 @@ export default function Login() {
             ) : null}
 
             <View style={[s.inputRow, isTablet && s.inputRowTablet]}>
-              <Mail color="#3aaa5c" size={20} style={s.inputIcon} />
+              <Mail color="#0F766E" size={20} style={s.inputIcon} />
               <TextInput
                 style={[s.input, isTablet && s.inputTablet]}
                 placeholder="Correo electrónico"
@@ -337,7 +337,7 @@ export default function Login() {
             </View>
 
             <View style={[s.inputRow, isTablet && s.inputRowTablet]}>
-              <Lock color="#3aaa5c" size={20} style={s.inputIcon} />
+              <Lock color="#0F766E" size={20} style={s.inputIcon} />
               <TextInput
                 style={[s.input, isTablet && s.inputTablet]}
                 placeholder="Contraseña"
@@ -367,7 +367,7 @@ export default function Login() {
                   ) : (
                     <>
                       <Text style={[s.loginText, isTablet && s.loginTextTablet]}>Iniciar Sesión</Text>
-                      <ChevronRight color="#2F7D55" size={22} />
+                      <ChevronRight color="#0F766E" size={22} />
                     </>
                   )}
                 </View>
@@ -424,7 +424,7 @@ const s = StyleSheet.create({
   panelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 64 },
   panelLogo: { width: 240, height: 72 },
   closePanel: { position: 'absolute', right: 0, top: 4, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(234,244,238,0.9)' },
-  enterButton: { height: 52, borderRadius: 16, marginTop: 12, backgroundColor: '#2F7D55', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  enterButton: { height: 56, borderRadius: 17, marginTop: 12, backgroundColor: '#0F766E', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   enterButtonText: { fontFamily: 'Poppins-SemiBold', color: '#FFFFFF', fontSize: 16 },
   formContent: { paddingBottom: 26 },
 
@@ -484,7 +484,7 @@ const s = StyleSheet.create({
     shadowRadius: 26,
     elevation: 12,
     borderWidth: 1.5,
-    borderColor: '#DDE9E1',
+    borderColor: '#CFE2DE',
     zIndex: 2,
     alignSelf: 'center',
   },
@@ -534,7 +534,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: '#DDE9E1',
+    borderColor: '#CFE2DE',
     borderRadius: 14,
     backgroundColor: '#F7FAF8',
     paddingHorizontal: 14,
@@ -562,7 +562,7 @@ const s = StyleSheet.create({
   forgotText: {
     fontFamily: 'Poppins-SemiBold',
     fontSize: 13,
-    color: '#3aaa5c',
+    color: '#0F766E',
   },
   forgotTextTablet: {
     fontSize: 15,
@@ -572,7 +572,7 @@ const s = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
     marginBottom: 12,
-    shadowColor: '#2F7D55',
+    shadowColor: '#0F766E',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.12,
     shadowRadius: 12,
@@ -595,7 +595,7 @@ const s = StyleSheet.create({
   loginText: {
     fontFamily: 'Poppins-SemiBold',
     fontSize: 17,
-    color: '#2F7D55',
+    color: '#0F766E',
     letterSpacing: 0.3,
   },
   loginTextTablet: {
@@ -609,7 +609,7 @@ const s = StyleSheet.create({
     gap: 8,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: '#DDE9E1',
+    borderColor: '#CFE2DE',
     paddingVertical: 12,
     paddingHorizontal: 18,
     marginBottom: 8,
@@ -662,7 +662,7 @@ const s = StyleSheet.create({
   },
   registerEmail: {
     fontFamily: 'Poppins-SemiBold',
-    color: '#2d8a3e',
+    color: '#0F766E',
     fontSize: 13,
     lineHeight: 20,
   },
@@ -707,7 +707,7 @@ const s = StyleSheet.create({
   modalTitle: {
     fontFamily: 'Poppins-Bold',
     fontSize: 20,
-    color: '#2bc45b',
+    color: '#0F766E',
     textAlign: 'center',
     marginBottom: 6,
   },
@@ -737,7 +737,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: '#b8ddb0',
+    borderColor: '#CFE2DE',
     borderRadius: 14,
     backgroundColor: 'rgba(244,250,240,0.85)',
     paddingHorizontal: 12,

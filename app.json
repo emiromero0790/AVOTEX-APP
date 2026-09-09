@@ -57,14 +57,6 @@
       "expo-asset",
       "expo-font",
       "expo-web-browser",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/icon.png",
-          "resizeMode": "contain",
-          "backgroundColor": "#ecfdf5"
-        }
-      ],
       "expo-status-bar"
     ],
     "experiments": {

@@ -1,17 +1,11 @@
-import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import Toast from 'react-native-toast-message';
-import { View, Text, Image, StyleSheet, Platform } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { LogBox } from 'react-native';
 import { AccessibilityProvider } from '../context/AccessibilityContext';
 import { GuestProvider } from '../context/GuestContext';
-import * as SplashScreen from 'expo-splash-screen';
-
-if (Platform.OS !== 'web') {
-  SplashScreen.preventAutoHideAsync();
-}
 
 LogBox.ignoreAllLogs(true);
 
@@ -27,29 +21,11 @@ const toastConfig = {
 };
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
+  useFonts({
     'Poppins-Regular': Poppins_400Regular,
     'Poppins-SemiBold': Poppins_600SemiBold,
     'Poppins-Bold': Poppins_700Bold,
   });
-
-  useEffect(() => {
-    if (Platform.OS !== 'web' && (fontsLoaded || fontError)) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
-
-  if (Platform.OS !== 'web' && !fontsLoaded && !fontError) {
-    return (
-      <View style={[styles.splashContainer, { backgroundColor: '#FFFFFF' }]}>
-        <Image
-          source={require('../assets/images/icon.png')}
-          style={styles.splashLogo}
-          resizeMode="contain"
-        />
-      </View>
-    );
-  }
 
   return (
     <GuestProvider>
@@ -70,15 +46,6 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  splashContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  splashLogo: {
-    width: 260,
-    height: 260,
-  },
   toastContainer: {
     flexDirection: 'row',
     alignItems: 'center',

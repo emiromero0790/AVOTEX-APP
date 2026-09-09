@@ -23,10 +23,6 @@ const FRUIT_REMOTE_IMAGES: Record<string, string> = {
   cafe:     'https://cdn.alsuper.com/products/420910_p.webp',
 };
 
-const FRUIT_EMOJI: Record<string, string> = {
-  aguacate: '•', mango: '•', limon: '•',
-  guayaba: '•', granada: '•', cafe: '•',
-};
 
 const CHART_COLORS = [
   '#ef4444', '#e67e22', '#f1c40f', '#9b59b6',
@@ -48,8 +44,7 @@ const getFruitImageSource = (fruto: string | undefined | null, healthy: boolean)
   return healthy ? avotexSanoImage : avotexEnfermoImage;
 };
 
-const getFruitEmoji = (fruto: string | undefined | null) =>
-  FRUIT_EMOJI[norm(fruto ?? '')] ?? '•';
+const getFruitEmoji = (_fruto: string | undefined | null) => '';
 
 const hexToRgba = (hex: string, opacity: number) => {
   if (hex.startsWith('rgba')) return hex;
@@ -100,11 +95,11 @@ export default function ResultsScreen() {
   const [chartFruit, setChartFruit]       = useState<string | null>(null);
 
   const colors = useMemo(() => ({
-    primary:        isColorblindMode ? '#0D47A1' : '#66bb6a',
-    sano:           isColorblindMode ? '#42A5F5' : '#10b981',
-    enfermo:        isColorblindMode ? '#0D47A1' : '#ef4444',
-    toggleActive:   isColorblindMode ? '#0D47A1' : '#66bb6a',
-    toggleInactive: isColorblindMode ? '#D1E7FD' : '#e8f5e9',
+    primary:        isColorblindMode ? '#145DA0' : '#0F766E',
+    sano:           isColorblindMode ? '#3B82C4' : '#16877E',
+    enfermo:        isColorblindMode ? '#145DA0' : '#C75C4B',
+    toggleActive:   isColorblindMode ? '#145DA0' : '#0F766E',
+    toggleInactive: isColorblindMode ? '#E4F0FA' : '#E1F2EF',
     white:          '#fff',
   }), [isColorblindMode]);
 
@@ -240,7 +235,7 @@ export default function ResultsScreen() {
 
   const chartWidth = isTablet ? Math.min(screenWidth - 96, 680) : screenWidth - 52;
 
-  if (!fontsLoaded) return <ActivityIndicator size="large" color="#66bb6a" style={{ flex: 1 }} />;
+  if (!fontsLoaded) return <ActivityIndicator size="large" color="#0F766E" style={{ flex: 1 }} />;
 
   // ── Sub-renderers ─────────────────────────────────────────────────────
 
@@ -256,7 +251,7 @@ export default function ResultsScreen() {
         onPress={() => setListFruitFilter(null)}
       >
         <Text style={[styles.chipText, !listFruitFilter && { color: '#fff' }]}>
-          🌿 Todos ({scans.length})
+          Todos ({scans.length})
         </Text>
       </TouchableOpacity>
       {allFruits.map(fruit => (
@@ -312,13 +307,13 @@ export default function ResultsScreen() {
         </View>
       );
 
-    return toShow.map(scan => {
+    return toShow.map((scan, index) => {
       const healthy = isHealthyLabel(scan.label);
       const fruto   = scan.fruto ?? 'Aguacate';
       const imgSrc  = getFruitImageSource(fruto, healthy);
 
       return (
-        <View key={scan.id} style={styles.scanCard}>
+        <View key={`${scan.id ?? 'scan'}-${scan.created_at}-${scan.user_id}-${index}`} style={styles.scanCard}>
           <Image source={imgSrc} style={styles.scanImage} />
           <View style={styles.scanInfo}>
             <View style={styles.fruitBadge}>
@@ -517,16 +512,16 @@ export default function ResultsScreen() {
 
 // ── Styles ────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9f9f9' },
+  container: { flex: 1, backgroundColor: '#F5F8F7' },
 
-  header:        { paddingTop: 60, paddingHorizontal: 24, marginBottom: 12, alignItems: 'center' },
+  header:        { paddingTop: 54, paddingHorizontal: 24, marginBottom: 12, alignItems: 'flex-start' },
   headerTablet:  { paddingTop: 80, paddingHorizontal: 40 },
-   title:         { fontSize: 32, fontFamily: 'Poppins_600SemiBold', color: '#18352B' },
+   title:         { fontSize: 32, fontFamily: 'Poppins_600SemiBold', color: '#123B3A' },
   titleTablet:   { fontSize: 40 },
-  subtitle:      { fontSize: 15, fontFamily: 'Poppins_400Regular', color: '#666', marginBottom: 4 },
+  subtitle:      { fontSize: 15, fontFamily: 'Poppins_400Regular', color: '#66807D', marginBottom: 4 },
   subtitleTablet:{ fontSize: 19 },
 
-  toggleRow:   { flexDirection: 'row', borderRadius: 30, marginTop: 14, padding: 4, gap: 4 },
+  toggleRow:   { flexDirection: 'row', borderRadius: 16, marginTop: 14, padding: 4, gap: 4, alignSelf: 'stretch' },
   toggleBtn:   { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 18, borderRadius: 24 },
   toggleLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#2e7d32' },
 
@@ -535,7 +530,7 @@ const styles = StyleSheet.create({
   scrollContentTablet:{ paddingHorizontal: 48 },
 
   statsCard: {
-    backgroundColor: '#fff', borderRadius: 12,
+    backgroundColor: '#E7F2EF', borderRadius: 18,
     paddingVertical: 10, paddingHorizontal: 16, marginBottom: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
@@ -547,17 +542,17 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', gap: 8, paddingVertical: 4 },
   chip: {
     borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7,
-    backgroundColor: '#e8f5e9', borderWidth: 1, borderColor: '#c8e6c9',
+    backgroundColor: '#E8F3F1', borderWidth: 1, borderColor: '#C5DFDA',
   },
   chipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#2e7d32' },
 
   sectionTitle: {
-    fontFamily: 'Poppins_600SemiBold', fontSize: 18, color: '#2a2a2a',
+    fontFamily: 'Poppins_600SemiBold', fontSize: 18, color: '#163F3D',
     marginBottom: 14, marginTop: 4,
   },
 
   scanCard: {
-    backgroundColor: '#fff', borderRadius: 16, marginBottom: 14,
+    backgroundColor: '#FFFFFF', borderRadius: 20, marginBottom: 14,
     shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.08, shadowRadius: 10, elevation: 4,
     flexDirection: 'row', overflow: 'hidden',
@@ -565,12 +560,12 @@ const styles = StyleSheet.create({
   scanImage: { width: 100, height: 110, resizeMode: 'cover' },
   scanInfo:  { flex: 1, padding: 12, justifyContent: 'center' },
   fruitBadge: {
-    backgroundColor: '#f0fdf4', borderRadius: 8,
+    backgroundColor: '#EAF5F2', borderRadius: 8,
     paddingHorizontal: 8, paddingVertical: 3,
     alignSelf: 'flex-start', marginBottom: 6,
-    borderWidth: 1, borderColor: '#bbf7d0',
+    borderWidth: 1, borderColor: '#C5DFDA',
   },
-  fruitBadgeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#166534' },
+  fruitBadgeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#0F766E' },
   scanLabel: {
     fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#fff',
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
@@ -580,7 +575,7 @@ const styles = StyleSheet.create({
   scanDate:  { fontFamily: 'Poppins_400Regular', fontSize: 11, color: '#999', marginTop: 4 },
 
   chartCard: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 18,
+    backgroundColor: '#fff', borderRadius: 20, padding: 16, marginBottom: 18,
     shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.07, shadowRadius: 10, elevation: 4,
   },
@@ -592,7 +587,7 @@ const styles = StyleSheet.create({
   chartCardSub:   { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#666', marginTop: 2 },
 
   emptyBox: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 30,
+    backgroundColor: '#fff', borderRadius: 20, padding: 30,
     alignItems: 'center', marginTop: 10,
   },
   emptyText:    { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#666' },

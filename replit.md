@@ -64,6 +64,7 @@ Supabase tables:
 
 ## User preferences
 - App in Spanish (Mexican)
+- Visual identity uses the navigation/chat teal (`#0F766E`) as its primary green; avoid bright or saturated greens in headings, calendars, controls, and status surfaces.
 - Developed by VEX (Bruno Parra & Emiliano Romero) / Instituto Tecnológico de Morelia
 - No hardcoded credentials — all via `EXPO_PUBLIC_*` env vars
 

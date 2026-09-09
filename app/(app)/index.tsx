@@ -32,6 +32,48 @@ const OPENWEATHER_API_KEY = process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY!;
 
 interface Scan { label: string; }
 
+type VerticalGaugeProps = {
+  value: number | null;
+  min: number;
+  max: number;
+  labels: Array<{ value: number; text: string }>;
+};
+
+function VerticalGauge({ value, min, max, labels }: VerticalGaugeProps) {
+  const percentage = value === null
+    ? null
+    : Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
+
+  return (
+    <View style={s.gauge}>
+      <View style={s.gaugeTicks}>
+        {Array.from({ length: 11 }).map((_, index) => (
+          <View
+            key={index}
+            style={[s.gaugeTick, index % 5 === 0 && s.gaugeTickMajor]}
+          />
+        ))}
+        {percentage !== null ? (
+          <View style={[s.gaugeIndicator, { bottom: `${percentage}%` as any }]} />
+        ) : null}
+      </View>
+      <View style={s.gaugeLabels}>
+        {labels.map((label) => {
+          const position = Math.max(0, Math.min(100, ((label.value - min) / (max - min)) * 100));
+          return (
+            <Text
+              key={label.value}
+              style={[s.gaugeLabel, { bottom: `${position}%` as any }]}
+            >
+              {label.text}
+            </Text>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 const CROP_ORBS = [
   {
     name: 'Aguacate',
@@ -369,9 +411,21 @@ export default function Home() {
                   <Sun color="#f59e0b" size={isTablet ? 23 : 19} />
                   <Text style={[s.environmentLabel, isTablet && s.environmentLabelTablet]}>Temperatura</Text>
                 </View>
-                <Text style={[s.environmentValue, isTablet && s.environmentValueTablet]}>
-                  {temperature !== null ? `${temperature.toFixed(1)}°` : '—'}
-                </Text>
+                <View style={s.environmentReadingRow}>
+                  <Text style={[s.environmentValue, isTablet && s.environmentValueTablet]}>
+                    {temperature !== null ? `${temperature.toFixed(1)}°` : '—'}
+                  </Text>
+                  <VerticalGauge
+                    value={temperature}
+                    min={0}
+                    max={45}
+                    labels={[
+                      { value: 20, text: '20°' },
+                      { value: 30, text: '30°' },
+                      { value: 35, text: '35°' },
+                    ]}
+                  />
+                </View>
                 <View style={[s.statusPill, temperature !== null && temperature >= 15 && temperature <= 30 ? s.statusGood : s.statusNeutral]}>
                   <Text style={s.statusPillText}>
                     {temperature === null ? 'Sin ubicación' : temperature >= 15 && temperature <= 30 ? 'Dentro de rango' : 'Revisar'}
@@ -384,9 +438,21 @@ export default function Home() {
                   <Droplets color="#38bdf8" size={isTablet ? 23 : 19} />
                   <Text style={[s.environmentLabel, isTablet && s.environmentLabelTablet]}>Humedad</Text>
                 </View>
-                <Text style={[s.environmentValue, isTablet && s.environmentValueTablet]}>
-                  {humidity !== null ? `${humidity}%` : '—'}
-                </Text>
+                <View style={s.environmentReadingRow}>
+                  <Text style={[s.environmentValue, isTablet && s.environmentValueTablet]}>
+                    {humidity !== null ? `${humidity}%` : '—'}
+                  </Text>
+                  <VerticalGauge
+                    value={humidity}
+                    min={0}
+                    max={100}
+                    labels={[
+                      { value: 30, text: '30%' },
+                      { value: 60, text: '60%' },
+                      { value: 90, text: '90%' },
+                    ]}
+                  />
+                </View>
                 <View style={[s.statusPill, humidity !== null && humidity >= 40 && humidity <= 75 ? s.statusGood : s.statusNeutral]}>
                   <Text style={s.statusPillText}>
                     {humidity === null ? 'Sin ubicación' : humidity >= 40 && humidity <= 75 ? 'Adecuada' : 'Fuera de rango'}
@@ -708,6 +774,12 @@ const s = StyleSheet.create({
   environmentLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   environmentLabel: { color: '#65767A', fontFamily: 'Poppins_400Regular', fontSize: 12 },
   environmentLabelTablet: { fontSize: 16 },
+  environmentReadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 72,
+  },
   environmentValue: {
     color: '#102F33',
     fontFamily: 'Poppins_400Regular',
@@ -717,6 +789,49 @@ const s = StyleSheet.create({
   },
   environmentValueTablet: { fontSize: 56, lineHeight: 66 },
   environmentUnit: { fontSize: 13, letterSpacing: 0, color: '#64748b' },
+  gauge: {
+    width: 45,
+    height: 72,
+    flexDirection: 'row',
+  },
+  gaugeTicks: {
+    width: 17,
+    height: 72,
+    justifyContent: 'space-between',
+    position: 'relative',
+  },
+  gaugeTick: {
+    width: 9,
+    height: 1,
+    backgroundColor: '#23474A',
+  },
+  gaugeTickMajor: {
+    width: 15,
+    height: 1.5,
+  },
+  gaugeIndicator: {
+    position: 'absolute',
+    left: -3,
+    width: 21,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: '#EF4444',
+    transform: [{ translateY: 1.5 }],
+  },
+  gaugeLabels: {
+    flex: 1,
+    height: 72,
+    position: 'relative',
+    marginLeft: 3,
+  },
+  gaugeLabel: {
+    position: 'absolute',
+    left: 0,
+    color: '#52666A',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 7,
+    transform: [{ translateY: 4 }],
+  },
   statusPill: {
     alignSelf: 'flex-start',
     borderRadius: 999,

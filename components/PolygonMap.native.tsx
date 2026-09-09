@@ -1,85 +1,49 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import React, { useMemo } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
+import type * as Location from 'expo-location';
 
-const generatePolygonAround = (location: any, offset: number) => {
-  const { latitude, longitude } = location.coords;
-  return [
-    [latitude - offset, longitude - offset],
-    [latitude + offset, longitude - offset],
-    [latitude + offset, longitude + offset],
-    [latitude - offset, longitude + offset],
-  ];
+export type PolygonMapProps = {
+  location: Location.LocationObject;
 };
 
-function buildMapHTML(lat: number, lng: number, offset: number, polygonCoords: number[][]): string {
-  const coordsJS = JSON.stringify(polygonCoords);
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body, #map { width: 100%; height: 100%; }
-  </style>
-</head>
-<body>
-  <div id="map"></div>
-  <script>
-    var map = L.map('map', { zoomControl: false, attributionControl: false })
-      .setView([${lat}, ${lng}], 16);
-
-    // Tiles satelital — sin API key
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19
-    }).addTo(map);
-
-    var coords = ${coordsJS};
-    var latLngs = coords.map(function(c) { return [c[0], c[1]]; });
-
-    L.polygon(latLngs, {
-      color: 'rgba(0,255,0,0.8)',
-      fillColor: 'rgba(0,255,0,0.3)',
-      strokeWidth: 2,
-      weight: 2
-    }).addTo(map);
-
-    map.fitBounds(latLngs);
-  <\/script>
-</body>
-</html>`;
+function buildMapHTML(latitude: number, longitude: number): string {
+  return `<!doctype html>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
+<style>*{box-sizing:border-box}html,body,#map{height:100%;width:100%;margin:0}#map{background:#dbe9df}.leaflet-control{box-shadow:0 1px 5px rgba(12,63,53,.25)!important}</style>
+</head><body><div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+<script>
+var map=L.map('map',{zoomControl:true,attributionControl:true,tap:true,dragging:true}).setView([${latitude},${longitude}],16);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'}).addTo(map);
+var drawn=new L.FeatureGroup();map.addLayer(drawn);
+var drawControl=new L.Control.Draw({position:'topleft',draw:{polyline:false,rectangle:false,circle:false,circlemarker:false,marker:false,polygon:{allowIntersection:false,showArea:true,shapeOptions:{color:'#ecfff3',weight:3,fillColor:'#19a681',fillOpacity:.42}}},edit:{featureGroup:drawn,remove:true}});
+map.addControl(drawControl);
+map.on(L.Draw.Event.CREATED,function(e){drawn.clearLayers();drawn.addLayer(e.layer);});
+</script></body></html>`;
 }
 
-export default function PolygonMap({ location, errorMsg, offset }) {
-  const [html, setHtml] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (location?.coords) {
-      const { latitude, longitude } = location.coords;
-      const polygonCoords = generatePolygonAround(location, offset);
-      setHtml(buildMapHTML(latitude, longitude, offset, polygonCoords));
-    }
-  }, [location, offset]);
-
-  if (!location || !html) {
-    return (
-      <View style={[styles.mapContainer, styles.centered]}>
-        <Text style={styles.errorText}>{errorMsg || 'Cargando ubicación 🥑...'}</Text>
-      </View>
-    );
-  }
+export default function PolygonMap({ location }: PolygonMapProps) {
+  const html = useMemo(
+    () => buildMapHTML(location.coords.latitude, location.coords.longitude),
+    [location.coords.latitude, location.coords.longitude],
+  );
 
   return (
     <View style={styles.mapContainer}>
       <WebView
         source={{ html }}
         style={styles.map}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
         originWhitelist={['*']}
+        javaScriptEnabled
+        domStorageEnabled
         scrollEnabled={false}
+        nestedScrollEnabled={false}
+        bounces={false}
+        allowsInlineMediaPlayback
         mixedContentMode="always"
       />
     </View>
@@ -87,22 +51,6 @@ export default function PolygonMap({ location, errorMsg, offset }) {
 }
 
 const styles = StyleSheet.create({
-  mapContainer: {
-    height: 300,
-    borderRadius: 16,
-    overflow: 'hidden',
-    elevation: 4,
-    backgroundColor: '#e0e0e0',
-  },
-  map: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  centered: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorText: {
-    color: '#333',
-    fontWeight: '500',
-  },
+  mapContainer: { height: 450, width: '100%', borderRadius: 22, overflow: 'hidden', backgroundColor: '#dbe9df' },
+  map: { flex: 1 },
 });

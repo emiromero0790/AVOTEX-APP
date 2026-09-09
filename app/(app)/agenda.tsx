@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { CheckCircle, Plus, BrainCircuit, ShieldCheck, AlertTriangle, ShieldAlert, Trash2, ChevronLeft, ChevronRight, Camera, PieChart, List, CalendarDays } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -30,6 +30,8 @@ type Task = {
 
 export default function AgendaScreen() {
   const { isColorblindMode } = useAccessibility();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
 
   const [user, setUser] = useState<User | null>(null);
   const [scans, setScans] = useState<Scan[]>([]);
@@ -205,6 +207,11 @@ export default function AgendaScreen() {
       >
         <Stack.Screen options={{ title: 'Agenda y Recomendaciones' }} />
 
+        <View style={[styles.activityHeader, isTablet && styles.activityHeaderTablet]}>
+          <Text style={[styles.activityTitle, isTablet && styles.activityTitleTablet]}>Actividad</Text>
+          <Text style={[styles.activitySubtitle, isTablet && styles.activitySubtitleTablet]}>Historial de análisis</Text>
+        </View>
+
         <View style={styles.activityToggle}>
           <TouchableOpacity
             style={styles.activityToggleBtn}
@@ -343,11 +350,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingBottom: 120,
   },
+  activityHeader: {
+    paddingTop: 54,
+    paddingHorizontal: 2,
+    alignItems: 'flex-start',
+  },
+  activityHeaderTablet: {
+    paddingTop: 80,
+    paddingHorizontal: 18,
+  },
+  activityTitle: {
+    color: '#0F766E',
+    fontFamily: 'System',
+    fontWeight: '600',
+    fontSize: 32,
+  },
+  activityTitleTablet: {
+    fontSize: 40,
+  },
+  activitySubtitle: {
+    color: '#66807D',
+    fontSize: 15,
+    marginBottom: 4,
+  },
+  activitySubtitleTablet: {
+    fontSize: 19,
+  },
   activityToggle: {
     flexDirection: 'row',
     gap: 4,
     padding: 4,
-    marginTop: 54,
+    marginTop: 14,
     marginBottom: 4,
     borderRadius: 16,
     backgroundColor: '#E1F2EF',

@@ -180,14 +180,14 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 18,
-    paddingTop: 24,
+    paddingTop: 42,
     paddingBottom: 130,
   },
   contentTablet: {
     width: '100%',
     maxWidth: 760,
     alignSelf: 'center',
-    paddingTop: 38,
+    paddingTop: 58,
   },
   title: {
     color: '#000000',

@@ -292,7 +292,7 @@ export default function Login() {
       </Modal>
 
       <View style={s.photoBackdrop}>
-        <Image source={require('../../assets/images/bg_aguacate.jpg')} style={s.backdropImage} />
+        <Image source={require('../../assets/images/marcoroosink-winegrower-490486.jpg')} style={s.backdropImage} />
         <LinearGradient colors={['rgba(16,36,28,0.12)', 'rgba(16,36,28,0.72)']} style={StyleSheet.absoluteFill} />
         <View style={s.brandMark}>
           <Image source={require('../../assets/images/AvotexNuevoLogo.png')} style={s.brandLogo} resizeMode="contain" />

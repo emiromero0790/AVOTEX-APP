@@ -483,10 +483,41 @@ export default function Home() {
                 <Text style={[s.environmentValue, isTablet && s.environmentValueTablet]}>
                   {isGuest || healthPct === null ? 'N/A' : `${healthPct.toFixed(0)}%`}
                 </Text>
-                <View style={[s.statusPill, !isGuest && healthPct !== null && healthPct >= 70 ? s.statusGood : s.statusNeutral]}>
-                  <Text style={s.statusPillText}>
-                    {isGuest || healthPct === null ? 'Sin análisis' : healthPct >= 70 ? 'Saludable' : 'Requiere atención'}
-                  </Text>
+                <View style={s.healthGauge}>
+                  <View style={s.healthGaugeTrack}>
+                    <LinearGradient
+                      colors={['#EF4444', '#F97316', '#FACC15', '#84CC16', '#22C55E']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    {!isGuest && healthPct !== null ? (
+                      <View
+                        style={[
+                          s.healthGaugeMarker,
+                          { left: `${Math.max(2, Math.min(98, healthPct))}%` as any },
+                        ]}
+                      />
+                    ) : null}
+                  </View>
+                  <View style={s.healthLegend}>
+                    <View style={s.healthLegendItem}>
+                      <View style={[s.healthLegendDot, { backgroundColor: '#EF4444' }]} />
+                      <Text style={s.healthLegendText}>Crítica</Text>
+                    </View>
+                    <View style={s.healthLegendItem}>
+                      <View style={[s.healthLegendDot, { backgroundColor: '#F97316' }]} />
+                      <Text style={s.healthLegendText}>Atención</Text>
+                    </View>
+                    <View style={s.healthLegendItem}>
+                      <View style={[s.healthLegendDot, { backgroundColor: '#FACC15' }]} />
+                      <Text style={s.healthLegendText}>Buena</Text>
+                    </View>
+                    <View style={s.healthLegendItem}>
+                      <View style={[s.healthLegendDot, { backgroundColor: '#22C55E' }]} />
+                      <Text style={s.healthLegendText}>Saludable</Text>
+                    </View>
+                  </View>
                 </View>
               </View>
 
@@ -810,6 +841,50 @@ const s = StyleSheet.create({
   statusGood: { backgroundColor: '#55D990' },
   statusNeutral: { backgroundColor: '#F08078' },
   statusPillText: { color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold', fontSize: 9 },
+  healthGauge: {
+    width: '100%',
+  },
+  healthGaugeTrack: {
+    width: '100%',
+    height: 7,
+    borderRadius: 4,
+    position: 'relative',
+    overflow: 'visible',
+  },
+  healthGaugeMarker: {
+    position: 'absolute',
+    top: -5,
+    width: 3,
+    height: 17,
+    marginLeft: -1.5,
+    borderRadius: 2,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#64748B',
+  },
+  healthLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 2,
+    marginTop: 7,
+  },
+  healthLegendItem: {
+    width: '48%',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  healthLegendDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginRight: 3,
+  },
+  healthLegendText: {
+    color: '#64748B',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 6.5,
+  },
   environmentPanelFooter: {
     minHeight: 58,
     marginHorizontal: -12,

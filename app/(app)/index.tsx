@@ -11,7 +11,7 @@ import {
   Easing,
   useWindowDimensions,
 } from 'react-native';
-import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins } from 'lucide-react-native';
+import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
@@ -32,6 +32,10 @@ const OPENWEATHER_API_KEY = process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY!;
 interface Scan {
   label: string;
   created_at?: string;
+}
+
+interface ProductivityScan {
+  created_at: string;
 }
 
 type VerticalGaugeProps = {
@@ -222,6 +226,10 @@ export default function Home() {
   const [user, setUser]               = useState<User | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [scans, setScans]             = useState<Scan[]>([]);
+  const [productivityScans, setProductivityScans] = useState<ProductivityScan[]>([]);
+  const [productivityMonth, setProductivityMonth] = useState(
+    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  );
   const [healthPct, setHealthPct]     = useState<number | null>(null);
   const [locationEnabled, setLocationEnabled] = useState(true);
 
@@ -334,14 +342,42 @@ export default function Home() {
     } else setHealthPct(null);
   }, [scans]);
 
+  useEffect(() => {
+    if (!user?.email || isGuest) {
+      setProductivityScans([]);
+      return;
+    }
+
+    let active = true;
+    const start = new Date(productivityMonth.getFullYear(), productivityMonth.getMonth(), 1);
+    const end = new Date(productivityMonth.getFullYear(), productivityMonth.getMonth() + 1, 1);
+
+    supabase
+      .from('scans')
+      .select('created_at')
+      .eq('user_email', user.email)
+      .gte('created_at', start.toISOString())
+      .lt('created_at', end.toISOString())
+      .order('created_at', { ascending: true })
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          console.warn('[productividad] error:', error.message);
+          setProductivityScans([]);
+          return;
+        }
+        setProductivityScans(data ?? []);
+      });
+    return () => { active = false; };
+  }, [user?.email, isGuest, productivityMonth]);
+
   const productivityCalendar = useMemo(() => {
-    const now = new Date();
-    const first = new Date(now.getFullYear(), now.getMonth(), 1);
-    const start = new Date(now.getFullYear(), now.getMonth(), 1 - first.getDay());
+    const today = new Date();
+    const first = new Date(productivityMonth.getFullYear(), productivityMonth.getMonth(), 1);
+    const start = new Date(productivityMonth.getFullYear(), productivityMonth.getMonth(), 1 - first.getDay());
     const counts: Record<string, number> = {};
 
-    scans.forEach(scan => {
-      if (!scan.created_at) return;
+    productivityScans.forEach(scan => {
       const date = new Date(scan.created_at);
       const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
       counts[key] = (counts[key] ?? 0) + 1;
@@ -354,13 +390,13 @@ export default function Home() {
       return {
         date,
         count: counts[key] ?? 0,
-        currentMonth: date.getMonth() === now.getMonth(),
-        today: date.toDateString() === now.toDateString(),
+        currentMonth: date.getMonth() === productivityMonth.getMonth(),
+        today: date.toDateString() === today.toDateString(),
       };
     });
 
-    return { now, days };
-  }, [scans]);
+    return { days };
+  }, [productivityScans, productivityMonth]);
 
   if (!fontsLoaded || loadingUser) {
     return (
@@ -675,9 +711,25 @@ export default function Home() {
                 <Text style={s.productivityEyebrow}>TU ACTIVIDAD</Text>
                 <Text style={[s.productivityTitle, isTablet && s.productivityTitleTablet]}>Productividad</Text>
               </View>
-              <Text style={s.productivityMonth}>
-                {productivityCalendar.now.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}
-              </Text>
+              <View style={s.productivityMonthControls}>
+                <TouchableOpacity
+                  accessibilityLabel="Mes anterior"
+                  style={s.productivityMonthButton}
+                  onPress={() => setProductivityMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+                >
+                  <ChevronLeft size={16} color="#252619" />
+                </TouchableOpacity>
+                <Text style={s.productivityMonth}>
+                  {productivityMonth.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}
+                </Text>
+                <TouchableOpacity
+                  accessibilityLabel="Mes siguiente"
+                  style={s.productivityMonthButton}
+                  onPress={() => setProductivityMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+                >
+                  <ChevronRight size={16} color="#252619" />
+                </TouchableOpacity>
+              </View>
             </View>
             <View style={s.productivityWeekdays}>
               {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, index) => (
@@ -712,7 +764,7 @@ export default function Home() {
                 <View style={[s.productivityMark, s.productivityMarkActive]} />
                 <Text style={s.productivityLegendText}>Cada marca representa un escaneo</Text>
               </View>
-              <Text style={s.productivityTotal}>{scans.length} total</Text>
+              <Text style={s.productivityTotal}>{productivityScans.length} este mes</Text>
             </View>
           </Reanimated.View>
 
@@ -1198,7 +1250,21 @@ const s = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 10,
     textTransform: 'capitalize',
-    marginTop: 4,
+    minWidth: 90,
+    textAlign: 'center',
+  },
+  productivityMonthControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  productivityMonthButton: {
+    width: 27,
+    height: 27,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.48)',
   },
   productivityWeekdays: { flexDirection: 'row', marginBottom: 5 },
   productivityWeekday: {

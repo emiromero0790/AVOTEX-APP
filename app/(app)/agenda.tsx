@@ -183,19 +183,16 @@ export default function AgendaScreen() {
     }
   };
 
-  const calendarWeeks = useMemo(() => {
-    const year = calendarDate.getFullYear();
-    const month = calendarDate.getMonth();
-    const first = new Date(year, month, 1);
-    const start = new Date(year, month, 1 - first.getDay());
-    return Array.from({ length: 42 }, (_, index) => {
+  const calendarWeek = useMemo(() => {
+    const start = new Date(calendarDate);
+    start.setDate(calendarDate.getDate() - calendarDate.getDay());
+    return Array.from({ length: 7 }, (_, index) => {
       const date = new Date(start);
       date.setDate(start.getDate() + index);
       return date;
     });
   }, [calendarDate]);
-  const today = new Date();
-  const isToday = (date: Date) => date.toDateString() === today.toDateString();
+  const isSelectedDay = (date: Date) => date.toDateString() === calendarDate.toDateString();
 
   return (
     <KeyboardAvoidingView
@@ -257,18 +254,24 @@ export default function AgendaScreen() {
 
         <View style={styles.calendarCard}>
           <View style={styles.calendarHeader}>
-            <TouchableOpacity accessibilityLabel="Mes anterior" onPress={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1))}><ChevronLeft size={22} color="#0F766E" /></TouchableOpacity>
+            <TouchableOpacity accessibilityLabel="Semana anterior" onPress={() => setCalendarDate(current => new Date(current.getFullYear(), current.getMonth(), current.getDate() - 7))}><ChevronLeft size={20} color="#EFFF63" /></TouchableOpacity>
             <Text style={styles.calendarMonth}>{calendarDate.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}</Text>
-            <TouchableOpacity accessibilityLabel="Mes siguiente" onPress={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1))}><ChevronRight size={22} color="#0F766E" /></TouchableOpacity>
+            <TouchableOpacity accessibilityLabel="Semana siguiente" onPress={() => setCalendarDate(current => new Date(current.getFullYear(), current.getMonth(), current.getDate() + 7))}><ChevronRight size={20} color="#EFFF63" /></TouchableOpacity>
           </View>
-          <View style={styles.weekLabels}>{['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, i) => <Text key={`${day}-${i}`} style={styles.weekLabel}>{day}</Text>)}</View>
-          <View style={styles.calendarGrid}>
-            {calendarWeeks.map((date, i) => {
-              const outside = date.getMonth() !== calendarDate.getMonth();
-              return <View key={i} style={[styles.calendarCell, isToday(date) && styles.calendarToday, outside && styles.calendarOutside]}>
-                <Text style={[styles.calendarNumber, isToday(date) && styles.calendarTodayText]}>{date.getDate()}</Text>
-              </View>;
-            })}
+          <View style={styles.calendarWeek}>
+            {calendarWeek.map((date, i) => (
+              <TouchableOpacity
+                key={i}
+                style={[styles.calendarDay, isSelectedDay(date) && styles.calendarToday]}
+                onPress={() => setCalendarDate(date)}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.calendarNumber, isSelectedDay(date) && styles.calendarTodayText]}>{date.getDate()}</Text>
+                <Text style={[styles.calendarDayName, isSelectedDay(date) && styles.calendarTodayText]}>
+                  {date.toLocaleDateString('es-MX', { weekday: 'short' }).replace('.', '')}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
@@ -606,31 +609,33 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textTransform: 'capitalize',
   },
-  weekLabels: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 3 },
-  weekLabel: {
-    width: '14.28%',
-    textAlign: 'center',
-    fontSize: 9,
-    fontFamily: 'Poppins_600SemiBold',
-    color: '#77747F',
+  calendarWeek: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 4,
   },
-  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  calendarCell: {
-    width: '14.28%',
-    aspectRatio: 1.5,
+  calendarDay: {
+    flex: 1,
+    minHeight: 57,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    marginBottom: 2,
+    borderRadius: 14,
   },
   calendarToday: { backgroundColor: '#EFFF63' },
   calendarNumber: {
-    fontSize: 12,
+    fontSize: 16,
     fontFamily: 'Poppins_600SemiBold',
-    color: '#F5F3F7',
+    color: '#171719',
   },
   calendarTodayText: { color: '#171719' },
-  calendarOutside: { opacity: 0.22 },
+  calendarDayName: {
+    color: '#6F6C74',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 8,
+    textTransform: 'capitalize',
+    marginTop: -1,
+  },
   scanCta: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#EAF7F3', borderRadius: 22, padding: 18, marginBottom: 20, borderWidth: 1, borderColor: '#B9DED5' },
   scanCtaIcon: { width: 64, height: 64, borderRadius: 20, backgroundColor: '#D2EFE8', alignItems: 'center', justifyContent: 'center' },
   scanCtaCopy: { flex: 1 },

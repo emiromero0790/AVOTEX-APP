@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { Eraser, Pencil, Save } from 'lucide-react-native';
@@ -12,23 +12,10 @@ type PolygonPoint = {
 
 const SAVED_POLYGON_KEY = 'avotex_huerta_polygon';
 
-const FALLBACK_LOCATION = {
-  coords: {
-    latitude: 19.7026,
-    longitude: -101.1924,
-    altitude: null,
-    accuracy: null,
-    altitudeAccuracy: null,
-    heading: null,
-    speed: null,
-  },
-  timestamp: Date.now(),
-};
-
 export default function Mapping() {
   const mapRef = useRef<PolygonMapHandle>(null);
-  const [location, setLocation] = useState<Location.LocationObject>(FALLBACK_LOCATION);
-  const [notice, setNotice] = useState<string | null>('Buscando tu ubicación. Mientras tanto puedes delimitar sobre el mapa.');
+  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [notice, setNotice] = useState<string | null>('Obteniendo tu ubicación precisa…');
   const [polygon, setPolygon] = useState<PolygonPoint[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -40,16 +27,24 @@ export default function Mapping() {
         const permission = await Location.requestForegroundPermissionsAsync();
         if (!active) return;
         if (permission.status !== 'granted') {
-          setNotice('Usando una ubicación aproximada. Puedes dibujar tu huerta sobre el mapa.');
+          setNotice('Activa el permiso de ubicación para mostrar tu posición en el mapa.');
           return;
         }
-        const current = await Location.getCurrentPositionAsync({});
+        setNotice('Obteniendo tu ubicación precisa…');
+        const current = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Highest,
+        });
         if (active) {
           setLocation(current);
-          setNotice(null);
+          const accuracy = current.coords.accuracy;
+          setNotice(
+            typeof accuracy === 'number'
+              ? `Ubicación lista · precisión aproximada de ${Math.round(accuracy)} m.`
+              : 'Ubicación precisa lista.',
+          );
         }
       } catch {
-        if (active) setNotice('No pudimos obtener tu ubicación. Mostramos Morelia como referencia.');
+        if (active) setNotice('No pudimos obtener tu ubicación. Revisa que el GPS esté activo e inténtalo de nuevo.');
       }
     };
 
@@ -76,14 +71,24 @@ export default function Mapping() {
   return (
     <View style={styles.screen}>
       <View style={styles.mapLayer}>
-        <PolygonMap
-          ref={mapRef}
-          location={location}
-          onPolygonChange={(points: PolygonPoint[]) => {
-            setPolygon(points);
-            setNotice(points.length >= 3 ? 'Delimitación lista para guardar.' : 'Toca cada esquina de tu huerta.');
-          }}
-        />
+        {location ? (
+          <PolygonMap
+            ref={mapRef}
+            location={location}
+            onPolygonChange={(points: PolygonPoint[]) => {
+              setPolygon(points);
+              setNotice(points.length >= 3 ? 'Delimitación lista para guardar.' : 'Toca cada esquina de tu huerta.');
+            }}
+          />
+        ) : (
+          <View style={styles.locationLoading}>
+            <View style={styles.locationLoadingIcon}>
+              <ActivityIndicator size="large" color="#0D756B" />
+            </View>
+            <Text style={styles.locationLoadingTitle}>Buscando tu ubicación</Text>
+            <Text style={styles.locationLoadingText}>Esperaremos una lectura precisa antes de mostrar el mapa.</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.bottomPanel}>
@@ -105,11 +110,17 @@ export default function Mapping() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Dibujar delimitación"
+            accessibilityState={{ disabled: !location }}
+            disabled={!location}
             onPress={() => {
               mapRef.current?.startDrawing();
               setNotice('Toca cada esquina de tu huerta y cierra la figura en el primer punto.');
             }}
-            style={({ pressed }) => [styles.actionButton, pressed && styles.actionPressed]}
+            style={({ pressed }) => [
+              styles.actionButton,
+              !location && styles.actionButtonDisabled,
+              pressed && styles.actionPressed,
+            ]}
           >
             <Pencil size={20} color="#176B62" />
             <Text style={styles.actionLabel}>Dibujar</Text>
@@ -118,12 +129,18 @@ export default function Mapping() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Borrar delimitación"
+            accessibilityState={{ disabled: !location || polygon.length === 0 }}
+            disabled={!location || polygon.length === 0}
             onPress={() => {
               mapRef.current?.clearDrawing();
               setPolygon([]);
               setNotice('Delimitación borrada. Puedes comenzar de nuevo.');
             }}
-            style={({ pressed }) => [styles.actionButton, pressed && styles.actionPressed]}
+            style={({ pressed }) => [
+              styles.actionButton,
+              (!location || polygon.length === 0) && styles.actionButtonDisabled,
+              pressed && styles.actionPressed,
+            ]}
           >
             <Eraser size={20} color="#D1534A" />
             <Text style={styles.actionLabel}>Borrar</Text>
@@ -156,7 +173,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 14,
     right: 14,
-    bottom: 14,
+    bottom: 106,
     paddingHorizontal: 17,
     paddingTop: 16,
     paddingBottom: 14,
@@ -188,6 +205,36 @@ const styles = StyleSheet.create({
   pointBadgeReady: { backgroundColor: '#DDF4EC' },
   pointBadgeText: { color: '#87928E', fontSize: 10, fontWeight: '700' },
   pointBadgeTextReady: { color: '#0D756B' },
+  locationLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 38,
+    backgroundColor: '#E9F3EF',
+  },
+  locationLoadingIcon: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#173E36',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  locationLoadingTitle: { color: '#173E36', fontSize: 17, fontWeight: '800' },
+  locationLoadingText: {
+    maxWidth: 300,
+    marginTop: 6,
+    color: '#657D76',
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
   notice: {
     color: '#447168',
     fontSize: 9,
@@ -205,6 +252,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F5F3',
   },
   actionPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
+  actionButtonDisabled: { opacity: 0.42 },
   actionLabel: { color: '#455E58', fontSize: 9, fontWeight: '700' },
   saveButtonDisabled: { opacity: 0.55 },
   saveButton: {

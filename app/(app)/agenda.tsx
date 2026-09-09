@@ -254,9 +254,9 @@ export default function AgendaScreen() {
 
         <View style={styles.calendarCard}>
           <View style={styles.calendarHeader}>
-            <TouchableOpacity accessibilityLabel="Semana anterior" onPress={() => setCalendarDate(current => new Date(current.getFullYear(), current.getMonth(), current.getDate() - 7))}><ChevronLeft size={20} color="#EFFF63" /></TouchableOpacity>
+            <TouchableOpacity accessibilityLabel="Semana anterior" onPress={() => setCalendarDate(current => new Date(current.getFullYear(), current.getMonth(), current.getDate() - 7))}><ChevronLeft size={20} color="#0F766E" /></TouchableOpacity>
             <Text style={styles.calendarMonth}>{calendarDate.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}</Text>
-            <TouchableOpacity accessibilityLabel="Semana siguiente" onPress={() => setCalendarDate(current => new Date(current.getFullYear(), current.getMonth(), current.getDate() + 7))}><ChevronRight size={20} color="#EFFF63" /></TouchableOpacity>
+            <TouchableOpacity accessibilityLabel="Semana siguiente" onPress={() => setCalendarDate(current => new Date(current.getFullYear(), current.getMonth(), current.getDate() + 7))}><ChevronRight size={20} color="#0F766E" /></TouchableOpacity>
           </View>
           <View style={styles.calendarWeek}>
             {calendarWeek.map((date, i) => (
@@ -433,10 +433,10 @@ const styles = StyleSheet.create({
   headerGradient: {
     alignItems: 'flex-start',
     paddingTop: 22,
-    paddingBottom: 28,
+    paddingBottom: 8,
     paddingHorizontal: 20,
     marginHorizontal: -20,
-    marginBottom: 20,
+    marginBottom: 6,
   },
   title: {
     fontSize: 26,
@@ -592,13 +592,15 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 430,
     alignSelf: 'center',
-    backgroundColor: '#1C1C1F',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D5E9E4',
     borderRadius: 22,
     padding: 14,
     marginBottom: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 6,
   },
@@ -606,7 +608,7 @@ const styles = StyleSheet.create({
   calendarMonth: {
     fontSize: 15,
     fontFamily: 'Poppins_600SemiBold',
-    color: '#FFFFFF',
+    color: '#163F3D',
     textTransform: 'capitalize',
   },
   calendarWeek: {
@@ -617,18 +619,18 @@ const styles = StyleSheet.create({
   calendarDay: {
     flex: 1,
     minHeight: 57,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F1F7F5',
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 14,
   },
-  calendarToday: { backgroundColor: '#EFFF63' },
+  calendarToday: { backgroundColor: '#0F766E' },
   calendarNumber: {
     fontSize: 16,
     fontFamily: 'Poppins_600SemiBold',
     color: '#171719',
   },
-  calendarTodayText: { color: '#171719' },
+  calendarTodayText: { color: '#FFFFFF' },
   calendarDayName: {
     color: '#6F6C74',
     fontFamily: 'Poppins_400Regular',

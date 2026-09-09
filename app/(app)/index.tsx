@@ -456,7 +456,7 @@ export default function Home() {
         accessibilityLabel="Ver tokens y planes disponibles"
       >
         <View style={s.tokenWidget} pointerEvents="none">
-          <Coins size={isTablet ? 30 : 26} color="#d97706" />
+          <Coins size={isTablet ? 26 : 22} color="#d97706" />
           <View style={{ marginLeft: 6 }}>
             <Text style={[s.tokenAmount, isTablet && s.tokenAmountTablet]}>
               {isGuest
@@ -795,36 +795,36 @@ const s = StyleSheet.create({
   tokenWidget: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 18, paddingHorizontal: 9, paddingVertical: 5,
     borderWidth: 1.5, borderColor: 'rgba(217,119,6,0.30)',
     shadowColor: '#d97706', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18, shadowRadius: 6, elevation: 5,
   },
   tokenAddButton: {
-    width: 25,
-    height: 25,
-    borderRadius: 13,
-    marginLeft: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    marginLeft: 8,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F59E0B',
   },
-  tokenAddButtonTablet: { width: 31, height: 31, borderRadius: 16, marginLeft: 13 },
+  tokenAddButtonTablet: { width: 27, height: 27, borderRadius: 14, marginLeft: 10 },
   tokenAddText: {
     color: '#FFFFFF',
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 17,
+    lineHeight: 21,
   },
-  tokenAddTextTablet: { fontSize: 24, lineHeight: 28 },
+  tokenAddTextTablet: { fontSize: 20, lineHeight: 24 },
   tokenAmount: {
-    fontFamily: 'Poppins_700Bold', fontSize: 17, color: '#92400e', lineHeight: 20,
+    fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#92400e', lineHeight: 18,
   },
-  tokenAmountTablet: { fontSize: 22, lineHeight: 26 },
+  tokenAmountTablet: { fontSize: 19, lineHeight: 23 },
   tokenLabel: {
-    fontFamily: 'Poppins_600SemiBold', fontSize: 9, color: '#d97706', letterSpacing: 1,
+    fontFamily: 'Poppins_600SemiBold', fontSize: 8, color: '#d97706', letterSpacing: 0.8,
   },
-  tokenLabelTablet: { fontSize: 11 },
+  tokenLabelTablet: { fontSize: 10 },
 
   logoutBtn: {
     position: 'absolute', top: 40, right: 16, zIndex: 20,

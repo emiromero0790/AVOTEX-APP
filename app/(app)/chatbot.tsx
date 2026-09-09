@@ -233,8 +233,8 @@ export default function ChatbotScreen() {
           headerShown: false,
           title: "Asistente Avotex",
           headerTitleStyle: { fontFamily: 'Poppins_600SemiBold' },
-          headerStyle: { backgroundColor: '#071713' },
-          headerTintColor: '#d7fff3',
+          headerStyle: { backgroundColor: '#FFFFFF' },
+          headerTintColor: '#174E43',
           headerShadowVisible: false,
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 10, padding: 5 }}>
@@ -253,7 +253,7 @@ export default function ChatbotScreen() {
         statusBarTranslucent
       >
         <View style={styles.modalOverlay}>
-          <LinearGradient colors={['#071712', '#0A241D']} style={styles.modalCard}>
+          <LinearGradient colors={['#FFFFFF', '#E7F7F2']} style={styles.modalCard}>
             <View style={styles.modalIconRow}>
               <View style={styles.modalIconCircle}>
                 <Shield size={24} color="#79d7c1" />
@@ -326,7 +326,7 @@ export default function ChatbotScreen() {
         </View>
       </Modal>
 
-      <LinearGradient colors={['#71e7c1', '#0e5f4e', '#03100d']} locations={[0, 0.28, 0.86]} style={styles.background}>
+      <LinearGradient colors={['#BFEFDF', '#EAF8F3', '#FFFFFF']} locations={[0, 0.38, 0.9]} style={styles.background}>
       <View style={styles.atmosphereTop} />
       <View style={styles.atmosphereBottom} />
       <ScrollView
@@ -340,9 +340,9 @@ export default function ChatbotScreen() {
           <View style={styles.welcomeContainer}>
             <View style={styles.profileHeader}>
               <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Volver" style={styles.backButton}>
-                <ChevronLeft size={20} color="#d8fff2" />
+                <ChevronLeft size={20} color="#174E43" />
               </TouchableOpacity>
-              <View style={styles.userCircle}><User size={17} color="#d8fff2" /></View>
+              <View style={styles.userCircle}><User size={17} color="#174E43" /></View>
               <View>
                 <Text style={styles.welcomeLabel}>Bienvenido</Text>
                 <Text style={styles.emailLabel} numberOfLines={1}>{userEmail}</Text>
@@ -443,15 +443,15 @@ export default function ChatbotScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#030b09" },
-  background: { flex: 1, backgroundColor: '#03100d' },
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  background: { flex: 1, backgroundColor: '#FFFFFF' },
   atmosphereTop: {
     position: 'absolute', top: -90, left: -80, width: 280, height: 260,
-    borderRadius: 140, backgroundColor: '#b5ffe8', opacity: 0.18,
+    borderRadius: 140, backgroundColor: '#FFFFFF', opacity: 0.55,
   },
   atmosphereBottom: {
     position: 'absolute', bottom: -140, right: -90, width: 330, height: 300,
-    borderRadius: 170, backgroundColor: '#02100c', opacity: 0.68,
+    borderRadius: 170, backgroundColor: '#A7E9D4', opacity: 0.28,
   },
   chatArea: { flex: 1, backgroundColor: 'transparent' },
   chatContent: { padding: 18, paddingBottom: 20, maxWidth: 760, width: '100%', alignSelf: 'center' },
@@ -466,9 +466,9 @@ const styles = StyleSheet.create({
     elevation: 100,
   },
   modalCard: {
-    backgroundColor: '#071712',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#287563',
+    borderColor: '#B8DED3',
     borderRadius: 28,
     paddingHorizontal: 22,
     paddingTop: 20,
@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
     maxHeight: '72%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.6,
+    shadowOpacity: 0.22,
     shadowRadius: 24,
     elevation: 101,
     zIndex: 10000,
@@ -497,21 +497,21 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#103b32',
+    backgroundColor: '#DDF4ED',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalTitle: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 20,
-    color: '#d7fff3',
+    color: '#174E43',
     textAlign: 'center',
     marginBottom: 10,
   },
   modalBody: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 13,
-    color: '#b6d4cc',
+    color: '#526C65',
     lineHeight: 20,
     textAlign: 'center',
     marginBottom: 14,
@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
   modalSubheading: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 13,
-    color: '#d7fff3',
+    color: '#174E43',
     marginBottom: 10,
   },
   modalBullets: {
@@ -540,18 +540,18 @@ const styles = StyleSheet.create({
   modalBulletText: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 12,
-    color: '#b6d4cc',
+    color: '#526C65',
     flex: 1,
     lineHeight: 18,
   },
   modalBold: {
     fontFamily: 'Poppins_600SemiBold',
-    color: '#79d7c1',
+    color: '#0F766E',
   },
   modalFootnote: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 12,
-    color: '#8aada4',
+    color: '#71857F',
     textAlign: 'center',
     marginBottom: 18,
     fontStyle: 'italic',
@@ -565,14 +565,14 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     borderRadius: 50,
     borderWidth: 1.5,
-    borderColor: '#285449',
+    borderColor: '#B8D8D0',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelBtnText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 15,
-    color: '#9abbb2',
+    color: '#54736B',
   },
   acceptBtn: {
     flex: 1,
@@ -601,18 +601,18 @@ const styles = StyleSheet.create({
   },
   backButton: {
     width: 32, height: 32, borderRadius: 16, justifyContent: 'center',
-    alignItems: 'center', marginRight: 8, backgroundColor: 'rgba(4, 31, 24, 0.28)',
+    alignItems: 'center', marginRight: 8, backgroundColor: 'rgba(255,255,255,0.72)',
   },
   userCircle: {
-    width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(3, 40, 31, 0.48)',
+    width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.74)',
     justifyContent: 'center', alignItems: 'center', marginRight: 9,
-    borderWidth: 1, borderColor: 'rgba(211,255,241,0.42)',
+    borderWidth: 1, borderColor: 'rgba(47,125,105,0.18)',
   },
   welcomeLabel: {
-    color: '#e1fff5', fontFamily: 'Poppins_600SemiBold', fontSize: 12,
+    color: '#174E43', fontFamily: 'Poppins_600SemiBold', fontSize: 12,
   },
   emailLabel: {
-    color: 'rgba(225,255,245,0.68)', fontFamily: 'Poppins_400Regular', fontSize: 10,
+    color: '#668079', fontFamily: 'Poppins_400Regular', fontSize: 10,
     maxWidth: 230,
   },
   suggestions: {
@@ -624,24 +624,24 @@ const styles = StyleSheet.create({
   suggestionCard: {
     width: 176, height: 112, justifyContent: 'space-between', alignItems: 'flex-start',
     paddingVertical: 15, paddingHorizontal: 14, borderRadius: 16,
-    backgroundColor: 'rgba(3, 35, 27, 0.78)',
+    backgroundColor: 'rgba(255,255,255,0.88)',
     borderWidth: 1,
-    borderColor: 'rgba(128, 239, 204, 0.22)',
+    borderColor: 'rgba(47,125,105,0.16)',
   },
   suggestionText: {
-    color: '#c1e7dd',
+    color: '#315F54',
     fontFamily: 'Poppins_400Regular',
     fontSize: 12, lineHeight: 17,
   },
   welcomeTitle: {
     fontSize: 35,
     fontFamily: 'Poppins_600SemiBold',
-    color: '#e1fff5',
+    color: '#174E43',
     marginBottom: 8, letterSpacing: -1.4, lineHeight: 40,
   },
   welcomeSubtitle: {
     fontSize: 15,
-    color: '#8fb7ad',
+    color: '#648079',
     textAlign: 'left',
     fontFamily: 'Poppins_400Regular',
     lineHeight: 22,
@@ -658,7 +658,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
   inputHint: {
-    color: '#6d9d91', fontFamily: 'Poppins_400Regular', fontSize: 10,
+    color: '#718B84', fontFamily: 'Poppins_400Regular', fontSize: 10,
   },
 
   messageRow: {
@@ -675,9 +675,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     marginRight: 8,
     marginBottom: 2,
-    backgroundColor: '#103b32',
+    backgroundColor: '#DDF4ED',
     borderWidth: 1,
-    borderColor: '#2b8f78',
+    borderColor: '#B7DDD2',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -694,24 +694,24 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   userMsg: {
-    backgroundColor: "#143b32",
+    backgroundColor: "#0F766E",
     borderWidth: 1,
-    borderColor: '#287a67',
+    borderColor: '#0B655E',
     borderBottomRightRadius: 4,
   },
   botMsg: {
-    backgroundColor: "#0d2923",
+    backgroundColor: "#FFFFFF",
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: '#1d594c',
+    borderColor: '#D5E7E2',
   },
   userMsgText: {
-    color: "#bfffee",
+    color: "#FFFFFF",
     fontSize: 15,
     fontFamily: 'Poppins_400Regular',
   },
   botMsgText: {
-    color: "#d0e8e1",
+    color: "#294D45",
     fontSize: 15,
     fontFamily: 'Poppins_400Regular',
   },
@@ -724,7 +724,7 @@ const styles = StyleSheet.create({
   },
   reportBtnText: {
     fontSize: 11,
-    color: '#71938b',
+    color: '#7C928C',
     fontFamily: 'Poppins_400Regular',
   },
 
@@ -734,10 +734,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     margin: 14,
-    backgroundColor: '#081914',
+    backgroundColor: '#FFFFFF',
     borderRadius: 30,
     borderWidth: 1.5,
-    borderColor: '#236052',
+    borderColor: '#BBDDD4',
     shadowColor: '#1bb98e',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -745,19 +745,19 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   inputContainerDisabled: {
-    backgroundColor: '#0b211c',
-    borderColor: '#173e35',
+    backgroundColor: '#F0F5F3',
+    borderColor: '#D5E3DF',
   },
   input: {
     flex: 1,
     paddingHorizontal: 10,
     fontSize: 15,
     fontFamily: 'Poppins_400Regular',
-    color: '#d7fff3',
+    color: '#224B42',
     maxHeight: 100,
   },
   inputDisabled: {
-    color: '#58756d',
+    color: '#91A39E',
   },
   sendBtn: {
     marginLeft: 6,

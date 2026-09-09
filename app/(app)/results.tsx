@@ -221,16 +221,21 @@ export default function ResultsScreen() {
     }, [user])
   );
 
+  const validScans = useMemo(
+    () => scans.filter(scan => !['nofruta', 'no fruta'].includes(norm(scan.fruto ?? ''))),
+    [scans],
+  );
+
   // ── Group by fruit ────────────────────────────────────────────────────
   const scansByFruit = useMemo<Record<string, Scan[]>>(() => {
     const g: Record<string, Scan[]> = {};
-    scans.forEach(s => {
+    validScans.forEach(s => {
       const f = s.fruto ?? 'Aguacate';
       if (!g[f]) g[f] = [];
       g[f].push(s);
     });
     return g;
-  }, [scans]);
+  }, [validScans]);
 
   const allFruits = useMemo(() => Object.keys(scansByFruit).sort(), [scansByFruit]);
 
@@ -243,14 +248,14 @@ export default function ResultsScreen() {
 
   // ── Stats (all scans) ─────────────────────────────────────────────────
   const globalStats = useMemo(() => {
-    const total   = scans.length;
-    const healthy = scans.filter(s => isHealthyLabel(s.label)).length;
+    const total   = validScans.length;
+    const healthy = validScans.filter(s => isHealthyLabel(s.label)).length;
     const pct     = total > 0 ? (healthy / total) * 100 : 0;
     const counts: Record<string, number> = {};
-    scans.forEach(s => { if (!isHealthyLabel(s.label)) counts[s.label] = (counts[s.label] || 0) + 1; });
+    validScans.forEach(s => { if (!isHealthyLabel(s.label)) counts[s.label] = (counts[s.label] || 0) + 1; });
     const most = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Ninguna';
     return { total, pct, most };
-  }, [scans]);
+  }, [validScans]);
 
   const fruitRanking = useMemo(() => allFruits
     .map(fruit => ({ fruit, count: scansByFruit[fruit]?.length ?? 0 }))
@@ -319,7 +324,7 @@ export default function ResultsScreen() {
         onPress={() => setListFruitFilter(null)}
       >
         <Text style={[styles.chipText, !listFruitFilter && { color: '#fff' }]}>
-          Todos ({scans.length})
+          Todos ({validScans.length})
         </Text>
       </TouchableOpacity>
       {allFruits.map(fruit => (
@@ -366,7 +371,7 @@ export default function ResultsScreen() {
   const renderList = () => {
     const toShow = listFruitFilter
       ? (scansByFruit[listFruitFilter] ?? [])
-      : scans;
+      : validScans;
 
     if (toShow.length === 0)
       return (
@@ -616,7 +621,7 @@ export default function ResultsScreen() {
           <Text style={styles.summaryTitle}>Frutos más escaneados</Text>
           <Text style={styles.summarySubtitle}>Distribución de tus análisis registrados</Text>
           {fruitRanking.map(({ fruit, count }, index) => {
-            const percentage = Math.round((count / Math.max(1, scans.length)) * 100);
+            const percentage = Math.round((count / Math.max(1, validScans.length)) * 100);
             return (
               <View key={fruit} style={styles.summaryRow}>
                 <Image source={getFruitImageSource(fruit, true)} style={styles.summaryImage} />
@@ -644,7 +649,7 @@ export default function ResultsScreen() {
     if (isLoading)
       return <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />;
 
-    if (scans.length === 0)
+    if (validScans.length === 0)
       return (
         <View style={styles.emptyBox}>
           <Text style={styles.emptyText}>Aún no tienes escaneos.</Text>
@@ -720,7 +725,7 @@ export default function ResultsScreen() {
         contentContainerStyle={[styles.scrollContent, isTablet && styles.scrollContentTablet]}
       >
         {/* Global stats pill */}
-        {!isLoading && scans.length > 0 && (
+        {!isLoading && validScans.length > 0 && (
           <View style={styles.statsCard}>
             <Text style={styles.statLine}>
               <Text style={styles.statNum}>{globalStats.total}</Text>

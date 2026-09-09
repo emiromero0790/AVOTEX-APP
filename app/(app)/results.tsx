@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator,
-  Image, TouchableOpacity, useWindowDimensions,
+  Image, TouchableOpacity, useWindowDimensions, Platform,
 } from 'react-native';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { auth } from '../../firebaseConfig';
@@ -234,6 +234,11 @@ export default function ResultsScreen() {
   }, [selectedFruitScans, labelCounts, colors.sano]);
 
   const chartWidth = isTablet ? Math.min(screenWidth - 96, 680) : screenWidth - 52;
+  const maxLabelCount = Math.max(1, ...Object.values(labelCounts));
+  const maxDailyCount = Math.max(
+    1,
+    ...lineData.datasets.flatMap(dataset => dataset.data),
+  );
 
   if (!fontsLoaded) return <ActivityIndicator size="large" color="#0F766E" style={{ flex: 1 }} />;
 
@@ -366,7 +371,33 @@ export default function ResultsScreen() {
               </Text>
             </View>
           </View>
-          {pieData.length > 0 && (
+          {pieData.length > 0 && Platform.OS === 'web' && (
+            <View style={styles.webDistribution}>
+              {pieData.map(item => {
+                const percentage = Math.round((item.population / fruitScans.length) * 100);
+                return (
+                  <View key={item.name} style={styles.webDistributionRow}>
+                    <View style={[styles.webLegendDot, { backgroundColor: item.color }]} />
+                    <View style={styles.webDistributionInfo}>
+                      <View style={styles.webDistributionLabels}>
+                        <Text style={styles.webChartLabel}>{item.name}</Text>
+                        <Text style={styles.webChartValue}>{item.population} · {percentage}%</Text>
+                      </View>
+                      <View style={styles.webTrack}>
+                        <View
+                          style={[
+                            styles.webTrackFill,
+                            { width: `${percentage}%`, backgroundColor: item.color },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+          {pieData.length > 0 && Platform.OS !== 'web' && (
             <PieChart
               data={pieData}
               width={chartWidth}
@@ -385,17 +416,41 @@ export default function ResultsScreen() {
           <Text style={styles.chartCardTitle}>
             {getFruitEmoji(chartFruit)} {chartFruit} — Conteo por diagnóstico
           </Text>
-          <BarChart
-            data={barData}
-            width={chartWidth}
-            height={210}
-            yAxisLabel=""
-            yAxisSuffix=""
-            chartConfig={barChartConfig}
-            style={{ borderRadius: 12, marginTop: 10 }}
-            fromZero
-            showValuesOnTopOfBars
-          />
+          {Platform.OS === 'web' ? (
+            <View style={styles.webBars}>
+              {Object.entries(labelCounts).map(([label, count], index) => (
+                <View key={label} style={styles.webBarRow}>
+                  <Text style={styles.webBarLabel} numberOfLines={1}>{label}</Text>
+                  <View style={styles.webBarTrack}>
+                    <View
+                      style={[
+                        styles.webBarFill,
+                        {
+                          width: `${Math.max(6, (count / maxLabelCount) * 100)}%`,
+                          backgroundColor: isHealthyLabel(label)
+                            ? colors.sano
+                            : CHART_COLORS[index % CHART_COLORS.length],
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.webBarValue}>{count}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <BarChart
+              data={barData}
+              width={chartWidth}
+              height={210}
+              yAxisLabel=""
+              yAxisSuffix=""
+              chartConfig={barChartConfig}
+              style={{ borderRadius: 12, marginTop: 10 }}
+              fromZero
+              showValuesOnTopOfBars
+            />
+          )}
         </View>
 
         {/* ── Line chart (only when there are multiple days) ───── */}
@@ -404,14 +459,43 @@ export default function ResultsScreen() {
             <Text style={styles.chartCardTitle}>
               {getFruitEmoji(chartFruit)} {chartFruit} — Tendencia temporal
             </Text>
-            <LineChart
-              data={lineData}
-              width={chartWidth}
-              height={210}
-              chartConfig={chartConfigBase}
-              bezier
-              style={{ borderRadius: 12, marginTop: 10 }}
-            />
+            {Platform.OS === 'web' ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.webTimeline}>
+                  {lineData.labels.map((day, dayIndex) => (
+                    <View key={`${day}-${dayIndex}`} style={styles.webTimelineDay}>
+                      <View style={styles.webTimelinePlot}>
+                        {lineData.datasets.map((dataset, datasetIndex) => {
+                          const value = dataset.data[dayIndex] ?? 0;
+                          return (
+                            <View
+                              key={`${day}-${lineData.legend[datasetIndex]}`}
+                              style={[
+                                styles.webTimelineColumn,
+                                {
+                                  height: Math.max(5, (value / maxDailyCount) * 112),
+                                  backgroundColor: dataset.color(1),
+                                },
+                              ]}
+                            />
+                          );
+                        })}
+                      </View>
+                      <Text style={styles.webTimelineLabel}>{day}</Text>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            ) : (
+              <LineChart
+                data={lineData}
+                width={chartWidth}
+                height={210}
+                chartConfig={chartConfigBase}
+                bezier
+                style={{ borderRadius: 12, marginTop: 10 }}
+              />
+            )}
           </View>
         )}
       </View>
@@ -585,6 +669,26 @@ const styles = StyleSheet.create({
   chartThumb:     { width: 48, height: 48, borderRadius: 12, resizeMode: 'cover' },
   chartCardTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#1a1a1a' },
   chartCardSub:   { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#666', marginTop: 2 },
+  webDistribution: { gap: 14, marginTop: 4 },
+  webDistributionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  webLegendDot: { width: 10, height: 10, borderRadius: 5, marginTop: 5 },
+  webDistributionInfo: { flex: 1, gap: 6 },
+  webDistributionLabels: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  webChartLabel: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#284542' },
+  webChartValue: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#163F3D' },
+  webTrack: { height: 8, borderRadius: 4, backgroundColor: '#E7EFED', overflow: 'hidden' },
+  webTrackFill: { height: '100%', borderRadius: 4 },
+  webBars: { gap: 13, marginTop: 18 },
+  webBarRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  webBarLabel: { width: 112, fontFamily: 'Poppins_400Regular', fontSize: 11, color: '#516A67' },
+  webBarTrack: { flex: 1, height: 18, borderRadius: 9, backgroundColor: '#E7EFED', overflow: 'hidden' },
+  webBarFill: { height: '100%', borderRadius: 9 },
+  webBarValue: { width: 24, textAlign: 'right', fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#163F3D' },
+  webTimeline: { minWidth: '100%', height: 155, flexDirection: 'row', alignItems: 'flex-end', gap: 18, paddingTop: 12 },
+  webTimelineDay: { minWidth: 58, alignItems: 'center', gap: 8 },
+  webTimelinePlot: { height: 112, flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
+  webTimelineColumn: { width: 9, minHeight: 5, borderRadius: 5 },
+  webTimelineLabel: { fontFamily: 'Poppins_400Regular', fontSize: 10, color: '#66807D' },
 
   emptyBox: {
     backgroundColor: '#fff', borderRadius: 20, padding: 30,

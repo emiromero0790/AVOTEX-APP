@@ -1,4 +1,4 @@
-package com.emilianoromerog.boltexponativewind
+package com.vex.avotex
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

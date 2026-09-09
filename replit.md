@@ -11,7 +11,7 @@ Required env vars:
 > `EXPO_PUBLIC_PREDICT_URL` was removed — the AI model URL is now stored in Supabase table `ia` (row id: `7293688b-1ee9-469c-9679-d69d9a1089a5`, column: `url`).
 
 ## Stack
-- **Framework**: Expo 54 / React Native 0.81.4 + expo-router (file-based)
+- **Framework**: Expo 57 / React Native 0.86.3 + expo-router (file-based)
 - **Styling**: NativeWind 4 + React Native StyleSheet + `useWindowDimensions` for iPad breakpoints (≥768px)
 - **Auth**: Firebase Auth (AsyncStorage persistence on native)
 - **Database**: Supabase (scan history, user tokens, AI URL)
@@ -50,7 +50,7 @@ Supabase tables:
 - **AI URL from Supabase**: `scan.tsx` fetches the model URL from Supabase `ia` table on mount, allowing URL changes without app updates.
 - **iPad responsiveness**: `useWindowDimensions()` hook everywhere; `isTablet = width >= 768`; content centered with `maxWidth` constraints; larger fonts/buttons via `*Tablet` style keys.
 - **react-native-maps**: only in native builds; `.native.tsx` components wrap in try-catch and show fallback in Expo Go.
-- **react / react-dom** pinned to `19.1.4` exact to match `react-native-renderer@19.1.4`.
+- **react / react-dom** pinned to `19.2.3` exact to match the Expo 57 React Native renderer.
 - **GuestProvider** wraps the entire app (outside AccessibilityProvider) so all screens can read guest state.
 
 ## Product

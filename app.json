@@ -7,12 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/images/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ecfdf5"
-    },
-    "newArchEnabled": true,
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -39,7 +33,7 @@
         "expo-build-properties",
         {
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "16.4"
           },
           "android": {
             "newArchEnabled": true
@@ -59,7 +53,19 @@
         {
           "cameraPermission": "Necesitamos acceso a la cámara para escanear y analizar tus cultivos con Inteligencia Artificial."
         }
-      ]
+      ],
+      "expo-asset",
+      "expo-font",
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#ecfdf5"
+        }
+      ],
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true

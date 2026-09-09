@@ -39,7 +39,7 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) {
+  if (Platform.OS !== 'web' && !fontsLoaded && !fontError) {
     return (
       <View style={[styles.splashContainer, { backgroundColor: '#FFFFFF' }]}>
         <Image

@@ -6,13 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Switch,
   Image,
   Animated,
   Easing,
   useWindowDimensions,
 } from 'react-native';
-import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, AlertTriangle, LogOut, MapPin, MapPinOff, Lock, Coins } from 'lucide-react-native';
+import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
@@ -26,6 +25,7 @@ import { signOut } from 'firebase/auth';
 import { supabase } from '../../supabaseConfig';
 import Reanimated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useGuest, GUEST_MAX_SCANS } from '../../context/GuestContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const OPENWEATHER_API_KEY = process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY!;
 
@@ -220,7 +220,7 @@ export default function Home() {
   const [loadingUser, setLoadingUser] = useState(true);
   const [scans, setScans]             = useState<Scan[]>([]);
   const [healthPct, setHealthPct]     = useState<number | null>(null);
-  const [locationEnabled, setLocationEnabled] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(true);
 
   const requestAndSetLocation = async () => {
     try {
@@ -246,19 +246,27 @@ export default function Home() {
     }
   };
 
-  const handleLocationToggle = async (value: boolean) => {
-    setLocationEnabled(value);
-    if (value) {
-      await requestAndSetLocation();
-    } else {
-      setLocation(null);
-      setMunicipio('');
-      setTemperature(null);
-      setHumidity(null);
-      setWindSpeed(null);
-      setErrorMsg(null);
-    }
-  };
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      AsyncStorage.getItem('avotex_share_location').then((savedValue) => {
+        if (!active) return;
+        const enabled = savedValue !== 'false';
+        setLocationEnabled(enabled);
+        if (enabled) {
+          requestAndSetLocation();
+        } else {
+          setLocation(null);
+          setMunicipio('');
+          setTemperature(null);
+          setHumidity(null);
+          setWindSpeed(null);
+          setErrorMsg(null);
+        }
+      });
+      return () => { active = false; };
+    }, [])
+  );
 
   useEffect(() => {
     if (!location) return;
@@ -507,31 +515,6 @@ export default function Home() {
               </LinearGradient>
             </Reanimated.View>
 
-            <Reanimated.View entering={FadeInDown.delay(260).duration(700)}>
-              <View style={[s.locationToggleCard, isTablet && s.locationToggleCardTablet]}>
-                <View style={s.locationToggleLeft}>
-                  {locationEnabled
-                    ? <MapPin size={isTablet ? 22 : 18} color="#0f766e" />
-                    : <MapPinOff size={isTablet ? 22 : 18} color="#94a3b8" />
-                  }
-                  <View style={{ marginLeft: 10 }}>
-                    <Text style={[s.locationToggleTitle, { color: locationEnabled ? '#0f766e' : '#64748b' }, isTablet && s.locationToggleTitleTablet]}>
-                      {locationEnabled && municipio.length > 0 ? municipio : 'Ubicación'}
-                    </Text>
-                    <Text style={[s.locationToggleSub, isTablet && s.locationToggleSubTablet]}>
-                      {locationEnabled ? 'Activa — solo mientras usas la app' : 'Desactivada'}
-                    </Text>
-                  </View>
-                </View>
-                <Switch
-                  value={locationEnabled}
-                  onValueChange={handleLocationToggle}
-                  trackColor={{ false: '#e2e8f0', true: '#a7f3d0' }}
-                  thumbColor={locationEnabled ? '#0f766e' : '#94a3b8'}
-                />
-              </View>
-            </Reanimated.View>
-
           </View>
 
           <Reanimated.View entering={FadeInUp.delay(500).duration(700)} style={{ marginTop: -5, marginBottom: 12 }}>
@@ -578,7 +561,7 @@ export default function Home() {
                 </LinearGradient>
               </TouchableOpacity>
 
-              {/* Resultados — locked for guest */}
+              {/* Actividad — locked for guest */}
               <TouchableOpacity
                 style={[s.secCard, { marginBottom: isTablet ? 16 : 12 }]}
                 onPress={() => isGuest ? null : router.push('/results')}
@@ -588,21 +571,7 @@ export default function Home() {
                   <View style={[s.secIcon, isTablet && s.secIconTablet]}>
                      {isGuest ? <Lock color="#94a3b8" size={isTablet ? 24 : 20} /> : <LineChart color="#2F7D55" size={isTablet ? 24 : 20} />}
                   </View>
-                  <Text style={[s.secTitle, isTablet && s.secTitleTablet, isGuest && s.secTitleLocked]}>Resultados</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-
-              {/* Medidas — locked for guest */}
-              <TouchableOpacity
-                style={s.secCard}
-                onPress={() => isGuest ? null : router.push('/agenda')}
-                disabled={isGuest}
-              >
-                <LinearGradient colors={['#FFFFFF', '#F7FAF8']} style={[s.secGrad, s.outlinedAction]}>
-                  <View style={[s.secIcon, isTablet && s.secIconTablet]}>
-                     {isGuest ? <Lock color="#94a3b8" size={isTablet ? 24 : 20} /> : <AlertTriangle color="#2F7D55" size={isTablet ? 24 : 20} />}
-                  </View>
-                  <Text style={[s.secTitle, isTablet && s.secTitleTablet, isGuest && s.secTitleLocked]}>Medidas</Text>
+                  <Text style={[s.secTitle, isTablet && s.secTitleTablet, isGuest && s.secTitleLocked]}>Actividad</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -855,47 +824,6 @@ const s = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
   },
-
-  locationToggleCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    borderRadius: 18,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 10,
-    shadowColor: '#0f766e',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: 'rgba(20,184,166,0.12)',
-  },
-  locationToggleCardTablet: {
-    paddingVertical: 16,
-    paddingHorizontal: 22,
-    borderRadius: 22,
-    marginBottom: 14,
-  },
-  locationToggleLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  locationToggleTitle: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 14,
-  },
-  locationToggleTitleTablet: { fontSize: 17 },
-  locationToggleSub: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 11,
-    color: '#94a3b8',
-    marginTop: 1,
-  },
-  locationToggleSubTablet: { fontSize: 13 },
 
   locRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

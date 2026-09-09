@@ -13,10 +13,8 @@ import {
   Camera,
   Map,
   BarChart3,
-  AlertTriangle,
+  Settings,
   MessageCircle,
-  Shield,
-  User,
   Lock,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -162,7 +160,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="results"
           options={{
-            title: 'Resultados',
+            title: 'Actividad',
             tabBarIcon: ({ color, focused }) => isGuest ? (
               <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
                 <Lock size={isTablet ? 26 : 22} color="#cbd5e1" />
@@ -181,22 +179,17 @@ export default function TabLayout() {
         />
         <Tabs.Screen
           name="agenda"
+          options={{ href: null }}
+        />
+        <Tabs.Screen
+          name="settings"
           options={{
-            title: 'Medidas',
-            tabBarIcon: ({ color, focused }) => isGuest ? (
+            title: 'Ajustes',
+            tabBarIcon: ({ color, focused }) => (
               <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                <Lock size={isTablet ? 26 : 22} color="#cbd5e1" />
-              </View>
-            ) : (
-              <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                <AlertTriangle size={isTablet ? 26 : 22} color={focused ? '#0f766e' : color} />
+                <Settings size={isTablet ? 26 : 22} color={focused ? '#111827' : color} />
               </View>
             ),
-            tabBarButton: isGuest ? (props) => (
-              <TouchableOpacity style={props.style} onPress={handleLockedPress} activeOpacity={0.7}>
-                {props.children}
-              </TouchableOpacity>
-            ) : undefined,
           }}
         />
         <Tabs.Screen name="chatbot" options={{ href: null }} />
@@ -205,63 +198,22 @@ export default function TabLayout() {
         <Tabs.Screen name="plans" options={{ href: null }} />
       </Tabs>
 
-      {!shouldHideTabs && (
-        <>
-          <View style={[
-            styles.bottomBar,
-            { bottom: isTablet ? tabBottom + tabHeight + 8 : 100 },
-            isTablet && styles.bottomBarTablet,
-          ]}>
-            <TouchableOpacity
-              style={styles.privacyBtn}
-              onPress={() => router.push('/(app)/privacy')}
-              activeOpacity={0.75}
-            >
-              <Shield size={isTablet ? 15 : 13} color="#0f766e" />
-              <Text style={[styles.privacyBtnText, isTablet && styles.barTextTablet]}>Aviso de Privacidad</Text>
-            </TouchableOpacity>
-
-            <View style={styles.barDivider} />
-
-            {isGuest ? (
-              <TouchableOpacity
-                style={styles.profileBtn}
-                onPress={() => router.replace('/(auth)')}
-                activeOpacity={0.75}
-              >
-                <Lock size={isTablet ? 15 : 13} color="#0f766e" />
-                <Text style={[styles.profileBtnText, isTablet && styles.barTextTablet]}>Iniciar sesión</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.profileBtn}
-                onPress={() => router.push('/(app)/profile')}
-                activeOpacity={0.75}
-              >
-                <User size={isTablet ? 15 : 13} color="#0f766e" />
-                <Text style={[styles.profileBtnText, isTablet && styles.barTextTablet]}>Mi Perfil</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {!isGuest && (
-            <TouchableOpacity
-              style={[
-                styles.fab,
-                { bottom: isTablet ? tabBottom + tabHeight + 68 : 170 },
-                isTablet && styles.fabTablet,
-              ]}
-              onPress={() => router.push('/(app)/chatbot')}
-            >
-              <LinearGradient
-                colors={['#34d399', '#14b8a6']}
-                style={[styles.fabGradient, isTablet && styles.fabGradientTablet]}
-              >
-                <MessageCircle size={isTablet ? 30 : 26} color="#ffffff" />
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
-        </>
+      {!shouldHideTabs && !isGuest && (
+        <TouchableOpacity
+          style={[
+            styles.fab,
+            { bottom: tabBottom + tabHeight + (isTablet ? 20 : 14) },
+            isTablet && styles.fabTablet,
+          ]}
+          onPress={() => router.push('/(app)/chatbot')}
+        >
+          <LinearGradient
+            colors={['#34d399', '#14b8a6']}
+            style={[styles.fabGradient, isTablet && styles.fabGradientTablet]}
+          >
+            <MessageCircle size={isTablet ? 30 : 26} color="#ffffff" />
+          </LinearGradient>
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -355,67 +307,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   guestBannerTextTablet: {
-    fontSize: 14,
-  },
-
-  bottomBar: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(240,253,250,0.95)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(20,184,166,0.18)',
-    shadowColor: '#0f766e',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 6,
-    elevation: 3,
-    overflow: 'hidden',
-    marginBottom: 2,
-  },
-  bottomBarTablet: {
-    left: 40,
-    right: 40,
-    borderRadius: 20,
-  },
-  privacyBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 9,
-    paddingHorizontal: 10,
-  },
-  privacyBtnText: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 12,
-    color: '#0f766e',
-  },
-  barDivider: {
-    width: 1,
-    height: 20,
-    backgroundColor: 'rgba(20,184,166,0.25)',
-  },
-  profileBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 9,
-    paddingHorizontal: 10,
-    backgroundColor: 'rgba(240,253,250,0.85)',
-  },
-  profileBtnText: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 12,
-    color: '#0f766e',
-  },
-  barTextTablet: {
     fontSize: 14,
   },
 

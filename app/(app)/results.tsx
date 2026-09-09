@@ -7,9 +7,9 @@ import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-
 import { auth } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { supabase } from '../../supabaseConfig';
-import { PieChart as PieChartIcon, List } from 'lucide-react-native';
+import { PieChart as PieChartIcon, List, CalendarDays } from 'lucide-react-native';
 import { useAccessibility } from '../../context/AccessibilityContext';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 const avotexSanoImage    = require('../../assets/images/avotexSano.png');
 const avotexEnfermoImage = require('../../assets/images/avotexEnfermo.png');
@@ -512,7 +512,7 @@ export default function ResultsScreen() {
       {/* Header */}
       <View style={[styles.header, isTablet && styles.headerTablet]}>
         <Text style={[styles.title, { color: colors.primary }, isTablet && styles.titleTablet]}>
-          Resultados
+          Actividad
         </Text>
         <Text style={[styles.subtitle, isTablet && styles.subtitleTablet]}>
           Historial de análisis
@@ -532,6 +532,13 @@ export default function ResultsScreen() {
           >
             <List size={isTablet ? 24 : 20} color={activeView === 'list' ? '#fff' : colors.primary} />
             <Text style={[styles.toggleLabel, activeView === 'list' && { color: '#fff' }]}>Lista</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.toggleBtn}
+            onPress={() => router.push('/(app)/agenda')}
+          >
+            <CalendarDays size={isTablet ? 24 : 20} color={colors.primary} />
+            <Text style={styles.toggleLabel}>Agenda</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -572,8 +579,8 @@ const styles = StyleSheet.create({
   subtitleTablet:{ fontSize: 19 },
 
   toggleRow:   { flexDirection: 'row', borderRadius: 16, marginTop: 14, padding: 4, gap: 4, alignSelf: 'stretch' },
-  toggleBtn:   { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 18, borderRadius: 24 },
-  toggleLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#2e7d32' },
+  toggleBtn:   { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 5, borderRadius: 24 },
+  toggleLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#2e7d32' },
 
   scrollView:         { flex: 1 },
   scrollContent:      { paddingHorizontal: 24, paddingBottom: 120 },

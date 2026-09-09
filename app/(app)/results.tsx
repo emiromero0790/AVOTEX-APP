@@ -305,21 +305,29 @@ export default function ResultsScreen() {
         <View key={`${scan.id ?? 'scan'}-${scan.created_at}-${scan.user_id}-${index}`} style={styles.scanCard}>
           <Image source={imgSrc} style={styles.scanImage} />
           <View style={styles.scanInfo}>
-            <View style={styles.fruitBadge}>
-              <Text style={styles.fruitBadgeText}>
-                {getFruitEmoji(fruto)} {fruto}
-              </Text>
-            </View>
-            <Text style={[
-              styles.scanLabel,
-              { backgroundColor: healthy ? colors.sano : colors.enfermo },
-            ]}>
+            <Text style={styles.fruitName}>{fruto}</Text>
+            <Text style={[styles.scanLabel, { color: healthy ? colors.sano : colors.enfermo }]} numberOfLines={1}>
               {scan.label}
             </Text>
-            <Text style={styles.scanScore}>
-              Confianza: {(scan.score * 100).toFixed(1)}%
-            </Text>
             <Text style={styles.scanDate}>{formatScanDate(scan.created_at)}</Text>
+          </View>
+          <View style={styles.scanSparkline}>
+            {[0.62, 0.8, 0.7, 0.92, 0.76, 1].map((factor, barIndex) => (
+              <View
+                key={barIndex}
+                style={[
+                  styles.scanSparkBar,
+                  {
+                    height: Math.max(5, Math.min(28, scan.score * factor * 28)),
+                    backgroundColor: healthy ? '#8B5CF6' : '#E66A7A',
+                  },
+                ]}
+              />
+            ))}
+          </View>
+          <View style={styles.scanScoreColumn}>
+            <Text style={styles.scanScoreValue}>{(scan.score * 100).toFixed(1)}%</Text>
+            <Text style={[styles.scanScoreCaption, { color: healthy ? colors.sano : colors.enfermo }]}>score</Text>
           </View>
         </View>
       );
@@ -329,6 +337,10 @@ export default function ResultsScreen() {
   const renderCharts = () => {
     if (!chartFruit) return null;
     const fruitScans = scansByFruit[chartFruit] ?? [];
+    const confidenceSeries = [...fruitScans].slice(0, 12).reverse();
+    const averageConfidence = fruitScans.length
+      ? fruitScans.reduce((sum, scan) => sum + scan.score, 0) / fruitScans.length
+      : 0;
 
     if (fruitScans.length === 0)
       return (
@@ -339,6 +351,82 @@ export default function ResultsScreen() {
 
     return (
       <View>
+        {/* ── Dark confidence chart ─────────────────────────────── */}
+        <View style={styles.darkChartCard}>
+          <View style={styles.darkChartHeader}>
+            <View>
+              <Text style={styles.darkChartEyebrow}>CONFIANZA</Text>
+              <Text style={styles.darkChartTitle}>{chartFruit} · evolución</Text>
+            </View>
+            <View style={styles.darkChartValuePill}>
+              <Text style={styles.darkChartValue}>{(averageConfidence * 100).toFixed(1)}%</Text>
+            </View>
+          </View>
+          <View style={styles.darkChartControls}>
+            <View style={styles.darkChartControlActive}><Text style={styles.darkChartControlActiveText}>Historial</Text></View>
+            <Text style={styles.darkChartControlText}>{confidenceSeries.length} análisis</Text>
+          </View>
+          <View style={styles.marketChart}>
+            {[0, 1, 2, 3].map(line => <View key={line} style={[styles.marketGridLine, { top: `${line * 30 + 7}%` }]} />)}
+            <View style={styles.marketColumns}>
+              {confidenceSeries.map((scan, index) => {
+                const value = Math.max(0.08, Math.min(1, scan.score));
+                const barHeight = 22 + value * 82;
+                const healthy = isHealthyLabel(scan.label);
+                return (
+                  <View key={`${scan.id}-${index}`} style={styles.marketColumn}>
+                    <View style={[styles.marketWick, { height: barHeight + 18 }]} />
+                    <View
+                      style={[
+                        styles.marketCandle,
+                        {
+                          height: barHeight,
+                          backgroundColor: healthy ? '#C8FF28' : '#8B36F4',
+                        },
+                      ]}
+                    />
+                  </View>
+                );
+              })}
+            </View>
+            <View style={styles.marketAverageLine} />
+            <View style={styles.marketAverageLabel}>
+              <Text style={styles.marketAverageText}>{(averageConfidence * 100).toFixed(0)}</Text>
+            </View>
+          </View>
+          <View style={styles.darkChartLegend}>
+            <View style={styles.darkLegendItem}><View style={[styles.darkLegendDot, { backgroundColor: '#C8FF28' }]} /><Text style={styles.darkLegendText}>Saludable</Text></View>
+            <View style={styles.darkLegendItem}><View style={[styles.darkLegendDot, { backgroundColor: '#8B36F4' }]} /><Text style={styles.darkLegendText}>Con hallazgos</Text></View>
+          </View>
+        </View>
+
+        {/* ── Dark diagnosis chart ──────────────────────────────── */}
+        <View style={styles.darkChartCard}>
+          <View style={styles.darkChartHeader}>
+            <View>
+              <Text style={styles.darkChartEyebrow}>DIAGNÓSTICOS</Text>
+              <Text style={styles.darkChartTitle}>Distribución actual</Text>
+            </View>
+            <Text style={styles.darkChartTotal}>{fruitScans.length}</Text>
+          </View>
+          <View style={styles.darkDiagnosisBars}>
+            {Object.entries(labelCounts).map(([label, count], index) => (
+              <View key={label} style={styles.darkDiagnosisRow}>
+                <View style={styles.darkDiagnosisLabels}>
+                  <Text style={styles.darkDiagnosisLabel} numberOfLines={1}>{label}</Text>
+                  <Text style={styles.darkDiagnosisValue}>{count}</Text>
+                </View>
+                <View style={styles.darkDiagnosisTrack}>
+                  <View style={[styles.darkDiagnosisFill, {
+                    width: `${Math.max(8, (count / maxLabelCount) * 100)}%`,
+                    backgroundColor: isHealthyLabel(label) ? '#C8FF28' : CHART_COLORS[index % CHART_COLORS.length],
+                  }]} />
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
         {/* ── Pie chart ─────────────────────────────────────────── */}
         <View style={styles.chartCard}>
           <View style={styles.chartCardHeader}>
@@ -614,27 +702,96 @@ const styles = StyleSheet.create({
   },
 
   scanCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 20, marginBottom: 14,
+    minHeight: 82, backgroundColor: '#FFFFFF', borderRadius: 18, marginBottom: 10,
+    paddingHorizontal: 10, paddingVertical: 9,
     shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.08, shadowRadius: 10, elevation: 4,
-    flexDirection: 'row', overflow: 'hidden',
+    flexDirection: 'row', alignItems: 'center',
   },
-  scanImage: { width: 100, height: 110, resizeMode: 'cover' },
-  scanInfo:  { flex: 1, padding: 12, justifyContent: 'center' },
-  fruitBadge: {
-    backgroundColor: '#EAF5F2', borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 3,
-    alignSelf: 'flex-start', marginBottom: 6,
-    borderWidth: 1, borderColor: '#C5DFDA',
+  scanImage: { width: 52, height: 52, borderRadius: 14, resizeMode: 'cover', marginRight: 10 },
+  scanInfo:  { flex: 1, minWidth: 0, justifyContent: 'center' },
+  fruitName: {
+    fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#17151C',
   },
-  fruitBadgeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#0F766E' },
   scanLabel: {
-    fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#fff',
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
-    alignSelf: 'flex-start', overflow: 'hidden', marginBottom: 6,
+    fontFamily: 'Poppins_400Regular', fontSize: 10.5, marginTop: 1,
   },
-  scanScore: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#2a2a2a' },
-  scanDate:  { fontFamily: 'Poppins_400Regular', fontSize: 11, color: '#999', marginTop: 4 },
+  scanDate:  { fontFamily: 'Poppins_400Regular', fontSize: 8.5, color: '#A19DA6', marginTop: 2 },
+  scanSparkline: {
+    width: 55, height: 30, marginHorizontal: 8,
+    flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 2,
+  },
+  scanSparkBar: { width: 3, minHeight: 5, borderRadius: 2 },
+  scanScoreColumn: { width: 57, alignItems: 'flex-end', justifyContent: 'center' },
+  scanScoreValue: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#17151C' },
+  scanScoreCaption: { fontFamily: 'Poppins_600SemiBold', fontSize: 9, marginTop: 1 },
+
+  darkChartCard: {
+    backgroundColor: '#101016', borderRadius: 20, padding: 16, marginBottom: 16,
+    borderWidth: 1, borderColor: '#24232E',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2, shadowRadius: 14, elevation: 7,
+  },
+  darkChartHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+  },
+  darkChartEyebrow: {
+    fontFamily: 'Poppins_600SemiBold', fontSize: 9, letterSpacing: 1.2, color: '#858391',
+  },
+  darkChartTitle: {
+    fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#FFFFFF', marginTop: 2,
+  },
+  darkChartValuePill: {
+    backgroundColor: '#C8FF28', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5,
+  },
+  darkChartValue: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#14180A' },
+  darkChartControls: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 13, marginBottom: 5,
+  },
+  darkChartControlActive: {
+    borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: '#272630',
+  },
+  darkChartControlActiveText: { fontFamily: 'Poppins_600SemiBold', fontSize: 9, color: '#FFFFFF' },
+  darkChartControlText: { fontFamily: 'Poppins_400Regular', fontSize: 9, color: '#777581' },
+  marketChart: {
+    height: 170, position: 'relative', overflow: 'hidden',
+    borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#282631',
+  },
+  marketGridLine: {
+    position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: '#292732',
+  },
+  marketColumns: {
+    ...StyleSheet.absoluteFill, flexDirection: 'row', alignItems: 'flex-end',
+    justifyContent: 'space-around', paddingHorizontal: 8, paddingBottom: 13, paddingTop: 10,
+  },
+  marketColumn: {
+    flex: 1, height: '100%', alignItems: 'center', justifyContent: 'flex-end', position: 'relative',
+  },
+  marketWick: {
+    position: 'absolute', bottom: 5, width: 1, maxHeight: 135, backgroundColor: '#777581',
+  },
+  marketCandle: { width: 10, minHeight: 12, borderRadius: 1 },
+  marketAverageLine: {
+    position: 'absolute', left: 0, right: 0, top: '34%', height: 1,
+    borderStyle: 'dashed', borderWidth: 1, borderColor: '#BBB9C4',
+  },
+  marketAverageLabel: {
+    position: 'absolute', right: 0, top: '28%', paddingHorizontal: 6, paddingVertical: 3,
+    borderRadius: 5, backgroundColor: '#C8FF28',
+  },
+  marketAverageText: { fontFamily: 'Poppins_600SemiBold', fontSize: 8, color: '#11140A' },
+  darkChartLegend: { flexDirection: 'row', gap: 16, marginTop: 11 },
+  darkLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  darkLegendDot: { width: 7, height: 7, borderRadius: 4 },
+  darkLegendText: { fontFamily: 'Poppins_400Regular', fontSize: 9, color: '#A8A6B0' },
+  darkChartTotal: { fontFamily: 'Poppins_600SemiBold', fontSize: 25, color: '#C8FF28' },
+  darkDiagnosisBars: { gap: 14, marginTop: 18 },
+  darkDiagnosisRow: { gap: 6 },
+  darkDiagnosisLabels: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  darkDiagnosisLabel: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 11, color: '#D5D3DC' },
+  darkDiagnosisValue: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#FFFFFF' },
+  darkDiagnosisTrack: { height: 9, borderRadius: 5, backgroundColor: '#292832', overflow: 'hidden' },
+  darkDiagnosisFill: { height: '100%', borderRadius: 5 },
 
   chartCard: {
     backgroundColor: '#fff', borderRadius: 20, padding: 16, marginBottom: 18,

@@ -958,6 +958,7 @@ const s = StyleSheet.create({
 
   quickActionsPanel: {
     marginHorizontal: 18,
+    marginTop: -16,
     marginBottom: 18,
     padding: 14,
     borderRadius: 28,
@@ -972,6 +973,7 @@ const s = StyleSheet.create({
   },
   quickActionsPanelTablet: {
     marginHorizontal: 28,
+    marginTop: -20,
     padding: 22,
     borderRadius: 34,
   },

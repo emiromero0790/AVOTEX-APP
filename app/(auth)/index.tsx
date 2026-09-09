@@ -410,7 +410,7 @@ const s = StyleSheet.create({
   photoBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: '#18352B' },
   photoBackdropDim: { backgroundColor: '#061A1A' },
   backdropImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-  brandLogo: { width: 290, height: 104, alignSelf: 'flex-start', tintColor: '#FFFFFF', opacity: 0.98, marginBottom: 2 },
+  brandLogo: { width: 290, height: 104, alignSelf: 'center', tintColor: '#FFFFFF', opacity: 0.98, marginBottom: 2 },
   brandLogoTablet: { width: 380, height: 136 },
   coverContent: {
     flex: 1, justifyContent: 'flex-end', paddingHorizontal: 24, paddingBottom: 42,

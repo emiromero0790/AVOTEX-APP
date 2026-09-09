@@ -157,7 +157,7 @@ export default function ProfileScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <ChevronLeft size={24} color="#0f766e" />
+          <ChevronLeft size={24} color="#007AFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Mi Perfil</Text>
         <View style={{ width: 40 }} />
@@ -171,18 +171,18 @@ export default function ProfileScreen() {
       >
         {/* Avatar + email card */}
         <View style={styles.avatarCard}>
-          <LinearGradient colors={['#34d399', '#14b8a6']} style={styles.avatarCircle}>
+          <LinearGradient colors={['#8E8E93', '#636366']} style={styles.avatarCircle}>
             <User size={36} color="#fff" />
           </LinearGradient>
           <View style={styles.emailRow}>
-            <Mail size={15} color="#0f766e" />
+            <Mail size={15} color="#8E8E93" />
             <Text style={styles.emailText} numberOfLines={1}>{userEmail}</Text>
           </View>
         </View>
 
         {/* ── Tokens card ── */}
         <View style={styles.tokenCard}>
-          <LinearGradient colors={['#fef3c7', '#fde68a']} style={styles.tokenCardGrad}>
+          <LinearGradient colors={['#FFFFFF', '#FFFFFF']} style={styles.tokenCardGrad}>
             <View style={styles.tokenCardLeft}>
               <Coins size={36} color="#d97706" />
             </View>
@@ -204,10 +204,10 @@ export default function ProfileScreen() {
           activeOpacity={0.82}
         >
           {signOutLoading ? (
-            <ActivityIndicator color="#0f766e" size="small" />
+            <ActivityIndicator color="#FF3B30" size="small" />
           ) : (
             <>
-              <LogOut size={16} color="#0f766e" />
+              <LogOut size={16} color="#FF3B30" />
               <Text style={styles.signOutBtnText}>Cerrar sesión</Text>
             </>
           )}
@@ -217,7 +217,7 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionIconCircle}>
-              <KeyRound size={18} color="#0f766e" />
+              <KeyRound size={18} color="#FFFFFF" />
             </View>
             <Text style={styles.sectionTitle}>Cambiar contraseña</Text>
           </View>
@@ -243,7 +243,7 @@ export default function ProfileScreen() {
               ) : null}
 
               <View style={styles.inputRow}>
-                <Lock size={18} color="#3aaa5c" style={styles.inputIcon} />
+                <Lock size={18} color="#8E8E93" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Contraseña actual"
@@ -254,12 +254,12 @@ export default function ProfileScreen() {
                   editable={!pwLoading}
                 />
                 <TouchableOpacity onPress={() => setShowOldPw(!showOldPw)} style={styles.eyeBtn}>
-                  {showOldPw ? <Eye size={18} color="#7aad4c" /> : <EyeOff size={18} color="#7aad4c" />}
+                  {showOldPw ? <Eye size={18} color="#8E8E93" /> : <EyeOff size={18} color="#8E8E93" />}
                 </TouchableOpacity>
               </View>
 
               <View style={styles.inputRow}>
-                <Lock size={18} color="#3aaa5c" style={styles.inputIcon} />
+                <Lock size={18} color="#8E8E93" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Nueva contraseña"
@@ -270,12 +270,12 @@ export default function ProfileScreen() {
                   editable={!pwLoading}
                 />
                 <TouchableOpacity onPress={() => setShowNewPw(!showNewPw)} style={styles.eyeBtn}>
-                  {showNewPw ? <Eye size={18} color="#7aad4c" /> : <EyeOff size={18} color="#7aad4c" />}
+                  {showNewPw ? <Eye size={18} color="#8E8E93" /> : <EyeOff size={18} color="#8E8E93" />}
                 </TouchableOpacity>
               </View>
 
               <View style={styles.inputRow}>
-                <Lock size={18} color="#3aaa5c" style={styles.inputIcon} />
+                <Lock size={18} color="#8E8E93" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Repetir nueva contraseña"
@@ -286,7 +286,7 @@ export default function ProfileScreen() {
                   editable={!pwLoading}
                 />
                 <TouchableOpacity onPress={() => setShowConfirmPw(!showConfirmPw)} style={styles.eyeBtn}>
-                  {showConfirmPw ? <Eye size={18} color="#7aad4c" /> : <EyeOff size={18} color="#7aad4c" />}
+                  {showConfirmPw ? <Eye size={18} color="#8E8E93" /> : <EyeOff size={18} color="#8E8E93" />}
                 </TouchableOpacity>
               </View>
 
@@ -417,7 +417,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#F2F2F7',
   },
   header: {
     flexDirection: 'row',
@@ -431,43 +431,39 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(20,184,166,0.1)',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     fontFamily: 'Poppins_700Bold',
     fontSize: 20,
-    color: '#0f766e',
+    color: '#000000',
   },
 
   scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 8,
+    paddingBottom: 130,
   },
 
   tokenCard: {
-    borderRadius: 22,
+    borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 16,
-    shadowColor: '#d97706',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 5,
   },
   tokenCardGrad: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 20,
-    borderRadius: 22,
+    borderRadius: 16,
   },
   tokenCardLeft: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: '#F2F2F7',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 18,
@@ -496,17 +492,10 @@ const styles = StyleSheet.create({
 
   avatarCard: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
     padding: 24,
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(20,184,166,0.15)',
-    shadowColor: '#0f766e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
   },
   avatarCircle: {
     width: 78,
@@ -515,17 +504,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
-    shadowColor: '#14b8a6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
   emailRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(20,184,166,0.08)',
+    backgroundColor: '#F2F2F7',
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 7,
@@ -533,22 +517,15 @@ const styles = StyleSheet.create({
   emailText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 14,
-    color: '#0f766e',
+    color: '#3A3A3C',
     maxWidth: 260,
   },
 
   section: {
-    backgroundColor: 'rgba(255,255,255,0.88)',
-    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 20,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(20,184,166,0.15)',
-    shadowColor: '#0f766e',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
   },
   dangerSection: {
     borderColor: 'rgba(220,38,38,0.18)',
@@ -564,7 +541,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(20,184,166,0.1)',
+    backgroundColor: '#8E8E93',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -574,7 +551,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontFamily: 'Poppins_700Bold',
     fontSize: 16,
-    color: '#0f766e',
+    color: '#111111',
   },
   dangerTitle: {
     color: '#dc2626',
@@ -599,9 +576,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: '#b8ddb0',
+    borderColor: '#D1D1D6',
     borderRadius: 14,
-    backgroundColor: 'rgba(244,250,240,0.9)',
+    backgroundColor: '#F2F2F7',
     paddingHorizontal: 12,
     marginBottom: 12,
   },
@@ -610,7 +587,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: 'Poppins_400Regular',
     fontSize: 14,
-    color: '#1a2e0a',
+    color: '#111111',
     height: 46,
   },
   eyeBtn: { paddingLeft: 8, paddingRight: 2 },
@@ -619,7 +596,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     overflow: 'hidden',
     marginTop: 4,
-    shadowColor: '#14b8a6',
+    shadowColor: '#007AFF',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
@@ -630,14 +607,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 50,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#B8DCC7',
+    backgroundColor: '#007AFF',
   },
   primaryBtnText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 15,
-    color: '#2F7D55',
+    color: '#FFFFFF',
     letterSpacing: 0.2,
   },
 
@@ -648,10 +623,10 @@ const styles = StyleSheet.create({
   successText: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 13,
-    color: '#0f766e',
+    color: '#007AFF',
     textAlign: 'center',
     lineHeight: 20,
-    backgroundColor: 'rgba(20,184,166,0.08)',
+    backgroundColor: '#EEF6FF',
     padding: 14,
     borderRadius: 14,
     width: '100%',
@@ -677,22 +652,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.88)',
-    borderRadius: 50,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     paddingVertical: 13,
     marginBottom: 16,
-    borderWidth: 1.5,
-    borderColor: 'rgba(20,184,166,0.35)',
-    shadowColor: '#0f766e',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
   },
   signOutBtnText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 15,
-    color: '#0f766e',
+    color: '#FF3B30',
   },
 
   dangerBody: {

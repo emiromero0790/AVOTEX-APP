@@ -400,8 +400,10 @@ export default function Home() {
             </Text>
             <Text style={[s.tokenLabel, isTablet && s.tokenLabelTablet]}>Tokens</Text>
           </View>
+          <View style={[s.tokenAddButton, isTablet && s.tokenAddButtonTablet]}>
+            <Text style={[s.tokenAddText, isTablet && s.tokenAddTextTablet]}>+</Text>
+          </View>
         </View>
-        <Text style={[s.tokenMoreLink, isTablet && s.tokenMoreLinkTablet]}>¿Quieres más créditos?</Text>
       </TouchableOpacity>
 
       <ScrollView contentContainerStyle={[s.scroll, isTablet && s.scrollTablet]} showsVerticalScrollIndicator={false}>
@@ -609,15 +611,23 @@ const s = StyleSheet.create({
     shadowColor: '#d97706', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18, shadowRadius: 6, elevation: 5,
   },
-  tokenMoreLink: {
-    marginTop: 4,
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 10,
-    color: '#0f766e',
-    textDecorationLine: 'underline',
-    paddingLeft: 4,
+  tokenAddButton: {
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    marginLeft: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F59E0B',
   },
-  tokenMoreLinkTablet: { fontSize: 12, marginTop: 6 },
+  tokenAddButtonTablet: { width: 31, height: 31, borderRadius: 16, marginLeft: 13 },
+  tokenAddText: {
+    color: '#FFFFFF',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 20,
+    lineHeight: 24,
+  },
+  tokenAddTextTablet: { fontSize: 24, lineHeight: 28 },
   tokenAmount: {
     fontFamily: 'Poppins_700Bold', fontSize: 17, color: '#92400e', lineHeight: 20,
   },

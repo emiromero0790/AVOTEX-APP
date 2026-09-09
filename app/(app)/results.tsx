@@ -9,7 +9,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { supabase } from '../../supabaseConfig';
 import { PieChart as PieChartIcon, List, CalendarDays } from 'lucide-react-native';
 import { useAccessibility } from '../../context/AccessibilityContext';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 const avotexSanoImage    = require('../../assets/images/avotexSano.png');
 const avotexEnfermoImage = require('../../assets/images/avotexEnfermo.png');
@@ -84,6 +84,7 @@ export default function ResultsScreen() {
   const isTablet = screenWidth >= 768;
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold });
   const { isColorblindMode } = useAccessibility();
+  const { view } = useLocalSearchParams<{ view?: string }>();
 
   const [user, setUser]           = useState<User | null>(null);
   const [scans, setScans]         = useState<Scan[]>([]);
@@ -103,6 +104,10 @@ export default function ResultsScreen() {
   }), [isColorblindMode]);
 
   // ── Auth ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (view === 'list' || view === 'charts') setActiveView(view);
+  }, [view]);
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, u => setUser(u));
     return () => unsub();

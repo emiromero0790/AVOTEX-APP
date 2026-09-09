@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { Stack, router } from 'expo-router';
-import { CheckCircle, Plus, BrainCircuit, ShieldCheck, AlertTriangle, ShieldAlert, Trash2, ChevronLeft, ChevronRight, Camera } from 'lucide-react-native';
+import { CheckCircle, Plus, BrainCircuit, ShieldCheck, AlertTriangle, ShieldAlert, Trash2, ChevronLeft, ChevronRight, Camera, PieChart, List, CalendarDays } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { auth } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -205,6 +205,27 @@ export default function AgendaScreen() {
       >
         <Stack.Screen options={{ title: 'Agenda y Recomendaciones' }} />
 
+        <View style={styles.activityToggle}>
+          <TouchableOpacity
+            style={styles.activityToggleBtn}
+            onPress={() => router.replace({ pathname: '/(app)/results', params: { view: 'charts' } })}
+          >
+            <PieChart size={20} color="#0F766E" />
+            <Text style={styles.activityToggleText}>Gráficas</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.activityToggleBtn}
+            onPress={() => router.replace({ pathname: '/(app)/results', params: { view: 'list' } })}
+          >
+            <List size={20} color="#0F766E" />
+            <Text style={styles.activityToggleText}>Lista</Text>
+          </TouchableOpacity>
+          <View style={[styles.activityToggleBtn, styles.activityToggleBtnActive]}>
+            <CalendarDays size={20} color="#FFFFFF" />
+            <Text style={[styles.activityToggleText, styles.activityToggleTextActive]}>Agenda</Text>
+          </View>
+        </View>
+
         <View style={styles.headerGradient}>
           <BrainCircuit size={32} color={colors.primary} />
           <Text style={[styles.title, { color: colors.primary }]}>Recomendaciones</Text>
@@ -322,9 +343,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingBottom: 120,
   },
+  activityToggle: {
+    flexDirection: 'row',
+    gap: 4,
+    padding: 4,
+    marginTop: 54,
+    marginBottom: 4,
+    borderRadius: 16,
+    backgroundColor: '#E1F2EF',
+  },
+  activityToggleBtn: {
+    flex: 1,
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    borderRadius: 13,
+  },
+  activityToggleBtnActive: {
+    backgroundColor: '#0F766E',
+  },
+  activityToggleText: {
+    color: '#0F766E',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  activityToggleTextActive: {
+    color: '#FFFFFF',
+  },
   headerGradient: {
     alignItems: 'flex-start',
-    paddingTop: 54,
+    paddingTop: 22,
     paddingBottom: 28,
     paddingHorizontal: 20,
     marginHorizontal: -20,

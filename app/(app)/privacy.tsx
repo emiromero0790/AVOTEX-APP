@@ -9,7 +9,6 @@ import {
   Linking,
 } from 'react-native';
 import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronLeft, Shield } from 'lucide-react-native';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 
@@ -45,12 +44,12 @@ export default function PrivacyScreen() {
   if (!fontsLoaded) return null;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={s.root}>
       <View style={StyleSheet.absoluteFillObject} />
 
       <View style={s.topBar}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <ChevronLeft size={26} color="#0f766e" />
+          <ChevronLeft size={26} color="#007AFF" />
         </TouchableOpacity>
         <Text style={s.topTitle}>Aviso de Privacidad</Text>
         <View style={{ width: 40 }} />
@@ -59,7 +58,7 @@ export default function PrivacyScreen() {
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         <View style={s.heroCard}>
           <View style={s.shieldCircle}>
-            <Shield size={32} color="#0f766e" />
+            <Shield size={32} color="#FFFFFF" />
           </View>
           <Text style={s.heroTitle}>Aviso de Privacidad de Avotex</Text>
           <Text style={s.heroSub}>Última actualización: 04/05/2026</Text>
@@ -76,7 +75,7 @@ export default function PrivacyScreen() {
           activeOpacity={0.8}
         >
           <View style={s.linkCardGrad}>
-            <Shield size={22} color="#2F7D55" />
+            <Shield size={22} color="#8E8E93" />
             <View style={{ flex: 1 }}>
               <Text style={s.linkCardLabel}>Aviso de Privacidad completo</Text>
               <Text style={s.linkCardUrl}>https://www.vex-mx.com/avisosprivacidadavotex.html</Text>
@@ -130,7 +129,7 @@ export default function PrivacyScreen() {
           <Bullet text="Obtener condiciones climáticas locales" />
           <Bullet text="Mejorar la precisión de los análisis agrícolas" />
           <Text style={[s.bodyText, { marginTop: 10 }]}>
-            El usuario puede activar o desactivar el acceso a su ubicación en cualquier momento desde la pantalla de Inicio y la sección de Mapeo.
+            El usuario puede activar o desactivar el acceso a su ubicación en cualquier momento desde Ajustes.
           </Text>
         </Section>
 
@@ -190,7 +189,7 @@ export default function PrivacyScreen() {
           activeOpacity={0.8}
         >
           <View style={s.linkCardGrad}>
-            <Shield size={22} color="#2F7D55" />
+            <Shield size={22} color="#8E8E93" />
             <View style={{ flex: 1 }}>
               <Text style={s.linkCardLabel}>Ver aviso completo en línea</Text>
               <Text style={s.linkCardUrl}>https://www.vex-mx.com/avisosprivacidadavotex.html</Text>
@@ -208,6 +207,10 @@ export default function PrivacyScreen() {
 }
 
 const s = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+  },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -215,42 +218,37 @@ const s = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 12,
     paddingHorizontal: 16,
-    backgroundColor: 'transparent',
+    backgroundColor: '#F2F2F7',
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
   },
   topTitle: {
     fontFamily: 'Poppins_700Bold',
     fontSize: 17,
-    color: '#0f766e',
+    color: '#000000',
   },
   scroll: {
     paddingHorizontal: 18,
-    paddingBottom: 60,
+    paddingBottom: 130,
   },
   heroCard: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
     padding: 22,
     marginBottom: 18,
     alignItems: 'center',
-    shadowColor: '#0f766e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.10,
-    shadowRadius: 14,
-    elevation: 5,
   },
   shieldCircle: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#d1fae5',
+    backgroundColor: '#8E8E93',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 14,
@@ -258,7 +256,7 @@ const s = StyleSheet.create({
   heroTitle: {
     fontFamily: 'Poppins_700Bold',
     fontSize: 18,
-    color: '#0f766e',
+    color: '#111111',
     textAlign: 'center',
     marginBottom: 4,
   },
@@ -276,15 +274,10 @@ const s = StyleSheet.create({
     textAlign: 'center',
   },
   section: {
-    backgroundColor: 'rgba(255,255,255,0.88)',
-    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 18,
     marginBottom: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -295,7 +288,7 @@ const s = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#d1fae5',
+    backgroundColor: '#E5E5EA',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
@@ -303,12 +296,12 @@ const s = StyleSheet.create({
   sectionNumber: {
     fontFamily: 'Poppins_700Bold',
     fontSize: 13,
-    color: '#0f766e',
+    color: '#636366',
   },
   sectionTitle: {
     fontFamily: 'Poppins_700Bold',
     fontSize: 15,
-    color: '#134e4a',
+    color: '#111111',
     flex: 1,
   },
   sectionBody: {},
@@ -317,7 +310,7 @@ const s = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     borderLeftWidth: 3,
-    borderLeftColor: '#22c55e',
+    borderLeftColor: '#8E8E93',
     marginBottom: 10,
   },
   bulletRow: {
@@ -327,7 +320,7 @@ const s = StyleSheet.create({
   bullet: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 14,
-    color: '#0f766e',
+    color: '#8E8E93',
     marginRight: 8,
     marginTop: 1,
   },
@@ -340,7 +333,7 @@ const s = StyleSheet.create({
   },
   boldText: {
     fontFamily: 'Poppins_600SemiBold',
-    color: '#134e4a',
+    color: '#111111',
   },
   bodyText: {
     fontFamily: 'Poppins_400Regular',
@@ -351,7 +344,7 @@ const s = StyleSheet.create({
   link: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 14,
-    color: '#0f766e',
+    color: '#007AFF',
     marginBottom: 8,
     textDecorationLine: 'underline',
   },
@@ -359,11 +352,6 @@ const s = StyleSheet.create({
     borderRadius: 18,
     overflow: 'hidden',
     marginBottom: 18,
-    shadowColor: '#0f766e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    elevation: 6,
   },
   linkCardGrad: {
     flexDirection: 'row',
@@ -374,12 +362,12 @@ const s = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#B8DCC7',
+    borderColor: '#E5E5EA',
   },
   linkCardLabel: {
     fontFamily: 'Poppins_700Bold',
     fontSize: 16,
-    color: '#2F7D55',
+    color: '#111111',
     marginBottom: 2,
   },
   linkCardUrl: {
@@ -389,7 +377,7 @@ const s = StyleSheet.create({
   },
   linkCardArrow: {
     fontSize: 22,
-    color: '#2F7D55',
+    color: '#007AFF',
     fontWeight: 'bold',
   },
   footer: {
@@ -400,7 +388,7 @@ const s = StyleSheet.create({
   footerText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 13,
-    color: '#0f766e',
+    color: '#6D6D72',
     textAlign: 'center',
   },
 });

@@ -9,12 +9,11 @@ import {
   Platform,
   KeyboardAvoidingView,
   ActivityIndicator,
-  Image,
   Modal,
   Linking,
 } from "react-native";
 import { Stack, router } from "expo-router";
-import { ChevronLeft, Send, Shield, Flag } from "lucide-react-native";
+import { ChevronLeft, Send, Shield, Flag, Sparkles, Bot } from "lucide-react-native";
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import emailjs from '@emailjs/browser';
@@ -166,7 +165,7 @@ export default function ChatbotScreen() {
       } else {
         setMessages((prev) => [...prev, {
           role: "bot",
-          text: "❌ Correo no válido. Intenta de nuevo o escribe 'cancelar'.",
+          text: "Correo no válido. Intenta de nuevo o escribe 'cancelar'.",
           timestamp: new Date()
         }]);
       }
@@ -224,7 +223,8 @@ export default function ChatbotScreen() {
           headerShown: true,
           title: "Asistente Avotex",
           headerTitleStyle: { fontFamily: 'Poppins_600SemiBold' },
-          headerStyle: { backgroundColor: '#fafff7' },
+          headerStyle: { backgroundColor: '#071713' },
+          headerTintColor: '#d7fff3',
           headerShadowVisible: false,
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 10, padding: 5 }}>
@@ -243,10 +243,10 @@ export default function ChatbotScreen() {
         statusBarTranslucent
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <LinearGradient colors={['#071712', '#0A241D']} style={styles.modalCard}>
             <View style={styles.modalIconRow}>
               <View style={styles.modalIconCircle}>
-                <Shield size={24} color="#0f766e" />
+                <Shield size={24} color="#79d7c1" />
               </View>
             </View>
 
@@ -312,7 +312,7 @@ export default function ChatbotScreen() {
                 </LinearGradient>
               </TouchableOpacity>
             </View>
-          </View>
+          </LinearGradient>
         </View>
       </Modal>
 
@@ -322,30 +322,32 @@ export default function ChatbotScreen() {
         ref={scrollViewRef}
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
       >
-        {messages.length === 0 && (
+        {messages.length === 0 && !modalVisible && (
           <View style={styles.welcomeContainer}>
-            <View style={styles.logoWrapper}>
-              <Image
-                source={require('../../assets/images/AvotexNuevoLogo.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
+            <View style={styles.aiOrb}>
+              <View style={styles.aiOrbGlow} />
+              <LinearGradient colors={['#b8ffe9', '#24c99a', '#075747']} style={styles.aiOrbCore} />
+              <View style={styles.aiOrbShine} />
             </View>
-            <Text style={styles.welcomeTitle}>Asistente Avotex</Text>
+            <View style={styles.welcomeEyebrow}><Sparkles size={14} color="#79d7c1" /><Text style={styles.eyebrowText}>INTELIGENCIA PARA TU CAMPO</Text></View>
+            <Text style={styles.welcomeTitle}>¿Qué cultivamos hoy?</Text>
             <Text style={styles.welcomeSubtitle}>
-              Hola. Soy tu aliado en el cultivo. ¿En qué te ayudo hoy?
+              Pregunta sobre la app, tus cultivos o el siguiente paso.
             </Text>
+            <View style={styles.suggestions}>
+              {['¿Cómo funciona Escanear?', '¿Qué muestra Mapeo?', 'Ayúdame con una recomendación'].map((suggestion) => (
+                <TouchableOpacity key={suggestion} style={styles.suggestionCard} onPress={() => setInput(suggestion)} activeOpacity={0.8}>
+                  <Sparkles size={14} color="#79d7c1" />
+                  <Text style={styles.suggestionText}>{suggestion}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         )}
 
         {messages.map((m, i) => (
           <View key={i} style={[styles.messageRow, m.role === 'user' && styles.messageRowUser]}>
-            {m.role === 'bot' && (
-              <Image
-                source={require('../../assets/images/AvotexNuevoLogo.png')}
-                style={styles.botAvatar}
-              />
-            )}
+            {m.role === 'bot' && <View style={styles.botAvatar}><Bot size={17} color="#79d7c1" /></View>}
             <View style={styles.messageBubbleWrapper}>
               <View style={[styles.messageBubble, m.role === "user" ? styles.userMsg : styles.botMsg]}>
                 <Text style={m.role === 'user' ? styles.userMsgText : styles.botMsgText}>{m.text}</Text>
@@ -366,12 +368,9 @@ export default function ChatbotScreen() {
 
         {loading && (
           <View style={styles.messageRow}>
-            <Image
-              source={require('../../assets/images/AvotexNuevoLogo.png')}
-              style={styles.botAvatar}
-            />
+            <View style={styles.botAvatar}><Bot size={17} color="#79d7c1" /></View>
             <View style={[styles.messageBubble, styles.botMsg]}>
-              <ActivityIndicator color="#3aaa5c" />
+              <ActivityIndicator color="#79d7c1" />
             </View>
           </View>
         )}
@@ -412,19 +411,23 @@ export default function ChatbotScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#ffffff" },
-  chatArea: { flex: 1 },
-  chatContent: { padding: 16, paddingBottom: 20 },
+  container: { flex: 1, backgroundColor: "#030b09" },
+  chatArea: { flex: 1, backgroundColor: '#030b09' },
+  chatContent: { padding: 18, paddingBottom: 20, maxWidth: 760, width: '100%', alignSelf: 'center' },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: 'rgba(1, 8, 6, 0.96)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    zIndex: 9999,
+    elevation: 100,
   },
   modalCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#071712',
+    borderWidth: 1,
+    borderColor: '#287563',
     borderRadius: 28,
     paddingHorizontal: 22,
     paddingTop: 20,
@@ -434,9 +437,10 @@ const styles = StyleSheet.create({
     maxHeight: '72%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
+    shadowOpacity: 0.6,
     shadowRadius: 24,
-    elevation: 12,
+    elevation: 101,
+    zIndex: 10000,
   },
   modalScroll: {
     maxHeight: 280,
@@ -452,21 +456,21 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#d1fae5',
+    backgroundColor: '#103b32',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalTitle: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 20,
-    color: '#0f766e',
+    color: '#d7fff3',
     textAlign: 'center',
     marginBottom: 10,
   },
   modalBody: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 13,
-    color: '#334155',
+    color: '#b6d4cc',
     lineHeight: 20,
     textAlign: 'center',
     marginBottom: 14,
@@ -474,7 +478,7 @@ const styles = StyleSheet.create({
   modalSubheading: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 13,
-    color: '#134e4a',
+    color: '#d7fff3',
     marginBottom: 10,
   },
   modalBullets: {
@@ -495,18 +499,18 @@ const styles = StyleSheet.create({
   modalBulletText: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 12,
-    color: '#334155',
+    color: '#b6d4cc',
     flex: 1,
     lineHeight: 18,
   },
   modalBold: {
     fontFamily: 'Poppins_600SemiBold',
-    color: '#134e4a',
+    color: '#79d7c1',
   },
   modalFootnote: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 12,
-    color: '#64748b',
+    color: '#8aada4',
     textAlign: 'center',
     marginBottom: 18,
     fontStyle: 'italic',
@@ -520,14 +524,14 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     borderRadius: 50,
     borderWidth: 1.5,
-    borderColor: '#cbd5e1',
+    borderColor: '#285449',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelBtnText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 15,
-    color: '#64748b',
+    color: '#9abbb2',
   },
   acceptBtn: {
     flex: 1,
@@ -547,15 +551,88 @@ const styles = StyleSheet.create({
 
   welcomeContainer: {
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 28,
     paddingHorizontal: 20,
+  },
+  aiOrb: {
+    width: 178,
+    height: 178,
+    borderRadius: 89,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 22,
+    backgroundColor: '#0b3c31',
+    shadowColor: '#22c99b',
+    shadowOpacity: 0.42,
+    shadowRadius: 38,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 12,
+  },
+  aiOrbGlow: {
+    position: 'absolute',
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    backgroundColor: '#0d6d55',
+    opacity: 0.22,
+  },
+  aiOrbCore: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    transform: [{ rotate: '-18deg' }],
+  },
+  aiOrbShine: {
+    position: 'absolute',
+    width: 46,
+    height: 26,
+    borderRadius: 26,
+    backgroundColor: '#d7fff3',
+    opacity: 0.5,
+    top: 44,
+    left: 54,
+    transform: [{ rotate: '-30deg' }],
+  },
+  welcomeEyebrow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginBottom: 8,
+  },
+  eyebrowText: {
+    color: '#79d7c1',
+    fontSize: 10,
+    fontFamily: 'Poppins_600SemiBold',
+    letterSpacing: 1.2,
+  },
+  suggestions: {
+    width: '100%',
+    marginTop: 25,
+    gap: 9,
+  },
+  suggestionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 13,
+    paddingHorizontal: 15,
+    borderRadius: 15,
+    backgroundColor: 'rgba(13, 41, 35, 0.82)',
+    borderWidth: 1,
+    borderColor: '#1d594c',
+  },
+  suggestionText: {
+    color: '#c1e7dd',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 13,
+    flex: 1,
   },
   logoWrapper: {
     borderRadius: 24,
     padding: 20,
     marginBottom: 20,
-    backgroundColor: '#F7FAF8',
-    shadowColor: '#2F7D55',
+    backgroundColor: 'transparent',
+    shadowColor: '#2dd4a4',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
@@ -564,17 +641,17 @@ const styles = StyleSheet.create({
   logo: {
     width: 200,
     height: 80,
-    resizeMode: 'contain',
   },
   welcomeTitle: {
-    fontSize: 22,
+    fontSize: 34,
     fontFamily: 'Poppins_600SemiBold',
-    color: '#2d6a1f',
+    color: '#e1fff5',
     marginBottom: 8,
+    letterSpacing: -1.2,
   },
   welcomeSubtitle: {
     fontSize: 15,
-    color: '#6b8a5e',
+    color: '#8fb7ad',
     textAlign: 'center',
     fontFamily: 'Poppins_400Regular',
     lineHeight: 22,
@@ -594,8 +671,11 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     marginRight: 8,
     marginBottom: 2,
-    resizeMode: 'contain',
-    backgroundColor: '#eef7e8',
+    backgroundColor: '#103b32',
+    borderWidth: 1,
+    borderColor: '#2b8f78',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   messageBubbleWrapper: {
     maxWidth: '78%',
@@ -610,24 +690,24 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   userMsg: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#143b32",
     borderWidth: 1,
-    borderColor: '#B8DCC7',
+    borderColor: '#287a67',
     borderBottomRightRadius: 4,
   },
   botMsg: {
-    backgroundColor: "#F7FAF8",
+    backgroundColor: "#0d2923",
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: '#d4ecc8',
+    borderColor: '#1d594c',
   },
   userMsgText: {
-    color: "#fff",
+    color: "#bfffee",
     fontSize: 15,
     fontFamily: 'Poppins_400Regular',
   },
   botMsgText: {
-    color: "#1a2e0a",
+    color: "#d0e8e1",
     fontSize: 15,
     fontFamily: 'Poppins_400Regular',
   },
@@ -640,7 +720,7 @@ const styles = StyleSheet.create({
   },
   reportBtnText: {
     fontSize: 11,
-    color: '#94a3b8',
+    color: '#71938b',
     fontFamily: 'Poppins_400Regular',
   },
 
@@ -650,30 +730,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     margin: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#081914',
     borderRadius: 30,
     borderWidth: 1.5,
-    borderColor: '#c8dfc0',
-    shadowColor: '#2d6a1f',
+    borderColor: '#236052',
+    shadowColor: '#1bb98e',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 3,
   },
   inputContainerDisabled: {
-    backgroundColor: '#f5f5f5',
-    borderColor: '#dde',
+    backgroundColor: '#0b211c',
+    borderColor: '#173e35',
   },
   input: {
     flex: 1,
     paddingHorizontal: 10,
     fontSize: 15,
     fontFamily: 'Poppins_400Regular',
-    color: '#1a2e0a',
+    color: '#d7fff3',
     maxHeight: 100,
   },
   inputDisabled: {
-    color: '#aaa',
+    color: '#58756d',
   },
   sendBtn: {
     marginLeft: 6,
@@ -684,7 +764,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#2F7D55',
+    backgroundColor: '#27c79b',
   },
   sendBtnPlain: {
     width: 40,

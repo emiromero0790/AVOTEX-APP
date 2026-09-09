@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Check, Crown, Leaf, ShieldCheck, Sparkles } from 'lucide-react-native';
 
@@ -20,7 +20,15 @@ const plans = [
 
 export default function PlansScreen() {
   const [selectedPlan, setSelectedPlan] = useState(plans[1]);
-  const selectPlan = () => Alert.alert('Planes Avotex', 'Próximamente podrás contratar este plan desde la app.', [{ text: 'Entendido' }]);
+  const selectPlan = async () => {
+    try {
+      const supported = await Linking.canOpenURL('https://vex-mx.com/avotex.html#pricing');
+      if (!supported) throw new Error('URL no disponible');
+      await Linking.openURL('https://vex-mx.com/avotex.html#pricing');
+    } catch {
+      Alert.alert('No se pudo abrir el sitio', 'Intenta nuevamente en unos segundos.', [{ text: 'Entendido' }]);
+    }
+  };
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

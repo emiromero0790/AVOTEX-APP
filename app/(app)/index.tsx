@@ -12,14 +12,13 @@ import {
   Easing,
   useWindowDimensions,
 } from 'react-native';
-import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, AlertTriangle, LogOut, MapPin, MapPinOff, Lock, User as UserIcon, Coins } from 'lucide-react-native';
+import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, AlertTriangle, LogOut, MapPin, MapPinOff, Lock, Coins } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import * as Location from 'expo-location';
 import MapViewComponent from '../../components/MapViewComponent';
 import { auth } from '../../firebaseConfig';
-import Avatar from '../../components/Avatar';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import axios from 'axios';
 import { useAccessibility } from '../../context/AccessibilityContext';
@@ -341,7 +340,6 @@ export default function Home() {
     bg: isColorblindMode
       ? (['#E3F2FD', '#e8f4fd', '#f0f6ff'] as [string, string, string])
       : (['#a7f3d0', '#ecfdf5', '#ffff'] as [string, string, string]),
-    welcomeBorder: isColorblindMode ? '#FFC107' : '#14b8a6',
     textPrimary:   isColorblindMode ? '#0D47A1' : '#134e4a',
     textSecondary: '#64748b',
     cardBg:        'rgba(255, 255, 255, 0.95)',
@@ -499,38 +497,14 @@ export default function Home() {
               </View>
               </View>
               <View style={s.environmentPanelFooter}>
-                <Text style={s.environmentPanelFooterLabel}>CONDICIONES DEL CULTIVO</Text>
+                <Text style={s.environmentPanelFooterLabel}>
+                  {isGuest ? 'MODO INVITADO' : 'BIENVENIDO'}
+                </Text>
                 <Text style={s.environmentPanelFooterValue}>
-                  {locationEnabled && municipio ? municipio : 'Activa tu ubicación para actualizar el clima'}
+                  {isGuest ? 'Invitado' : user?.email || user?.displayName || 'Usuario'}
                 </Text>
               </View>
               </LinearGradient>
-            </Reanimated.View>
-
-            <Reanimated.View entering={FadeInDown.delay(200).duration(700)}>
-              <View style={[s.welcomeCard, { borderColor: colors.welcomeBorder }, isTablet && s.welcomeCardTablet]}>
-                {isGuest ? (
-                  <>
-                    <View style={s.welcomeText}>
-                      <Text style={[s.greetLabel, isTablet && s.greetLabelTablet]}>MODO INVITADO</Text>
-                      <Text style={[s.userName, { color: colors.textPrimary }, isTablet && s.userNameTablet]}>
-                        INVITADO
-                      </Text>
-                    </View>
-                    <View style={[s.guestAvatarCircle, isTablet && s.guestAvatarCircleTablet]}>
-                      <UserIcon size={isTablet ? 26 : 22} color="#0f766e" />
-                    </View>
-                  </>
-                ) : user ? (
-                  <>
-                    <View style={s.welcomeText}>
-                      <Text style={[s.greetLabel, isTablet && s.greetLabelTablet]}>BIENVENIDO</Text>
-                      <Text style={[s.userName, { color: colors.textPrimary }, isTablet && s.userNameTablet]}>{user.displayName || user.email}</Text>
-                    </View>
-                    <Avatar user={user} />
-                  </>
-                ) : null}
-              </View>
             </Reanimated.View>
 
             <Reanimated.View entering={FadeInDown.delay(260).duration(700)}>
@@ -743,22 +717,6 @@ const s = StyleSheet.create({
     marginTop: 3,
   },
   guestRegisterHintTablet: { fontSize: 12 },
-  guestAvatarCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#d1fae5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#ffffff',
-  },
-  guestAvatarCircleTablet: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-  },
-
   header: { paddingTop: 90, paddingHorizontal: 22, marginBottom: 18 },
   headerTablet: { paddingTop: 100, paddingHorizontal: 28 },
 
@@ -938,35 +896,6 @@ const s = StyleSheet.create({
     marginTop: 1,
   },
   locationToggleSubTablet: { fontSize: 13 },
-
-  welcomeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    paddingVertical: 10,
-    paddingLeft: 20,
-    paddingRight: 10,
-    borderWidth: 2,
-    borderTopLeftRadius: 30,
-    borderBottomLeftRadius: 30,
-    borderTopRightRadius: 60,
-    borderBottomRightRadius: 60,
-    shadowColor: '#0f766e', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12, shadowRadius: 8, elevation: 5,
-    marginBottom: 10,
-  },
-  welcomeCardTablet: {
-    paddingVertical: 14,
-    paddingLeft: 28,
-    paddingRight: 14,
-    marginBottom: 14,
-  },
-  welcomeText: { flex: 1, marginRight: 12 },
-  greetLabel: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: '#5eead4', letterSpacing: 0.8 },
-  greetLabelTablet: { fontSize: 13 },
-  userName: { fontFamily: 'Poppins_600SemiBold', fontSize: 15 },
-  userNameTablet: { fontSize: 18 },
 
   locRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

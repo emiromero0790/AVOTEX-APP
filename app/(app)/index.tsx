@@ -493,29 +493,46 @@ export default function Home() {
             </Reanimated.View>
 
             <Reanimated.View entering={FadeInDown.delay(200).duration(700)}>
-              <View style={[s.welcomeCard, { borderColor: colors.welcomeBorder }, isTablet && s.welcomeCardTablet]}>
-                {isGuest ? (
-                  <>
-                    <View style={s.welcomeText}>
-                      <Text style={[s.greetLabel, isTablet && s.greetLabelTablet]}>MODO INVITADO</Text>
-                      <Text style={[s.userName, { color: colors.textPrimary }, isTablet && s.userNameTablet]}>
-                        INVITADO
-                      </Text>
-                    </View>
-                    <View style={[s.guestAvatarCircle, isTablet && s.guestAvatarCircleTablet]}>
-                      <UserIcon size={isTablet ? 26 : 22} color="#0f766e" />
-                    </View>
-                  </>
-                ) : user ? (
-                  <>
-                    <View style={s.welcomeText}>
-                      <Text style={[s.greetLabel, isTablet && s.greetLabelTablet]}>BIENVENIDO</Text>
-                      <Text style={[s.userName, { color: colors.textPrimary }, isTablet && s.userNameTablet]}>{user.displayName || user.email}</Text>
-                    </View>
-                    <Avatar user={user} />
-                  </>
-                ) : null}
-              </View>
+              <LinearGradient
+                colors={['#BDE5FF', '#F2A06F', '#FFF8F3', '#FFFFFF']}
+                locations={[0, 0.38, 0.72, 1]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[s.welcomeCard, { borderColor: colors.welcomeBorder }, isTablet && s.welcomeCardTablet]}
+              >
+                <View style={s.welcomeTop}>
+                  {isGuest ? (
+                    <>
+                      <View style={s.welcomeText}>
+                        <Text style={[s.greetLabel, isTablet && s.greetLabelTablet]}>MODO INVITADO</Text>
+                        <Text style={[s.userName, { color: colors.textPrimary }, isTablet && s.userNameTablet]}>
+                          INVITADO
+                        </Text>
+                      </View>
+                      <View style={[s.guestAvatarCircle, isTablet && s.guestAvatarCircleTablet]}>
+                        <UserIcon size={isTablet ? 26 : 22} color="#0f766e" />
+                      </View>
+                    </>
+                  ) : user ? (
+                    <>
+                      <View style={s.welcomeText}>
+                        <Text style={[s.greetLabel, isTablet && s.greetLabelTablet]}>BIENVENIDO</Text>
+                        <Text style={[s.userName, { color: colors.textPrimary }, isTablet && s.userNameTablet]}>{user.displayName || user.email}</Text>
+                      </View>
+                      <Avatar user={user} />
+                    </>
+                  ) : null}
+                </View>
+                <View style={s.welcomeBottom}>
+                  <View>
+                    <Text style={s.welcomeBottomLabel}>RESUMEN DEL CULTIVO</Text>
+                    <Text style={s.welcomeBottomValue}>
+                      {isGuest || healthPct === null ? 'Realiza un análisis para conocer la salud' : `${healthPct.toFixed(0)}% de tus análisis son saludables`}
+                    </Text>
+                  </View>
+                  <View style={[s.welcomeStatusDot, !isGuest && healthPct !== null && healthPct >= 70 ? s.welcomeStatusGood : s.welcomeStatusAttention]} />
+                </View>
+              </LinearGradient>
             </Reanimated.View>
 
             <Reanimated.View entering={FadeInDown.delay(260).duration(700)}>
@@ -884,25 +901,64 @@ const s = StyleSheet.create({
   locationToggleSubTablet: { fontSize: 13 },
 
   welcomeCard: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    paddingVertical: 10, paddingLeft: 20, paddingRight: 10,
-    borderWidth: 2,
-    borderTopLeftRadius: 30, borderBottomLeftRadius: 30,
-    borderTopRightRadius: 60, borderBottomRightRadius: 60,
+    overflow: 'hidden',
+    paddingTop: 18,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderRadius: 26,
     shadowColor: '#0f766e', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12, shadowRadius: 8, elevation: 5,
-    marginBottom: 10,
+    shadowOpacity: 0.14, shadowRadius: 12, elevation: 5,
+    marginBottom: 12,
   },
   welcomeCardTablet: {
-    paddingVertical: 14, paddingLeft: 28, paddingRight: 14,
-    marginBottom: 14,
+    paddingTop: 24,
+    paddingHorizontal: 26,
+    borderRadius: 32,
+    marginBottom: 16,
+  },
+  welcomeTop: {
+    minHeight: 82,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
   welcomeText: { flex: 1, marginRight: 12 },
-  greetLabel: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: '#5eead4', letterSpacing: 0.8 },
+  greetLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#355D70', letterSpacing: 0.8 },
   greetLabelTablet: { fontSize: 13 },
   userName: { fontFamily: 'Poppins_600SemiBold', fontSize: 15 },
   userNameTablet: { fontSize: 18 },
+  welcomeBottom: {
+    minHeight: 66,
+    marginHorizontal: -18,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(221, 225, 228, 0.86)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.72)',
+  },
+  welcomeBottomLabel: {
+    color: '#677378',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 9,
+    letterSpacing: 0.8,
+  },
+  welcomeBottomValue: {
+    color: '#263A40',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 11,
+    marginTop: 3,
+  },
+  welcomeStatusDot: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    marginLeft: 12,
+  },
+  welcomeStatusGood: { backgroundColor: '#36B77A' },
+  welcomeStatusAttention: { backgroundColor: '#F07C70' },
 
   locRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

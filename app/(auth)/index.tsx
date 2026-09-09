@@ -14,7 +14,6 @@ import {
   ScrollView,
   Linking,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
 import { Mail, Lock, Eye, EyeOff, ChevronRight, X, KeyRound, UserX } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,12 +23,6 @@ import {
   signOut,
 } from 'firebase/auth';
 import { auth } from '../../firebaseConfig';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
 import { useGuest } from '../../context/GuestContext';
 
 const CONTACT_EMAIL = 'vexmxoficial@gmail.com';
@@ -46,7 +39,6 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading]       = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
-  const panelProgress = useSharedValue(1);
 
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -58,13 +50,7 @@ export default function Login() {
     return () => { if (errorTimerRef.current) clearTimeout(errorTimerRef.current); };
   }, [error]);
 
-  const panelStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: panelProgress.value * 28 }],
-  }));
-  const togglePanel = (open: boolean) => {
-    setPanelOpen(open);
-    panelProgress.value = withTiming(open ? 0 : 1, { duration: 420, easing: Easing.out(Easing.cubic) });
-  };
+  const togglePanel = (open: boolean) => setPanelOpen(open);
 
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotEmail, setForgotEmail]               = useState('');
@@ -291,29 +277,42 @@ export default function Login() {
         </View>
       </Modal>
 
-      <View style={s.photoBackdrop}>
+      <View style={[s.photoBackdrop, panelOpen && s.photoBackdropDim]}>
         <Image source={require('../../assets/images/marcoroosink-winegrower-490486.jpg')} style={s.backdropImage} />
-        <LinearGradient colors={['rgba(16,36,28,0.12)', 'rgba(16,36,28,0.72)']} style={StyleSheet.absoluteFill} />
+        <LinearGradient colors={panelOpen
+          ? ['rgba(5,18,19,0.68)', 'rgba(5,18,19,0.88)']
+          : ['rgba(5,18,19,0.18)', 'rgba(5,18,19,0.68)']} style={StyleSheet.absoluteFill} />
         <View style={s.brandMark}>
           <Image source={require('../../assets/images/AvotexNuevoLogo.png')} style={s.brandLogo} resizeMode="contain" />
         </View>
       </View>
 
       <KeyboardAvoidingView style={s.kav} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={20}>
-        <Animated.View style={[s.glassPanel, panelStyle, isTablet && s.glassPanelTablet]}>
-          <BlurView intensity={Platform.OS === 'web' ? 0 : 42} tint="light" style={StyleSheet.absoluteFill} />
-          <View style={s.panelInner}>
-            <View style={s.panelHandle} />
-            <View style={s.panelHeader}>
-              <Image source={require('../../assets/images/AvotexNuevoLogo.png')} style={s.panelLogo} resizeMode="contain" />
-              {panelOpen && <TouchableOpacity onPress={() => togglePanel(false)} style={s.closePanel} accessibilityLabel="Cerrar inicio de sesión"><X size={20} color="#18352B" /></TouchableOpacity>}
+        {!panelOpen ? (
+          <View style={s.coverContent}>
+            <View style={s.coverCopy}>
+              <Text style={s.coverEyebrow}>AVOTEX · INTELIGENCIA PARA EL CAMPO</Text>
+              <Text style={[s.coverTitle, isTablet && s.coverTitleTablet]}>Lee tu viñedo. Decide con certeza.</Text>
+              <Text style={s.coverSubtitle}>Cada hoja cuenta una historia. Nosotros te ayudamos a verla.</Text>
             </View>
-            {!panelOpen ? (
-              <TouchableOpacity style={s.enterButton} onPress={() => togglePanel(true)} activeOpacity={0.86}>
-                <Text style={s.enterButtonText}>Ingresar</Text><ChevronRight size={19} color="#FFFFFF" />
+            <View style={[s.coverActions, isTablet && s.coverActionsTablet]}>
+              <TouchableOpacity style={s.coverGuestButton} onPress={handleGuestAccess} activeOpacity={0.86}>
+                <UserX color="#E6F4F0" size={18} />
+                <Text style={s.coverGuestText}>Entrar como invitado</Text>
               </TouchableOpacity>
-            ) : (
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={s.formContent}>
+              <TouchableOpacity style={s.coverLoginButton} onPress={() => togglePanel(true)} activeOpacity={0.86}>
+                <Text style={s.coverLoginText}>Iniciar sesión</Text>
+                <ChevronRight size={20} color="#0B3E3A" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={s.formScreen}>
+            <TouchableOpacity onPress={() => togglePanel(false)} style={s.backButton} accessibilityLabel="Volver a la portada">
+              <X size={21} color="#E6F4F0" />
+              <Text style={s.backText}>Volver</Text>
+            </TouchableOpacity>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={[s.formContent, isTablet && s.formContentTablet]}>
             <Text style={[s.title, isTablet && s.titleTablet]}>Bienvenido</Text>
             <Text style={[s.subtitle, isTablet && s.subtitleTablet]}>Conecta con tus cultivos inteligentes</Text>
 
@@ -393,10 +392,9 @@ export default function Login() {
               </TouchableOpacity>
               <Text style={[s.registerText, isTablet && s.registerTextTablet]}>{' '}para registrarte.</Text>
             </View>
-              </ScrollView>
-            )}
+            </ScrollView>
           </View>
-        </Animated.View>
+        )}
       </KeyboardAvoidingView>
     </View>
   );
@@ -405,12 +403,55 @@ export default function Login() {
 const s = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#071D1D',
   },
   photoBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: '#18352B' },
+  photoBackdropDim: { backgroundColor: '#061A1A' },
   backdropImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-  brandMark: { position: 'absolute', top: 56, left: 22, right: 22, alignItems: 'center' },
-  brandLogo: { width: 270, height: 96, tintColor: '#FFFFFF' },
+  brandMark: { position: 'absolute', top: 54, left: 22, right: 22, alignItems: 'center' },
+  brandLogo: { width: 190, height: 68, tintColor: '#FFFFFF', opacity: 0.94 },
+  coverContent: {
+    flex: 1, justifyContent: 'flex-end', paddingHorizontal: 24, paddingBottom: 42,
+  },
+  coverCopy: { maxWidth: 620, marginBottom: 28 },
+  coverEyebrow: {
+    color: '#9AD8CE', fontFamily: 'Poppins-SemiBold', fontSize: 11,
+    letterSpacing: 1.5, marginBottom: 12,
+  },
+  coverTitle: {
+    color: '#F5FBF8', fontFamily: 'Poppins-Bold', fontSize: 36,
+    lineHeight: 43, letterSpacing: -0.5,
+  },
+  coverTitleTablet: { fontSize: 52, lineHeight: 60 },
+  coverSubtitle: {
+    color: '#D4E9E4', fontFamily: 'Poppins-Regular', fontSize: 15,
+    lineHeight: 23, marginTop: 12, maxWidth: 390,
+  },
+  coverActions: { gap: 11, width: '100%', maxWidth: 440 },
+  coverActionsTablet: { flexDirection: 'row', maxWidth: 620 },
+  coverGuestButton: {
+    minHeight: 54, borderRadius: 16, borderWidth: 1,
+    borderColor: 'rgba(230,244,240,0.65)', backgroundColor: 'rgba(8,35,34,0.42)',
+    alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9,
+    paddingHorizontal: 18,
+  },
+  coverGuestText: { color: '#E6F4F0', fontFamily: 'Poppins-SemiBold', fontSize: 15 },
+  coverLoginButton: {
+    minHeight: 54, borderRadius: 16, backgroundColor: '#9DDED2',
+    alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8,
+    paddingHorizontal: 22,
+  },
+  coverLoginText: { color: '#0B3E3A', fontFamily: 'Poppins-SemiBold', fontSize: 15 },
+  formScreen: {
+    flex: 1, paddingTop: Platform.OS === 'ios' ? 54 : 30,
+    paddingHorizontal: 24,
+  },
+  backButton: {
+    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 7,
+    paddingVertical: 8, paddingHorizontal: 2,
+  },
+  backText: { color: '#E6F4F0', fontFamily: 'Poppins-SemiBold', fontSize: 14 },
+  formContentTablet: { alignSelf: 'center', width: '100%', maxWidth: 520 },
   glassPanel: {
     position: 'absolute', left: 12, right: 12, bottom: 18, minHeight: 190,
     maxHeight: '88%', borderRadius: 30, overflow: 'hidden', borderWidth: 1,
@@ -496,7 +537,7 @@ const s = StyleSheet.create({
   title: {
     fontFamily: 'Poppins-Bold',
     fontSize: 28,
-    color: '#18352B',
+    color: '#F3FAF7',
     textAlign: 'center',
     marginBottom: 4,
   },
@@ -506,7 +547,7 @@ const s = StyleSheet.create({
   subtitle: {
     fontFamily: 'Poppins-Regular',
     fontSize: 13,
-    color: '#6D7D74',
+    color: '#C2D9D4',
     textAlign: 'center',
     marginBottom: 18,
   },
@@ -534,9 +575,9 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: '#CFE2DE',
+    borderColor: 'rgba(206,238,231,0.45)',
     borderRadius: 14,
-    backgroundColor: '#F7FAF8',
+    backgroundColor: 'rgba(11,43,42,0.72)',
     paddingHorizontal: 14,
     marginBottom: 12,
   },
@@ -549,7 +590,7 @@ const s = StyleSheet.create({
     flex: 1,
     fontFamily: 'Poppins-Regular',
     fontSize: 15,
-    color: '#1a2e0a',
+    color: '#F3FAF7',
     height: 48,
   },
   inputTablet: {
@@ -562,7 +603,7 @@ const s = StyleSheet.create({
   forgotText: {
     fontFamily: 'Poppins-SemiBold',
     fontSize: 13,
-    color: '#0F766E',
+    color: '#9DDED2',
   },
   forgotTextTablet: {
     fontSize: 15,
@@ -652,7 +693,7 @@ const s = StyleSheet.create({
   registerText: {
     fontFamily: 'Poppins-Regular',
     fontSize: 13,
-    color: '#5a7a50',
+    color: '#C2D9D4',
     textAlign: 'center',
     lineHeight: 20,
   },

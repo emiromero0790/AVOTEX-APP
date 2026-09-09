@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator,
-  Image, TouchableOpacity, useWindowDimensions, Platform,
+  Image, TouchableOpacity, useWindowDimensions,
 } from 'react-native';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { auth } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { supabase } from '../../supabaseConfig';
-import { BarChart, PieChart, LineChart } from 'react-native-chart-kit';
 import { PieChart as PieChartIcon, List } from 'lucide-react-native';
 import { useAccessibility } from '../../context/AccessibilityContext';
 import { useFocusEffect } from 'expo-router';
@@ -90,7 +89,7 @@ export default function ResultsScreen() {
   const [scans, setScans]         = useState<Scan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [activeView, setActiveView]       = useState<'list' | 'charts'>('list');
+  const [activeView, setActiveView]       = useState<'list' | 'charts'>('charts');
   const [listFruitFilter, setListFruitFilter] = useState<string | null>(null);
   const [chartFruit, setChartFruit]       = useState<string | null>(null);
 
@@ -102,24 +101,6 @@ export default function ResultsScreen() {
     toggleInactive: isColorblindMode ? '#E4F0FA' : '#E1F2EF',
     white:          '#fff',
   }), [isColorblindMode]);
-
-  const chartConfigBase = useMemo(() => ({
-    backgroundGradientFromOpacity: 0,
-    backgroundGradientToOpacity:   0,
-    color: (opacity = 1) => `rgba(50,50,50,${opacity})`,
-    strokeWidth: 2,
-    barPercentage: 0.7,
-    propsForLabels: { fontFamily: 'Poppins_400Regular', fontSize: 10 },
-    decimalPlaces: 0,
-  }), []);
-
-  const barChartConfig = useMemo(() => ({
-    ...chartConfigBase,
-    backgroundGradientFrom: '#fafafa',
-    backgroundGradientTo:   '#fafafa',
-    color: (opacity = 1) => `rgba(102,187,106,${opacity})`,
-    labelColor: (opacity = 1) => `rgba(80,80,80,${opacity})`,
-  }), [chartConfigBase]);
 
   // ── Auth ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -208,11 +189,6 @@ export default function ResultsScreen() {
       legendFontSize: 11,
     })), [labelCounts, colors.sano]);
 
-  const barData = useMemo(() => ({
-    labels: Object.keys(labelCounts).map(l => l.length > 10 ? l.substring(0, 10) + '…' : l),
-    datasets: [{ data: Object.values(labelCounts).length ? Object.values(labelCounts) : [0] }],
-  }), [labelCounts]);
-
   const lineData = useMemo(() => {
     const byDay: Record<string, Record<string, number>> = {};
     selectedFruitScans.forEach(s => {
@@ -233,7 +209,6 @@ export default function ResultsScreen() {
     return { labels, datasets, legend: diagnoses };
   }, [selectedFruitScans, labelCounts, colors.sano]);
 
-  const chartWidth = isTablet ? Math.min(screenWidth - 96, 680) : screenWidth - 52;
   const maxLabelCount = Math.max(1, ...Object.values(labelCounts));
   const maxDailyCount = Math.max(
     1,
@@ -371,7 +346,7 @@ export default function ResultsScreen() {
               </Text>
             </View>
           </View>
-          {pieData.length > 0 && Platform.OS === 'web' && (
+          {pieData.length > 0 && (
             <View style={styles.webDistribution}>
               {pieData.map(item => {
                 const percentage = Math.round((item.population / fruitScans.length) * 100);
@@ -397,18 +372,6 @@ export default function ResultsScreen() {
               })}
             </View>
           )}
-          {pieData.length > 0 && Platform.OS !== 'web' && (
-            <PieChart
-              data={pieData}
-              width={chartWidth}
-              height={190}
-              chartConfig={chartConfigBase}
-              accessor="population"
-              backgroundColor="transparent"
-              paddingLeft="8"
-              absolute
-            />
-          )}
         </View>
 
         {/* ── Bar chart ─────────────────────────────────────────── */}
@@ -416,8 +379,7 @@ export default function ResultsScreen() {
           <Text style={styles.chartCardTitle}>
             {getFruitEmoji(chartFruit)} {chartFruit} — Conteo por diagnóstico
           </Text>
-          {Platform.OS === 'web' ? (
-            <View style={styles.webBars}>
+          <View style={styles.webBars}>
               {Object.entries(labelCounts).map(([label, count], index) => (
                 <View key={label} style={styles.webBarRow}>
                   <Text style={styles.webBarLabel} numberOfLines={1}>{label}</Text>
@@ -437,20 +399,7 @@ export default function ResultsScreen() {
                   <Text style={styles.webBarValue}>{count}</Text>
                 </View>
               ))}
-            </View>
-          ) : (
-            <BarChart
-              data={barData}
-              width={chartWidth}
-              height={210}
-              yAxisLabel=""
-              yAxisSuffix=""
-              chartConfig={barChartConfig}
-              style={{ borderRadius: 12, marginTop: 10 }}
-              fromZero
-              showValuesOnTopOfBars
-            />
-          )}
+          </View>
         </View>
 
         {/* ── Line chart (only when there are multiple days) ───── */}
@@ -459,8 +408,7 @@ export default function ResultsScreen() {
             <Text style={styles.chartCardTitle}>
               {getFruitEmoji(chartFruit)} {chartFruit} — Tendencia temporal
             </Text>
-            {Platform.OS === 'web' ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={styles.webTimeline}>
                   {lineData.labels.map((day, dayIndex) => (
                     <View key={`${day}-${dayIndex}`} style={styles.webTimelineDay}>
@@ -485,17 +433,7 @@ export default function ResultsScreen() {
                     </View>
                   ))}
                 </View>
-              </ScrollView>
-            ) : (
-              <LineChart
-                data={lineData}
-                width={chartWidth}
-                height={210}
-                chartConfig={chartConfigBase}
-                bezier
-                style={{ borderRadius: 12, marginTop: 10 }}
-              />
-            )}
+            </ScrollView>
           </View>
         )}
       </View>

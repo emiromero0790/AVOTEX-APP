@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,11 +13,13 @@ import {
   Linking,
 } from "react-native";
 import { Stack, router } from "expo-router";
-import { ChevronLeft, Send, Shield, Flag, Sparkles, Bot } from "lucide-react-native";
+import { ChevronLeft, Send, Shield, Flag, Sparkles, Bot, User } from "lucide-react-native";
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import emailjs from '@emailjs/browser';
 import { LinearGradient } from 'expo-linear-gradient';
+import { auth } from '../../firebaseConfig';
+import { onAuthStateChanged } from 'firebase/auth';
 
 const EMAILJS_SERVICE_ID = process.env.EXPO_PUBLIC_EMAILJS_SERVICE_ID!;
 const EMAILJS_TEMPLATE_ID = process.env.EXPO_PUBLIC_EMAILJS_TEMPLATE_ID!;
@@ -81,6 +83,14 @@ export default function ChatbotScreen() {
 
   const [modalVisible, setModalVisible] = useState(true);
   const [accepted, setAccepted] = useState(false);
+  const [userEmail, setUserEmail] = useState("Invitado");
+
+  useEffect(() => {
+    setUserEmail(auth.currentUser?.email || "Invitado");
+    return onAuthStateChanged(auth, (currentUser) => {
+      setUserEmail(currentUser?.email || "Invitado");
+    });
+  }, []);
 
   const isValidEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -220,7 +230,7 @@ export default function ChatbotScreen() {
     >
       <Stack.Screen
         options={{
-          headerShown: true,
+          headerShown: false,
           title: "Asistente Avotex",
           headerTitleStyle: { fontFamily: 'Poppins_600SemiBold' },
           headerStyle: { backgroundColor: '#071713' },
@@ -316,31 +326,52 @@ export default function ChatbotScreen() {
         </View>
       </Modal>
 
+      <LinearGradient colors={['#71e7c1', '#0e5f4e', '#03100d']} locations={[0, 0.28, 0.86]} style={styles.background}>
+      <View style={styles.atmosphereTop} />
+      <View style={styles.atmosphereBottom} />
       <ScrollView
         style={styles.chatArea}
         contentContainerStyle={styles.chatContent}
         ref={scrollViewRef}
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+        keyboardShouldPersistTaps="handled"
       >
         {messages.length === 0 && !modalVisible && (
           <View style={styles.welcomeContainer}>
-            <View style={styles.aiOrb}>
-              <View style={styles.aiOrbGlow} />
-              <LinearGradient colors={['#b8ffe9', '#24c99a', '#075747']} style={styles.aiOrbCore} />
-              <View style={styles.aiOrbShine} />
+            <View style={styles.profileHeader}>
+              <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Volver" style={styles.backButton}>
+                <ChevronLeft size={20} color="#d8fff2" />
+              </TouchableOpacity>
+              <View style={styles.userCircle}><User size={17} color="#d8fff2" /></View>
+              <View>
+                <Text style={styles.welcomeLabel}>Bienvenido</Text>
+                <Text style={styles.emailLabel} numberOfLines={1}>{userEmail}</Text>
+              </View>
             </View>
-            <View style={styles.welcomeEyebrow}><Sparkles size={14} color="#79d7c1" /><Text style={styles.eyebrowText}>INTELIGENCIA PARA TU CAMPO</Text></View>
-            <Text style={styles.welcomeTitle}>¿Qué cultivamos hoy?</Text>
+            <Text style={styles.welcomeTitle}>¿Qué quieres{"\n"}descubrir hoy?</Text>
             <Text style={styles.welcomeSubtitle}>
               Pregunta sobre la app, tus cultivos o el siguiente paso.
             </Text>
-            <View style={styles.suggestions}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsScroll} contentContainerStyle={styles.suggestions}>
               {['¿Cómo funciona Escanear?', '¿Qué muestra Mapeo?', 'Ayúdame con una recomendación'].map((suggestion) => (
                 <TouchableOpacity key={suggestion} style={styles.suggestionCard} onPress={() => setInput(suggestion)} activeOpacity={0.8}>
                   <Sparkles size={14} color="#79d7c1" />
                   <Text style={styles.suggestionText}>{suggestion}</Text>
                 </TouchableOpacity>
               ))}
+            </ScrollView>
+            <View style={[styles.inputContainer, styles.initialInput, !accepted && styles.inputContainerDisabled]}>
+              <TextInput value={input} onChangeText={setInput}
+                placeholder={!accepted ? "Acepta los términos para escribir..." : waitingForEmail ? "Escribe tu correo..." : "Pregunta algo o describe tu idea"}
+                placeholderTextColor="#91b8ad" style={[styles.input, styles.initialInputText, !accepted && styles.inputDisabled]}
+                onSubmitEditing={sendMessage} multiline={!waitingForEmail}
+                keyboardType={waitingForEmail ? "email-address" : "default"} autoCapitalize={waitingForEmail ? "none" : "sentences"} editable={accepted} />
+              <View style={styles.initialControls}>
+                <Text style={styles.inputHint}>Avotex · asistente inteligente</Text>
+                <TouchableOpacity style={styles.sendBtn} onPress={accepted ? sendMessage : () => setModalVisible(true)} disabled={loading}>
+                  {!accepted ? <View style={styles.sendBtnPlain}><Shield size={20} color="#b9ffe9" /></View> : <View style={styles.sendBtnGradient}><Send size={19} color="#05231b" /></View>}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         )}
@@ -375,8 +406,9 @@ export default function ChatbotScreen() {
           </View>
         )}
       </ScrollView>
+      </LinearGradient>
 
-      <View style={[styles.inputContainer, !accepted && styles.inputContainerDisabled]}>
+      {messages.length > 0 && <View style={[styles.inputContainer, !accepted && styles.inputContainerDisabled]}>
         <TextInput
           value={input}
           onChangeText={setInput}
@@ -405,14 +437,23 @@ export default function ChatbotScreen() {
             </View>
           )}
         </TouchableOpacity>
-      </View>
+      </View>}
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#030b09" },
-  chatArea: { flex: 1, backgroundColor: '#030b09' },
+  background: { flex: 1, backgroundColor: '#03100d' },
+  atmosphereTop: {
+    position: 'absolute', top: -90, left: -80, width: 280, height: 260,
+    borderRadius: 140, backgroundColor: '#b5ffe8', opacity: 0.18,
+  },
+  atmosphereBottom: {
+    position: 'absolute', bottom: -140, right: -90, width: 330, height: 300,
+    borderRadius: 170, backgroundColor: '#02100c', opacity: 0.68,
+  },
+  chatArea: { flex: 1, backgroundColor: 'transparent' },
   chatContent: { padding: 18, paddingBottom: 20, maxWidth: 760, width: '100%', alignSelf: 'center' },
 
   modalOverlay: {
@@ -550,111 +591,74 @@ const styles = StyleSheet.create({
   },
 
   welcomeContainer: {
-    alignItems: 'center',
-    paddingVertical: 28,
-    paddingHorizontal: 20,
+    alignItems: 'flex-start',
+    paddingTop: 18,
+    paddingBottom: 14,
+    paddingHorizontal: 6,
   },
-  aiOrb: {
-    width: 178,
-    height: 178,
-    borderRadius: 89,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 22,
-    backgroundColor: '#0b3c31',
-    shadowColor: '#22c99b',
-    shadowOpacity: 0.42,
-    shadowRadius: 38,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 12,
+  profileHeader: {
+    flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 92,
   },
-  aiOrbGlow: {
-    position: 'absolute',
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    backgroundColor: '#0d6d55',
-    opacity: 0.22,
+  backButton: {
+    width: 32, height: 32, borderRadius: 16, justifyContent: 'center',
+    alignItems: 'center', marginRight: 8, backgroundColor: 'rgba(4, 31, 24, 0.28)',
   },
-  aiOrbCore: {
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    transform: [{ rotate: '-18deg' }],
+  userCircle: {
+    width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(3, 40, 31, 0.48)',
+    justifyContent: 'center', alignItems: 'center', marginRight: 9,
+    borderWidth: 1, borderColor: 'rgba(211,255,241,0.42)',
   },
-  aiOrbShine: {
-    position: 'absolute',
-    width: 46,
-    height: 26,
-    borderRadius: 26,
-    backgroundColor: '#d7fff3',
-    opacity: 0.5,
-    top: 44,
-    left: 54,
-    transform: [{ rotate: '-30deg' }],
+  welcomeLabel: {
+    color: '#e1fff5', fontFamily: 'Poppins_600SemiBold', fontSize: 12,
   },
-  welcomeEyebrow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    marginBottom: 8,
-  },
-  eyebrowText: {
-    color: '#79d7c1',
-    fontSize: 10,
-    fontFamily: 'Poppins_600SemiBold',
-    letterSpacing: 1.2,
+  emailLabel: {
+    color: 'rgba(225,255,245,0.68)', fontFamily: 'Poppins_400Regular', fontSize: 10,
+    maxWidth: 230,
   },
   suggestions: {
-    width: '100%',
-    marginTop: 25,
-    gap: 9,
+    paddingRight: 8, gap: 10,
+  },
+  suggestionsScroll: {
+    width: '100%', marginTop: 24, marginBottom: 10,
   },
   suggestionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 13,
-    paddingHorizontal: 15,
-    borderRadius: 15,
-    backgroundColor: 'rgba(13, 41, 35, 0.82)',
+    width: 176, height: 112, justifyContent: 'space-between', alignItems: 'flex-start',
+    paddingVertical: 15, paddingHorizontal: 14, borderRadius: 16,
+    backgroundColor: 'rgba(3, 35, 27, 0.78)',
     borderWidth: 1,
-    borderColor: '#1d594c',
+    borderColor: 'rgba(128, 239, 204, 0.22)',
   },
   suggestionText: {
     color: '#c1e7dd',
     fontFamily: 'Poppins_400Regular',
-    fontSize: 13,
-    flex: 1,
-  },
-  logoWrapper: {
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 20,
-    backgroundColor: 'transparent',
-    shadowColor: '#2dd4a4',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  logo: {
-    width: 200,
-    height: 80,
+    fontSize: 12, lineHeight: 17,
   },
   welcomeTitle: {
-    fontSize: 34,
+    fontSize: 35,
     fontFamily: 'Poppins_600SemiBold',
     color: '#e1fff5',
-    marginBottom: 8,
-    letterSpacing: -1.2,
+    marginBottom: 8, letterSpacing: -1.4, lineHeight: 40,
   },
   welcomeSubtitle: {
     fontSize: 15,
     color: '#8fb7ad',
-    textAlign: 'center',
+    textAlign: 'left',
     fontFamily: 'Poppins_400Regular',
     lineHeight: 22,
+  },
+  initialInput: {
+    width: '100%', minHeight: 178, marginHorizontal: 0, marginTop: 8,
+    borderRadius: 22, paddingHorizontal: 17, paddingTop: 16, paddingBottom: 10,
+    alignItems: 'stretch', flexDirection: 'column',
+  },
+  initialInputText: {
+    minHeight: 102, textAlignVertical: 'top', paddingHorizontal: 0,
+  },
+  initialControls: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  inputHint: {
+    color: '#6d9d91', fontFamily: 'Poppins_400Regular', fontSize: 10,
   },
 
   messageRow: {

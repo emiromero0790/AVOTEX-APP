@@ -21,11 +21,15 @@ const toastConfig = {
 };
 
 export default function RootLayout() {
-  useFonts({
+  const [fontsLoaded] = useFonts({
     'Poppins-Regular': Poppins_400Regular,
     'Poppins-SemiBold': Poppins_600SemiBold,
     'Poppins-Bold': Poppins_700Bold,
   });
+
+  if (!fontsLoaded) {
+    return <View style={styles.loadingScreen} />;
+  }
 
   return (
     <GuestProvider>
@@ -46,6 +50,10 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  loadingScreen: {
+    flex: 1,
+    backgroundColor: '#071D1D',
+  },
   toastContainer: {
     flexDirection: 'row',
     alignItems: 'center',

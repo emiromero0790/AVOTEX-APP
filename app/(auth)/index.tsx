@@ -430,7 +430,7 @@ const s = StyleSheet.create({
     letterSpacing: 1.5, marginBottom: 12,
   },
   coverTitle: {
-    color: '#F5FBF8', fontFamily: 'Poppins-Bold', fontSize: 36,
+    color: '#F5FBF8', fontFamily: 'Poppins-Regular', fontWeight: '400', fontSize: 36,
     lineHeight: 43, letterSpacing: -0.5,
   },
   coverTitleTablet: { fontSize: 52, lineHeight: 60 },
@@ -446,13 +446,13 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9,
     paddingHorizontal: 18,
   },
-  coverGuestText: { color: '#E6F4F0', fontFamily: 'Poppins-SemiBold', fontSize: 15 },
+  coverGuestText: { color: '#E6F4F0', fontFamily: 'Poppins-SemiBold', fontSize: 15, flexShrink: 0 },
   coverLoginButton: {
     minHeight: 54, borderRadius: 16, backgroundColor: '#9DDED2',
     alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8,
     paddingHorizontal: 22,
   },
-  coverLoginText: { color: '#0B3E3A', fontFamily: 'Poppins-SemiBold', fontSize: 15 },
+  coverLoginText: { color: '#0B3E3A', fontFamily: 'Poppins-SemiBold', fontSize: 15, flexShrink: 0 },
   formScreen: {
     flex: 1, paddingTop: Platform.OS === 'ios' ? 54 : 30,
     paddingHorizontal: 24,

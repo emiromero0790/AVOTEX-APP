@@ -12,7 +12,7 @@ import {
   Easing,
   useWindowDimensions,
 } from 'react-native';
-import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, AlertTriangle, LogOut, MapPin, MapPinOff, Lock, User as UserIcon, Coins } from 'lucide-react-native';
+import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, AlertTriangle, LogOut, MapPin, MapPinOff, Lock, User as UserIcon, Coins } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
@@ -171,6 +171,7 @@ export default function Home() {
   const [location, setLocation]       = useState<Location.LocationObject | null>(null);
   const [temperature, setTemperature] = useState<number | null>(null);
   const [humidity, setHumidity]       = useState<number | null>(null);
+  const [windSpeed, setWindSpeed]     = useState<number | null>(null);
   const [dateTime, setDateTime]       = useState({ date: '', time: '' });
   const [municipio, setMunicipio]     = useState('');
   const [errorMsg, setErrorMsg]       = useState<string | null>(null);
@@ -213,6 +214,7 @@ export default function Home() {
       setMunicipio('');
       setTemperature(null);
       setHumidity(null);
+      setWindSpeed(null);
       setErrorMsg(null);
     }
   };
@@ -227,6 +229,7 @@ export default function Home() {
         );
         setTemperature(r.data.main.temp);
         setHumidity(r.data.main.humidity);
+        setWindSpeed(r.data.wind?.speed ?? null);
       } catch {}
     })();
   }, [location]);
@@ -357,11 +360,71 @@ export default function Home() {
         <View style={[s.contentWrapper, { maxWidth: contentMaxWidth }]}>
 
           <View style={[s.header, isTablet && s.headerTablet]}>
-            <Image
-              source={require('../../assets/images/AvotexNuevoLogo.png')}
-              style={[s.logo, isTablet && s.logoTablet]}
-              resizeMode="contain"
-            />
+            <Reanimated.View
+              entering={FadeInDown.delay(120).duration(700)}
+              style={[s.environmentGrid, isTablet && s.environmentGridTablet]}
+            >
+              <View style={[s.environmentCard, isTablet && s.environmentCardTablet]}>
+                <View style={s.environmentLabelRow}>
+                  <Sun color="#f59e0b" size={isTablet ? 23 : 19} />
+                  <Text style={[s.environmentLabel, isTablet && s.environmentLabelTablet]}>Temperatura</Text>
+                </View>
+                <Text style={[s.environmentValue, isTablet && s.environmentValueTablet]}>
+                  {temperature !== null ? `${temperature.toFixed(1)}°` : '—'}
+                </Text>
+                <View style={[s.statusPill, temperature !== null && temperature >= 15 && temperature <= 30 ? s.statusGood : s.statusNeutral]}>
+                  <Text style={s.statusPillText}>
+                    {temperature === null ? 'Sin ubicación' : temperature >= 15 && temperature <= 30 ? 'Dentro de rango' : 'Revisar'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={[s.environmentCard, isTablet && s.environmentCardTablet]}>
+                <View style={s.environmentLabelRow}>
+                  <Droplets color="#38bdf8" size={isTablet ? 23 : 19} />
+                  <Text style={[s.environmentLabel, isTablet && s.environmentLabelTablet]}>Humedad</Text>
+                </View>
+                <Text style={[s.environmentValue, isTablet && s.environmentValueTablet]}>
+                  {humidity !== null ? `${humidity}%` : '—'}
+                </Text>
+                <View style={[s.statusPill, humidity !== null && humidity >= 40 && humidity <= 75 ? s.statusGood : s.statusNeutral]}>
+                  <Text style={s.statusPillText}>
+                    {humidity === null ? 'Sin ubicación' : humidity >= 40 && humidity <= 75 ? 'Adecuada' : 'Fuera de rango'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={[s.environmentCard, isTablet && s.environmentCardTablet]}>
+                <View style={s.environmentLabelRow}>
+                  <Leaf color="#22a06b" size={isTablet ? 23 : 19} />
+                  <Text style={[s.environmentLabel, isTablet && s.environmentLabelTablet]}>Salud</Text>
+                </View>
+                <Text style={[s.environmentValue, isTablet && s.environmentValueTablet]}>
+                  {isGuest || healthPct === null ? 'N/A' : `${healthPct.toFixed(0)}%`}
+                </Text>
+                <View style={[s.statusPill, !isGuest && healthPct !== null && healthPct >= 70 ? s.statusGood : s.statusNeutral]}>
+                  <Text style={s.statusPillText}>
+                    {isGuest || healthPct === null ? 'Sin análisis' : healthPct >= 70 ? 'Saludable' : 'Requiere atención'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={[s.environmentCard, isTablet && s.environmentCardTablet]}>
+                <View style={s.environmentLabelRow}>
+                  <Wind color="#64748b" size={isTablet ? 23 : 19} />
+                  <Text style={[s.environmentLabel, isTablet && s.environmentLabelTablet]}>Viento</Text>
+                </View>
+                <Text style={[s.environmentValue, isTablet && s.environmentValueTablet]}>
+                  {windSpeed !== null ? `${windSpeed.toFixed(1)}` : '—'}
+                  {windSpeed !== null ? <Text style={s.environmentUnit}> m/s</Text> : null}
+                </Text>
+                <View style={[s.statusPill, windSpeed !== null && windSpeed <= 8 ? s.statusGood : s.statusNeutral]}>
+                  <Text style={s.statusPillText}>
+                    {windSpeed === null ? 'Sin ubicación' : windSpeed <= 8 ? 'Viento estable' : 'Viento fuerte'}
+                  </Text>
+                </View>
+              </View>
+            </Reanimated.View>
 
             <Reanimated.View entering={FadeInDown.delay(200).duration(700)}>
               <View style={[s.welcomeCard, { borderColor: colors.welcomeBorder }, isTablet && s.welcomeCardTablet]}>
@@ -414,30 +477,6 @@ export default function Home() {
               </View>
             </Reanimated.View>
 
-
-            <Reanimated.View entering={FadeInDown.delay(420).duration(700)} style={[s.stats, isTablet && s.statsTablet]}>
-              <View style={s.statItem}>
-                <Sun color={colors.primary} size={isTablet ? 26 : 22} />
-                <Text style={[s.statVal, { color: colors.textPrimary }, isTablet && s.statValTablet]}>
-                  {temperature !== null ? `${getWeatherEmoji(temperature)} ${temperature.toFixed(1)}°C` : '—'}
-                </Text>
-                <Text style={[s.statLbl, isTablet && s.statLblTablet]}>Temperatura</Text>
-              </View>
-              <View style={s.statDiv} />
-              <View style={s.statItem}>
-                <Droplets color="#38bdf8" size={isTablet ? 26 : 22} />
-                <Text style={[s.statVal, { color: colors.textPrimary }, isTablet && s.statValTablet]}>{humidity !== null ? `${humidity}%` : '—'}</Text>
-                <Text style={[s.statLbl, isTablet && s.statLblTablet]}>Humedad</Text>
-              </View>
-              <View style={s.statDiv} />
-              <View style={s.statItem}>
-                <Leaf color={colors.accent} size={isTablet ? 26 : 22} />
-                <Text style={[s.statVal, { color: colors.textPrimary }, isTablet && s.statValTablet]}>
-                  {isGuest ? 'N/A' : (healthPct !== null ? `${healthPct.toFixed(0)}%` : 'N/A')}
-                </Text>
-                <Text style={[s.statLbl, isTablet && s.statLblTablet]}>Salud</Text>
-              </View>
-            </Reanimated.View>
           </View>
 
           <Reanimated.View entering={FadeInUp.delay(500).duration(700)} style={{ marginTop: -5, marginBottom: 12 }}>
@@ -642,8 +681,51 @@ const s = StyleSheet.create({
   header: { paddingTop: 90, paddingHorizontal: 22, marginBottom: 18 },
   headerTablet: { paddingTop: 100, paddingHorizontal: 28 },
 
-  logo: { width: '96%', height: 110, alignSelf: 'center', marginBottom: 12 },
-  logoTablet: { width: '70%', height: 140, marginBottom: 18 },
+  environmentGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 10,
+    marginBottom: 14,
+  },
+  environmentGridTablet: { rowGap: 16, marginBottom: 20 },
+  environmentCard: {
+    width: '47.5%',
+    minHeight: 146,
+    justifyContent: 'space-between',
+    backgroundColor: '#F5FAFC',
+    borderRadius: 19,
+    padding: 13,
+    borderWidth: 1,
+    borderColor: '#E2ECEF',
+    shadowColor: '#134e4a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  environmentCardTablet: { width: '48%', minHeight: 200, padding: 21, borderRadius: 26 },
+  environmentLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  environmentLabel: { color: '#65767A', fontFamily: 'Poppins_400Regular', fontSize: 12 },
+  environmentLabelTablet: { fontSize: 16 },
+  environmentValue: {
+    color: '#102F33',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 32,
+    lineHeight: 39,
+    letterSpacing: -1.5,
+  },
+  environmentValueTablet: { fontSize: 56, lineHeight: 66 },
+  environmentUnit: { fontSize: 13, letterSpacing: 0, color: '#64748b' },
+  statusPill: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  statusGood: { backgroundColor: '#55D990' },
+  statusNeutral: { backgroundColor: '#F08078' },
+  statusPillText: { color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold', fontSize: 9 },
 
   locationToggleCard: {
     flexDirection: 'row',
@@ -727,22 +809,6 @@ const s = StyleSheet.create({
   timeTextTablet: { fontSize: 18 },
   dateText: { fontFamily: 'Poppins_400Regular', fontSize: 11, marginTop: 1 },
   dateTextTablet: { fontSize: 13 },
-
-  stats: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.94)', borderRadius: 20, padding: 16, marginTop: 12,
-    shadowColor: '#0f766e', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.09, shadowRadius: 10, elevation: 4,
-  },
-  statsTablet: {
-    padding: 22, borderRadius: 24, marginTop: 16,
-  },
-  statItem: { alignItems: 'center', flex: 1 },
-  statDiv: { width: 1, height: 40, backgroundColor: '#ccfbf1', marginHorizontal: 4 },
-  statVal: { fontSize: 14, fontFamily: 'Poppins_600SemiBold', marginTop: 2 },
-  statValTablet: { fontSize: 17 },
-  statLbl: { fontSize: 11, fontFamily: 'Poppins_400Regular', color: '#94a3b8', marginTop: 1 },
-  statLblTablet: { fontSize: 13 },
 
   mapPh: {
     height: 160, marginHorizontal: 22, borderRadius: 16,

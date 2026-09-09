@@ -12,8 +12,8 @@ function buildMapHTML(latitude: number, longitude: number): string {
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
-<style>html,body,#map{height:100%;width:100%;margin:0}#map{background:#dbe9df}.leaflet-control{box-shadow:0 1px 5px rgba(12,63,53,.25)!important}.draw-button{position:absolute;top:12px;right:12px;z-index:1000;border:0;border-radius:12px;padding:12px 16px;background:#0d756b;color:#fff;font:700 15px system-ui;box-shadow:0 4px 12px rgba(0,0,0,.25);cursor:pointer}</style>
-</head><body><div id="map"></div><button id="drawButton" class="draw-button" type="button">Dibujar</button>
+<style>html,body,#map{height:100%;width:100%;margin:0}#map{background:#dbe9df}.leaflet-control{box-shadow:0 1px 5px rgba(12,63,53,.25)!important}.map-actions{position:absolute;top:12px;right:12px;z-index:1000;display:flex;gap:8px}.map-button{border:0;border-radius:12px;padding:12px 14px;color:#fff;font:700 15px system-ui;box-shadow:0 4px 12px rgba(0,0,0,.25);cursor:pointer}.draw-button{background:#0d756b}.clear-button{background:#9f3c35}</style>
+</head><body><div id="map"></div><div class="map-actions"><button id="drawButton" class="map-button draw-button" type="button">Dibujar</button><button id="clearButton" class="map-button clear-button" type="button">Borrar</button></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 <script>
@@ -21,14 +21,19 @@ var map=L.map('map',{zoomControl:true,attributionControl:true}).setView([${latit
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'}).addTo(map);
 var drawn=new L.FeatureGroup();map.addLayer(drawn);
 var polygonOptions={allowIntersection:false,showArea:true,shapeOptions:{color:'#ecfff3',weight:3,fillColor:'#19a681',fillOpacity:.42}};
-var drawControl=new L.Control.Draw({position:'topleft',draw:{polyline:false,rectangle:false,circle:false,circlemarker:false,marker:false,polygon:polygonOptions},edit:{featureGroup:drawn,remove:true}});
+var drawControl=new L.Control.Draw({position:'topleft',draw:false,edit:{featureGroup:drawn,edit:true,remove:false}});
 map.addControl(drawControl);
-function startDrawing(){new L.Draw.Polygon(map,polygonOptions).enable();}
+var activeDrawer=null;
+function sendPoints(points){window.parent.postMessage({source:'avotex-polygon-map',type:'polygon',points:points},'*');}
+function startDrawing(){if(activeDrawer){activeDrawer.disable();}activeDrawer=new L.Draw.Polygon(map,polygonOptions);activeDrawer.enable();}
+function clearDrawing(){if(activeDrawer){activeDrawer.disable();activeDrawer=null;}drawn.clearLayers();sendPoints([]);}
 document.getElementById('drawButton').addEventListener('click',function(event){event.preventDefault();event.stopPropagation();startDrawing();});
+document.getElementById('clearButton').addEventListener('click',function(event){event.preventDefault();event.stopPropagation();clearDrawing();});
 map.on(L.Draw.Event.CREATED,function(e){
+  activeDrawer=null;
   drawn.clearLayers();drawn.addLayer(e.layer);
   var points=e.layer.getLatLngs()[0].map(function(point){return {latitude:point.lat,longitude:point.lng};});
-  window.parent.postMessage({source:'avotex-polygon-map',type:'polygon',points:points},'*');
+  sendPoints(points);
 });
 </script></body></html>`;
 }

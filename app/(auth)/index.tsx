@@ -344,7 +344,7 @@ export default function Login() {
                 onChangeText={(t) => { setEmail(t); setError(''); }}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                placeholderTextColor="#a8c4a0"
+                placeholderTextColor="#FFFFFF"
               />
             </View>
 
@@ -356,7 +356,7 @@ export default function Login() {
                 value={password}
                 onChangeText={(t) => { setPassword(t); setError(''); }}
                 secureTextEntry={!showPassword}
-                placeholderTextColor="#a8c4a0"
+                placeholderTextColor="#FFFFFF"
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={s.eyeBtn}>
                 {showPassword ? <Eye color="#7aad4c" size={20} /> : <EyeOff color="#7aad4c" size={20} />}

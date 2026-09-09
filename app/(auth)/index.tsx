@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  ImageBackground,
   useWindowDimensions,
   Platform,
   ActivityIndicator,
@@ -152,7 +153,12 @@ export default function Login() {
   const cardMaxWidth = isTablet ? 480 : undefined;
 
   return (
-    <View style={s.root}>
+    <ImageBackground
+      source={require('../../assets/images/marcoroosink-winegrower-490486.jpg')}
+      style={s.root}
+      imageStyle={s.backdropImage}
+      resizeMode="cover"
+    >
 
       {/* Forgot password modal */}
       <Modal
@@ -277,12 +283,13 @@ export default function Login() {
         </View>
       </Modal>
 
-      <View pointerEvents="none" style={[s.photoBackdrop, panelOpen && s.photoBackdropDim]}>
-        <Image source={require('../../assets/images/marcoroosink-winegrower-490486.jpg')} style={s.backdropImage} />
-        <LinearGradient colors={panelOpen
+      <LinearGradient
+        pointerEvents="none"
+        colors={panelOpen
           ? ['rgba(5,18,19,0.68)', 'rgba(5,18,19,0.88)']
-          : ['rgba(5,18,19,0.18)', 'rgba(5,18,19,0.68)']} style={StyleSheet.absoluteFill} />
-      </View>
+          : ['rgba(5,18,19,0.18)', 'rgba(5,18,19,0.68)']}
+        style={StyleSheet.absoluteFill}
+      />
 
       <KeyboardAvoidingView
         style={s.kav}
@@ -402,7 +409,7 @@ export default function Login() {
           </View>
         )}
       </KeyboardAvoidingView>
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -411,9 +418,7 @@ const s = StyleSheet.create({
     flex: 1,
     backgroundColor: '#071D1D',
   },
-  photoBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: '#18352B' },
-  photoBackdropDim: { backgroundColor: '#061A1A' },
-  backdropImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  backdropImage: { backgroundColor: '#18352B' },
   brandLogo: { width: 290, height: 104, alignSelf: 'center', tintColor: '#FFFFFF', opacity: 0.98, marginBottom: 2 },
   brandLogoTablet: { width: 380, height: 136 },
   coverContent: {

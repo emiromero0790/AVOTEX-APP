@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -29,7 +29,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const OPENWEATHER_API_KEY = process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY!;
 
-interface Scan { label: string; }
+interface Scan {
+  label: string;
+  created_at?: string;
+}
 
 type VerticalGaugeProps = {
   value: number | null;
@@ -299,7 +302,7 @@ export default function Home() {
   useEffect(() => {
     if (isGuest) { setLoadingUser(false); return; }
     if (!user) { setScans([]); return; }
-    supabase.from('scans').select('label').eq('user_id', user.uid)
+    supabase.from('scans').select('label, created_at').eq('user_id', user.uid)
       .then(({ data }) => { if (data) setScans(data); });
   }, [user, isGuest]);
 
@@ -329,6 +332,34 @@ export default function Home() {
       const h = scans.filter(s => s.label.toLowerCase().includes('saludable')).length;
       setHealthPct((h / scans.length) * 100);
     } else setHealthPct(null);
+  }, [scans]);
+
+  const productivityCalendar = useMemo(() => {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const start = new Date(now.getFullYear(), now.getMonth(), 1 - first.getDay());
+    const counts: Record<string, number> = {};
+
+    scans.forEach(scan => {
+      if (!scan.created_at) return;
+      const date = new Date(scan.created_at);
+      const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+      counts[key] = (counts[key] ?? 0) + 1;
+    });
+
+    const days = Array.from({ length: 42 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+      return {
+        date,
+        count: counts[key] ?? 0,
+        currentMonth: date.getMonth() === now.getMonth(),
+        today: date.toDateString() === now.toDateString(),
+      };
+    });
+
+    return { now, days };
   }, [scans]);
 
   if (!fontsLoaded || loadingUser) {
@@ -632,6 +663,56 @@ export default function Home() {
                   <Text style={[s.quickActionLabel, isTablet && s.quickActionLabelTablet, isGuest && s.secTitleLocked]}>Actividad</Text>
                 </LinearGradient>
               </TouchableOpacity>
+            </View>
+          </Reanimated.View>
+
+          <Reanimated.View
+            entering={FadeInUp.delay(620).duration(700)}
+            style={[s.productivityCard, isTablet && s.productivityCardTablet]}
+          >
+            <View style={s.productivityHeader}>
+              <View>
+                <Text style={s.productivityEyebrow}>TU ACTIVIDAD</Text>
+                <Text style={[s.productivityTitle, isTablet && s.productivityTitleTablet]}>Productividad</Text>
+              </View>
+              <Text style={s.productivityMonth}>
+                {productivityCalendar.now.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}
+              </Text>
+            </View>
+            <View style={s.productivityWeekdays}>
+              {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, index) => (
+                <Text key={`${day}-${index}`} style={s.productivityWeekday}>{day}</Text>
+              ))}
+            </View>
+            <View style={s.productivityGrid}>
+              {productivityCalendar.days.map(({ date, count, currentMonth, today }, index) => (
+                <View
+                  key={`${date.toISOString()}-${index}`}
+                  style={[s.productivityDay, !currentMonth && s.productivityDayOutside]}
+                >
+                  <Text style={[s.productivityDayNumber, today && s.productivityToday]}>{date.getDate()}</Text>
+                  <View style={s.productivityMarks}>
+                    {[1, 2, 3].map(level => (
+                      <View
+                        key={level}
+                        style={[
+                          s.productivityMark,
+                          count >= level && s.productivityMarkActive,
+                          count === 0 && s.productivityMarkEmpty,
+                        ]}
+                      />
+                    ))}
+                  </View>
+                  {count > 3 ? <Text style={s.productivityExtra}>+{count - 3}</Text> : null}
+                </View>
+              ))}
+            </View>
+            <View style={s.productivityFooter}>
+              <View style={s.productivityLegend}>
+                <View style={[s.productivityMark, s.productivityMarkActive]} />
+                <Text style={s.productivityLegendText}>Cada marca representa un escaneo</Text>
+              </View>
+              <Text style={s.productivityTotal}>{scans.length} total</Text>
             </View>
           </Reanimated.View>
 
@@ -1074,6 +1155,122 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 17,
     backgroundColor: 'rgba(255,255,255,0.91)',
+  },
+  productivityCard: {
+    marginHorizontal: 18,
+    marginBottom: 26,
+    padding: 16,
+    borderRadius: 26,
+    backgroundColor: '#F1FF72',
+    shadowColor: '#6F7628',
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    elevation: 5,
+  },
+  productivityCardTablet: {
+    marginHorizontal: 28,
+    padding: 22,
+    borderRadius: 32,
+  },
+  productivityHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 13,
+  },
+  productivityEyebrow: {
+    color: '#757A28',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 8,
+    letterSpacing: 1.2,
+  },
+  productivityTitle: {
+    color: '#171817',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 22,
+    lineHeight: 27,
+  },
+  productivityTitleTablet: { fontSize: 28, lineHeight: 34 },
+  productivityMonth: {
+    color: '#383B1B',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 10,
+    textTransform: 'capitalize',
+    marginTop: 4,
+  },
+  productivityWeekdays: { flexDirection: 'row', marginBottom: 5 },
+  productivityWeekday: {
+    width: '14.28%',
+    color: '#777B35',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 9,
+    textAlign: 'center',
+  },
+  productivityGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  productivityDay: {
+    width: '14.28%',
+    height: 43,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  productivityDayOutside: { opacity: 0.24 },
+  productivityDayNumber: {
+    color: '#4C4F25',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 8,
+    lineHeight: 10,
+  },
+  productivityToday: {
+    color: '#11120A',
+    fontFamily: 'Poppins_700Bold',
+    textDecorationLine: 'underline',
+  },
+  productivityMarks: {
+    height: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    marginTop: 2,
+  },
+  productivityMark: {
+    width: 25,
+    height: 5,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#2C2D22',
+    backgroundColor: 'transparent',
+  },
+  productivityMarkActive: { backgroundColor: '#22231F' },
+  productivityMarkEmpty: { borderColor: 'rgba(44,45,34,0.55)' },
+  productivityExtra: {
+    position: 'absolute',
+    right: 1,
+    bottom: 1,
+    color: '#4B4E22',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 6,
+  },
+  productivityFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(45,47,27,0.17)',
+  },
+  productivityLegend: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  productivityLegendText: {
+    color: '#5B5F2B',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 8,
+  },
+  productivityTotal: {
+    color: '#252619',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 9,
   },
   secTitleLocked: { color: '#94a3b8' },
 });

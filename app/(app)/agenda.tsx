@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, useWindowDimensions } from 'react-native';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, useWindowDimensions, KeyboardAvoidingView, Platform } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { CheckCircle, Plus, BrainCircuit, ShieldCheck, AlertTriangle, ShieldAlert, Trash2, ChevronLeft, ChevronRight, Camera, PieChart, List, CalendarDays } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -32,6 +32,7 @@ export default function AgendaScreen() {
   const { isColorblindMode } = useAccessibility();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
+  const scrollRef = useRef<ScrollView>(null);
 
   const [user, setUser] = useState<User | null>(null);
   const [scans, setScans] = useState<Scan[]>([]);
@@ -197,13 +198,20 @@ export default function AgendaScreen() {
   const isToday = (date: Date) => date.toDateString() === today.toDateString();
 
   return (
-    <View style={{ flex: 1 }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 18 : 0}
+    >
       {/* Fondo degradado compartido */}
       <View style={StyleSheet.absoluteFillObject} />
 
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.scrollContainer}
         style={{ backgroundColor: 'transparent' }}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
         <Stack.Screen options={{ title: 'Agenda y Recomendaciones' }} />
 
@@ -264,26 +272,6 @@ export default function AgendaScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.scanCta} onPress={() => router.push('/scan')} activeOpacity={0.88}>
-          <View style={styles.scanCtaIcon}><Camera size={38} color="#0F766E" /></View>
-          <View style={styles.scanCtaCopy}><Text style={styles.scanCtaTitle}>Escanea tus cultivos</Text><Text style={styles.scanCtaText}>Recibe recomendaciones claras para decidir qué hacer hoy.</Text></View>
-          <ChevronRight size={22} color="#0F766E" />
-        </TouchableOpacity>
-
-        {isLoading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 40 }} />
-        ) : (
-          recommendations.map(rec => (
-            <View
-              key={rec.id}
-              style={[styles.recCard, { backgroundColor: colors[rec.type].bg, borderColor: colors[rec.type].border }]}
-            >
-              {getRecommendationIcon(rec.type)}
-              <Text style={styles.recText}>{rec.text}</Text>
-            </View>
-          ))
-        )}
-
         <View style={styles.separator}>
           <Text style={styles.separatorText}>Mis Tareas Personales</Text>
         </View>
@@ -303,14 +291,18 @@ export default function AgendaScreen() {
               placeholder="Título de la tarea"
               value={newTitle}
               onChangeText={setNewTitle}
+              onFocus={() => setTimeout(() => scrollRef.current?.scrollTo({ y: 480, animated: true }), 180)}
               placeholderTextColor="#aaa"
+              returnKeyType="next"
             />
             <TextInput
               style={styles.input}
               placeholder="Detalle (opcional)"
               value={newDetail}
               onChangeText={setNewDetail}
+              onFocus={() => setTimeout(() => scrollRef.current?.scrollTo({ y: 540, animated: true }), 180)}
               placeholderTextColor="#aaa"
+              returnKeyType="done"
             />
             <TouchableOpacity onPress={addTask}>
               <View style={styles.saveButtonGradient}>
@@ -324,30 +316,54 @@ export default function AgendaScreen() {
           <Text style={styles.noTasksText}>No tienes tareas programadas. ¡Añade una!</Text>
         )}
 
-        {tasks.map(task => (
-          <View key={task.id} style={[styles.taskCard, task.completed && styles.completedCard]}>
+        {tasks.map((task, index) => {
+          const darkTask = index % 3 === 2;
+          const taskBackground = index % 3 === 0 ? '#F1FF72' : index % 3 === 1 ? '#E8E5FF' : '#1D1D20';
+          return (
+          <View key={task.id} style={[styles.taskCard, { backgroundColor: taskBackground }, task.completed && styles.completedCard]}>
             <View style={styles.taskContent}>
               <TouchableOpacity style={styles.taskTouchableArea} onPress={() => toggleComplete(task)}>
                 <CheckCircle
-                  size={28}
-                  color={task.completed ? colors.accent : '#ccc'}
-                  style={{ marginRight: 14 }}
+                  size={24}
+                  color={task.completed ? colors.accent : darkTask ? '#FFFFFF' : '#29282E'}
+                  style={{ marginRight: 12 }}
                 />
                 <View style={styles.taskTextContainer}>
-                  <Text style={[styles.taskTitle, task.completed && styles.completedText]}>{task.title}</Text>
+                  <Text style={[styles.taskTitle, darkTask && styles.taskTextDark, task.completed && styles.completedText]}>{task.title}</Text>
                   {task.detail ? (
-                    <Text style={[styles.taskDetail, task.completed && styles.completedText]}>{task.detail}</Text>
+                    <Text style={[styles.taskDetail, darkTask && styles.taskDetailDark, task.completed && styles.completedText]}>{task.detail}</Text>
                   ) : null}
                 </View>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => deleteTask(task.id)} style={styles.deleteBtn}>
-                <Trash2 size={22} color={colors.deleteButton} />
+                <Trash2 size={19} color={darkTask ? '#FFFFFF' : colors.deleteButton} />
               </TouchableOpacity>
             </View>
           </View>
-        ))}
+          );
+        })}
+
+        <TouchableOpacity style={styles.scanCta} onPress={() => router.push('/scan')} activeOpacity={0.88}>
+          <View style={styles.scanCtaIcon}><Camera size={38} color="#0F766E" /></View>
+          <View style={styles.scanCtaCopy}><Text style={styles.scanCtaTitle}>Escanea tus cultivos</Text><Text style={styles.scanCtaText}>Recibe recomendaciones claras para decidir qué hacer hoy.</Text></View>
+          <ChevronRight size={22} color="#0F766E" />
+        </TouchableOpacity>
+
+        {isLoading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 40 }} />
+        ) : (
+          recommendations.map(rec => (
+            <View
+              key={rec.id}
+              style={[styles.recCard, { backgroundColor: colors[rec.type].bg, borderColor: colors[rec.type].border }]}
+            >
+              {getRecommendationIcon(rec.type)}
+              <Text style={styles.recText}>{rec.text}</Text>
+            </View>
+          ))
+        )}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -454,9 +470,9 @@ const styles = StyleSheet.create({
   },
   separator: {
     borderTopWidth: 1,
-    borderTopColor: '#d4ecc8',
-    marginTop: 28,
-    marginBottom: 20,
+    borderTopColor: '#DDE5E2',
+    marginTop: 10,
+    marginBottom: 16,
     alignItems: 'center',
   },
   separatorText: {
@@ -519,18 +535,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   taskCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#D5E6E2',
-    shadowColor: '#0F766E',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    minHeight: 84,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+    marginBottom: 10,
+    shadowColor: '#29272F',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 9,
+    elevation: 4,
   },
   completedCard: {
     backgroundColor: '#f0f0f0',
@@ -548,15 +562,18 @@ const styles = StyleSheet.create({
   },
   taskTextContainer: { flex: 1 },
   taskTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#1a2e0a',
+    fontSize: 15,
+    fontFamily: 'Poppins_600SemiBold',
+    color: '#1D1C20',
   },
   taskDetail: {
-    fontSize: 13,
-    color: '#6b8a5e',
+    fontSize: 11,
+    fontFamily: 'Poppins_400Regular',
+    color: '#5F5C64',
     marginTop: 4,
   },
+  taskTextDark: { color: '#FFFFFF' },
+  taskDetailDark: { color: '#BDBAC4' },
   completedText: {
     textDecorationLine: 'line-through',
     color: '#aaa',
@@ -568,17 +585,52 @@ const styles = StyleSheet.create({
     marginVertical: 20,
     fontSize: 15,
   },
-  calendarCard: { width: '100%', maxWidth: 820, alignSelf: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D5E6E2', borderRadius: 22, padding: 18, marginBottom: 22 },
-  calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
-  calendarMonth: { fontSize: 15, fontWeight: '700', color: '#18352B', textTransform: 'capitalize' },
-  weekLabels: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 8 },
-  weekLabel: { width: '14.28%', textAlign: 'center', fontSize: 11, fontWeight: '700', color: '#8A9A95' },
+  calendarCard: {
+    width: '100%',
+    maxWidth: 430,
+    alignSelf: 'center',
+    backgroundColor: '#1C1C1F',
+    borderRadius: 22,
+    padding: 14,
+    marginBottom: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 11 },
+  calendarMonth: {
+    fontSize: 15,
+    fontFamily: 'Poppins_600SemiBold',
+    color: '#FFFFFF',
+    textTransform: 'capitalize',
+  },
+  weekLabels: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 3 },
+  weekLabel: {
+    width: '14.28%',
+    textAlign: 'center',
+    fontSize: 9,
+    fontFamily: 'Poppins_600SemiBold',
+    color: '#77747F',
+  },
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  calendarCell: { width: '14.28%', aspectRatio: 1.25, alignItems: 'center', justifyContent: 'center', borderRadius: 15, marginBottom: 4 },
-  calendarToday: { backgroundColor: '#79D7C1' },
-  calendarNumber: { marginTop: 5, fontSize: 15, fontWeight: '700', color: '#18352B' },
-  calendarTodayText: { color: '#0F766E' },
-  calendarOutside: { opacity: 0.3 },
+  calendarCell: {
+    width: '14.28%',
+    aspectRatio: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    marginBottom: 2,
+  },
+  calendarToday: { backgroundColor: '#EFFF63' },
+  calendarNumber: {
+    fontSize: 12,
+    fontFamily: 'Poppins_600SemiBold',
+    color: '#F5F3F7',
+  },
+  calendarTodayText: { color: '#171719' },
+  calendarOutside: { opacity: 0.22 },
   scanCta: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#EAF7F3', borderRadius: 22, padding: 18, marginBottom: 20, borderWidth: 1, borderColor: '#B9DED5' },
   scanCtaIcon: { width: 64, height: 64, borderRadius: 20, backgroundColor: '#D2EFE8', alignItems: 'center', justifyContent: 'center' },
   scanCtaCopy: { flex: 1 },

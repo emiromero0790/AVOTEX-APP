@@ -404,8 +404,15 @@ export default function Home() {
           <View style={[s.header, isTablet && s.headerTablet]}>
             <Reanimated.View
               entering={FadeInDown.delay(120).duration(700)}
-              style={[s.environmentGrid, isTablet && s.environmentGridTablet]}
             >
+              <LinearGradient
+                colors={['#BDE5FF', '#F2A06F', '#FFF8F3', '#FFFFFF']}
+                locations={[0, 0.36, 0.7, 1]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[s.environmentPanel, isTablet && s.environmentPanelTablet]}
+              >
+              <View style={[s.environmentGrid, isTablet && s.environmentGridTablet]}>
               <View style={[s.environmentCard, isTablet && s.environmentCardTablet]}>
                 <View style={s.environmentLabelRow}>
                   <Sun color="#f59e0b" size={isTablet ? 23 : 19} />
@@ -490,49 +497,40 @@ export default function Home() {
                   </Text>
                 </View>
               </View>
+              </View>
+              <View style={s.environmentPanelFooter}>
+                <Text style={s.environmentPanelFooterLabel}>CONDICIONES DEL CULTIVO</Text>
+                <Text style={s.environmentPanelFooterValue}>
+                  {locationEnabled && municipio ? municipio : 'Activa tu ubicación para actualizar el clima'}
+                </Text>
+              </View>
+              </LinearGradient>
             </Reanimated.View>
 
             <Reanimated.View entering={FadeInDown.delay(200).duration(700)}>
-              <LinearGradient
-                colors={['#BDE5FF', '#F2A06F', '#FFF8F3', '#FFFFFF']}
-                locations={[0, 0.38, 0.72, 1]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[s.welcomeCard, { borderColor: colors.welcomeBorder }, isTablet && s.welcomeCardTablet]}
-              >
-                <View style={s.welcomeTop}>
-                  {isGuest ? (
-                    <>
-                      <View style={s.welcomeText}>
-                        <Text style={[s.greetLabel, isTablet && s.greetLabelTablet]}>MODO INVITADO</Text>
-                        <Text style={[s.userName, { color: colors.textPrimary }, isTablet && s.userNameTablet]}>
-                          INVITADO
-                        </Text>
-                      </View>
-                      <View style={[s.guestAvatarCircle, isTablet && s.guestAvatarCircleTablet]}>
-                        <UserIcon size={isTablet ? 26 : 22} color="#0f766e" />
-                      </View>
-                    </>
-                  ) : user ? (
-                    <>
-                      <View style={s.welcomeText}>
-                        <Text style={[s.greetLabel, isTablet && s.greetLabelTablet]}>BIENVENIDO</Text>
-                        <Text style={[s.userName, { color: colors.textPrimary }, isTablet && s.userNameTablet]}>{user.displayName || user.email}</Text>
-                      </View>
-                      <Avatar user={user} />
-                    </>
-                  ) : null}
-                </View>
-                <View style={s.welcomeBottom}>
-                  <View>
-                    <Text style={s.welcomeBottomLabel}>RESUMEN DEL CULTIVO</Text>
-                    <Text style={s.welcomeBottomValue}>
-                      {isGuest || healthPct === null ? 'Realiza un análisis para conocer la salud' : `${healthPct.toFixed(0)}% de tus análisis son saludables`}
-                    </Text>
-                  </View>
-                  <View style={[s.welcomeStatusDot, !isGuest && healthPct !== null && healthPct >= 70 ? s.welcomeStatusGood : s.welcomeStatusAttention]} />
-                </View>
-              </LinearGradient>
+              <View style={[s.welcomeCard, { borderColor: colors.welcomeBorder }, isTablet && s.welcomeCardTablet]}>
+                {isGuest ? (
+                  <>
+                    <View style={s.welcomeText}>
+                      <Text style={[s.greetLabel, isTablet && s.greetLabelTablet]}>MODO INVITADO</Text>
+                      <Text style={[s.userName, { color: colors.textPrimary }, isTablet && s.userNameTablet]}>
+                        INVITADO
+                      </Text>
+                    </View>
+                    <View style={[s.guestAvatarCircle, isTablet && s.guestAvatarCircleTablet]}>
+                      <UserIcon size={isTablet ? 26 : 22} color="#0f766e" />
+                    </View>
+                  </>
+                ) : user ? (
+                  <>
+                    <View style={s.welcomeText}>
+                      <Text style={[s.greetLabel, isTablet && s.greetLabelTablet]}>BIENVENIDO</Text>
+                      <Text style={[s.userName, { color: colors.textPrimary }, isTablet && s.userNameTablet]}>{user.displayName || user.email}</Text>
+                    </View>
+                    <Avatar user={user} />
+                  </>
+                ) : null}
+              </View>
             </Reanimated.View>
 
             <Reanimated.View entering={FadeInDown.delay(260).duration(700)}>
@@ -764,14 +762,31 @@ const s = StyleSheet.create({
   header: { paddingTop: 90, paddingHorizontal: 22, marginBottom: 18 },
   headerTablet: { paddingTop: 100, paddingHorizontal: 28 },
 
+  environmentPanel: {
+    overflow: 'hidden',
+    padding: 12,
+    borderRadius: 28,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.72)',
+    shadowColor: '#315765',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    elevation: 5,
+  },
+  environmentPanelTablet: {
+    padding: 18,
+    borderRadius: 34,
+    marginBottom: 20,
+  },
   environmentGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     rowGap: 10,
-    marginBottom: 14,
   },
-  environmentGridTablet: { rowGap: 16, marginBottom: 20 },
+  environmentGridTablet: { rowGap: 16 },
   environmentCard: {
     width: '47.5%',
     minHeight: 146,
@@ -858,6 +873,30 @@ const s = StyleSheet.create({
   statusGood: { backgroundColor: '#55D990' },
   statusNeutral: { backgroundColor: '#F08078' },
   statusPillText: { color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold', fontSize: 9 },
+  environmentPanelFooter: {
+    minHeight: 58,
+    marginHorizontal: -12,
+    marginBottom: -12,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(218, 222, 225, 0.88)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.72)',
+  },
+  environmentPanelFooterLabel: {
+    color: '#68757A',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 9,
+    letterSpacing: 0.8,
+  },
+  environmentPanelFooterValue: {
+    color: '#2D4147',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 11,
+    marginTop: 2,
+  },
 
   locationToggleCard: {
     flexDirection: 'row',
@@ -901,64 +940,33 @@ const s = StyleSheet.create({
   locationToggleSubTablet: { fontSize: 13 },
 
   welcomeCard: {
-    overflow: 'hidden',
-    paddingTop: 18,
-    paddingHorizontal: 18,
-    borderWidth: 1,
-    borderRadius: 26,
-    shadowColor: '#0f766e', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.14, shadowRadius: 12, elevation: 5,
-    marginBottom: 12,
-  },
-  welcomeCardTablet: {
-    paddingTop: 24,
-    paddingHorizontal: 26,
-    borderRadius: 32,
-    marginBottom: 16,
-  },
-  welcomeTop: {
-    minHeight: 82,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  welcomeText: { flex: 1, marginRight: 12 },
-  greetLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#355D70', letterSpacing: 0.8 },
-  greetLabelTablet: { fontSize: 13 },
-  userName: { fontFamily: 'Poppins_600SemiBold', fontSize: 15 },
-  userNameTablet: { fontSize: 18 },
-  welcomeBottom: {
-    minHeight: 66,
-    marginHorizontal: -18,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(221, 225, 228, 0.86)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.72)',
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    paddingVertical: 10,
+    paddingLeft: 20,
+    paddingRight: 10,
+    borderWidth: 2,
+    borderTopLeftRadius: 30,
+    borderBottomLeftRadius: 30,
+    borderTopRightRadius: 60,
+    borderBottomRightRadius: 60,
+    shadowColor: '#0f766e', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12, shadowRadius: 8, elevation: 5,
+    marginBottom: 10,
   },
-  welcomeBottomLabel: {
-    color: '#677378',
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 9,
-    letterSpacing: 0.8,
+  welcomeCardTablet: {
+    paddingVertical: 14,
+    paddingLeft: 28,
+    paddingRight: 14,
+    marginBottom: 14,
   },
-  welcomeBottomValue: {
-    color: '#263A40',
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 11,
-    marginTop: 3,
-  },
-  welcomeStatusDot: {
-    width: 11,
-    height: 11,
-    borderRadius: 6,
-    marginLeft: 12,
-  },
-  welcomeStatusGood: { backgroundColor: '#36B77A' },
-  welcomeStatusAttention: { backgroundColor: '#F07C70' },
+  welcomeText: { flex: 1, marginRight: 12 },
+  greetLabel: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: '#5eead4', letterSpacing: 0.8 },
+  greetLabelTablet: { fontSize: 13 },
+  userName: { fontFamily: 'Poppins_600SemiBold', fontSize: 15 },
+  userNameTablet: { fontSize: 18 },
 
   locRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',

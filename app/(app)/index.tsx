@@ -10,8 +10,10 @@ import {
   Animated,
   Easing,
   useWindowDimensions,
+  Modal,
+  Pressable,
 } from 'react-native';
-import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, ChevronRight, X } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
@@ -232,6 +234,7 @@ export default function Home() {
   );
   const [healthPct, setHealthPct]     = useState<number | null>(null);
   const [locationEnabled, setLocationEnabled] = useState(true);
+  const [mapExpanded, setMapExpanded] = useState(false);
 
   const requestAndSetLocation = async () => {
     try {
@@ -277,6 +280,12 @@ export default function Home() {
       });
       return () => { active = false; };
     }, [])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => setMapExpanded(false);
+    }, []),
   );
 
   useEffect(() => {
@@ -473,6 +482,47 @@ export default function Home() {
         </View>
       </TouchableOpacity>
 
+      <Modal
+        visible={mapExpanded}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setMapExpanded(false)}
+      >
+        <Pressable style={s.mapModalBackdrop} onPress={() => setMapExpanded(false)}>
+          <Pressable
+            style={[s.mapModalCard, isTablet && s.mapModalCardTablet]}
+            onPress={(event) => event.stopPropagation()}
+          >
+            <View style={s.mapModalHeader}>
+              <View>
+                <Text style={s.mapModalTitle}>Tu ubicación</Text>
+                <Text style={s.mapModalSubtitle}>{municipio || 'Mapa en tiempo real'}</Text>
+              </View>
+              <TouchableOpacity
+                accessibilityLabel="Cerrar mapa"
+                style={s.mapModalClose}
+                onPress={() => setMapExpanded(false)}
+              >
+                <X size={20} color="#18352B" />
+              </TouchableOpacity>
+            </View>
+            <View style={s.mapModalContent}>
+              {locationEnabled && location?.coords ? (
+                <MapViewComponent location={location} errorMsg={errorMsg} compact />
+              ) : (
+                <View style={s.mapModalEmpty}>
+                  <MapPinOff color="#6B7D78" size={38} />
+                  <Text style={s.mapModalEmptyText}>
+                    {locationEnabled ? 'Obteniendo ubicación…' : 'Activa la ubicación en Ajustes para ver el mapa'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <ScrollView contentContainerStyle={[s.scroll, isTablet && s.scrollTablet]} showsVerticalScrollIndicator={false}>
         <View style={[s.contentWrapper, { maxWidth: contentMaxWidth }]}>
 
@@ -642,7 +692,12 @@ export default function Home() {
                 </LinearGradient>
               </TouchableOpacity>
 
-              <View style={[s.quickActionCard, s.mapQuickActionCard, isTablet && s.quickActionCardTablet]}>
+              <TouchableOpacity
+                style={[s.quickActionCard, s.mapQuickActionCard, isTablet && s.quickActionCardTablet]}
+                onPress={() => setMapExpanded(true)}
+                activeOpacity={0.9}
+                accessibilityLabel="Ampliar mapa"
+              >
                 {locationEnabled && location?.coords ? (
                   <View style={s.quickMap} pointerEvents="none">
                     <MapViewComponent location={location} errorMsg={errorMsg} compact />
@@ -660,7 +715,7 @@ export default function Home() {
                 <View style={s.quickMapLabel}>
                   <Text style={[s.quickActionLabel, isTablet && s.quickActionLabelTablet]}>Mapa</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
 
               <TouchableOpacity
                 style={[s.quickActionCard, isTablet && s.quickActionCardTablet]}
@@ -1190,6 +1245,82 @@ const s = StyleSheet.create({
   mapQuickActionCard: {
     position: 'relative',
     backgroundColor: '#DCEBFF',
+  },
+  mapModalBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 54,
+    backgroundColor: 'rgba(7, 20, 19, 0.68)',
+  },
+  mapModalCard: {
+    width: '100%',
+    height: '62%',
+    maxHeight: 560,
+    padding: 10,
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 18,
+  },
+  mapModalCardTablet: {
+    width: 720,
+    height: 520,
+    padding: 13,
+    borderRadius: 34,
+  },
+  mapModalHeader: {
+    minHeight: 62,
+    paddingHorizontal: 8,
+    paddingBottom: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  mapModalTitle: {
+    color: '#18352B',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 18,
+  },
+  mapModalSubtitle: {
+    color: '#73817C',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 10,
+    marginTop: 1,
+  },
+  mapModalClose: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EDF4F1',
+  },
+  mapModalContent: {
+    flex: 1,
+    overflow: 'hidden',
+    borderRadius: 21,
+    backgroundColor: '#DCEBFF',
+  },
+  mapModalEmpty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: '#F1F7F5',
+  },
+  mapModalEmptyText: {
+    color: '#6B7D78',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 12,
+    textAlign: 'center',
   },
   quickMap: {
     ...StyleSheet.absoluteFill,

@@ -51,13 +51,15 @@ function buildMapHTML(lat: number, lng: number): string {
 export default function MapViewComponent({
   location,
   errorMsg,
+  compact = false,
 }: {
   location: any;
   errorMsg: string | null;
+  compact?: boolean;
 }) {
   if (!location || !location.coords) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, compact && styles.compactContainer]}>
         <ActivityIndicator size="large" color="#16a34a" />
         <Text style={styles.loadingText}>
           {errorMsg ?? 'Cargando ubicación 🥑...'}
@@ -71,14 +73,14 @@ export default function MapViewComponent({
   if (typeof latitude !== 'number' || isNaN(latitude) ||
       typeof longitude !== 'number' || isNaN(longitude)) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, compact && styles.compactContainer]}>
         <Text style={styles.loadingText}>Ubicación no disponible</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.mapContainer}>
+    <View style={[styles.mapContainer, compact && styles.compactContainer]}>
       <WebView
         source={{ html: buildMapHTML(latitude, longitude) }}
         style={styles.map}
@@ -123,5 +125,12 @@ const styles = StyleSheet.create({
     color: '#166534',
     textAlign: 'center',
     fontSize: 13,
+  },
+  compactContainer: {
+    width: '100%',
+    height: '100%',
+    marginHorizontal: 0,
+    marginTop: 0,
+    borderRadius: 0,
   },
 });

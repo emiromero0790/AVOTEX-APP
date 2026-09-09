@@ -550,61 +550,86 @@ export default function Home() {
 
           </View>
 
-          <Reanimated.View entering={FadeInUp.delay(500).duration(700)} style={{ marginTop: -5, marginBottom: 12 }}>
-            {!locationEnabled
-              ? <View style={[s.mapPh, isTablet && s.mapPhTablet]}>
-                  <MapPinOff color="#94a3b8" size={24} />
-                  <Text style={{ color: '#94a3b8', fontSize: isTablet ? 15 : 13, marginTop: 8, textAlign: 'center' }}>
-                    Activa la ubicación{'\n'}para ver el mapa
-                  </Text>
-                </View>
-              : (!location || !location.coords)
-                ? <View style={[s.mapPh, isTablet && s.mapPhTablet]}><Text style={{ color: '#94a3b8', fontSize: 14 }}>📍 Obteniendo ubicación…</Text></View>
-                : <MapViewComponent location={location} errorMsg={errorMsg} />
-            }
-          </Reanimated.View>
-
-          <Reanimated.View entering={FadeInUp.delay(620).duration(700)} style={[s.grid, isTablet && s.gridTablet]}>
-            {/* Escanear — always accessible */}
-            <TouchableOpacity style={[s.mainCard, isTablet && s.mainCardTablet]} onPress={() => router.push('/scan')}>
-              <LinearGradient colors={['#F7FAF8', '#FFFFFF']} style={[s.cardGrad, s.outlinedAction]}>
-                <View style={[s.cardIcon, isTablet && s.cardIconTablet]}><Camera color="#2F7D55" size={isTablet ? 32 : 26} /></View>
-                <Text style={[s.cardTitle, isTablet && s.cardTitleTablet]}>Escanear</Text>
-                <Text style={[s.cardSub, isTablet && s.cardSubTablet]}>Detecta enfermedades{'\n'}en tus cultivos</Text>
-                {isGuest && (
-                  <View style={s.guestScanBadge}>
-                    <Text style={s.guestScanBadgeText}>{guestScansLeft} restantes</Text>
-                  </View>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <View style={[s.secCards, isTablet && s.secCardsTablet]}>
-              {/* Mapeo — locked for guest */}
+          <Reanimated.View
+            entering={FadeInUp.delay(500).duration(700)}
+            style={[s.quickActionsPanel, isTablet && s.quickActionsPanelTablet]}
+          >
+            <Text style={[s.quickActionsTitle, isTablet && s.quickActionsTitleTablet]}>Acciones rápidas</Text>
+            <View style={[s.quickActionsGrid, isTablet && s.quickActionsGridTablet]}>
               <TouchableOpacity
-                style={[s.secCard, { marginBottom: isTablet ? 16 : 12 }]}
-                onPress={() => isGuest ? null : router.push('/mapping')}
-                disabled={isGuest}
+                style={[s.quickActionCard, isTablet && s.quickActionCardTablet]}
+                onPress={() => router.push('/scan')}
+                activeOpacity={0.84}
               >
-                <LinearGradient colors={['#FFFFFF', '#F7FAF8']} style={[s.secGrad, s.outlinedAction]}>
-                  <View style={[s.secIcon, isTablet && s.secIconTablet]}>
-                     {isGuest ? <Lock color="#94a3b8" size={isTablet ? 24 : 20} /> : <Map color="#2F7D55" size={isTablet ? 24 : 20} />}
+                <LinearGradient
+                  colors={['#E7E1FF', '#F6DDF8', '#F9E8EF']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={s.quickActionGradient}
+                >
+                  <View style={[s.quickActionIcon, isTablet && s.quickActionIconTablet]}>
+                    <Camera color="#44227C" size={isTablet ? 31 : 25} />
                   </View>
-                  <Text style={[s.secTitle, isTablet && s.secTitleTablet, isGuest && s.secTitleLocked]}>Mapeo</Text>
+                  <Text style={[s.quickActionLabel, isTablet && s.quickActionLabelTablet]}>Escanear</Text>
+                  {isGuest ? <Text style={s.quickActionMeta}>{guestScansLeft} restantes</Text> : null}
                 </LinearGradient>
               </TouchableOpacity>
 
-              {/* Actividad — locked for guest */}
+              <View style={[s.quickActionCard, s.mapQuickActionCard, isTablet && s.quickActionCardTablet]}>
+                {locationEnabled && location?.coords ? (
+                  <View style={s.quickMap} pointerEvents="none">
+                    <MapViewComponent location={location} errorMsg={errorMsg} compact />
+                  </View>
+                ) : (
+                  <LinearGradient
+                    colors={['#DCEBFF', '#E8F2FF', '#F7FAFF']}
+                    style={[s.quickActionGradient, s.quickMapFallback]}
+                  >
+                    <View style={[s.quickActionIcon, isTablet && s.quickActionIconTablet]}>
+                      <MapPinOff color="#4772A8" size={isTablet ? 31 : 25} />
+                    </View>
+                  </LinearGradient>
+                )}
+                <View style={s.quickMapLabel}>
+                  <Text style={[s.quickActionLabel, isTablet && s.quickActionLabelTablet]}>Mapa</Text>
+                </View>
+              </View>
+
               <TouchableOpacity
-                style={[s.secCard, { marginBottom: isTablet ? 16 : 12 }]}
+                style={[s.quickActionCard, isTablet && s.quickActionCardTablet]}
+                onPress={() => isGuest ? null : router.push('/mapping')}
+                disabled={isGuest}
+                activeOpacity={0.84}
+              >
+                <LinearGradient
+                  colors={['#F8DCEF', '#FFE1D0', '#FFEAC7']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={s.quickActionGradient}
+                >
+                  <View style={[s.quickActionIcon, isTablet && s.quickActionIconTablet]}>
+                    {isGuest ? <Lock color="#9CA3AF" size={isTablet ? 29 : 23} /> : <Map color="#D29A35" size={isTablet ? 31 : 25} />}
+                  </View>
+                  <Text style={[s.quickActionLabel, isTablet && s.quickActionLabelTablet, isGuest && s.secTitleLocked]}>Mapeo</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[s.quickActionCard, isTablet && s.quickActionCardTablet]}
                 onPress={() => isGuest ? null : router.push('/results')}
                 disabled={isGuest}
+                activeOpacity={0.84}
               >
-                <LinearGradient colors={['#FFFFFF', '#F7FAF8']} style={[s.secGrad, s.outlinedAction]}>
-                  <View style={[s.secIcon, isTablet && s.secIconTablet]}>
-                     {isGuest ? <Lock color="#94a3b8" size={isTablet ? 24 : 20} /> : <LineChart color="#2F7D55" size={isTablet ? 24 : 20} />}
+                <LinearGradient
+                  colors={['#CFF5E9', '#DDF5DE', '#F1F3C8']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={s.quickActionGradient}
+                >
+                  <View style={[s.quickActionIcon, isTablet && s.quickActionIconTablet]}>
+                    {isGuest ? <Lock color="#9CA3AF" size={isTablet ? 29 : 23} /> : <LineChart color="#298D4B" size={isTablet ? 31 : 25} />}
                   </View>
-                  <Text style={[s.secTitle, isTablet && s.secTitleTablet, isGuest && s.secTitleLocked]}>Actividad</Text>
+                  <Text style={[s.quickActionLabel, isTablet && s.quickActionLabelTablet, isGuest && s.secTitleLocked]}>Actividad</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -931,58 +956,122 @@ const s = StyleSheet.create({
   dateText: { fontFamily: 'Poppins_400Regular', fontSize: 11, marginTop: 1 },
   dateTextTablet: { fontSize: 13 },
 
-  mapPh: {
-    height: 160, marginHorizontal: 22, borderRadius: 16,
-    backgroundColor: 'rgba(240,253,250,0.8)', justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: '#ccfbf1',
+  quickActionsPanel: {
+    marginHorizontal: 18,
+    marginBottom: 18,
+    padding: 14,
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.9)',
+    shadowColor: '#7C63C6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 20,
+    elevation: 6,
   },
-  mapPhTablet: {
-    height: 220, marginHorizontal: 28, borderRadius: 22,
+  quickActionsPanelTablet: {
+    marginHorizontal: 28,
+    padding: 22,
+    borderRadius: 34,
   },
-
-  grid: { flexDirection: 'row', paddingHorizontal: 22, gap: 14 },
-  gridTablet: { paddingHorizontal: 28, gap: 18 },
-
-  mainCard: { flex: 1, height: 290, borderRadius: 24, overflow: 'hidden', elevation: 8 },
-  mainCardTablet: { height: 360, borderRadius: 28 },
-
-  secCards: { flex: 1 },
-  secCardsTablet: { flex: 1 },
-
-  secCard: { flex: 1, height: 82, borderRadius: 20, overflow: 'hidden', elevation: 6 },
-
-  cardGrad: { flex: 1, padding: 22, justifyContent: 'flex-end' },
-  outlinedAction: { borderWidth: 1, borderColor: '#B8DCC7', borderRadius: 20 },
-  secGrad: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 10 },
-   cardIcon: {
-    width: 48, height: 48, borderRadius: 24,
-     backgroundColor: '#EAF4EE', justifyContent: 'center', alignItems: 'center', marginBottom: 10,
-  },
-  cardIconTablet: { width: 60, height: 60, borderRadius: 30, marginBottom: 14 },
-  secIcon: {
-    width: 36, height: 36, borderRadius: 18,
-     backgroundColor: '#EAF4EE', justifyContent: 'center', alignItems: 'center',
-  },
-  secIconTablet: { width: 44, height: 44, borderRadius: 22 },
-   cardTitle: { fontSize: 22, fontFamily: 'Poppins_600SemiBold', color: '#18352B' },
-  cardTitleTablet: { fontSize: 28 },
-   cardSub: { fontSize: 12, fontFamily: 'Poppins_400Regular', color: '#6D7D74', marginTop: 3 },
-   cardSubTablet: { fontSize: 15, marginTop: 5 },
-   secTitle: { fontSize: 15, fontFamily: 'Poppins_600SemiBold', color: '#18352B' },
-  secTitleTablet: { fontSize: 18 },
-  secTitleLocked: { color: '#94a3b8' },
-
-  guestScanBadge: {
-    marginTop: 8,
-    backgroundColor: 'rgba(255,255,255,0.28)',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    alignSelf: 'flex-start',
-  },
-  guestScanBadgeText: {
+  quickActionsTitle: {
+    color: '#111118',
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 11,
-     color: '#2F7D55',
+    fontSize: 20,
+    marginBottom: 12,
+    marginLeft: 3,
   },
+  quickActionsTitleTablet: {
+    fontSize: 26,
+    marginBottom: 18,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 12,
+  },
+  quickActionsGridTablet: {
+    rowGap: 18,
+  },
+  quickActionCard: {
+    width: '47.7%',
+    height: 150,
+    overflow: 'hidden',
+    borderRadius: 25,
+    shadowColor: '#574B80',
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  quickActionCardTablet: {
+    width: '48.4%',
+    height: 205,
+    borderRadius: 30,
+  },
+  quickActionGradient: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+  },
+  quickActionIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 11,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    shadowColor: '#6B5C91',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  quickActionIconTablet: {
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    marginBottom: 16,
+  },
+  quickActionLabel: {
+    color: '#17141E',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  quickActionLabelTablet: {
+    fontSize: 21,
+  },
+  quickActionMeta: {
+    color: '#6F6878',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 9,
+    marginTop: 2,
+  },
+  mapQuickActionCard: {
+    position: 'relative',
+    backgroundColor: '#DCEBFF',
+  },
+  quickMap: {
+    ...StyleSheet.absoluteFill,
+  },
+  quickMapFallback: {
+    paddingBottom: 30,
+  },
+  quickMapLabel: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 9,
+    minHeight: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.91)',
+  },
+  secTitleLocked: { color: '#94a3b8' },
 });

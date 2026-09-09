@@ -520,18 +520,18 @@ export default function ResultsScreen() {
 
         <View style={[styles.toggleRow, { backgroundColor: colors.toggleInactive }]}>
           <TouchableOpacity
-            style={[styles.toggleBtn, activeView === 'list' && { backgroundColor: colors.toggleActive }]}
-            onPress={() => setActiveView('list')}
-          >
-            <List size={isTablet ? 24 : 20} color={activeView === 'list' ? '#fff' : colors.primary} />
-            <Text style={[styles.toggleLabel, activeView === 'list' && { color: '#fff' }]}>Lista</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
             style={[styles.toggleBtn, activeView === 'charts' && { backgroundColor: colors.toggleActive }]}
             onPress={() => setActiveView('charts')}
           >
             <PieChartIcon size={isTablet ? 24 : 20} color={activeView === 'charts' ? '#fff' : colors.primary} />
             <Text style={[styles.toggleLabel, activeView === 'charts' && { color: '#fff' }]}>Gráficas</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleBtn, activeView === 'list' && { backgroundColor: colors.toggleActive }]}
+            onPress={() => setActiveView('list')}
+          >
+            <List size={isTablet ? 24 : 20} color={activeView === 'list' ? '#fff' : colors.primary} />
+            <Text style={[styles.toggleLabel, activeView === 'list' && { color: '#fff' }]}>Lista</Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -1,7 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import PolygonMap from '../../components/PolygonMap';
+
+type PolygonPoint = {
+  latitude: number;
+  longitude: number;
+};
+
+const SAVED_POLYGON_KEY = 'avotex_huerta_polygon';
 
 const FALLBACK_LOCATION = {
   coords: {
@@ -20,6 +28,8 @@ export default function Mapping() {
   const { width } = useWindowDimensions();
   const [location, setLocation] = useState<Location.LocationObject>(FALLBACK_LOCATION);
   const [notice, setNotice] = useState<string | null>('Buscando tu ubicación. Mientras tanto puedes delimitar sobre el mapa.');
+  const [polygon, setPolygon] = useState<PolygonPoint[]>([]);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -48,6 +58,20 @@ export default function Mapping() {
     };
   }, []);
 
+  const savePolygon = async () => {
+    if (polygon.length < 3 || saving) return;
+
+    setSaving(true);
+    try {
+      await AsyncStorage.setItem(SAVED_POLYGON_KEY, JSON.stringify(polygon));
+      setNotice(`Delimitación guardada correctamente (${polygon.length} puntos).`);
+    } catch {
+      setNotice('No pudimos guardar la delimitación. Intenta de nuevo.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <ScrollView
       style={styles.screen}
@@ -62,13 +86,27 @@ export default function Mapping() {
         </View>
 
         {notice ? <Text style={styles.notice}>{notice}</Text> : null}
-        <PolygonMap location={location} />
+        <PolygonMap
+          location={location}
+          onPolygonChange={(points) => {
+            setPolygon(points);
+            setNotice(points.length >= 3 ? 'Delimitación lista para guardar.' : null);
+          }}
+        />
         <Pressable
           accessibilityRole="button"
-          onPress={() => undefined}
-          style={({ pressed }) => [styles.saveButton, pressed && styles.saveButtonPressed]}
+          accessibilityState={{ disabled: polygon.length < 3 || saving }}
+          disabled={polygon.length < 3 || saving}
+          onPress={savePolygon}
+          style={({ pressed }) => [
+            styles.saveButton,
+            polygon.length < 3 && styles.saveButtonDisabled,
+            pressed && styles.saveButtonPressed,
+          ]}
         >
-          <Text style={styles.saveButtonText}>Guardar delimitación</Text>
+          <Text style={styles.saveButtonText}>
+            {saving ? 'Guardando…' : polygon.length < 3 ? 'Dibuja una delimitación para guardar' : 'Guardar delimitación'}
+          </Text>
         </Pressable>
       </View>
     </ScrollView>
@@ -92,6 +130,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontSize: 13,
   },
+  saveButtonDisabled: { opacity: 0.55 },
   saveButton: {
     minHeight: 54,
     marginTop: 18,

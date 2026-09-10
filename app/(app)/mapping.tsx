@@ -139,7 +139,6 @@ export default function Mapping() {
       <BlurView intensity={55} tint="light" style={styles.bottomPanel}>
         <View style={styles.panelCopy}>
           <View>
-            <Text style={styles.eyebrow}>DELIMITACIÓN</Text>
             <Text style={styles.title}>Delimita tu huerta</Text>
           </View>
           <View style={[styles.pointBadge, polygon.length >= 3 && styles.pointBadgeReady]}>
@@ -148,8 +147,6 @@ export default function Mapping() {
             </Text>
           </View>
         </View>
-        <Text style={styles.subtitle}>Toca los puntos del mapa para marcar el contorno de tu terreno.</Text>
-        {notice ? <Text style={styles.notice} numberOfLines={2}>{notice}</Text> : null}
 
         <View style={styles.actions}>
           <Pressable
@@ -270,9 +267,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  eyebrow: { color: '#5A8177', fontSize: 8, fontWeight: '800', letterSpacing: 1.6, marginBottom: 2 },
-  title: { color: '#173E36', fontSize: 20, lineHeight: 25, fontWeight: '800', letterSpacing: -0.35 },
-  subtitle: { color: '#687E78', fontSize: 11, lineHeight: 16, marginTop: 4 },
+  title: { color: '#000000', fontSize: 20, lineHeight: 25, fontWeight: '400', letterSpacing: -0.2 },
   pointBadge: {
     minWidth: 48,
     paddingHorizontal: 9,
@@ -313,12 +308,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     textAlign: 'center',
-  },
-  notice: {
-    color: '#447168',
-    fontSize: 9,
-    lineHeight: 13,
-    marginTop: 5,
   },
   actions: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginTop: 12 },
   actionButton: {

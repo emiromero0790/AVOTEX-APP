@@ -176,19 +176,6 @@ export default function Mapping() {
             <Text style={styles.actionLabel}>Borrar</Text>
           </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: polygon.length < 3 }}
-            disabled={polygon.length < 3}
-            style={({ pressed }) => [
-              styles.saveButton,
-              polygon.length < 3 && styles.saveButtonDisabled,
-              pressed && styles.saveButtonPressed,
-            ]}
-          >
-            <Save size={20} color="#FFFFFF" />
-            <Text style={styles.saveButtonText}>Guardar</Text>
-          </Pressable>
         </View>
       </BlurView>
 
@@ -237,6 +224,15 @@ export default function Mapping() {
                 <Text style={styles.previewStatusText}>Contorno listo</Text>
               </View>
             </View>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Guardar delimitación"
+              style={({ pressed }) => [styles.previewSaveButton, pressed && styles.saveButtonPressed]}
+            >
+              <Save size={18} color="#FFFFFF" />
+              <Text style={styles.previewSaveButtonText}>Guardar delimitación</Text>
+            </Pressable>
           </View>
         </Pressable>
       </Modal>
@@ -347,7 +343,7 @@ const styles = StyleSheet.create({
   },
   actions: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginTop: 12 },
   actionButton: {
-    width: 69,
+    flex: 1,
     minHeight: 50,
     borderRadius: 16,
     alignItems: 'center',
@@ -358,24 +354,7 @@ const styles = StyleSheet.create({
   actionPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
   actionButtonDisabled: { opacity: 0.42 },
   actionLabel: { color: '#455E58', fontSize: 9, fontWeight: '700' },
-  saveButtonDisabled: { opacity: 0.55 },
-  saveButton: {
-    flex: 1,
-    minHeight: 50,
-    borderRadius: 16,
-    flexDirection: 'row',
-    gap: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0d756b',
-    shadowColor: '#0d756b',
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
-  },
   saveButtonPressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
-  saveButtonText: { color: '#f5fff8', fontSize: 13, fontWeight: '800', letterSpacing: 0.1 },
   previewBackdrop: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -424,7 +403,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EDF3F1',
   },
   previewMap: {
-    height: 250,
+    height: 205,
     overflow: 'hidden',
     borderRadius: 20,
     backgroundColor: '#DCE9E3',
@@ -449,4 +428,20 @@ const styles = StyleSheet.create({
   },
   previewStatusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#0D9B78' },
   previewStatusText: { color: '#16745F', fontSize: 10, fontWeight: '600' },
+  previewSaveButton: {
+    minHeight: 48,
+    marginTop: 13,
+    borderRadius: 17,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#0D756B',
+    shadowColor: '#0D756B',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  previewSaveButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
 });

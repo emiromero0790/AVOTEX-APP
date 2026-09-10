@@ -37,7 +37,19 @@ interface Scan {
 }
 
 interface ProductivityScan {
+  label: string;
   created_at: string;
+}
+
+interface MonthlyReport {
+  key: string;
+  date: Date;
+  total: number;
+  healthy: number;
+  affected: number;
+  healthPct: number;
+  activeDays: number;
+  topFinding: string;
 }
 
 type VerticalGaugeProps = {
@@ -208,6 +220,14 @@ const formatTime12h = (date: Date) => {
   return `${h}:${mm} ${ap}`;
 };
 
+const normalizeScanLabel = (label: string) => label.trim().toLowerCase().replace(/\s/g, '');
+const isNoFruitLabel = (label: string) => normalizeScanLabel(label) === 'nofruta';
+const isHealthyScanLabel = (label: string) => {
+  const normalized = normalizeScanLabel(label);
+  return ['saludable', 'healthy', 'sano', 'sana', 'fresh', 'fresco', 'fresca']
+    .some(value => normalized.includes(value));
+};
+
 export default function Home() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
@@ -229,9 +249,11 @@ export default function Home() {
   const [loadingUser, setLoadingUser] = useState(true);
   const [scans, setScans]             = useState<Scan[]>([]);
   const [productivityScans, setProductivityScans] = useState<ProductivityScan[]>([]);
-  const [productivityMonth, setProductivityMonth] = useState(
-    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-  );
+  const reportScrollX = useRef(new Animated.Value(0)).current;
+  const [activeReportIndex, setActiveReportIndex] = useState(0);
+  const [reportViewportWidth, setReportViewportWidth] = useState(Math.min(width, 900));
+  const [monthlyReportLoading, setMonthlyReportLoading] = useState(false);
+  const [monthlyReportError, setMonthlyReportError] = useState(false);
   const [healthPct, setHealthPct]     = useState<number | null>(null);
   const [locationEnabled, setLocationEnabled] = useState(true);
   const [mapExpanded, setMapExpanded] = useState(false);
@@ -351,61 +373,97 @@ export default function Home() {
     } else setHealthPct(null);
   }, [scans]);
 
-  useEffect(() => {
-    if (!user?.email || isGuest) {
+  useFocusEffect(useCallback(() => {
+    if (!user || isGuest) {
       setProductivityScans([]);
-      return;
+      setMonthlyReportLoading(false);
+      setMonthlyReportError(false);
+      return undefined;
     }
 
     let active = true;
-    const start = new Date(productivityMonth.getFullYear(), productivityMonth.getMonth(), 1);
-    const end = new Date(productivityMonth.getFullYear(), productivityMonth.getMonth() + 1, 1);
+    setMonthlyReportLoading(true);
+    setMonthlyReportError(false);
 
-    supabase
-      .from('scans')
-      .select('created_at')
-      .eq('user_email', user.email)
-      .gte('created_at', start.toISOString())
-      .lt('created_at', end.toISOString())
-      .order('created_at', { ascending: true })
-      .then(({ data, error }) => {
+    (async () => {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const pageSize = 1000;
+      const loadedScans: ProductivityScan[] = [];
+
+      for (let from = 0; active; from += pageSize) {
+        const { data, error } = await supabase
+          .from('scans')
+          .select('label, created_at')
+          .eq('user_id', user.uid)
+          .gte('created_at', start.toISOString())
+          .lt('created_at', end.toISOString())
+          .order('created_at', { ascending: false })
+          .range(from, from + pageSize - 1);
+
         if (!active) return;
         if (error) {
-          console.warn('[productividad] error:', error.message);
+          console.warn('[reporte mensual] error:', error.message);
           setProductivityScans([]);
+          setMonthlyReportError(true);
+          setMonthlyReportLoading(false);
           return;
         }
-        setProductivityScans(data ?? []);
-      });
+
+        loadedScans.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+
+      if (active) {
+        setProductivityScans(loadedScans);
+        setMonthlyReportLoading(false);
+      }
+    })();
+
     return () => { active = false; };
-  }, [user?.email, isGuest, productivityMonth]);
+  }, [user?.uid, isGuest]));
 
-  const productivityCalendar = useMemo(() => {
-    const today = new Date();
-    const first = new Date(productivityMonth.getFullYear(), productivityMonth.getMonth(), 1);
-    const start = new Date(productivityMonth.getFullYear(), productivityMonth.getMonth(), 1 - first.getDay());
-    const counts: Record<string, number> = {};
+  const monthlyReports = useMemo<MonthlyReport[]>(() => {
+    const now = new Date();
+    return Array.from({ length: 12 }, (_, index) => {
+      const date = new Date(now.getFullYear(), now.getMonth() - index, 1);
+      const monthScans = productivityScans.filter(scan => {
+        const scanDate = new Date(scan.created_at);
+        return scanDate.getFullYear() === date.getFullYear()
+          && scanDate.getMonth() === date.getMonth()
+          && !isNoFruitLabel(scan.label);
+      });
+      const healthy = monthScans.filter(scan => isHealthyScanLabel(scan.label)).length;
+      const affected = monthScans.length - healthy;
+      const activeDays = new Set(monthScans.map(scan => new Date(scan.created_at).toDateString())).size;
+      const findings = monthScans.reduce<Record<string, number>>((result, scan) => {
+        result[scan.label] = (result[scan.label] ?? 0) + 1;
+        return result;
+      }, {});
+      const topFinding = Object.entries(findings).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Sin actividad';
 
-    productivityScans.forEach(scan => {
-      const date = new Date(scan.created_at);
-      const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-      counts[key] = (counts[key] ?? 0) + 1;
-    });
-
-    const days = Array.from({ length: 42 }, (_, index) => {
-      const date = new Date(start);
-      date.setDate(start.getDate() + index);
-      const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
       return {
+        key: `${date.getFullYear()}-${date.getMonth()}`,
         date,
-        count: counts[key] ?? 0,
-        currentMonth: date.getMonth() === productivityMonth.getMonth(),
-        today: date.toDateString() === today.toDateString(),
+        total: monthScans.length,
+        healthy,
+        affected,
+        healthPct: monthScans.length ? Math.round((healthy / monthScans.length) * 100) : 0,
+        activeDays,
+        topFinding,
       };
     });
+  }, [productivityScans]);
 
-    return { days };
-  }, [productivityScans, productivityMonth]);
+  const reportCardWidth = Math.min(reportViewportWidth * (isTablet ? 0.58 : 0.79), 430);
+  const reportCardGap = isTablet ? 18 : 12;
+  const reportSnapInterval = reportCardWidth + reportCardGap;
+  const reportGeometryKey = `${Math.round(reportViewportWidth)}-${Math.round(reportSnapInterval)}`;
+
+  useEffect(() => {
+    reportScrollX.setValue(activeReportIndex * reportSnapInterval);
+  }, [reportSnapInterval]);
 
   if (!fontsLoaded || loadingUser) {
     return (
@@ -766,67 +824,160 @@ export default function Home() {
 
           <Reanimated.View
             entering={FadeInUp.delay(620).duration(700)}
-            style={[s.productivityCard, isTablet && s.productivityCardTablet]}
+            style={[s.monthlyReportSection, isTablet && s.monthlyReportSectionTablet]}
           >
-            <View style={s.productivityHeader}>
+            <View style={s.monthlyReportHeader}>
               <View>
                 <Text style={s.productivityEyebrow}>TU ACTIVIDAD</Text>
-                <Text style={[s.productivityTitle, isTablet && s.productivityTitleTablet]}>Productividad</Text>
+                <Text style={[s.productivityTitle, isTablet && s.productivityTitleTablet]}>Reporte mensual</Text>
               </View>
-              <View style={s.productivityMonthControls}>
-                <TouchableOpacity
-                  accessibilityLabel="Mes anterior"
-                  style={s.productivityMonthButton}
-                  onPress={() => setProductivityMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
-                >
-                  <ChevronLeft size={16} color="#252619" />
-                </TouchableOpacity>
-                <Text style={s.productivityMonth}>
-                  {productivityMonth.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}
-                </Text>
-                <TouchableOpacity
-                  accessibilityLabel="Mes siguiente"
-                  style={s.productivityMonthButton}
-                  onPress={() => setProductivityMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
-                >
-                  <ChevronRight size={16} color="#252619" />
-                </TouchableOpacity>
-              </View>
+              <Text style={s.monthlySwipeHint}>Desliza para explorar</Text>
             </View>
-            <View style={s.productivityWeekdays}>
-              {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, index) => (
-                <Text key={`${day}-${index}`} style={s.productivityWeekday}>{day}</Text>
-              ))}
+            <View
+              onLayout={(event) => {
+                const nextWidth = event.nativeEvent.layout.width;
+                if (Math.abs(nextWidth - reportViewportWidth) > 1) setReportViewportWidth(nextWidth);
+              }}
+            >
+            <Animated.FlatList
+              key={reportGeometryKey}
+              horizontal
+              data={monthlyReports}
+              keyExtractor={(item) => item.key}
+              showsHorizontalScrollIndicator={false}
+              snapToInterval={reportSnapInterval}
+              decelerationRate="fast"
+              contentContainerStyle={[
+                s.monthlyCarouselContent,
+                { paddingRight: Math.max(34, reportViewportWidth - reportSnapInterval - 22) },
+              ]}
+              initialScrollIndex={activeReportIndex}
+              getItemLayout={(_, index) => ({
+                length: reportSnapInterval,
+                offset: reportSnapInterval * index,
+                index,
+              })}
+              onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { x: reportScrollX } } }],
+                { useNativeDriver: true },
+              )}
+              onMomentumScrollEnd={(event) => {
+                setActiveReportIndex(Math.max(0, Math.min(11, Math.round(event.nativeEvent.contentOffset.x / reportSnapInterval))));
+              }}
+              scrollEventThrottle={16}
+              renderItem={({ item, index }) => {
+                const inputRange = [
+                  (index - 1) * reportSnapInterval,
+                  index * reportSnapInterval,
+                  (index + 1) * reportSnapInterval,
+                ];
+                const scale = reportScrollX.interpolate({
+                  inputRange,
+                  outputRange: [0.88, 1, 0.88],
+                  extrapolate: 'clamp',
+                });
+                const translateY = reportScrollX.interpolate({
+                  inputRange,
+                  outputRange: [18, 0, 18],
+                  extrapolate: 'clamp',
+                });
+                const rotateY = reportScrollX.interpolate({
+                  inputRange,
+                  outputRange: ['-7deg', '0deg', '7deg'],
+                  extrapolate: 'clamp',
+                });
+                const affectedPct = item.total ? (item.affected / item.total) * 100 : 0;
+
+                return (
+                  <Animated.View
+                    style={[
+                      s.monthlyCard,
+                      { width: reportCardWidth, marginRight: reportCardGap },
+                      { transform: [{ perspective: 900 }, { translateY }, { scale }, { rotateY }] },
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={index % 3 === 0 ? ['#EEFF75', '#D8F95B'] : index % 3 === 1 ? ['#E9F8ED', '#CFEED8'] : ['#E9F1FF', '#D7E4FC']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={s.monthlyCardGradient}
+                    >
+                      <View style={s.monthlyCardTop}>
+                        <View>
+                          <Text style={s.monthlyCardEyebrow}>{index === 0 ? 'MES ACTUAL' : 'REPORTE'}</Text>
+                          <Text style={s.monthlyCardMonth}>
+                            {item.date.toLocaleDateString('es-MX', { month: 'long' })}
+                          </Text>
+                        </View>
+                        <Text style={s.monthlyCardYear}>{item.date.getFullYear()}</Text>
+                      </View>
+
+                      <View style={s.monthlyHeroRow}>
+                        <View>
+                          <Text style={s.monthlyHeroValue}>{item.total}</Text>
+                          <Text style={s.monthlyHeroLabel}>escaneos realizados</Text>
+                        </View>
+                        <View style={s.monthlyHealthBadge}>
+                          <Text style={s.monthlyHealthValue}>{item.total ? `${item.healthPct}%` : '—'}</Text>
+                          <Text style={s.monthlyHealthLabel}>salud</Text>
+                        </View>
+                      </View>
+
+                      <View style={s.monthlyStatsRow}>
+                        <View style={s.monthlyStat}>
+                          <Text style={s.monthlyStatValue}>{item.healthy}</Text>
+                          <Text style={s.monthlyStatLabel}>Saludables</Text>
+                        </View>
+                        <View style={s.monthlyStatDivider} />
+                        <View style={s.monthlyStat}>
+                          <Text style={s.monthlyStatValue}>{item.affected}</Text>
+                          <Text style={s.monthlyStatLabel}>Con problemas</Text>
+                        </View>
+                        <View style={s.monthlyStatDivider} />
+                        <View style={s.monthlyStat}>
+                          <Text style={s.monthlyStatValue}>{item.activeDays}</Text>
+                          <Text style={s.monthlyStatLabel}>Días activos</Text>
+                        </View>
+                      </View>
+
+                      <View style={s.monthlyDistribution}>
+                        <View style={[s.monthlyDistributionHealthy, { flex: item.total ? item.healthy || 0.001 : 1 }]} />
+                        <View style={[s.monthlyDistributionAffected, { flex: item.total ? item.affected || 0.001 : 0 }]} />
+                      </View>
+                      <View style={s.monthlyFindingRow}>
+                        <View style={[s.monthlyFindingDot, { backgroundColor: affectedPct > 0 ? '#F97316' : '#238B57' }]} />
+                        <View style={s.monthlyFindingCopy}>
+                          <Text style={s.monthlyFindingLabel}>Hallazgo principal</Text>
+                          <Text style={s.monthlyFindingValue} numberOfLines={1}>
+                            {monthlyReportLoading
+                              ? 'Cargando actividad…'
+                              : monthlyReportError
+                                ? 'No se pudo cargar el reporte'
+                                : isGuest
+                                  ? 'Inicia sesión para ver tu historial'
+                                  : item.total
+                                    ? item.topFinding
+                                    : 'No hubo actividad este mes'}
+                          </Text>
+                        </View>
+                      </View>
+                    </LinearGradient>
+                  </Animated.View>
+                );
+              }}
+            />
             </View>
-            <View style={s.productivityGrid}>
-              {productivityCalendar.days.map(({ date, count, currentMonth, today }, index) => (
+            <View style={s.monthlyPagination}>
+              {monthlyReports.slice(0, 6).map((report, index) => (
                 <View
-                  key={`${date.toISOString()}-${index}`}
-                  style={[s.productivityDay, !currentMonth && s.productivityDayOutside]}
-                >
-                  <Text style={[s.productivityDayNumber, today && s.productivityToday]}>{date.getDate()}</Text>
-                  <View style={s.productivityMarks}>
-                    {[1, 2, 3].map(level => (
-                      <View
-                        key={level}
-                        style={[
-                          s.productivityMark,
-                          count >= level && s.productivityMarkActive,
-                          count === 0 && s.productivityMarkEmpty,
-                        ]}
-                      />
-                    ))}
-                  </View>
-                  {count > 3 ? <Text style={s.productivityExtra}>+{count - 3}</Text> : null}
-                </View>
+                  key={report.key}
+                  style={[
+                    s.monthlyPaginationDot,
+                    Math.min(activeReportIndex, 5) === index && s.monthlyPaginationDotActive,
+                  ]}
+                />
               ))}
-            </View>
-            <View style={s.productivityFooter}>
-              <View style={s.productivityLegend}>
-                <View style={[s.productivityMark, s.productivityMarkActive]} />
-                <Text style={s.productivityLegendText}>Cada marca representa un escaneo</Text>
-              </View>
-              <Text style={s.productivityTotal}>{productivityScans.length} este mes</Text>
+              <Text style={s.monthlyPaginationText}>{activeReportIndex + 1} de 12</Text>
             </View>
           </Reanimated.View>
 
@@ -902,8 +1053,8 @@ const s = StyleSheet.create({
   logoutText: { color: '#ef4444', fontSize: 12, fontFamily: 'Poppins_600SemiBold', marginLeft: 4 },
   logoutTextTablet: { fontSize: 14 },
 
-  scroll: { paddingBottom: 200, zIndex: 2 },
-  scrollTablet: { paddingBottom: 240, alignItems: 'center' },
+  scroll: { paddingBottom: 112, zIndex: 2 },
+  scrollTablet: { paddingBottom: 132, alignItems: 'center' },
 
   contentWrapper: {
     width: '100%',
@@ -1484,6 +1635,203 @@ const s = StyleSheet.create({
     color: '#252619',
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 9,
+  },
+  monthlyReportSection: {
+    marginBottom: 4,
+  },
+  monthlyReportSectionTablet: {
+    width: '100%',
+  },
+  monthlyReportHeader: {
+    marginHorizontal: 22,
+    marginBottom: 9,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  monthlySwipeHint: {
+    color: '#75817B',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 9,
+    marginBottom: 3,
+  },
+  monthlyCarouselContent: {
+    paddingLeft: 22,
+    paddingRight: 34,
+    paddingTop: 2,
+    paddingBottom: 18,
+  },
+  monthlyCard: {
+    borderRadius: 25,
+    shadowColor: '#284B35',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 15,
+    elevation: 9,
+  },
+  monthlyCardGradient: {
+    minHeight: 286,
+    borderRadius: 25,
+    padding: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.65)',
+  },
+  monthlyCardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  monthlyCardEyebrow: {
+    color: '#5C6730',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 8,
+    letterSpacing: 1.2,
+  },
+  monthlyCardMonth: {
+    color: '#17211A',
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 24,
+    lineHeight: 30,
+    textTransform: 'capitalize',
+  },
+  monthlyCardYear: {
+    color: '#435047',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 11,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.48)',
+  },
+  monthlyHeroRow: {
+    marginTop: 15,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  monthlyHeroValue: {
+    color: '#17211A',
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 38,
+    lineHeight: 42,
+  },
+  monthlyHeroLabel: {
+    color: '#566259',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 9,
+  },
+  monthlyHealthBadge: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.68)',
+    borderWidth: 1,
+    borderColor: 'rgba(35,139,87,0.22)',
+  },
+  monthlyHealthValue: {
+    color: '#176D47',
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 18,
+    lineHeight: 22,
+  },
+  monthlyHealthLabel: {
+    color: '#4D6659',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 8,
+  },
+  monthlyStatsRow: {
+    marginTop: 15,
+    paddingVertical: 11,
+    paddingHorizontal: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.48)',
+  },
+  monthlyStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  monthlyStatValue: {
+    color: '#1D2921',
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 15,
+  },
+  monthlyStatLabel: {
+    color: '#5B665F',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 7,
+    textAlign: 'center',
+  },
+  monthlyStatDivider: {
+    width: 1,
+    height: 27,
+    backgroundColor: 'rgba(45,66,52,0.15)',
+  },
+  monthlyDistribution: {
+    height: 8,
+    marginTop: 15,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.64)',
+  },
+  monthlyDistributionHealthy: {
+    backgroundColor: '#238B57',
+  },
+  monthlyDistributionAffected: {
+    backgroundColor: '#F97316',
+  },
+  monthlyFindingRow: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  monthlyFindingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 9,
+  },
+  monthlyFindingCopy: {
+    flex: 1,
+  },
+  monthlyFindingLabel: {
+    color: '#6A756E',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 8,
+  },
+  monthlyFindingValue: {
+    color: '#25332A',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 11,
+  },
+  monthlyPagination: {
+    height: 18,
+    marginTop: -5,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 5,
+  },
+  monthlyPaginationDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#C6D1CA',
+  },
+  monthlyPaginationDotActive: {
+    width: 15,
+    backgroundColor: '#238B57',
+  },
+  monthlyPaginationText: {
+    marginLeft: 4,
+    color: '#75817B',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 8,
   },
   secTitleLocked: { color: '#94a3b8' },
 });

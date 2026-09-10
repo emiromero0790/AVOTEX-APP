@@ -93,7 +93,12 @@ export default function Mapping() {
             location={location}
             onPolygonChange={(points: PolygonPoint[]) => {
               setPolygon(points);
-              setNotice(points.length >= 3 ? 'Delimitación lista para guardar.' : 'Toca cada esquina de tu huerta.');
+              if (points.length >= 3) {
+                setNotice('Delimitación lista para guardar.');
+                setPreviewVisible(true);
+              } else {
+                setNotice('Toca cada esquina de tu huerta.');
+              }
             }}
           />
         ) : (
@@ -175,7 +180,6 @@ export default function Mapping() {
             accessibilityRole="button"
             accessibilityState={{ disabled: polygon.length < 3 }}
             disabled={polygon.length < 3}
-            onPress={() => setPreviewVisible(true)}
             style={({ pressed }) => [
               styles.saveButton,
               polygon.length < 3 && styles.saveButtonDisabled,

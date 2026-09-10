@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BlurView } from 'expo-blur';
 import * as Location from 'expo-location';
-import { Eraser, Pencil, Save } from 'lucide-react-native';
+import { Eraser, MapPin, Navigation, Pencil, Save } from 'lucide-react-native';
 import PolygonMap, { PolygonMapHandle } from '../../components/PolygonMap';
 
 type PolygonPoint = {
@@ -15,6 +16,8 @@ const SAVED_POLYGON_KEY = 'avotex_huerta_polygon';
 export default function Mapping() {
   const mapRef = useRef<PolygonMapHandle>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [locationTitle, setLocationTitle] = useState('Buscando ubicación');
+  const [locationDetail, setLocationDetail] = useState('Obteniendo una lectura precisa del GPS…');
   const [notice, setNotice] = useState<string | null>('Obteniendo tu ubicación precisa…');
   const [polygon, setPolygon] = useState<PolygonPoint[]>([]);
   const [saving, setSaving] = useState(false);
@@ -28,6 +31,8 @@ export default function Mapping() {
         if (!active) return;
         if (permission.status !== 'granted') {
           setNotice('Activa el permiso de ubicación para mostrar tu posición en el mapa.');
+          setLocationTitle('Ubicación no disponible');
+          setLocationDetail('Activa el permiso de ubicación en tu dispositivo.');
           return;
         }
         setNotice('Obteniendo tu ubicación precisa…');
@@ -36,6 +41,8 @@ export default function Mapping() {
         });
         if (active) {
           setLocation(current);
+          setLocationTitle('Ubicación actual');
+          setLocationDetail(`${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}`);
           const accuracy = current.coords.accuracy;
           setNotice(
             typeof accuracy === 'number'
@@ -43,8 +50,34 @@ export default function Mapping() {
               : 'Ubicación precisa lista.',
           );
         }
+
+        if (Platform.OS !== 'web') {
+          try {
+            const [address] = await Location.reverseGeocodeAsync({
+              latitude: current.coords.latitude,
+              longitude: current.coords.longitude,
+            });
+            if (active && address) {
+              const primary = address.street || address.name || address.district || address.city;
+              const secondary = [address.district, address.city, address.region]
+                .filter((part, index, parts) => part && parts.indexOf(part) === index)
+                .join(', ');
+              setLocationTitle(primary || 'Ubicación actual');
+              setLocationDetail(secondary || `${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}`);
+            }
+          } catch {
+            if (active) {
+              setLocationTitle('Ubicación actual');
+              setLocationDetail(`${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}`);
+            }
+          }
+        }
       } catch {
-        if (active) setNotice('No pudimos obtener tu ubicación. Revisa que el GPS esté activo e inténtalo de nuevo.');
+        if (active) {
+          setNotice('No pudimos obtener tu ubicación. Revisa que el GPS esté activo e inténtalo de nuevo.');
+          setLocationTitle('Ubicación no disponible');
+          setLocationDetail('Revisa que el GPS esté activo.');
+        }
       }
     };
 
@@ -91,7 +124,19 @@ export default function Mapping() {
         )}
       </View>
 
-      <View style={styles.bottomPanel}>
+      <View style={styles.locationCard}>
+        <View style={styles.locationIcon}>
+          <Navigation size={20} color="#FFFFFF" fill="#FFFFFF" />
+        </View>
+        <View style={styles.locationCopy}>
+          <Text style={styles.locationEyebrow}>TU UBICACIÓN</Text>
+          <Text style={styles.locationCardTitle} numberOfLines={1}>{locationTitle}</Text>
+          <Text style={styles.locationCardDetail} numberOfLines={1}>{locationDetail}</Text>
+        </View>
+        <MapPin size={19} color="#9EE7D2" />
+      </View>
+
+      <BlurView intensity={55} tint="light" style={styles.bottomPanel}>
         <View style={styles.panelCopy}>
           <View>
             <Text style={styles.eyebrow}>DELIMITACIÓN</Text>
@@ -161,7 +206,7 @@ export default function Mapping() {
             <Text style={styles.saveButtonText}>{saving ? 'Guardando…' : 'Guardar'}</Text>
           </Pressable>
         </View>
-      </View>
+      </BlurView>
     </View>
   );
 }
@@ -169,6 +214,37 @@ export default function Mapping() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#dbe9df' },
   mapLayer: { ...StyleSheet.absoluteFill },
+  locationCard: {
+    position: 'absolute',
+    top: 18,
+    left: 18,
+    right: 18,
+    minHeight: 84,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderRadius: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(5,7,7,0.94)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 16,
+    elevation: 11,
+  },
+  locationIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#137B6D',
+  },
+  locationCopy: { flex: 1, minWidth: 0 },
+  locationEyebrow: { color: '#84C9B7', fontSize: 8, fontWeight: '800', letterSpacing: 1.5 },
+  locationCardTitle: { color: '#FFFFFF', fontSize: 17, lineHeight: 22, fontWeight: '800', marginTop: 1 },
+  locationCardDetail: { color: '#B9C4C1', fontSize: 10, lineHeight: 14, marginTop: 1 },
   bottomPanel: {
     position: 'absolute',
     left: 14,
@@ -178,7 +254,10 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 14,
     borderRadius: 26,
-    backgroundColor: 'rgba(255,255,255,0.97)',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.72)',
+    backgroundColor: 'rgba(255,255,255,0.66)',
     shadowColor: '#102D27',
     shadowOffset: { width: 0, height: 9 },
     shadowOpacity: 0.22,

@@ -11,7 +11,6 @@ import {
   Platform,
 } from 'react-native';
 import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   ChevronLeft,
   Mail,
@@ -169,34 +168,39 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Avatar + email card */}
+        <Text style={styles.sectionLabel}>CUENTA</Text>
         <View style={styles.avatarCard}>
-          <LinearGradient colors={['#8E8E93', '#636366']} style={styles.avatarCircle}>
+          <View style={styles.avatarCircle}>
             <User size={36} color="#fff" />
-          </LinearGradient>
-          <View style={styles.emailRow}>
-            <Mail size={15} color="#8E8E93" />
-            <Text style={styles.emailText} numberOfLines={1}>{userEmail}</Text>
+          </View>
+          <View style={styles.accountCopy}>
+            <Text style={styles.accountName}>Mi cuenta</Text>
+            <View style={styles.emailRow}>
+              <Mail size={14} color="#8E8E93" />
+              <Text style={styles.emailText} numberOfLines={1}>{userEmail}</Text>
+            </View>
           </View>
         </View>
 
-        {/* ── Tokens card ── */}
+        <Text style={styles.sectionLabel}>SALDO</Text>
         <View style={styles.tokenCard}>
-          <LinearGradient colors={['#FFFFFF', '#FFFFFF']} style={styles.tokenCardGrad}>
+          <View style={styles.tokenCardGrad}>
             <View style={styles.tokenCardLeft}>
-              <Coins size={36} color="#d97706" />
+              <Coins size={20} color="#FFFFFF" />
             </View>
             <View style={styles.tokenCardRight}>
               <Text style={styles.tokenCardLabel}>Mis Tokens</Text>
+              <Text style={styles.tokenCardSub}>Disponibles para escanear</Text>
+            </View>
+            <View style={styles.tokenAmountRow}>
               <Text style={styles.tokenCardAmount}>
                 {userTokens !== null ? (userTokens * 100).toLocaleString('es-MX') : '—'}
               </Text>
-              <Text style={styles.tokenCardSub}>disponibles</Text>
             </View>
-          </LinearGradient>
+          </View>
         </View>
 
-        {/* ── Sign out button ── */}
+        <Text style={styles.sectionLabel}>SESIÓN</Text>
         <TouchableOpacity
           style={[styles.signOutBtn, signOutLoading && { opacity: 0.7 }]}
           onPress={handleSignOut}
@@ -213,7 +217,7 @@ export default function ProfileScreen() {
           )}
         </TouchableOpacity>
 
-        {/* ── Change password section ── */}
+        <Text style={styles.sectionLabel}>SEGURIDAD</Text>
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionIconCircle}>
@@ -247,7 +251,7 @@ export default function ProfileScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="Contraseña actual"
-                  placeholderTextColor="#a8c4a0"
+                  placeholderTextColor="#8E8E93"
                   value={oldPw}
                   onChangeText={(t) => { setOldPw(t); setPwError(''); }}
                   secureTextEntry={!showOldPw}
@@ -263,7 +267,7 @@ export default function ProfileScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="Nueva contraseña"
-                  placeholderTextColor="#a8c4a0"
+                  placeholderTextColor="#8E8E93"
                   value={newPw}
                   onChangeText={(t) => { setNewPw(t); setPwError(''); }}
                   secureTextEntry={!showNewPw}
@@ -279,7 +283,7 @@ export default function ProfileScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="Repetir nueva contraseña"
-                  placeholderTextColor="#a8c4a0"
+                  placeholderTextColor="#8E8E93"
                   value={confirmPw}
                   onChangeText={(t) => { setConfirmPw(t); setPwError(''); }}
                   secureTextEntry={!showConfirmPw}
@@ -307,11 +311,11 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* ── Delete account section ── */}
+        <Text style={styles.sectionLabel}>ZONA DE PELIGRO</Text>
         <View style={[styles.section, styles.dangerSection]}>
           <View style={styles.sectionHeader}>
             <View style={[styles.sectionIconCircle, styles.dangerIconCircle]}>
-              <Trash2 size={18} color="#dc2626" />
+              <Trash2 size={18} color="#FFFFFF" />
             </View>
             <Text style={[styles.sectionTitle, styles.dangerTitle]}>Zona de peligro</Text>
           </View>
@@ -325,12 +329,12 @@ export default function ProfileScreen() {
             onPress={() => { setDeleteError(''); setDeleteConfirmText(''); setDeleteModalVisible(true); }}
             activeOpacity={0.82}
           >
-            <Trash2 size={17} color="#fff" />
+            <Trash2 size={17} color="#FF3B30" />
             <Text style={styles.deleteBtnText}>Eliminar cuenta</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={{ height: 200 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
 
       {/* ── Delete account confirmation modal ── */}
@@ -430,8 +434,6 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -445,97 +447,115 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 8,
-    paddingBottom: 130,
+    paddingBottom: 110,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+  },
+  sectionLabel: {
+    color: '#6D6D72',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 11,
+    marginLeft: 15,
+    marginBottom: 7,
   },
 
   tokenCard: {
     borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 16,
+    marginBottom: 24,
+    backgroundColor: '#FFFFFF',
   },
   tokenCardGrad: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
+    minHeight: 66,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 16,
   },
   tokenCardLeft: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#F2F2F7',
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: '#8E8E93',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 18,
+    marginRight: 12,
   },
   tokenCardRight: { flex: 1 },
   tokenCardLabel: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 12,
-    color: '#92400e',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    marginBottom: 2,
+    fontSize: 15,
+    color: '#111111',
   },
+  tokenAmountRow: { alignItems: 'flex-end', marginLeft: 10 },
   tokenCardAmount: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 32,
-    color: '#78350f',
-    lineHeight: 36,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 16,
+    color: '#3A3A3C',
   },
   tokenCardSub: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
-    color: '#b45309',
-    marginTop: 2,
+    fontSize: 10,
+    color: '#8E8E93',
   },
 
   avatarCard: {
+    minHeight: 88,
+    flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 24,
-    marginBottom: 20,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    marginBottom: 24,
   },
   avatarCircle: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    backgroundColor: '#8E8E93',
+    marginRight: 14,
+  },
+  accountCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  accountName: {
+    color: '#111111',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 17,
+    marginBottom: 3,
   },
   emailRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#F2F2F7',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
   },
   emailText: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 14,
-    color: '#3A3A3C',
-    maxWidth: 260,
+    flex: 1,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: '#7A7A80',
   },
 
   section: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    padding: 14,
+    marginBottom: 24,
   },
   dangerSection: {
-    borderColor: 'rgba(220,38,38,0.18)',
-    shadowColor: '#dc2626',
+    paddingBottom: 0,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 18,
+    marginBottom: 14,
   },
   sectionIconCircle: {
     width: 36,
@@ -546,7 +566,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dangerIconCircle: {
-    backgroundColor: 'rgba(220,38,38,0.08)',
+    backgroundColor: '#FF3B30',
   },
   sectionTitle: {
     fontFamily: 'Poppins_700Bold',
@@ -554,7 +574,7 @@ const styles = StyleSheet.create({
     color: '#111111',
   },
   dangerTitle: {
-    color: '#dc2626',
+    color: '#111111',
   },
 
   errorBox: {
@@ -575,9 +595,8 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#D1D1D6',
-    borderRadius: 14,
+    borderWidth: 0,
+    borderRadius: 11,
     backgroundColor: '#F2F2F7',
     paddingHorizontal: 12,
     marginBottom: 12,
@@ -593,20 +612,15 @@ const styles = StyleSheet.create({
   eyeBtn: { paddingLeft: 8, paddingRight: 2 },
 
   primaryBtn: {
-    borderRadius: 50,
+    borderRadius: 12,
     overflow: 'hidden',
     marginTop: 4,
-    shadowColor: '#007AFF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 6,
   },
   primaryBtnGrad: {
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 50,
+    borderRadius: 12,
     backgroundColor: '#007AFF',
   },
   primaryBtnText: {
@@ -640,6 +654,7 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     alignItems: 'center',
     borderRadius: 50,
+    backgroundColor: '#007AFF',
   },
   successBtnText: {
     fontFamily: 'Poppins_600SemiBold',
@@ -654,8 +669,9 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    paddingVertical: 13,
-    marginBottom: 16,
+    minHeight: 54,
+    paddingVertical: 12,
+    marginBottom: 24,
   },
   signOutBtnText: {
     fontFamily: 'Poppins_600SemiBold',
@@ -668,7 +684,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6b7280',
     lineHeight: 20,
-    marginBottom: 18,
+    marginBottom: 8,
+    paddingHorizontal: 2,
   },
   dangerBold: {
     fontFamily: 'Poppins_600SemiBold',
@@ -679,19 +696,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#dc2626',
-    borderRadius: 50,
-    paddingVertical: 13,
-    shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 0,
+    paddingVertical: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#D8D8DC',
   },
   deleteBtnText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 15,
-    color: '#fff',
+    color: '#FF3B30',
   },
 
   // Modal

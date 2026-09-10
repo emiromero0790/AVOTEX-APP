@@ -976,7 +976,7 @@ export default function Home() {
                         <View style={[s.monthlyDistributionAffected, { flex: item.total ? item.affected || 0.001 : 0 }]} />
                       </View>
                       <View style={s.monthlyFindingRow}>
-                        <View style={[s.monthlyFindingDot, { backgroundColor: affectedPct > 0 ? '#F97316' : '#238B57' }]} />
+                        <View style={[s.monthlyFindingDot, { backgroundColor: affectedPct > 0 ? '#E8B7A5' : '#A9C8BD' }]} />
                         <View style={s.monthlyFindingCopy}>
                           <Text style={s.monthlyFindingLabel}>Hallazgo principal</Text>
                           <Text style={s.monthlyFindingValue} numberOfLines={1}>
@@ -1760,10 +1760,10 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.68)',
     borderWidth: 1,
-    borderColor: 'rgba(35,139,87,0.22)',
+    borderColor: 'rgba(116,139,169,0.20)',
   },
   monthlyHealthValue: {
-    color: '#176D47',
+    color: '#647D9E',
     fontFamily: 'Poppins_700Bold',
     fontSize: 18,
     lineHeight: 22,
@@ -1811,10 +1811,10 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.64)',
   },
   monthlyDistributionHealthy: {
-    backgroundColor: '#238B57',
+    backgroundColor: '#A9C8BD',
   },
   monthlyDistributionAffected: {
-    backgroundColor: '#F97316',
+    backgroundColor: '#E8B7A5',
   },
   monthlyFindingRow: {
     marginTop: 14,
@@ -1856,7 +1856,7 @@ const s = StyleSheet.create({
   },
   monthlyPaginationDotActive: {
     width: 15,
-    backgroundColor: '#238B57',
+    backgroundColor: '#8FA8C8',
   },
   monthlyPaginationText: {
     marginLeft: 4,

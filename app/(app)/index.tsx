@@ -655,9 +655,16 @@ export default function Home() {
               </View>
               </View>
               <View style={s.environmentPanelFooter}>
-                <Text style={s.environmentPanelFooterLabel}>
-                  {isGuest ? 'MODO INVITADO' : 'BIENVENIDO'}
-                </Text>
+                <View style={s.environmentPanelFooterHeading}>
+                  <Text style={s.environmentPanelFooterLabel}>
+                    {isGuest ? 'MODO INVITADO' : 'BIENVENIDO'}
+                  </Text>
+                  <Image
+                    source={require('../../assets/images/AvotexNuevoLogo.png')}
+                    style={s.environmentPanelFooterLogo}
+                    resizeMode="contain"
+                  />
+                </View>
                 <Text style={s.environmentPanelFooterValue}>
                   {isGuest ? 'Invitado' : user?.email || user?.displayName || 'Usuario'}
                 </Text>
@@ -1106,9 +1113,18 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 11,
     justifyContent: 'center',
-    backgroundColor: 'rgba(218, 222, 225, 0.88)',
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.72)',
+  },
+  environmentPanelFooterHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  environmentPanelFooterLogo: {
+    width: 72,
+    height: 28,
   },
   environmentPanelFooterLabel: {
     color: '#68757A',

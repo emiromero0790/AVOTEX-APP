@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { Poppins_400Regular, useFonts } from '@expo-google-fonts/poppins';
 import * as Location from 'expo-location';
 import { Eraser, MapPin, Navigation, Pencil, Save, X } from 'lucide-react-native';
 import PolygonMap, { PolygonMapHandle } from '../../components/PolygonMap';
@@ -11,6 +12,7 @@ type PolygonPoint = {
 };
 
 export default function Mapping() {
+  useFonts({ Poppins_400Regular });
   const mapRef = useRef<PolygonMapHandle>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [locationTitle, setLocationTitle] = useState('Buscando ubicación');
@@ -299,7 +301,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  title: { color: '#000000', fontSize: 20, lineHeight: 25, fontWeight: '400', letterSpacing: -0.2 },
+  title: { color: '#000000', fontFamily: 'Poppins_400Regular', fontSize: 19, lineHeight: 25, letterSpacing: -0.2 },
   pointBadge: {
     minWidth: 48,
     paddingHorizontal: 9,

@@ -16,6 +16,8 @@ config.watchFolders = [__dirname];
 
 config.resolver.blockList = [
   /\.local\/.*/,
+  /artifacts\/mockup-sandbox\/.*/,
+  /node_modules\/\.ignored\/.*/,
 ];
 
 module.exports = withNativeWind(config, { input: './global.css' });

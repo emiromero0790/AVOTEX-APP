@@ -1,0 +1,1 @@
+- [Expo y Preview comparten Metro](expo-preview-single-metro.md) — usar un solo proceso Expo con web+túnel; dos Metro simultáneos agotan los observadores del entorno.

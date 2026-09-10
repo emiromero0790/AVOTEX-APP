@@ -655,19 +655,19 @@ export default function Home() {
               </View>
               </View>
               <View style={s.environmentPanelFooter}>
-                <View style={s.environmentPanelFooterHeading}>
+                <View style={s.environmentPanelFooterCopy}>
                   <Text style={s.environmentPanelFooterLabel}>
                     {isGuest ? 'MODO INVITADO' : 'BIENVENIDO'}
                   </Text>
-                  <Image
-                    source={require('../../assets/images/AvotexNuevoLogo.png')}
-                    style={s.environmentPanelFooterLogo}
-                    resizeMode="contain"
-                  />
+                  <Text style={s.environmentPanelFooterValue}>
+                    {isGuest ? 'Invitado' : user?.email || user?.displayName || 'Usuario'}
+                  </Text>
                 </View>
-                <Text style={s.environmentPanelFooterValue}>
-                  {isGuest ? 'Invitado' : user?.email || user?.displayName || 'Usuario'}
-                </Text>
+                <Image
+                  source={require('../../assets/images/AvotexNuevoLogo.png')}
+                  style={s.environmentPanelFooterLogo}
+                  resizeMode="cover"
+                />
               </View>
               </LinearGradient>
             </Reanimated.View>
@@ -1110,21 +1110,21 @@ const s = StyleSheet.create({
     marginHorizontal: -12,
     marginBottom: -12,
     marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    justifyContent: 'center',
+    paddingLeft: 16,
+    paddingRight: 8,
+    paddingVertical: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.72)',
   },
-  environmentPanelFooterHeading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
+  environmentPanelFooterCopy: { flex: 1, minWidth: 0, justifyContent: 'center' },
   environmentPanelFooterLogo: {
-    width: 72,
-    height: 28,
+    width: 132,
+    height: 52,
+    marginLeft: 12,
   },
   environmentPanelFooterLabel: {
     color: '#68757A',

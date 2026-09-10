@@ -1,937 +1,183 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, ActivityIndicator,
-  Image, TouchableOpacity, useWindowDimensions,
-} from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { AlertTriangle, BarChart3, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Leaf, Plus, ScanLine, ShieldCheck, Trash2, TrendingUp } from 'lucide-react-native';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
-import { auth } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth } from '../../firebaseConfig';
 import { supabase } from '../../supabaseConfig';
-import { PieChart as PieChartIcon, List, CalendarDays } from 'lucide-react-native';
-import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
 import { useAccessibility } from '../../context/AccessibilityContext';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
-const avotexSanoImage    = require('../../assets/images/avotexSano.png');
-const avotexEnfermoImage = require('../../assets/images/avotexEnfermo.png');
-
-const FRUIT_REMOTE_IMAGES: Record<string, string> = {
-  limon:    'https://cdn.aarp.net/content/dam/aarpe/es/home/cocina/dieta-y-nutricion/info-10-2013/fotos-limon-beneficios/_jcr_content/root/container_main/container_body_main/list_container_body2/container_body_cf/body_two_cf_listicle_ten/cfimage.coreimg.50.932.jpeg/content/dam/aarp/food/diet_nutrition/2017/12/1140-lime-juice-lemon-benefits-esp.jpg',
-  mango:    'https://cdn.myikas.com/images/0fc5e2e6-3ea7-443f-a09e-daf74b83e708/8ff8ba6b-d866-4e48-88c7-44e07abc07e2/3840/mango.webp',
-  guayaba:  'https://clickabasto.com/cdn/shop/products/IMG_1458_665x462.jpg?v=1655783207',
-  granada:  'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQoNOSa7eeyMktiOgpxYd8BV95f3PTgPnzHcg&s',
-  cafe:     'https://cdn.alsuper.com/products/420910_p.webp',
+type Scan = { id: number; created_at: string; user_id: string; label: string; score: number; fruto?: string };
+type Task = { id: number; title: string; detail?: string; completed: boolean; user_id: string };
+type Section = 'summary' | 'history' | 'plan';
+type Recommendation = { title: string; text: string; tone: 'positive' | 'info' | 'warning' };
+const TASK_DATE_PATTERN = /^\[avotex-date:(\d{4}-\d{2}-\d{2})\]\n?/;
+const normalize = (value = '') => value.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+const healthy = (label = '') => {
+  const normalized = normalize(label);
+  if (/\b(no|not|sin)\s+(saludable|healthy|sano|fresh|fresco)\b/.test(normalized)) return false;
+  return ['saludable', 'healthy', 'sano', 'fresh', 'fresco'].some(word => normalized.includes(word));
 };
+const diagnosisName = (label = '') => healthy(label) ? 'Saludable' : label.trim() || 'Sin diagnóstico';
+const dateText = (value: string) => new Date(value).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const taskDate = (task: Task) => task.detail?.match(TASK_DATE_PATTERN)?.[1] ?? null;
+const visibleTaskDetail = (detail = '') => detail.replace(TASK_DATE_PATTERN, '');
 
-
-const CHART_COLORS = [
-  '#9B8AFB', '#F3A6C8', '#F6D365', '#75C9C3',
-  '#B8A7E8', '#F2B5A7', '#A9D8B8', '#C8B6E8',
-];
-
-const norm = (s: string) =>
-  (s ?? '').toLowerCase().trim()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ');
-
-const getFruitImageSource = (fruto: string | undefined | null, healthy: boolean) => {
-  const key = norm(fruto ?? '');
-  if (!fruto || key === 'aguacate') {
-    return healthy ? avotexSanoImage : avotexEnfermoImage;
-  }
-  const url = FRUIT_REMOTE_IMAGES[key] ?? null;
-  if (url) return { uri: url };
-  return healthy ? avotexSanoImage : avotexEnfermoImage;
-};
-
-const getFruitEmoji = (_fruto: string | undefined | null) => '';
-
-const FruitIconSvg = ({ fruit, size = 25 }: { fruit: string; size?: number }) => {
-  const key = norm(fruit);
-
-  if (key === 'aguacate') {
-    return (
-      <Svg width={size} height={size} viewBox="0 0 32 32">
-        <Path d="M16 3C12 3 6 13 6 20a10 10 0 0 0 20 0C26 13 20 3 16 3Z" fill="#78B84A" />
-        <Path d="M16 6c-2.8 0-7.2 8.6-7.2 14a7.2 7.2 0 0 0 14.4 0C23.2 14.6 18.8 6 16 6Z" fill="#D8F07C" />
-        <Circle cx="16" cy="21" r="4.6" fill="#9A5B32" />
-        <Path d="M17 4c1-2 3-2.5 5-2-1 2.2-2.8 3.2-5 3Z" fill="#2F7D3E" />
-      </Svg>
-    );
-  }
-
-  if (key === 'limon' || key === 'lima') {
-    return (
-      <Svg width={size} height={size} viewBox="0 0 32 32">
-        <Ellipse cx="16" cy="18" rx="11" ry="8" fill="#E4F044" />
-        <Path d="M6 16 3 13l4-1M25 13c-1-4 1-7 5-8-.2 4-1.8 7-5 8Z" fill="#65A83D" />
-        <Path d="M9 18c2-3 5-4 8-4" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" opacity=".8" />
-      </Svg>
-    );
-  }
-
-  if (key === 'mango') {
-    return (
-      <Svg width={size} height={size} viewBox="0 0 32 32">
-        <Path d="M25 8C19 3 8 7 6 17c-2 9 8 13 15 8 7-5 9-13 4-17Z" fill="#FFB52E" />
-        <Path d="M9 23c7 1 12-5 15-12" stroke="#F07835" strokeWidth="3" strokeLinecap="round" opacity=".8" />
-        <Path d="M22 7c1-4 4-5 8-4-1.5 3.5-4 5-8 5Z" fill="#4F9A43" />
-      </Svg>
-    );
-  }
-
-  if (key === 'cafe' || key === 'café') {
-    return (
-      <Svg width={size} height={size} viewBox="0 0 32 32">
-        <Circle cx="12" cy="17" r="8" fill="#8B4A2D" />
-        <Circle cx="21" cy="15" r="7" fill="#B7683D" />
-        <Path d="M12 10c-3 4-3 9 0 14M21 9c-2 3-2 8 0 12" stroke="#F1C29D" strokeWidth="1.6" strokeLinecap="round" />
-        <Path d="M19 7c1-3 4-4 7-3-1 3-3.5 4.5-7 4Z" fill="#3F8B45" />
-      </Svg>
-    );
-  }
-
-  if (key === 'granada') {
-    return (
-      <Svg width={size} height={size} viewBox="0 0 32 32">
-        <Path d="m12 8-2-5 5 2 3-3 2 4 5-1-2 5Z" fill="#B8324A" />
-        <Circle cx="17" cy="19" r="11" fill="#D94A5D" />
-        <Circle cx="13" cy="18" r="1.5" fill="#F9A4A9" />
-        <Circle cx="19" cy="15" r="1.5" fill="#F9A4A9" />
-        <Circle cx="20" cy="22" r="1.5" fill="#F9A4A9" />
-      </Svg>
-    );
-  }
-
-  if (key === 'guayaba') {
-    return (
-      <Svg width={size} height={size} viewBox="0 0 32 32">
-        <Circle cx="16" cy="18" r="11" fill="#87C85A" />
-        <Circle cx="16" cy="18" r="7.5" fill="#F5A8A9" />
-        <Circle cx="13" cy="17" r="1" fill="#F9E4B2" />
-        <Circle cx="18" cy="20" r="1" fill="#F9E4B2" />
-        <Path d="M17 7c1-3 4-4 7-3-1 3-3 4-7 4Z" fill="#347D42" />
-      </Svg>
-    );
-  }
-
-  return (
-    <Svg width={size} height={size} viewBox="0 0 32 32">
-      <Circle cx="16" cy="18" r="11" fill="#72BD62" />
-      <Path d="M16 7c0-4 3-6 7-5-1 4-3.5 6-7 6Z" fill="#2F7D42" />
-      <Path d="M10 16c3-3 7-4 12-2" stroke="#DDF3A6" strokeWidth="2" strokeLinecap="round" />
-    </Svg>
-  );
-};
-
-const hexToRgba = (hex: string, opacity: number) => {
-  if (hex.startsWith('rgba')) return hex;
-  if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
-    let c: any = hex.substring(1).split('');
-    if (c.length === 3) c = [c[0], c[0], c[1], c[1], c[2], c[2]];
-    c = '0x' + c.join('');
-    return `rgba(${[(c >> 16) & 255, (c >> 8) & 255, c & 255].join(',')},${opacity})`;
-  }
-  return `rgba(102,187,106,${opacity})`;
-};
-
-const formatScanDate = (d: string) => {
-  const date = new Date(d);
-  return (
-    date.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }) +
-    ' ' + date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
-  );
-};
-
-const isHealthyLabel = (label: string) =>
-  ['saludable', 'healthy', 'sano', 'fresh', 'fresco'].some(h => label.toLowerCase().includes(h));
-
-// ── Types ─────────────────────────────────────────────────────────────────
-interface Scan {
-  id: number;
-  created_at: string;
-  user_id: string;
-  user_email: string;
-  label: string;
-  score: number;
-  fruto?: string;
-}
-
-// ── Component ─────────────────────────────────────────────────────────────
 export default function ResultsScreen() {
-  const { width: screenWidth } = useWindowDimensions();
-  const isTablet = screenWidth >= 768;
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold });
   const { isColorblindMode } = useAccessibility();
+  const { width } = useWindowDimensions();
   const { view } = useLocalSearchParams<{ view?: string }>();
-
-  const [user, setUser]           = useState<User | null>(null);
-  const [scans, setScans]         = useState<Scan[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const [activeView, setActiveView]       = useState<'list' | 'charts'>('charts');
-  const [listFruitFilter, setListFruitFilter] = useState<string | null>(null);
-  const [chartFruit, setChartFruit]       = useState<string | null>(null);
-
+  const [user, setUser] = useState<User | null>(null);
+  const [scans, setScans] = useState<Scan[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [section, setSection] = useState<Section>(view === 'list' ? 'history' : view === 'plan' ? 'plan' : 'summary');
+  const [fruit, setFruit] = useState('Todos');
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskDetail, setTaskDetail] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedDay, setSelectedDay] = useState((new Date().getDay() + 6) % 7);
   const colors = useMemo(() => ({
-    primary:        isColorblindMode ? '#145DA0' : '#0F766E',
-    sano:           isColorblindMode ? '#3B82C4' : '#16877E',
-    enfermo:        isColorblindMode ? '#145DA0' : '#C75C4B',
-    toggleActive:   isColorblindMode ? '#145DA0' : '#0F766E',
-    toggleInactive: isColorblindMode ? '#E4F0FA' : '#E1F2EF',
-    white:          '#fff',
+    primary: isColorblindMode ? '#145DA0' : '#0F766E',
+    accent: isColorblindMode ? '#3B82C4' : '#16877E',
+    soft: isColorblindMode ? '#EAF4FC' : '#E7F2EF',
+    danger: isColorblindMode ? '#145DA0' : '#C75C4B',
   }), [isColorblindMode]);
+  const tablet = width >= 768;
 
-  // ── Auth ──────────────────────────────────────────────────────────────
+  useEffect(() => onAuthStateChanged(auth, setUser), []);
   useEffect(() => {
-    if (view === 'list' || view === 'charts') setActiveView(view);
+    setSection(view === 'list' ? 'history' : view === 'plan' ? 'plan' : 'summary');
   }, [view]);
+  useFocusEffect(useCallback(() => {
+    if (!user) { setLoading(false); return; }
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      const [scanResult, taskResult] = await Promise.all([
+        supabase.from('scans').select('*').eq('user_id', user.uid).order('created_at', { ascending: false }),
+        supabase.from('tasks').select('*').eq('user_id', user.uid).order('created_at', { ascending: false }),
+      ]);
+      if (!cancelled) {
+        if (!scanResult.error) setScans((scanResult.data ?? []) as Scan[]);
+        if (!taskResult.error) setTasks((taskResult.data ?? []) as Task[]);
+        setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [user]));
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, u => setUser(u));
-    return () => unsub();
-  }, []);
-
-  // ── Fetch — solo cuando la pantalla entra en foco ─────────────────────
-  // No re-renderiza si no hubo cambios (compara length e id del más reciente).
-  useFocusEffect(
-    useCallback(() => {
-      if (!user) { setIsLoading(false); return; }
-
-      supabase
-        .from('scans')
-        .select('*')
-        .eq('user_id', user.uid)
-        .order('created_at', { ascending: false })
-        .then(({ data, error }) => {
-          if (!error && data) {
-            setScans(prev => {
-              // Solo actualiza el estado si realmente hay datos nuevos
-              if (
-                prev.length !== data.length ||
-                prev[0]?.id !== data[0]?.id
-              ) {
-                return data;
-              }
-              return prev; // sin cambios → React no re-renderiza
-            });
-          }
-          setIsLoading(false);
-        });
-    }, [user])
-  );
-
-  const validScans = useMemo(
-    () => scans.filter(scan => !['nofruta', 'no fruta'].includes(norm(scan.fruto ?? ''))),
-    [scans],
-  );
-
-  // ── Group by fruit ────────────────────────────────────────────────────
-  const scansByFruit = useMemo<Record<string, Scan[]>>(() => {
-    const g: Record<string, Scan[]> = {};
-    validScans.forEach(s => {
-      const f = s.fruto ?? 'Aguacate';
-      if (!g[f]) g[f] = [];
-      g[f].push(s);
+  const validScans = useMemo(() => scans.filter(scan => !['nofruta', 'no fruta'].includes(normalize(scan.fruto))), [scans]);
+  const fruits = useMemo(() => ['Todos', ...Array.from(new Set(validScans.map(scan => scan.fruto || 'Aguacate'))).sort()], [validScans]);
+  const filtered = useMemo(() => fruit === 'Todos' ? validScans : validScans.filter(scan => (scan.fruto || 'Aguacate') === fruit), [fruit, validScans]);
+  const goodCount = filtered.filter(scan => healthy(scan.label)).length;
+  const average = filtered.length ? filtered.reduce((sum, scan) => sum + Number(scan.score || 0), 0) / filtered.length : 0;
+  const diagnosis = useMemo(() => filtered.reduce<Record<string, number>>((acc, scan) => { const key = diagnosisName(scan.label); acc[key] = (acc[key] || 0) + 1; return acc; }, {}), [filtered]);
+  const weekDays = useMemo(() => {
+    const start = new Date();
+    start.setHours(12, 0, 0, 0);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7) + weekOffset * 7);
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      return date;
     });
-    return g;
-  }, [validScans]);
-
-  const allFruits = useMemo(() => Object.keys(scansByFruit).sort(), [scansByFruit]);
-
-  // Auto-select first fruit when switching to charts
-  useEffect(() => {
-    if (activeView === 'charts' && !chartFruit && allFruits.length > 0) {
-      setChartFruit(allFruits[0]);
-    }
-  }, [activeView, allFruits, chartFruit]);
-
-  // ── Stats (all scans) ─────────────────────────────────────────────────
-  const globalStats = useMemo(() => {
-    const total   = validScans.length;
-    const healthy = validScans.filter(s => isHealthyLabel(s.label)).length;
-    const pct     = total > 0 ? (healthy / total) * 100 : 0;
-    const counts: Record<string, number> = {};
-    validScans.forEach(s => { if (!isHealthyLabel(s.label)) counts[s.label] = (counts[s.label] || 0) + 1; });
-    const most = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Ninguna';
-    return { total, pct, most };
-  }, [validScans]);
-
-  const fruitRanking = useMemo(() => allFruits
-    .map(fruit => ({ fruit, count: scansByFruit[fruit]?.length ?? 0 }))
-    .sort((a, b) => b.count - a.count), [allFruits, scansByFruit]);
-
-  // ── Chart data for the selected fruit ─────────────────────────────────
-  const selectedFruitScans = useMemo(
-    () => (chartFruit ? scansByFruit[chartFruit] ?? [] : []),
-    [chartFruit, scansByFruit]
+  }, [weekOffset]);
+  const recommendations = useMemo(() => {
+    if (!validScans.length) return [{ title: 'Realiza tu primer escaneo', text: 'Analiza un fruto para recibir acciones personalizadas.', tone: 'info' as const }];
+    const findings = filtered.length - goodCount;
+    const items: Recommendation[] = findings > 0
+      ? [{ title: 'Separa los frutos con hallazgos', text: `${findings} análisis requieren revisión antes de mezclarlos con frutos saludables.`, tone: 'warning' as const }]
+      : [{ title: 'Mantén el control preventivo', text: 'Los análisis seleccionados no muestran señales de riesgo.', tone: 'positive' as const }];
+    if (average < 0.8) items.push({ title: 'Repite los análisis con menor confianza', text: 'Una nueva fotografía con luz uniforme puede confirmar el resultado.', tone: 'info' as const });
+    items.push({ title: 'Documenta la acción aplicada', text: 'Añade una tarea para revisar la evolución del lote durante la semana.', tone: 'positive' as const });
+    return items;
+  }, [average, filtered.length, goodCount, validScans.length]);
+  const selectedDateLabel = weekDays[selectedDay]?.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' }) ?? '';
+  const selectedDateKey = weekDays[selectedDay] ? dateKey(weekDays[selectedDay]) : '';
+  const todayKey = dateKey(new Date());
+  const tasksForSelectedDay = useMemo(
+    () => tasks.filter(task => taskDate(task) === selectedDateKey || (!taskDate(task) && selectedDateKey === todayKey)),
+    [selectedDateKey, tasks, todayKey],
   );
+  const scheduledDates = useMemo(() => new Set(tasks.map(taskDate).filter(Boolean)), [tasks]);
 
-  const labelCounts = useMemo(() => {
-    const c: Record<string, number> = {};
-    selectedFruitScans.forEach(s => { c[s.label] = (c[s.label] || 0) + 1; });
-    return c;
-  }, [selectedFruitScans]);
-
-  const pieData = useMemo(() =>
-    Object.keys(labelCounts).map((label, i) => ({
-      name: label,
-      population: labelCounts[label],
-      color: isHealthyLabel(label) ? colors.sano : CHART_COLORS[i % CHART_COLORS.length],
-      legendFontColor: '#333',
-      legendFontSize: 11,
-    })), [labelCounts, colors.sano]);
-
-  const lineData = useMemo(() => {
-    const byDay: Record<string, Record<string, number>> = {};
-    selectedFruitScans.forEach(s => {
-      const day = new Date(s.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
-      if (!byDay[day]) byDay[day] = {};
-      byDay[day][s.label] = (byDay[day][s.label] || 0) + 1;
-    });
-    const labels = Object.keys(byDay).reverse();
-    const diagnoses = Object.keys(labelCounts);
-    const datasets = diagnoses.map((label, i) => {
-      const base = isHealthyLabel(label) ? colors.sano : CHART_COLORS[i % CHART_COLORS.length];
-      return {
-        data: labels.map(day => byDay[day]?.[label] || 0),
-        color: (opacity = 1) => hexToRgba(base, opacity),
-        strokeWidth: 3,
-      };
-    });
-    return { labels, datasets, legend: diagnoses };
-  }, [selectedFruitScans, labelCounts, colors.sano]);
-
-  const maxLabelCount = Math.max(1, ...Object.values(labelCounts));
-  const maxDailyCount = Math.max(
-    1,
-    ...lineData.datasets.flatMap(dataset => dataset.data),
-  );
-
-  if (!fontsLoaded) return <ActivityIndicator size="large" color="#0F766E" style={{ flex: 1 }} />;
-
-  // ── Sub-renderers ─────────────────────────────────────────────────────
-
-  const renderListFilterChips = () => (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={{ marginBottom: 12 }}
-      contentContainerStyle={styles.chipRow}
-    >
-      <TouchableOpacity
-        style={[styles.chip, !listFruitFilter && { backgroundColor: colors.toggleActive }]}
-        onPress={() => setListFruitFilter(null)}
-      >
-        <Text style={[styles.chipText, !listFruitFilter && { color: '#fff' }]}>
-          Todos ({validScans.length})
-        </Text>
-      </TouchableOpacity>
-      {allFruits.map(fruit => (
-        <TouchableOpacity
-          key={fruit}
-          accessibilityLabel={`Filtrar por ${fruit}`}
-          style={[
-            styles.chip,
-            styles.fruitIconChip,
-            listFruitFilter === fruit && { backgroundColor: colors.toggleActive },
-          ]}
-          onPress={() => setListFruitFilter(listFruitFilter === fruit ? null : fruit)}
-        >
-          <FruitIconSvg fruit={fruit} />
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
-  );
-
-  const renderChartFruitChips = () => (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={{ marginBottom: 16 }}
-      contentContainerStyle={styles.chipRow}
-    >
-      {allFruits.map(fruit => (
-        <TouchableOpacity
-          key={fruit}
-          accessibilityLabel={`Ver gráficas de ${fruit}`}
-          style={[
-            styles.chip,
-            styles.fruitIconChip,
-            chartFruit === fruit && { backgroundColor: colors.toggleActive },
-          ]}
-          onPress={() => setChartFruit(fruit)}
-        >
-          <FruitIconSvg fruit={fruit} />
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
-  );
-
-  const renderList = () => {
-    const toShow = listFruitFilter
-      ? (scansByFruit[listFruitFilter] ?? [])
-      : validScans;
-
-    if (toShow.length === 0)
-      return (
-        <View style={styles.emptyBox}>
-          <Text style={styles.emptyText}>Sin escaneos para esta fruta.</Text>
-        </View>
-      );
-
-    return toShow.map((scan, index) => {
-      const healthy = isHealthyLabel(scan.label);
-      const fruto   = scan.fruto ?? 'Aguacate';
-      const imgSrc  = getFruitImageSource(fruto, healthy);
-
-      return (
-        <View key={`${scan.id ?? 'scan'}-${scan.created_at}-${scan.user_id}-${index}`} style={styles.scanCard}>
-          <Image source={imgSrc} style={styles.scanImage} />
-          <View style={styles.scanInfo}>
-            <Text style={styles.fruitName}>{fruto}</Text>
-            <Text style={[styles.scanLabel, { color: healthy ? colors.sano : colors.enfermo }]} numberOfLines={1}>
-              {scan.label}
-            </Text>
-            <Text style={styles.scanDate}>{formatScanDate(scan.created_at)}</Text>
-          </View>
-          <View style={styles.scanSparkline}>
-            {[0.62, 0.8, 0.7, 0.92, 0.76, 1].map((factor, barIndex) => (
-              <View
-                key={barIndex}
-                style={[
-                  styles.scanSparkBar,
-                  {
-                    height: Math.max(5, Math.min(28, scan.score * factor * 28)),
-                    backgroundColor: healthy ? '#8B5CF6' : '#E66A7A',
-                  },
-                ]}
-              />
-            ))}
-          </View>
-          <View style={styles.scanScoreColumn}>
-            <Text style={styles.scanScoreValue}>{(scan.score * 100).toFixed(1)}%</Text>
-            <Text style={[styles.scanScoreCaption, { color: healthy ? colors.sano : colors.enfermo }]}>score</Text>
-          </View>
-        </View>
-      );
-    });
+  const addTask = async () => {
+    if (!user || !taskTitle.trim()) return;
+    const datedDetail = `[avotex-date:${selectedDateKey}]\n${taskDetail.trim()}`;
+    const { data, error } = await supabase.from('tasks').insert({ title: taskTitle.trim(), detail: datedDetail, user_id: user.uid, completed: false }).select().single();
+    if (!error && data) setTasks(current => [data as Task, ...current]);
+    setTaskTitle(''); setTaskDetail(''); setShowForm(false);
   };
-
-  const renderCharts = () => {
-    if (!chartFruit) return null;
-    const fruitScans = scansByFruit[chartFruit] ?? [];
-    const confidenceSeries = [...fruitScans].slice(0, 12).reverse();
-    const averageConfidence = fruitScans.length
-      ? fruitScans.reduce((sum, scan) => sum + scan.score, 0) / fruitScans.length
-      : 0;
-
-    if (fruitScans.length === 0)
-      return (
-        <View style={styles.emptyBox}>
-          <Text style={styles.emptyText}>Sin datos para {chartFruit}.</Text>
-        </View>
-      );
-
-    return (
-      <View>
-        {/* ── Dark confidence chart ─────────────────────────────── */}
-        <View style={styles.darkChartCard}>
-          <View style={styles.darkChartHeader}>
-            <View>
-              <Text style={styles.darkChartEyebrow}>CONFIANZA</Text>
-              <Text style={styles.darkChartTitle}>{chartFruit} · evolución</Text>
-            </View>
-            <View style={styles.darkChartValuePill}>
-              <Text style={styles.darkChartValue}>{(averageConfidence * 100).toFixed(1)}%</Text>
-            </View>
-          </View>
-          <View style={styles.darkChartControls}>
-            <View style={styles.darkChartControlActive}><Text style={styles.darkChartControlActiveText}>Historial</Text></View>
-            <Text style={styles.darkChartControlText}>{confidenceSeries.length} análisis</Text>
-          </View>
-          <View style={styles.marketChart}>
-            {[0, 1, 2, 3].map(line => <View key={line} style={[styles.marketGridLine, { top: `${line * 30 + 7}%` }]} />)}
-            <View style={styles.marketColumns}>
-              {confidenceSeries.map((scan, index) => {
-                const value = Math.max(0.08, Math.min(1, scan.score));
-                const barHeight = 22 + value * 82;
-                const healthy = isHealthyLabel(scan.label);
-                return (
-                  <View key={`${scan.id}-${index}`} style={styles.marketColumn}>
-                    <View style={[styles.marketWick, { height: barHeight + 18 }]} />
-                    <View
-                      style={[
-                        styles.marketCandle,
-                        {
-                          height: barHeight,
-                          backgroundColor: healthy ? '#C8FF28' : '#8B36F4',
-                        },
-                      ]}
-                    />
-                  </View>
-                );
-              })}
-            </View>
-            <View style={styles.marketAverageLine} />
-            <View style={styles.marketAverageLabel}>
-              <Text style={styles.marketAverageText}>{(averageConfidence * 100).toFixed(0)}</Text>
-            </View>
-          </View>
-          <View style={styles.darkChartLegend}>
-            <View style={styles.darkLegendItem}><View style={[styles.darkLegendDot, { backgroundColor: '#C8FF28' }]} /><Text style={styles.darkLegendText}>Saludable</Text></View>
-            <View style={styles.darkLegendItem}><View style={[styles.darkLegendDot, { backgroundColor: '#8B36F4' }]} /><Text style={styles.darkLegendText}>Con hallazgos</Text></View>
-          </View>
-        </View>
-
-        {/* ── Dark diagnosis chart ──────────────────────────────── */}
-        <View style={styles.darkChartCard}>
-          <View style={styles.darkChartHeader}>
-            <View>
-              <Text style={styles.darkChartEyebrow}>DIAGNÓSTICOS</Text>
-              <Text style={styles.darkChartTitle}>Distribución actual</Text>
-            </View>
-            <Text style={styles.darkChartTotal}>{fruitScans.length}</Text>
-          </View>
-          <View style={styles.darkDiagnosisBars}>
-            {Object.entries(labelCounts).map(([label, count], index) => (
-              <View key={label} style={styles.darkDiagnosisRow}>
-                <View style={styles.darkDiagnosisLabels}>
-                  <Text style={styles.darkDiagnosisLabel} numberOfLines={1}>{label}</Text>
-                  <Text style={styles.darkDiagnosisValue}>{count}</Text>
-                </View>
-                <View style={styles.darkDiagnosisTrack}>
-                  <View style={[styles.darkDiagnosisFill, {
-                    width: `${Math.max(8, (count / maxLabelCount) * 100)}%`,
-                    backgroundColor: isHealthyLabel(label) ? '#C8FF28' : CHART_COLORS[index % CHART_COLORS.length],
-                  }]} />
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* ── Pie chart ─────────────────────────────────────────── */}
-        <View style={styles.chartCard}>
-          <View style={styles.chartCardHeader}>
-            <Image
-              source={getFruitImageSource(chartFruit, true)}
-              style={styles.chartThumb}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.chartCardTitle}>
-                {getFruitEmoji(chartFruit)} {chartFruit}
-              </Text>
-              <Text style={styles.chartCardSub}>
-                Distribución · {fruitScans.length} escaneos
-              </Text>
-            </View>
-          </View>
-          {pieData.length > 0 && (
-            <View style={styles.webDistribution}>
-              {pieData.map(item => {
-                const percentage = Math.round((item.population / fruitScans.length) * 100);
-                return (
-                  <View key={item.name} style={styles.webDistributionRow}>
-                    <View style={[styles.webLegendDot, { backgroundColor: item.color }]} />
-                    <View style={styles.webDistributionInfo}>
-                      <View style={styles.webDistributionLabels}>
-                        <Text style={styles.webChartLabel}>{item.name}</Text>
-                        <Text style={styles.webChartValue}>{item.population} · {percentage}%</Text>
-                      </View>
-                      <View style={styles.webTrack}>
-                        <View
-                          style={[
-                            styles.webTrackFill,
-                            { width: `${percentage}%`, backgroundColor: item.color },
-                          ]}
-                        />
-                      </View>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
-
-        {/* ── Bar chart ─────────────────────────────────────────── */}
-        <View style={styles.chartCard}>
-          <Text style={styles.chartCardTitle}>
-            {getFruitEmoji(chartFruit)} {chartFruit} — Conteo por diagnóstico
-          </Text>
-          <View style={styles.webBars}>
-              {Object.entries(labelCounts).map(([label, count], index) => (
-                <View key={label} style={styles.webBarRow}>
-                  <Text style={styles.webBarLabel} numberOfLines={1}>{label}</Text>
-                  <View style={styles.webBarTrack}>
-                    <View
-                      style={[
-                        styles.webBarFill,
-                        {
-                          width: `${Math.max(6, (count / maxLabelCount) * 100)}%`,
-                          backgroundColor: isHealthyLabel(label)
-                            ? colors.sano
-                            : CHART_COLORS[index % CHART_COLORS.length],
-                        },
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.webBarValue}>{count}</Text>
-                </View>
-              ))}
-          </View>
-        </View>
-
-        {/* ── Line chart (only when there are multiple days) ───── */}
-        {lineData.labels.length > 1 && (
-          <View style={styles.chartCard}>
-            <Text style={styles.chartCardTitle}>
-              {getFruitEmoji(chartFruit)} {chartFruit} — Tendencia temporal
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.webTimeline}>
-                  {lineData.labels.map((day, dayIndex) => (
-                    <View key={`${day}-${dayIndex}`} style={styles.webTimelineDay}>
-                      <View style={styles.webTimelinePlot}>
-                        {lineData.datasets.map((dataset, datasetIndex) => {
-                          const value = dataset.data[dayIndex] ?? 0;
-                          return (
-                            <View
-                              key={`${day}-${lineData.legend[datasetIndex]}`}
-                              style={[
-                                styles.webTimelineColumn,
-                                {
-                                  height: Math.max(5, (value / maxDailyCount) * 112),
-                                  backgroundColor: dataset.color(1),
-                                },
-                              ]}
-                            />
-                          );
-                        })}
-                      </View>
-                      <Text style={styles.webTimelineLabel}>{day}</Text>
-                    </View>
-                  ))}
-                </View>
-            </ScrollView>
-          </View>
-        )}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Frutos más escaneados</Text>
-          <Text style={styles.summarySubtitle}>Distribución de tus análisis registrados</Text>
-          {fruitRanking.map(({ fruit, count }, index) => {
-            const percentage = Math.round((count / Math.max(1, validScans.length)) * 100);
-            return (
-              <View key={fruit} style={styles.summaryRow}>
-                <Image source={getFruitImageSource(fruit, true)} style={styles.summaryImage} />
-                <View style={styles.summaryInfo}>
-                  <View style={styles.summaryLabels}>
-                    <Text style={styles.summaryFruit}>{fruit}</Text>
-                    <Text style={styles.summaryCount}>{count} · {percentage}%</Text>
-                  </View>
-                  <View style={styles.summaryTrack}>
-                    <View style={[styles.summaryFill, {
-                      width: `${Math.max(5, percentage)}%`,
-                      backgroundColor: CHART_COLORS[index % CHART_COLORS.length],
-                    }]} />
-                  </View>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      </View>
-    );
+  const updateTask = async (task: Task) => {
+    const completed = !task.completed;
+    const { error } = await supabase.from('tasks').update({ completed }).eq('id', task.id);
+    if (!error) setTasks(current => current.map(item => item.id === task.id ? { ...item, completed } : item));
   };
-
-  const renderContent = () => {
-    if (isLoading)
-      return <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />;
-
-    if (validScans.length === 0)
-      return (
-        <View style={styles.emptyBox}>
-          <Text style={styles.emptyText}>Aún no tienes escaneos.</Text>
-          <Text style={styles.emptySubtext}>Ve a "Escanear" para empezar.</Text>
-        </View>
-      );
-
-    if (activeView === 'list') {
-      return (
-        <>
-          {allFruits.length > 1 && renderListFilterChips()}
-          <Text style={styles.sectionTitle}>
-            Mis Escaneos Recientes
-            {listFruitFilter ? ` — ${getFruitEmoji(listFruitFilter)} ${listFruitFilter}` : ''}
-          </Text>
-          {renderList()}
-        </>
-      );
-    }
-
-    return (
-      <>
-        {allFruits.length > 1 && renderChartFruitChips()}
-        <Text style={styles.sectionTitle}>
-          Gráficas — {chartFruit ? `${getFruitEmoji(chartFruit)} ${chartFruit}` : ''}
-        </Text>
-        {renderCharts()}
-      </>
-    );
+  const deleteTask = async (id: number) => {
+    const { error } = await supabase.from('tasks').delete().eq('id', id);
+    if (!error) setTasks(current => current.filter(task => task.id !== id));
   };
+  const prepareTask = (item: Recommendation) => {
+    setTaskTitle(item.title);
+    setTaskDetail(item.text);
+    setShowForm(true);
+    changeSection('plan');
+  };
+  const changeSection = (nextSection: Section) => {
+    setSection(nextSection);
+    router.setParams({ view: nextSection === 'history' ? 'list' : nextSection === 'plan' ? 'plan' : 'charts' });
+  };
+  if (!fontsLoaded) return null;
+  if (!user) return <View style={styles.center}><Text style={styles.emptyTitle}>Inicia sesión para ver tu actividad</Text></View>;
 
-  // ── Main JSX ──────────────────────────────────────────────────────────
   return (
-    <View style={styles.container}>
-      <View style={StyleSheet.absoluteFillObject} />
-
-      {/* Header */}
-      <View style={[styles.header, isTablet && styles.headerTablet]}>
-        <Text style={[styles.title, { color: colors.primary }, isTablet && styles.titleTablet]}>
-          Actividad
-        </Text>
-        <Text style={[styles.subtitle, isTablet && styles.subtitleTablet]}>
-          Historial de análisis
-        </Text>
-
-        <View style={[styles.toggleRow, { backgroundColor: colors.toggleInactive }]}>
-          <TouchableOpacity
-            style={[styles.toggleBtn, activeView === 'charts' && { backgroundColor: colors.toggleActive }]}
-            onPress={() => setActiveView('charts')}
-          >
-            <PieChartIcon size={isTablet ? 24 : 20} color={activeView === 'charts' ? '#fff' : colors.primary} />
-            <Text style={[styles.toggleLabel, activeView === 'charts' && { color: '#fff' }]}>Gráficas</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toggleBtn, activeView === 'list' && { backgroundColor: colors.toggleActive }]}
-            onPress={() => setActiveView('list')}
-          >
-            <List size={isTablet ? 24 : 20} color={activeView === 'list' ? '#fff' : colors.primary} />
-            <Text style={[styles.toggleLabel, activeView === 'list' && { color: '#fff' }]}>Lista</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.toggleBtn}
-            onPress={() => router.push('/(app)/agenda')}
-          >
-            <CalendarDays size={isTablet ? 24 : 20} color={colors.primary} />
-            <Text style={styles.toggleLabel}>Agenda</Text>
-          </TouchableOpacity>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <Stack.Screen options={{ title: 'Actividad' }} />
+      <ScrollView contentContainerStyle={[styles.content, tablet && styles.contentTablet]} keyboardShouldPersistTaps="handled">
+        <View style={styles.header}>
+          <View style={styles.brand}><Leaf size={17} color="#BCE8DF" /><Text style={styles.eyebrow}>AVOTEX · ACTIVIDAD</Text></View>
+          <Text style={styles.title}>Tu centro de actividad</Text>
+          <Text style={styles.subtitle}>Decisiones claras a partir de tus escaneos.</Text>
         </View>
-      </View>
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, isTablet && styles.scrollContentTablet]}
-      >
-        {/* Global stats pill */}
-        {!isLoading && validScans.length > 0 && (
-          <View style={styles.statsCard}>
-            <Text style={styles.statLine}>
-              <Text style={styles.statNum}>{globalStats.total}</Text>
-              <Text style={styles.statLabel}> escaneos  ·  </Text>
-              <Text style={[styles.statNum, { color: colors.sano }]}>{globalStats.pct.toFixed(0)}%</Text>
-              <Text style={[styles.statLabel, { color: colors.sano }]}> saludables  ·  </Text>
-              <Text style={[styles.statNum, { color: colors.enfermo }]}>{globalStats.most}</Text>
-              <Text style={[styles.statLabel, { color: colors.enfermo }]}> más frecuente</Text>
-            </Text>
+        <View style={styles.navigator}>{([
+          ['summary', 'Resumen', BarChart3], ['history', 'Historial', ClipboardList], ['plan', 'Plan de trabajo', Check],
+        ] as const).map(([key, label, Icon]) => <TouchableOpacity key={key} onPress={() => changeSection(key)} style={[styles.navItem, section === key && { backgroundColor: colors.primary }]}><Icon size={17} color={section === key ? '#fff' : colors.primary} /><Text style={[styles.navText, section === key && styles.navTextActive]}>{label}</Text></TouchableOpacity>)}</View>
+        {loading ? <ActivityIndicator color={colors.primary} style={{ margin: 40 }} /> : section === 'summary' ? (
+          <View>
+            <Text style={styles.heading}>Resumen de salud</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{fruits.map(item => <TouchableOpacity key={item} onPress={() => setFruit(item)} style={[styles.chip, fruit === item && { backgroundColor: colors.primary }]}><Text style={[styles.chipText, fruit === item && styles.chipTextActive]}>{item}</Text></TouchableOpacity>)}</ScrollView>
+            <View style={styles.metrics}><Metric value={String(filtered.length)} label="escaneos" /><Metric value={`${Math.round(average * 100)}%`} label="confianza media" /><Metric value={`${filtered.length ? Math.round(goodCount / filtered.length * 100) : 0}%`} label="saludable" /></View>
+            <View style={styles.card}><View style={styles.cardTitle}><TrendingUp size={18} color={colors.primary} /><Text style={styles.headingSmall}>Tendencia de confianza</Text></View><View style={styles.bars}>{filtered.slice(0, 12).reverse().map((scan, index) => <View key={`${scan.id}-${index}`} style={styles.barColumn}><View style={[styles.bar, { height: Math.max(8, Math.min(100, Number(scan.score) * 100)), backgroundColor: healthy(scan.label) ? colors.accent : colors.danger }]} /><Text style={styles.barLabel}>{index + 1}</Text></View>)}</View></View>
+            <View style={styles.card}><Text style={styles.headingSmall}>Diagnósticos</Text>{Object.entries(diagnosis).slice(0, 5).map(([label, count]) => <View key={label} style={styles.distribution}><Text style={styles.body}>{label}</Text><Text style={styles.count}>{count}</Text></View>)}</View>
+            <Text style={styles.subheading}>Acciones recomendadas</Text>
+            {recommendations.map((item, index) => <View key={item.title} style={[styles.recommendation, { backgroundColor: item.tone === 'warning' ? '#FFF4E1' : item.tone === 'info' ? '#EAF4FC' : colors.soft }]}><View style={[styles.priorityBadge, { backgroundColor: item.tone === 'warning' ? '#C78335' : colors.primary }]}><Text style={styles.priorityText}>{index + 1}</Text></View><View style={{ flex: 1 }}><Text style={styles.headingSmall}>{item.title}</Text><Text style={styles.body}>{item.text}</Text><TouchableOpacity onPress={() => prepareTask(item)}><Text style={[styles.actionText, { color: colors.primary }]}>Añadir al plan de trabajo</Text></TouchableOpacity></View></View>)}
+            <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => router.push('/(app)/scan')}><ScanLine size={18} color="#fff" /><Text style={styles.buttonText}>Escanear un fruto</Text></TouchableOpacity>
           </View>
+        ) : section === 'history' ? (
+          <View><Text style={styles.heading}>Historial de análisis</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{fruits.map(item => <TouchableOpacity key={item} onPress={() => setFruit(item)} style={[styles.chip, fruit === item && { backgroundColor: colors.primary }]}><Text style={[styles.chipText, fruit === item && styles.chipTextActive]}>{item}</Text></TouchableOpacity>)}</ScrollView>{filtered.length ? filtered.map((scan, index) => <TouchableOpacity key={`${scan.id ?? scan.created_at}-${index}`} style={styles.scanRow} onPress={() => setExpanded(expanded === scan.id ? null : scan.id)}><View style={[styles.fruitBadge, { backgroundColor: healthy(scan.label) ? colors.soft : '#FBEDEA' }]}><Leaf size={18} color={healthy(scan.label) ? colors.accent : colors.danger} /></View><View style={{ flex: 1 }}><Text style={styles.headingSmall}>{scan.fruto || 'Aguacate'}</Text><Text style={styles.muted}>{scan.label} · {dateText(scan.created_at)}</Text>{expanded === scan.id && <Text style={styles.detail}>Confianza: {Math.round(Number(scan.score) * 100)}% · {healthy(scan.label) ? 'Sin señales de riesgo' : 'Revisión recomendada'}</Text>}</View><Text style={[styles.score, { color: healthy(scan.label) ? colors.accent : colors.danger }]}>{Math.round(Number(scan.score) * 100)}%</Text><ChevronDown size={16} color="#94A3B8" /></TouchableOpacity>) : <Empty text="Aún no tienes escaneos." />}</View>
+        ) : (
+          <View><Text style={styles.heading}>Plan de trabajo</Text><Text style={[styles.body, styles.planIntro]}>Organiza tus acciones de esta semana y da seguimiento a cada lote.</Text><View style={styles.calendar}><View style={styles.calendarHeader}><TouchableOpacity accessibilityLabel="Semana anterior" onPress={() => setWeekOffset(value => value - 1)}><ChevronLeft size={19} color={colors.primary} /></TouchableOpacity><Text style={styles.calendarMonth}>{weekDays[0].toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}</Text><TouchableOpacity accessibilityLabel="Semana siguiente" onPress={() => setWeekOffset(value => value + 1)}><ChevronRight size={19} color={colors.primary} /></TouchableOpacity></View><View style={styles.week}>{weekDays.map((day, index) => <TouchableOpacity key={day.toISOString()} onPress={() => setSelectedDay(index)} style={[styles.day, selectedDay === index && { backgroundColor: colors.soft }]}><Text style={[styles.dayName, selectedDay === index && { color: colors.primary }]}>{day.toLocaleDateString('es-MX', { weekday: 'narrow' })}</Text><Text style={[styles.dayNumber, selectedDay === index && { color: colors.primary }]}>{day.getDate()}</Text>{(scheduledDates.has(dateKey(day)) || selectedDay === index) && <View style={[styles.dayDot, { backgroundColor: scheduledDates.has(dateKey(day)) ? colors.accent : colors.primary }]} />}</TouchableOpacity>)}</View></View><Text style={styles.selectedDate}>Tareas para {selectedDateLabel}</Text><TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => setShowForm(value => !value)}><Plus size={18} color="#fff" /><Text style={styles.buttonText}>Añadir tarea</Text></TouchableOpacity>{showForm && <View style={styles.form}><Text style={styles.formDate}>Se programará para {selectedDateLabel}</Text><TextInput value={taskTitle} onChangeText={setTaskTitle} placeholder="Ej. Revisar caja de mangos" style={styles.input} placeholderTextColor="#94A3B8" /><TextInput value={taskDetail} onChangeText={setTaskDetail} placeholder="Detalle opcional" style={styles.input} placeholderTextColor="#94A3B8" /><TouchableOpacity onPress={addTask} style={[styles.smallButton, { backgroundColor: colors.primary }]}><Text style={styles.buttonText}>Guardar tarea</Text></TouchableOpacity></View>}{tasksForSelectedDay.length ? tasksForSelectedDay.map((task, index) => <View style={styles.task} key={`${task.id}-${index}`}><TouchableOpacity onPress={() => updateTask(task)} style={[styles.check, task.completed && { backgroundColor: colors.primary }]}>{task.completed && <Check size={14} color="#fff" />}</TouchableOpacity><View style={{ flex: 1 }}><Text style={[styles.headingSmall, task.completed && styles.done]}>{task.title}</Text>{visibleTaskDetail(task.detail) ? <Text style={styles.muted}>{visibleTaskDetail(task.detail)}</Text> : null}</View><TouchableOpacity accessibilityLabel={`Eliminar ${task.title}`} onPress={() => deleteTask(task.id)}><Trash2 size={17} color="#94A3B8" /></TouchableOpacity></View>) : <View style={styles.emptyTasks}><Text style={styles.headingSmall}>No hay tareas para este día</Text><Text style={styles.muted}>Selecciona otra fecha o crea una acción nueva.</Text></View>}<TouchableOpacity style={styles.scanLink} onPress={() => router.push('/(app)/scan')}><AlertTriangle size={18} color={colors.primary} /><Text style={{ color: colors.primary, fontFamily: 'Poppins_600SemiBold' }}>Crear una tarea desde un nuevo escaneo</Text></TouchableOpacity></View>
         )}
-
-        {renderContent()}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────
+function Metric({ value, label }: { value: string; label: string }) { return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.muted}>{label}</Text></View>; }
+function Empty({ text }: { text: string }) { return <View style={styles.empty}><Text style={styles.emptyTitle}>{text}</Text><Text style={styles.muted}>Ve a Escanear para empezar.</Text></View>; }
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F8F7' },
-
-  header:        { paddingTop: 54, paddingHorizontal: 24, marginBottom: 12, alignItems: 'flex-start' },
-  headerTablet:  { paddingTop: 80, paddingHorizontal: 40 },
-   title:         { fontSize: 32, fontFamily: 'Poppins_600SemiBold', color: '#123B3A' },
-  titleTablet:   { fontSize: 40 },
-  subtitle:      { fontSize: 15, fontFamily: 'Poppins_400Regular', color: '#66807D', marginBottom: 4 },
-  subtitleTablet:{ fontSize: 19 },
-
-  toggleRow:   { flexDirection: 'row', borderRadius: 16, marginTop: 14, padding: 4, gap: 4, alignSelf: 'stretch' },
-  toggleBtn:   { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4, paddingVertical: 8, paddingHorizontal: 5, borderRadius: 24 },
-  toggleLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#2e7d32' },
-
-  scrollView:         { flex: 1 },
-  scrollContent:      { paddingHorizontal: 24, paddingBottom: 120 },
-  scrollContentTablet:{ paddingHorizontal: 48 },
-
-  statsCard: {
-    backgroundColor: '#E7F2EF', borderRadius: 18,
-    paddingVertical: 10, paddingHorizontal: 16, marginBottom: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
-  },
-  statLine:  { textAlign: 'center', flexWrap: 'wrap' },
-  statNum:   { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#333' },
-  statLabel: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#666' },
-
-  chipRow: { flexDirection: 'row', gap: 8, paddingVertical: 4 },
-  chip: {
-    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7,
-    backgroundColor: '#E8F3F1', borderWidth: 1, borderColor: '#C5DFDA',
-  },
-  chipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#2e7d32' },
-  fruitIconChip: {
-    width: 44,
-    height: 40,
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  sectionTitle: {
-    fontFamily: 'Poppins_600SemiBold', fontSize: 18, color: '#163F3D',
-    marginBottom: 14, marginTop: 4,
-  },
-
-  scanCard: {
-    minHeight: 82, backgroundColor: '#FFFFFF', borderRadius: 18, marginBottom: 10,
-    paddingHorizontal: 10, paddingVertical: 9,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08, shadowRadius: 10, elevation: 4,
-    flexDirection: 'row', alignItems: 'center',
-  },
-  scanImage: { width: 52, height: 52, borderRadius: 14, resizeMode: 'cover', marginRight: 10 },
-  scanInfo:  { flex: 1, minWidth: 0, justifyContent: 'center' },
-  fruitName: {
-    fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#17151C',
-  },
-  scanLabel: {
-    fontFamily: 'Poppins_400Regular', fontSize: 10.5, marginTop: 1,
-  },
-  scanDate:  { fontFamily: 'Poppins_400Regular', fontSize: 8.5, color: '#A19DA6', marginTop: 2 },
-  scanSparkline: {
-    width: 55, height: 30, marginHorizontal: 8,
-    flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 2,
-  },
-  scanSparkBar: { width: 3, minHeight: 5, borderRadius: 2 },
-  scanScoreColumn: { width: 57, alignItems: 'flex-end', justifyContent: 'center' },
-  scanScoreValue: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#17151C' },
-  scanScoreCaption: { fontFamily: 'Poppins_600SemiBold', fontSize: 9, marginTop: 1 },
-
-  darkChartCard: {
-    backgroundColor: '#101016', borderRadius: 20, padding: 16, marginBottom: 16,
-    borderWidth: 1, borderColor: '#24232E',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2, shadowRadius: 14, elevation: 7,
-  },
-  darkChartHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-  },
-  darkChartEyebrow: {
-    fontFamily: 'Poppins_600SemiBold', fontSize: 9, letterSpacing: 1.2, color: '#858391',
-  },
-  darkChartTitle: {
-    fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#FFFFFF', marginTop: 2,
-  },
-  darkChartValuePill: {
-    backgroundColor: '#C8FF28', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5,
-  },
-  darkChartValue: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#14180A' },
-  darkChartControls: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 13, marginBottom: 5,
-  },
-  darkChartControlActive: {
-    borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: '#272630',
-  },
-  darkChartControlActiveText: { fontFamily: 'Poppins_600SemiBold', fontSize: 9, color: '#FFFFFF' },
-  darkChartControlText: { fontFamily: 'Poppins_400Regular', fontSize: 9, color: '#777581' },
-  marketChart: {
-    height: 170, position: 'relative', overflow: 'hidden',
-    borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#282631',
-  },
-  marketGridLine: {
-    position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: '#292732',
-  },
-  marketColumns: {
-    ...StyleSheet.absoluteFill, flexDirection: 'row', alignItems: 'flex-end',
-    justifyContent: 'space-around', paddingHorizontal: 8, paddingBottom: 13, paddingTop: 10,
-  },
-  marketColumn: {
-    flex: 1, height: '100%', alignItems: 'center', justifyContent: 'flex-end', position: 'relative',
-  },
-  marketWick: {
-    position: 'absolute', bottom: 5, width: 1, maxHeight: 135, backgroundColor: '#777581',
-  },
-  marketCandle: { width: 10, minHeight: 12, borderRadius: 1 },
-  marketAverageLine: {
-    position: 'absolute', left: 0, right: 0, top: '34%', height: 1,
-    borderStyle: 'dashed', borderWidth: 1, borderColor: '#BBB9C4',
-  },
-  marketAverageLabel: {
-    position: 'absolute', right: 0, top: '28%', paddingHorizontal: 6, paddingVertical: 3,
-    borderRadius: 5, backgroundColor: '#C8FF28',
-  },
-  marketAverageText: { fontFamily: 'Poppins_600SemiBold', fontSize: 8, color: '#11140A' },
-  darkChartLegend: { flexDirection: 'row', gap: 16, marginTop: 11 },
-  darkLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  darkLegendDot: { width: 7, height: 7, borderRadius: 4 },
-  darkLegendText: { fontFamily: 'Poppins_400Regular', fontSize: 9, color: '#A8A6B0' },
-  darkChartTotal: { fontFamily: 'Poppins_600SemiBold', fontSize: 25, color: '#C8FF28' },
-  darkDiagnosisBars: { gap: 14, marginTop: 18 },
-  darkDiagnosisRow: { gap: 6 },
-  darkDiagnosisLabels: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  darkDiagnosisLabel: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 11, color: '#D5D3DC' },
-  darkDiagnosisValue: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#FFFFFF' },
-  darkDiagnosisTrack: { height: 9, borderRadius: 5, backgroundColor: '#292832', overflow: 'hidden' },
-  darkDiagnosisFill: { height: '100%', borderRadius: 5 },
-
-  chartCard: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 16, marginBottom: 18,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.07, shadowRadius: 10, elevation: 4,
-  },
-  chartCardHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12,
-  },
-  chartThumb:     { width: 48, height: 48, borderRadius: 12, resizeMode: 'cover' },
-  chartCardTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#1a1a1a' },
-  chartCardSub:   { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#666', marginTop: 2 },
-  webDistribution: { gap: 14, marginTop: 4 },
-  webDistributionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  webLegendDot: { width: 10, height: 10, borderRadius: 5, marginTop: 5 },
-  webDistributionInfo: { flex: 1, gap: 6 },
-  webDistributionLabels: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  webChartLabel: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#284542' },
-  webChartValue: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#163F3D' },
-  webTrack: { height: 8, borderRadius: 4, backgroundColor: '#E7EFED', overflow: 'hidden' },
-  webTrackFill: { height: '100%', borderRadius: 4 },
-  webBars: { gap: 13, marginTop: 18 },
-  webBarRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  webBarLabel: { width: 112, fontFamily: 'Poppins_400Regular', fontSize: 11, color: '#516A67' },
-  webBarTrack: { flex: 1, height: 18, borderRadius: 9, backgroundColor: '#E7EFED', overflow: 'hidden' },
-  webBarFill: { height: '100%', borderRadius: 9 },
-  webBarValue: { width: 24, textAlign: 'right', fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#163F3D' },
-  webTimeline: { minWidth: '100%', height: 155, flexDirection: 'row', alignItems: 'flex-end', gap: 18, paddingTop: 12 },
-  webTimelineDay: { minWidth: 58, alignItems: 'center', gap: 8 },
-  webTimelinePlot: { height: 112, flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
-  webTimelineColumn: { width: 9, minHeight: 5, borderRadius: 5 },
-  webTimelineLabel: { fontFamily: 'Poppins_400Regular', fontSize: 10, color: '#66807D' },
-  summaryCard: { backgroundColor: '#FFF9F0', borderRadius: 20, padding: 18, marginBottom: 22, borderWidth: 1, borderColor: '#F1DEC6' },
-  summaryTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 17, color: '#433B53' },
-  summarySubtitle: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#887A7A', marginTop: 3, marginBottom: 16 },
-  summaryRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 11 },
-  summaryImage: { width: 42, height: 42, borderRadius: 12, resizeMode: 'cover' },
-  summaryInfo: { flex: 1 },
-  summaryLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  summaryFruit: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#433B53' },
-  summaryCount: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#766A78' },
-  summaryTrack: { height: 9, borderRadius: 6, backgroundColor: '#F1E8E5', overflow: 'hidden' },
-  summaryFill: { height: '100%', borderRadius: 6 },
-
-  emptyBox: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 30,
-    alignItems: 'center', marginTop: 10,
-  },
-  emptyText:    { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#666' },
-  emptySubtext: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#999', marginTop: 4 },
+  screen: { flex: 1, backgroundColor: '#F5F8F7' }, content: { paddingBottom: 120 }, contentTablet: { maxWidth: 760, width: '100%', alignSelf: 'center' },
+  header: { backgroundColor: '#0F766E', padding: 22, paddingTop: 28 }, brand: { flexDirection: 'row', alignItems: 'center', gap: 8 }, eyebrow: { color: '#BCE8DF', fontFamily: 'Poppins_600SemiBold', fontSize: 11, letterSpacing: 1.4 }, title: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: 25, marginTop: 18 }, subtitle: { color: '#D5F2ED', fontFamily: 'Poppins_400Regular', fontSize: 13, marginTop: 3 },
+  navigator: { flexDirection: 'row', margin: 16, padding: 4, borderRadius: 16, backgroundColor: '#E1F2EF', gap: 3 }, navItem: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 2 }, navText: { color: '#0F766E', fontFamily: 'Poppins_600SemiBold', fontSize: 10, textAlign: 'center' }, navTextActive: { color: '#fff' },
+  heading: { fontFamily: 'Poppins_600SemiBold', color: '#173C39', fontSize: 21, marginHorizontal: 18, marginTop: 8 }, headingSmall: { fontFamily: 'Poppins_600SemiBold', color: '#173C39', fontSize: 14 }, body: { fontFamily: 'Poppins_400Regular', color: '#526B68', fontSize: 12, lineHeight: 19 }, muted: { color: '#718582', fontFamily: 'Poppins_400Regular', fontSize: 11 }, chips: { paddingHorizontal: 18, gap: 8, paddingVertical: 14 }, chip: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#fff' }, chipText: { color: '#0F766E', fontFamily: 'Poppins_600SemiBold', fontSize: 11 }, chipTextActive: { color: '#fff' },
+  subheading: { marginHorizontal: 18, marginTop: 20, marginBottom: 2, fontFamily: 'Poppins_600SemiBold', color: '#173C39', fontSize: 17 },
+  metrics: { flexDirection: 'row', marginHorizontal: 16, gap: 10 }, metric: { flex: 1, backgroundColor: '#fff', borderRadius: 15, padding: 14 }, metricValue: { color: '#0F766E', fontFamily: 'Poppins_600SemiBold', fontSize: 20 }, card: { backgroundColor: '#fff', borderRadius: 18, margin: 16, marginBottom: 0, padding: 16 }, cardTitle: { flexDirection: 'row', gap: 8, alignItems: 'center' }, bars: { height: 125, flexDirection: 'row', alignItems: 'flex-end', gap: 5, marginTop: 15 }, barColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: '100%' }, bar: { width: '70%', borderRadius: 5 }, barLabel: { color: '#A1B3AF', fontSize: 9, marginTop: 4 }, distribution: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#EEF3F1', paddingVertical: 9 }, count: { color: '#0F766E', fontFamily: 'Poppins_600SemiBold' },
+  recommendation: { flexDirection: 'row', marginHorizontal: 16, marginTop: 10, padding: 16, borderRadius: 18, gap: 12 }, priorityBadge: { width: 25, height: 25, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, priorityText: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: 11 }, actionText: { marginTop: 7, fontFamily: 'Poppins_600SemiBold', fontSize: 11 }, primaryButton: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, margin: 16, borderRadius: 14, padding: 14 }, buttonText: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: 13 }, scanRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 8, borderRadius: 16, padding: 13, gap: 10 }, fruitBadge: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, score: { fontFamily: 'Poppins_600SemiBold', fontSize: 14 }, detail: { color: '#526B68', fontSize: 11, marginTop: 8, fontFamily: 'Poppins_400Regular' },
+  planIntro: { marginHorizontal: 18, marginTop: 4 }, calendar: { margin: 16, marginBottom: 0, backgroundColor: '#fff', borderRadius: 18, padding: 13 }, calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }, calendarMonth: { color: '#173C39', fontFamily: 'Poppins_600SemiBold', fontSize: 13, textTransform: 'capitalize' }, week: { flexDirection: 'row', justifyContent: 'space-between' }, day: { width: 38, minHeight: 57, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, dayName: { color: '#718582', fontFamily: 'Poppins_600SemiBold', fontSize: 10, textTransform: 'uppercase' }, dayNumber: { color: '#173C39', fontFamily: 'Poppins_600SemiBold', fontSize: 13, marginTop: 3 }, dayDot: { width: 4, height: 4, borderRadius: 2, marginTop: 3 }, selectedDate: { marginHorizontal: 18, marginTop: 13, color: '#173C39', fontFamily: 'Poppins_600SemiBold', fontSize: 13, textTransform: 'capitalize' }, form: { backgroundColor: '#fff', margin: 16, padding: 14, borderRadius: 16, gap: 9 }, formDate: { color: '#0F766E', fontFamily: 'Poppins_600SemiBold', fontSize: 11, textTransform: 'capitalize' }, input: { borderWidth: 1, borderColor: '#D5E9E4', borderRadius: 10, padding: 11, fontFamily: 'Poppins_400Regular', fontSize: 12 }, smallButton: { alignSelf: 'flex-end', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 }, task: { flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 8, padding: 14, borderRadius: 15 }, check: { width: 23, height: 23, borderRadius: 12, borderWidth: 1.5, borderColor: '#0F766E', alignItems: 'center', justifyContent: 'center' }, done: { textDecorationLine: 'line-through', color: '#8CA09C' }, emptyTasks: { marginHorizontal: 16, marginBottom: 8, padding: 20, alignItems: 'center', backgroundColor: '#EAF4FC', borderRadius: 15 }, scanLink: { flexDirection: 'row', alignItems: 'center', gap: 9, margin: 20 }, empty: { alignItems: 'center', padding: 50 }, emptyTitle: { color: '#173C39', fontFamily: 'Poppins_600SemiBold', fontSize: 15, textAlign: 'center' }, center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F8F7' },
 });

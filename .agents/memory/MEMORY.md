@@ -1,1 +1,2 @@
 - [Expo y Preview comparten Metro](expo-preview-single-metro.md) — usar un solo proceso Expo con web+túnel; dos Metro simultáneos agotan los observadores del entorno.
+- [Dirección aprobada para Actividad](activity-design-direction.md) — conservar la estructura ActionCenter, traducida a la paleta verde, blanca y azul claro de Avotex.

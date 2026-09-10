@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Animated,
   Modal,
+  ScrollView,
   useWindowDimensions,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
@@ -378,50 +379,58 @@ export default function Scan() {
             <Text style={[styles.modalTitle, isTablet && styles.modalTitleTablet]}>Uso de la cámara e imágenes</Text>
             <Text style={[styles.modalSubtitle, isTablet && styles.modalSubtitleTablet]}>Importante leer antes de escanear</Text>
 
-            <View style={styles.guestScanInfo}>
-              <Text style={styles.guestScanInfoText}>
-                {isGuest
-                  ? <>Modo invitado: tienes <Text style={styles.guestScanCount}>{(guestScansLeft * 100).toLocaleString('es-MX')} Tokens</Text> disponibles</>
-                  : userTokens !== null
-                    ? <>Tienes <Text style={styles.guestScanCount}>{(userTokens * 100).toLocaleString('es-MX')} Tokens</Text> disponibles</>
-                    : <>Cargando Tokens...</>
-                }
-              </Text>
-            </View>
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator
+              persistentScrollbar
+              nestedScrollEnabled
+            >
+              <View style={styles.guestScanInfo}>
+                <Text style={styles.guestScanInfoText}>
+                  {isGuest
+                    ? <>Modo invitado: tienes <Text style={styles.guestScanCount}>{(guestScansLeft * 100).toLocaleString('es-MX')} Tokens</Text> disponibles</>
+                    : userTokens !== null
+                      ? <>Tienes <Text style={styles.guestScanCount}>{(userTokens * 100).toLocaleString('es-MX')} Tokens</Text> disponibles</>
+                      : <>Cargando Tokens...</>
+                  }
+                </Text>
+              </View>
 
-            <View style={styles.modalSection}>
-              <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>¿Cómo funciona el escaneo?</Text>
-              <Text style={[styles.modalBodyText, isTablet && styles.modalBodyTextTablet]}>
-                La cámara captura una foto del cultivo o fruto y la envía a nuestra IA para su análisis en tiempo real. El modelo detecta el tipo de fruta y su estado de salud.
-              </Text>
-            </View>
+              <View style={styles.modalSection}>
+                <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>¿Cómo funciona el escaneo?</Text>
+                <Text style={[styles.modalBodyText, isTablet && styles.modalBodyTextTablet]}>
+                  La cámara captura una foto del cultivo o fruto y la envía a nuestra IA para su análisis en tiempo real. El modelo detecta el tipo de fruta y su estado de salud.
+                </Text>
+              </View>
 
-            <View style={styles.modalSection}>
-              <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>Uso de imágenes (IMPORTANTE)</Text>
-              <View style={styles.highlightBox}>
-                <View style={styles.bulletRow}>
-                  <Text style={styles.bulletDot}>•</Text>
-                  <Text style={[styles.bulletText, styles.boldText]}>Las imágenes NO se almacenan en servidores ni bases de datos</Text>
-                </View>
-                <View style={styles.bulletRow}>
-                  <Text style={styles.bulletDot}>•</Text>
-                  <Text style={styles.bulletText}>Se envían temporalmente a una API de Inteligencia Artificial para su análisis</Text>
-                </View>
-                <View style={styles.bulletRow}>
-                  <Text style={styles.bulletDot}>•</Text>
-                  <Text style={[styles.bulletText, styles.boldText]}>Una vez procesadas, la imagen se elimina y no se conserva</Text>
+              <View style={styles.modalSection}>
+                <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>Uso de imágenes (IMPORTANTE)</Text>
+                <View style={styles.highlightBox}>
+                  <View style={styles.bulletRow}>
+                    <Text style={styles.bulletDot}>•</Text>
+                    <Text style={[styles.bulletText, styles.boldText]}>Las imágenes NO se almacenan en servidores ni bases de datos</Text>
+                  </View>
+                  <View style={styles.bulletRow}>
+                    <Text style={styles.bulletDot}>•</Text>
+                    <Text style={styles.bulletText}>Se envían temporalmente a una API de Inteligencia Artificial para su análisis</Text>
+                  </View>
+                  <View style={styles.bulletRow}>
+                    <Text style={styles.bulletDot}>•</Text>
+                    <Text style={[styles.bulletText, styles.boldText]}>Una vez procesadas, la imagen se elimina y no se conserva</Text>
+                  </View>
                 </View>
               </View>
-            </View>
 
-            <View style={styles.modalSection}>
-              <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>✅ ¿Qué sí se guarda?</Text>
-              <Text style={[styles.modalBodyText, isTablet && styles.modalBodyTextTablet]}>
-                {isGuest
-                  ? "En modo invitado, los resultados no se guardan en ninguna base de datos."
-                  : "Solo se almacena el resultado: el tipo de fruta detectada, el diagnóstico de salud y el porcentaje de confianza."}
-              </Text>
-            </View>
+              <View style={styles.modalSection}>
+                <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>✅ ¿Qué sí se guarda?</Text>
+                <Text style={[styles.modalBodyText, isTablet && styles.modalBodyTextTablet]}>
+                  {isGuest
+                    ? "En modo invitado, los resultados no se guardan en ninguna base de datos."
+                    : "Solo se almacena el resultado: el tipo de fruta detectada, el diagnóstico de salud y el porcentaje de confianza."}
+                </Text>
+              </View>
+            </ScrollView>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -727,51 +736,52 @@ const styles = StyleSheet.create({
   limitBtnTextTablet: { fontSize: 19 },
 
   modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center', alignItems: 'center', padding: 20,
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.58)',
+    justifyContent: 'center', alignItems: 'center', padding: 16,
   },
   modalCard: {
-    backgroundColor: '#ffffff', borderRadius: 28, padding: 24,
-    width: '100%', maxWidth: 420,
+    backgroundColor: '#ffffff', borderRadius: 22, padding: 18,
+    width: '100%', maxWidth: 420, maxHeight: '88%',
     shadowColor: '#000', shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25, shadowRadius: 24, elevation: 12, alignItems: 'center',
+    shadowOpacity: 0.18, shadowRadius: 20, elevation: 12, alignItems: 'center',
   },
-  modalCardTablet: { maxWidth: 560, padding: 36, borderRadius: 36 },
+  modalCardTablet: { maxWidth: 560, padding: 28, borderRadius: 28, maxHeight: '84%' },
   modalIconCircle: {
-    width: 60, height: 60, borderRadius: 30,
+    width: 48, height: 48, borderRadius: 24,
     backgroundColor: '#d1fae5',
-    justifyContent: 'center', alignItems: 'center', marginBottom: 14,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 10,
   },
-  modalTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 18, color: '#0f766e', textAlign: 'center', marginBottom: 4 },
+  modalTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 17, color: '#164E45', textAlign: 'center', marginBottom: 2 },
   modalTitleTablet: { fontSize: 22 },
-  modalSubtitle: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#94a3b8', textAlign: 'center', marginBottom: 14 },
+  modalSubtitle: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: '#8A9995', textAlign: 'center', marginBottom: 12 },
   modalSubtitleTablet: { fontSize: 15, marginBottom: 18 },
 
+  modalScroll: { width: '100%', flexShrink: 1 },
+  modalScrollContent: { paddingRight: 5, paddingBottom: 2 },
   guestScanInfo: {
-    backgroundColor: '#fffbeb', borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 10, marginBottom: 14,
-    borderWidth: 1, borderColor: '#fcd34d', width: '100%',
+    backgroundColor: '#F7F7F4', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 9, marginBottom: 13,
+    width: '100%',
   },
   guestScanInfoText: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#92400e', textAlign: 'center' },
   guestScanCount: { fontFamily: 'Poppins_600SemiBold', color: '#b45309' },
 
-  modalSection: { width: '100%', marginBottom: 14 },
+  modalSection: { width: '100%', marginBottom: 13 },
   modalSectionTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#134e4a', marginBottom: 6 },
   modalSectionTitleTablet: { fontSize: 15 },
   modalBodyText: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#334155', lineHeight: 19 },
   modalBodyTextTablet: { fontSize: 15, lineHeight: 23 },
   highlightBox: {
-    backgroundColor: '#f0fdf4', borderRadius: 12, padding: 12,
-    borderLeftWidth: 3, borderLeftColor: '#22c55e', gap: 6,
+    backgroundColor: '#F2F8F5', borderRadius: 10, padding: 11, gap: 6,
   },
   bulletRow: { flexDirection: 'row', alignItems: 'flex-start' },
   bulletDot: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#0f766e', marginRight: 7, marginTop: 1 },
   bulletText: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#334155', flex: 1, lineHeight: 18 },
   boldText: { fontFamily: 'Poppins_600SemiBold', color: '#134e4a' },
 
-  modalButtons: { width: '100%', marginTop: 6 },
-  acceptScanBtn: { borderRadius: 50, overflow: 'hidden' },
-  acceptBtnGrad: { paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
-  acceptBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#ffffff' },
+  modalButtons: { width: '100%', marginTop: 10 },
+  acceptScanBtn: { borderRadius: 15, overflow: 'hidden' },
+  acceptBtnGrad: { paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },
+  acceptBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#ffffff' },
   acceptBtnTextTablet: { fontSize: 19, paddingVertical: 4 },
 });

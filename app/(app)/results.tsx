@@ -3,7 +3,6 @@ import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, S
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { AlertTriangle, BarChart3, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Leaf, Plus, ScanLine, ShieldCheck, Trash2 } from 'lucide-react-native';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
-import { LinearGradient } from 'expo-linear-gradient';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '../../firebaseConfig';
 import { supabase } from '../../supabaseConfig';
@@ -171,11 +170,9 @@ export default function ResultsScreen() {
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Stack.Screen options={{ title: 'Actividad' }} />
       <ScrollView contentContainerStyle={[styles.content, tablet && styles.contentTablet]} keyboardShouldPersistTaps="handled">
-         <LinearGradient colors={['#F2D9FC', '#CADDF8', '#7250E7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-          <View style={styles.brand}><Leaf size={17} color="#FFFFFF" /><Text style={styles.eyebrow}>AVOTEX · ACTIVIDAD</Text></View>
-          <Text style={styles.title}>Tu centro de actividad</Text>
-          <Text style={styles.subtitle}>Decisiones claras a partir de tus escaneos.</Text>
-         </LinearGradient>
+         <View style={styles.header}>
+          <Text style={styles.title}>Decisiones claras a partir de tus escaneos</Text>
+         </View>
         <View style={styles.navigator}>{([
           ['summary', 'Resumen', BarChart3], ['history', 'Historial', ClipboardList], ['plan', 'Plan de trabajo', Check],
         ] as const).map(([key, label, Icon]) => <TouchableOpacity key={key} onPress={() => changeSection(key)} style={[styles.navItem, section === key && { backgroundColor: colors.primary }]}><Icon size={17} color={section === key ? '#fff' : colors.primary} /><Text style={[styles.navText, section === key && styles.navTextActive]}>{label}</Text></TouchableOpacity>)}</View>
@@ -204,7 +201,7 @@ function Metric({ value, label }: { value: string; label: string }) { return <Vi
 function Empty({ text }: { text: string }) { return <View style={styles.empty}><Text style={styles.emptyTitle}>{text}</Text><Text style={styles.muted}>Ve a Escanear para empezar.</Text></View>; }
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F5F8F7' }, content: { paddingBottom: 120 }, contentTablet: { maxWidth: 760, width: '100%', alignSelf: 'center' },
-  header: { padding: 22, paddingTop: 28, minHeight: 164 }, brand: { flexDirection: 'row', alignItems: 'center', gap: 8 }, eyebrow: { color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold', fontSize: 11, letterSpacing: 1.4 }, title: { color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold', fontSize: 25, marginTop: 18 }, subtitle: { color: '#F8F7FF', fontFamily: 'Poppins_400Regular', fontSize: 13, marginTop: 3 },
+  header: { paddingHorizontal: 22, paddingTop: 34, paddingBottom: 27, backgroundColor: '#FFFFFF' }, title: { maxWidth: 390, color: '#0A0A0A', fontFamily: 'Poppins_700Bold', fontSize: 38, lineHeight: 42, letterSpacing: -1.2 },
   navigator: { flexDirection: 'row', margin: 16, padding: 4, borderRadius: 16, backgroundColor: '#EAF4FC', gap: 3 }, navItem: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 2 }, navText: { color: '#52606D', fontFamily: 'Poppins_600SemiBold', fontSize: 10, textAlign: 'center' }, navTextActive: { color: '#fff' },
   heading: { fontFamily: 'Poppins_600SemiBold', color: '#1F2937', fontSize: 21, marginHorizontal: 18, marginTop: 8 }, headingSmall: { fontFamily: 'Poppins_600SemiBold', color: '#263238', fontSize: 14 }, body: { fontFamily: 'Poppins_400Regular', color: '#52606D', fontSize: 12, lineHeight: 19 }, muted: { color: '#718096', fontFamily: 'Poppins_400Regular', fontSize: 11 }, chips: { paddingHorizontal: 18, gap: 8, paddingVertical: 14 }, chip: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#fff' }, chipText: { color: '#52606D', fontFamily: 'Poppins_600SemiBold', fontSize: 11 }, chipTextActive: { color: '#fff' },
   subheading: { marginHorizontal: 18, marginTop: 20, marginBottom: 2, fontFamily: 'Poppins_600SemiBold', color: '#1F2937', fontSize: 17 },

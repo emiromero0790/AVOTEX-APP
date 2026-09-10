@@ -251,6 +251,7 @@ export default function Home() {
   const [productivityScans, setProductivityScans] = useState<ProductivityScan[]>([]);
   const reportScrollX = useRef(new Animated.Value(0)).current;
   const [activeReportIndex, setActiveReportIndex] = useState(0);
+  const activeReportIndexRef = useRef(0);
   const [reportViewportWidth, setReportViewportWidth] = useState(Math.min(width, 900));
   const [monthlyReportLoading, setMonthlyReportLoading] = useState(false);
   const [monthlyReportError, setMonthlyReportError] = useState(false);
@@ -859,10 +860,27 @@ export default function Home() {
               })}
               onScroll={Animated.event(
                 [{ nativeEvent: { contentOffset: { x: reportScrollX } } }],
-                { useNativeDriver: true },
+                {
+                  useNativeDriver: true,
+                  listener: (event: any) => {
+                    const nextIndex = Math.max(
+                      0,
+                      Math.min(11, Math.round(event.nativeEvent.contentOffset.x / reportSnapInterval)),
+                    );
+                    if (nextIndex !== activeReportIndexRef.current) {
+                      activeReportIndexRef.current = nextIndex;
+                      setActiveReportIndex(nextIndex);
+                    }
+                  },
+                },
               )}
               onMomentumScrollEnd={(event) => {
-                setActiveReportIndex(Math.max(0, Math.min(11, Math.round(event.nativeEvent.contentOffset.x / reportSnapInterval))));
+                const nextIndex = Math.max(
+                  0,
+                  Math.min(11, Math.round(event.nativeEvent.contentOffset.x / reportSnapInterval)),
+                );
+                activeReportIndexRef.current = nextIndex;
+                setActiveReportIndex(nextIndex);
               }}
               scrollEventThrottle={16}
               renderItem={({ item, index }) => {
@@ -900,7 +918,11 @@ export default function Home() {
                       {
                         width: reportCardWidth,
                         marginRight: -reportCardOverlap,
-                        zIndex: monthlyReports.length - index,
+                        zIndex: index === activeReportIndex
+                          ? 100
+                          : index > activeReportIndex
+                            ? 50 - index
+                            : 0,
                       },
                       { transform: [{ perspective: 900 }, { translateX }, { translateY }, { scale }, { rotateY }] },
                     ]}

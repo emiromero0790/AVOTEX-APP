@@ -6,6 +6,8 @@ import type * as Location from 'expo-location';
 export type PolygonMapProps = {
   location: Location.LocationObject;
   onPolygonChange?: (points: Array<{ latitude: number; longitude: number }>) => void;
+  initialPolygon?: Array<{ latitude: number; longitude: number }>;
+  preview?: boolean;
 };
 
 export type PolygonMapHandle = {
@@ -13,7 +15,12 @@ export type PolygonMapHandle = {
   clearDrawing: () => void;
 };
 
-function buildMapHTML(latitude: number, longitude: number): string {
+function buildMapHTML(
+  latitude: number,
+  longitude: number,
+  initialPolygon: Array<{ latitude: number; longitude: number }> = [],
+  preview = false,
+): string {
   return `<!doctype html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -23,16 +30,20 @@ function buildMapHTML(latitude: number, longitude: number): string {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 <script>
-var map=L.map('map',{zoomControl:true,attributionControl:true,tap:true,dragging:true}).setView([${latitude},${longitude}],16);
+var map=L.map('map',{zoomControl:${preview ? 'false' : 'true'},attributionControl:true,tap:true,dragging:true}).setView([${latitude},${longitude}],16);
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'}).addTo(map);
 var drawn=new L.FeatureGroup();map.addLayer(drawn);
 var polygonOptions={allowIntersection:false,showArea:true,shapeOptions:{color:'#ecfff3',weight:3,fillColor:'#19a681',fillOpacity:.42}};
-var drawControl=new L.Control.Draw({position:'topleft',draw:false,edit:{featureGroup:drawn,edit:true,remove:false}});
-map.addControl(drawControl);
 var activeDrawer=null;
 function sendPoints(points){window.ReactNativeWebView.postMessage(JSON.stringify({type:'polygon',points:points}));}
 function startDrawing(){if(activeDrawer){activeDrawer.disable();}activeDrawer=new L.Draw.Polygon(map,polygonOptions);activeDrawer.enable();}
 function clearDrawing(){if(activeDrawer){activeDrawer.disable();activeDrawer=null;}drawn.clearLayers();sendPoints([]);}
+var initialPoints=${JSON.stringify(initialPolygon)};
+if(initialPoints.length>=3){
+  var initialLayer=L.polygon(initialPoints.map(function(point){return [point.latitude,point.longitude];}),polygonOptions.shapeOptions);
+  drawn.addLayer(initialLayer);
+  map.fitBounds(initialLayer.getBounds(),{padding:[28,28],maxZoom:19});
+}
 map.on(L.Draw.Event.CREATED,function(e){
   activeDrawer=null;
   drawn.clearLayers();drawn.addLayer(e.layer);
@@ -42,11 +53,11 @@ map.on(L.Draw.Event.CREATED,function(e){
 </script></body></html>`;
 }
 
-const PolygonMap = forwardRef<PolygonMapHandle, PolygonMapProps>(({ location, onPolygonChange }, ref) => {
+const PolygonMap = forwardRef<PolygonMapHandle, PolygonMapProps>(({ location, onPolygonChange, initialPolygon = [], preview = false }, ref) => {
   const webViewRef = useRef<WebView>(null);
   const html = useMemo(
-    () => buildMapHTML(location.coords.latitude, location.coords.longitude),
-    [location.coords.latitude, location.coords.longitude],
+    () => buildMapHTML(location.coords.latitude, location.coords.longitude, initialPolygon, preview),
+    [location.coords.latitude, location.coords.longitude, initialPolygon, preview],
   );
 
   useImperativeHandle(ref, () => ({

@@ -1,17 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as Location from 'expo-location';
-import { Eraser, MapPin, Navigation, Pencil, Save } from 'lucide-react-native';
+import { Eraser, MapPin, Navigation, Pencil, Save, X } from 'lucide-react-native';
 import PolygonMap, { PolygonMapHandle } from '../../components/PolygonMap';
 
 type PolygonPoint = {
   latitude: number;
   longitude: number;
 };
-
-const SAVED_POLYGON_KEY = 'avotex_huerta_polygon';
 
 export default function Mapping() {
   const mapRef = useRef<PolygonMapHandle>(null);
@@ -20,7 +17,7 @@ export default function Mapping() {
   const [locationDetail, setLocationDetail] = useState('Obteniendo una lectura precisa del GPS…');
   const [notice, setNotice] = useState<string | null>('Obteniendo tu ubicación precisa…');
   const [polygon, setPolygon] = useState<PolygonPoint[]>([]);
-  const [saving, setSaving] = useState(false);
+  const [previewVisible, setPreviewVisible] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -86,20 +83,6 @@ export default function Mapping() {
       active = false;
     };
   }, []);
-
-  const savePolygon = async () => {
-    if (polygon.length < 3 || saving) return;
-
-    setSaving(true);
-    try {
-      await AsyncStorage.setItem(SAVED_POLYGON_KEY, JSON.stringify(polygon));
-      setNotice(`Delimitación guardada correctamente (${polygon.length} puntos).`);
-    } catch {
-      setNotice('No pudimos guardar la delimitación. Intenta de nuevo.');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <View style={styles.screen}>
@@ -190,9 +173,9 @@ export default function Mapping() {
 
           <Pressable
             accessibilityRole="button"
-            accessibilityState={{ disabled: polygon.length < 3 || saving }}
-            disabled={polygon.length < 3 || saving}
-            onPress={savePolygon}
+            accessibilityState={{ disabled: polygon.length < 3 }}
+            disabled={polygon.length < 3}
+            onPress={() => setPreviewVisible(true)}
             style={({ pressed }) => [
               styles.saveButton,
               polygon.length < 3 && styles.saveButtonDisabled,
@@ -200,10 +183,59 @@ export default function Mapping() {
             ]}
           >
             <Save size={20} color="#FFFFFF" />
-            <Text style={styles.saveButtonText}>{saving ? 'Guardando…' : 'Guardar'}</Text>
+            <Text style={styles.saveButtonText}>Guardar</Text>
           </Pressable>
         </View>
       </BlurView>
+
+      <Modal
+        visible={previewVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setPreviewVisible(false)}
+      >
+        <Pressable style={styles.previewBackdrop} onPress={() => setPreviewVisible(false)}>
+          <View style={styles.previewSheet} onStartShouldSetResponder={() => true}>
+            <View style={styles.previewHandle} />
+            <View style={styles.previewHeader}>
+              <View>
+                <Text style={styles.previewEyebrow}>VISTA PREVIA</Text>
+                <Text style={styles.previewTitle}>Zona delimitada</Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Cerrar vista previa"
+                onPress={() => setPreviewVisible(false)}
+                style={({ pressed }) => [styles.previewClose, pressed && styles.actionPressed]}
+              >
+                <X size={20} color="#173E36" />
+              </Pressable>
+            </View>
+
+            <View style={styles.previewMap}>
+              {location && (
+                <PolygonMap
+                  location={location}
+                  initialPolygon={polygon}
+                  preview
+                />
+              )}
+            </View>
+
+            <View style={styles.previewInfo}>
+              <View>
+                <Text style={styles.previewInfoLabel}>PUNTOS MARCADOS</Text>
+                <Text style={styles.previewInfoValue}>{polygon.length} puntos</Text>
+              </View>
+              <View style={styles.previewStatus}>
+                <View style={styles.previewStatusDot} />
+                <Text style={styles.previewStatusText}>Contorno listo</Text>
+              </View>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -340,4 +372,77 @@ const styles = StyleSheet.create({
   },
   saveButtonPressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
   saveButtonText: { color: '#f5fff8', fontSize: 13, fontWeight: '800', letterSpacing: 0.1 },
+  previewBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingHorizontal: 12,
+    paddingBottom: 18,
+    backgroundColor: 'rgba(8,18,15,0.46)',
+  },
+  previewSheet: {
+    width: '100%',
+    maxWidth: 620,
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingTop: 9,
+    paddingBottom: 16,
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  previewHandle: {
+    width: 38,
+    height: 4,
+    alignSelf: 'center',
+    marginBottom: 12,
+    borderRadius: 2,
+    backgroundColor: '#D5DBD9',
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 3,
+    marginBottom: 12,
+  },
+  previewEyebrow: { color: '#6B817B', fontSize: 8, fontWeight: '700', letterSpacing: 1.5 },
+  previewTitle: { color: '#101817', fontSize: 21, lineHeight: 27, fontWeight: '500', marginTop: 1 },
+  previewClose: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EDF3F1',
+  },
+  previewMap: {
+    height: 250,
+    overflow: 'hidden',
+    borderRadius: 20,
+    backgroundColor: '#DCE9E3',
+  },
+  previewInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    paddingTop: 13,
+  },
+  previewInfoLabel: { color: '#82908C', fontSize: 8, fontWeight: '700', letterSpacing: 1.1 },
+  previewInfoValue: { color: '#172E29', fontSize: 15, fontWeight: '500', marginTop: 2 },
+  previewStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 14,
+    backgroundColor: '#E3F5EF',
+  },
+  previewStatusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#0D9B78' },
+  previewStatusText: { color: '#16745F', fontSize: 10, fontWeight: '600' },
 });

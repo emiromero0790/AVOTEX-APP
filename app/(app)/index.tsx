@@ -457,8 +457,8 @@ export default function Home() {
   }, [productivityScans]);
 
   const reportCardWidth = Math.min(reportViewportWidth * (isTablet ? 0.58 : 0.79), 430);
-  const reportCardGap = isTablet ? 18 : 12;
-  const reportSnapInterval = reportCardWidth + reportCardGap;
+  const reportCardOverlap = reportCardWidth * (isTablet ? 0.68 : 0.72);
+  const reportSnapInterval = reportCardWidth - reportCardOverlap;
   const reportGeometryKey = `${Math.round(reportViewportWidth)}-${Math.round(reportSnapInterval)}`;
 
   useEffect(() => {
@@ -849,7 +849,7 @@ export default function Home() {
               decelerationRate="fast"
               contentContainerStyle={[
                 s.monthlyCarouselContent,
-                { paddingRight: Math.max(34, reportViewportWidth - reportSnapInterval - 22) },
+                { paddingRight: Math.max(34, reportViewportWidth - reportCardWidth - 22) },
               ]}
               initialScrollIndex={activeReportIndex}
               getItemLayout={(_, index) => ({
@@ -873,17 +873,22 @@ export default function Home() {
                 ];
                 const scale = reportScrollX.interpolate({
                   inputRange,
-                  outputRange: [0.88, 1, 0.88],
+                  outputRange: [0.94, 1, 0.91],
                   extrapolate: 'clamp',
                 });
                 const translateY = reportScrollX.interpolate({
                   inputRange,
-                  outputRange: [18, 0, 18],
+                  outputRange: [10, 0, 14],
                   extrapolate: 'clamp',
                 });
                 const rotateY = reportScrollX.interpolate({
                   inputRange,
-                  outputRange: ['-7deg', '0deg', '7deg'],
+                  outputRange: ['-5deg', '0deg', '8deg'],
+                  extrapolate: 'clamp',
+                });
+                const translateX = reportScrollX.interpolate({
+                  inputRange,
+                  outputRange: [-10, 0, 13],
                   extrapolate: 'clamp',
                 });
                 const affectedPct = item.total ? (item.affected / item.total) * 100 : 0;
@@ -892,12 +897,16 @@ export default function Home() {
                   <Animated.View
                     style={[
                       s.monthlyCard,
-                      { width: reportCardWidth, marginRight: reportCardGap },
-                      { transform: [{ perspective: 900 }, { translateY }, { scale }, { rotateY }] },
+                      {
+                        width: reportCardWidth,
+                        marginRight: -reportCardOverlap,
+                        zIndex: monthlyReports.length - index,
+                      },
+                      { transform: [{ perspective: 900 }, { translateX }, { translateY }, { scale }, { rotateY }] },
                     ]}
                   >
                     <LinearGradient
-                      colors={index % 3 === 0 ? ['#EEFF75', '#D8F95B'] : index % 3 === 1 ? ['#E9F8ED', '#CFEED8'] : ['#E9F1FF', '#D7E4FC']}
+                      colors={['#E9F1FF', '#D7E4FC']}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={s.monthlyCardGradient}

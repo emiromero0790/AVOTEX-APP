@@ -12,6 +12,7 @@ export type PolygonMapProps = {
 
 export type PolygonMapHandle = {
   startDrawing: () => void;
+  editDrawing: () => void;
   clearDrawing: () => void;
 };
 
@@ -30,14 +31,16 @@ function buildMapHTML(
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 <script>
-var map=L.map('map',{zoomControl:${preview ? 'false' : 'true'},attributionControl:true,tap:true,dragging:true}).setView([${latitude},${longitude}],16);
+  var map=L.map('map',{zoomControl:${preview ? 'false' : 'true'},attributionControl:true,tap:${preview ? 'false' : 'true'},dragging:${preview ? 'false' : 'true'},touchZoom:${preview ? 'false' : 'true'},scrollWheelZoom:${preview ? 'false' : 'true'},doubleClickZoom:${preview ? 'false' : 'true'},boxZoom:${preview ? 'false' : 'true'},keyboard:${preview ? 'false' : 'true'} }).setView([${latitude},${longitude}],16);
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'}).addTo(map);
 var drawn=new L.FeatureGroup();map.addLayer(drawn);
 var polygonOptions={allowIntersection:false,showArea:true,shapeOptions:{color:'#ecfff3',weight:3,fillColor:'#19a681',fillOpacity:.42}};
 var activeDrawer=null;
+  var activeEditor=null;
 function sendPoints(points){window.ReactNativeWebView.postMessage(JSON.stringify({type:'polygon',points:points}));}
-function startDrawing(){if(activeDrawer){activeDrawer.disable();}activeDrawer=new L.Draw.Polygon(map,polygonOptions);activeDrawer.enable();}
-function clearDrawing(){if(activeDrawer){activeDrawer.disable();activeDrawer=null;}drawn.clearLayers();sendPoints([]);}
+  function startDrawing(){if(${preview ? 'true' : 'false'})return;if(activeEditor){activeEditor.disable();activeEditor=null;}if(activeDrawer){activeDrawer.disable();}activeDrawer=new L.Draw.Polygon(map,polygonOptions);activeDrawer.enable();}
+  function editDrawing(){if(${preview ? 'true' : 'false'})return;if(activeDrawer){activeDrawer.disable();activeDrawer=null;}if(activeEditor){activeEditor.disable();activeEditor=null;}if(drawn.getLayers().some(function(layer){return layer instanceof L.Polygon;})){activeEditor=new L.EditToolbar.Edit(map,{featureGroup:drawn});activeEditor.enable();}}
+  function clearDrawing(){if(activeDrawer){activeDrawer.disable();activeDrawer=null;}if(activeEditor){activeEditor.disable();activeEditor=null;}drawn.clearLayers();sendPoints([]);}
 var initialPoints=${JSON.stringify(initialPolygon)};
 if(initialPoints.length>=3){
   var initialLayer=L.polygon(initialPoints.map(function(point){return [point.latitude,point.longitude];}),polygonOptions.shapeOptions);
@@ -50,6 +53,14 @@ map.on(L.Draw.Event.CREATED,function(e){
   var points=e.layer.getLatLngs()[0].map(function(point){return {latitude:point.lat,longitude:point.lng};});
   sendPoints(points);
 });
+  map.on(L.Draw.Event.EDITED,function(e){
+    e.layers.eachLayer(function(layer){
+      if(layer instanceof L.Polygon){
+        var points=layer.getLatLngs()[0].map(function(point){return {latitude:point.lat,longitude:point.lng};});
+        sendPoints(points);
+      }
+    });
+  });
 </script></body></html>`;
 }
 
@@ -62,6 +73,7 @@ const PolygonMap = forwardRef<PolygonMapHandle, PolygonMapProps>(({ location, on
 
   useImperativeHandle(ref, () => ({
     startDrawing: () => webViewRef.current?.injectJavaScript('startDrawing(); true;'),
+    editDrawing: () => webViewRef.current?.injectJavaScript('editDrawing(); true;'),
     clearDrawing: () => webViewRef.current?.injectJavaScript('clearDrawing(); true;'),
   }), []);
 

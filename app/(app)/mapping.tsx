@@ -1,13 +1,15 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Poppins_400Regular, useFonts } from '@expo-google-fonts/poppins';
 import * as Location from 'expo-location';
-import { Eraser, MapPin, MapPinOff, Navigation, Pencil, Save, X } from 'lucide-react-native';
+import { ChevronRight, Eraser, MapPin, MapPinOff, Navigation, Pencil, Plus, Save, Sprout, Trash2, X } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 import PolygonMap, { PolygonMapHandle } from '../../components/PolygonMap';
 import { TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
+import { auth } from '../../firebaseConfig';
+import { deleteOrchard, listOrchards, Orchard, PolygonPoint, saveOrchard } from '../../services/orchards';
 
 const LOCATION_SETTING_KEY = 'avotex_share_location';
 const mappingTranslations: TranslationResource = {
@@ -46,25 +48,85 @@ const mappingTranslations: TranslationResource = {
   contour: { es: 'Contorno listo', en: 'Outline ready' },
   save: { es: 'Guardar delimitación', en: 'Save boundary' },
   saveLabel: { es: 'Guardar delimitación', en: 'Save boundary' },
+  orchards: { es: 'Tus huertas', en: 'Your orchards' },
+  newOrchard: { es: 'Nueva huerta', en: 'New orchard' },
+  noOrchards: { es: 'Aún no tienes huertas guardadas.', en: 'You do not have saved orchards yet.' },
+  createFirst: { es: 'Crea una desde tu ubicación actual.', en: 'Create one from your current location.' },
+  orchardName: { es: 'Nombre de la huerta', en: 'Orchard name' },
+  orchardPlaceholder: { es: 'Ej. Huerta norte', en: 'E.g. North orchard' },
+  editBoundary: { es: 'Editar', en: 'Edit' },
+  editingBoundary: { es: 'Mueve los puntos del contorno y guarda los cambios.', en: 'Move the boundary points and save your changes.' },
+  saved: { es: 'Huerta guardada correctamente.', en: 'Orchard saved successfully.' },
+  saveError: { es: 'No se pudo guardar la huerta.', en: 'The orchard could not be saved.' },
+  loadError: { es: 'No se pudieron cargar tus huertas.', en: 'Your orchards could not be loaded.' },
+  tableMissing: { es: 'Falta crear la tabla huertas en Supabase. Ejecuta la migración SQL incluida en el proyecto.', en: 'The orchards table is missing in Supabase. Run the SQL migration included in the project.' },
+  nameRequired: { es: 'Escribe un nombre para la huerta.', en: 'Enter a name for the orchard.' },
+  invalidBoundary: { es: 'Marca al menos tres puntos antes de guardar.', en: 'Mark at least three points before saving.' },
+  deleteTitle: { es: 'Eliminar huerta', en: 'Delete orchard' },
+  deleteBody: { es: '¿Quieres eliminar “{name}”? Esta acción no se puede deshacer.', en: 'Delete “{name}”? This action cannot be undone.' },
+  cancel: { es: 'Cancelar', en: 'Cancel' },
+  delete: { es: 'Eliminar', en: 'Delete' },
+  area: { es: '{area} ha', en: '{area} ha' },
+  currentOrchard: { es: 'HUERTA SELECCIONADA', en: 'SELECTED ORCHARD' },
+  openOrchards: { es: 'Abrir tus huertas', en: 'Open your orchards' },
 };
 
-type PolygonPoint = {
-  latitude: number;
-  longitude: number;
-};
+const orchardLocation = (orchard: Orchard): Location.LocationObject => ({
+  coords: {
+    latitude: orchard.center_lat,
+    longitude: orchard.center_lng,
+    altitude: null,
+    accuracy: null,
+    altitudeAccuracy: null,
+    heading: null,
+    speed: null,
+  },
+  timestamp: Date.now(),
+});
 
 export default function Mapping() {
   const t = useTranslations(mappingTranslations);
   const { locale } = useLanguage();
+  const { width } = useWindowDimensions();
+  const isWide = width >= 900;
   useFonts({ Poppins_400Regular });
   const mapRef = useRef<PolygonMapHandle>(null);
+  const selectedOrchardRef = useRef<string | null>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [gpsLocation, setGpsLocation] = useState<Location.LocationObject | null>(null);
   const [locationTitle, setLocationTitle] = useState(t('searching'));
   const [locationDetail, setLocationDetail] = useState(t('preciseReading'));
   const [notice, setNotice] = useState<string | null>(t('gettingPrecise'));
   const [polygon, setPolygon] = useState<PolygonPoint[]>([]);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [locationEnabled, setLocationEnabled] = useState(true);
+  const [orchards, setOrchards] = useState<Orchard[]>([]);
+  const [selectedOrchard, setSelectedOrchard] = useState<Orchard | null>(null);
+  const [orchardName, setOrchardName] = useState('');
+  const [loadingOrchards, setLoadingOrchards] = useState(false);
+  const [savingOrchard, setSavingOrchard] = useState(false);
+  const [orchardsError, setOrchardsError] = useState<string | null>(null);
+  const [orchardsOpen, setOrchardsOpen] = useState(false);
+  const [mapVersion, setMapVersion] = useState(0);
+
+  const loadUserOrchards = useCallback(async () => {
+    const email = auth.currentUser?.email;
+    if (!email) return;
+    setLoadingOrchards(true);
+    setOrchardsError(null);
+    try {
+      setOrchards(await listOrchards(email));
+    } catch (error: any) {
+      const missing = error?.code === '42P01' || error?.code === 'PGRST205' || String(error?.message).includes('huertas');
+      setOrchardsError(missing ? t('tableMissing') : t('loadError'));
+    } finally {
+      setLoadingOrchards(false);
+    }
+  }, [t]);
+
+  useFocusEffect(useCallback(() => {
+    loadUserOrchards();
+  }, [loadUserOrchards]));
 
   useFocusEffect(
     useCallback(() => {
@@ -103,7 +165,8 @@ export default function Mapping() {
           accuracy: Location.Accuracy.Highest,
         });
         if (active) {
-          setLocation(current);
+          setGpsLocation(current);
+          if (!selectedOrchardRef.current) setLocation(current);
            setLocationTitle(t('current'));
           setLocationDetail(`${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}`);
           const accuracy = current.coords.accuracy;
@@ -151,13 +214,106 @@ export default function Mapping() {
     }, [t, locale]),
   );
 
+  const selectOrchard = (orchard: Orchard) => {
+    selectedOrchardRef.current = orchard.id;
+    setSelectedOrchard(orchard);
+    setOrchardName(orchard.nombre);
+    setPolygon(orchard.coordinates);
+    setLocation(orchardLocation(orchard));
+    setLocationTitle(orchard.nombre);
+    setLocationDetail(t('area', { area: (orchard.area_m2 / 10000).toFixed(2) }));
+    setNotice(t('boundaryReady'));
+    setPreviewVisible(false);
+    setOrchardsOpen(false);
+    setMapVersion(value => value + 1);
+  };
+
+  const createNewOrchard = () => {
+    selectedOrchardRef.current = null;
+    setSelectedOrchard(null);
+    setOrchardName('');
+    setPolygon([]);
+    if (gpsLocation) setLocation(gpsLocation);
+    setLocationTitle(t('current'));
+    if (gpsLocation) {
+      setLocationDetail(`${gpsLocation.coords.latitude.toFixed(5)}, ${gpsLocation.coords.longitude.toFixed(5)}`);
+    }
+    setNotice(t('tapCorners'));
+    setPreviewVisible(false);
+    setOrchardsOpen(false);
+    setMapVersion(value => value + 1);
+  };
+
+  const persistOrchard = async () => {
+    const email = auth.currentUser?.email;
+    if (!email) return;
+    if (!orchardName.trim()) {
+      setNotice(t('nameRequired'));
+      return;
+    }
+    if (polygon.length < 3) {
+      setNotice(t('invalidBoundary'));
+      return;
+    }
+    setSavingOrchard(true);
+    try {
+      const saved = await saveOrchard({
+        id: selectedOrchard?.id,
+        userEmail: email,
+        name: orchardName,
+        coordinates: polygon,
+      });
+      setOrchards(current => [saved, ...current.filter(item => item.id !== saved.id)]);
+      selectedOrchardRef.current = saved.id;
+      setSelectedOrchard(saved);
+      setLocation(orchardLocation(saved));
+      setLocationTitle(saved.nombre);
+      setLocationDetail(t('area', { area: (saved.area_m2 / 10000).toFixed(2) }));
+      setNotice(t('saved'));
+      setPreviewVisible(false);
+      setMapVersion(value => value + 1);
+    } catch (error: any) {
+      const missing = error?.code === '42P01' || error?.code === 'PGRST205' || String(error?.message).includes('huertas');
+      setNotice(missing ? t('tableMissing') : error?.message || t('saveError'));
+    } finally {
+      setSavingOrchard(false);
+    }
+  };
+
+  const confirmDeleteOrchard = (orchard: Orchard) => {
+    Alert.alert(
+      t('deleteTitle'),
+      t('deleteBody', { name: orchard.nombre }),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('delete'),
+          style: 'destructive',
+          onPress: async () => {
+            const email = auth.currentUser?.email;
+            if (!email) return;
+            try {
+              await deleteOrchard(orchard.id, email);
+              setOrchards(current => current.filter(item => item.id !== orchard.id));
+              if (selectedOrchard?.id === orchard.id) createNewOrchard();
+            } catch {
+              setNotice(t('saveError'));
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <View style={styles.screen}>
       <View style={styles.mapLayer}>
         {locationEnabled && location ? (
           <PolygonMap
+            key={`map-${mapVersion}`}
             ref={mapRef}
             location={location}
+            initialPolygon={polygon}
             onPolygonChange={(points: PolygonPoint[]) => {
               setPolygon(points);
               if (points.length >= 3) {
@@ -187,19 +343,93 @@ export default function Mapping() {
         )}
       </View>
 
-      <View style={styles.locationCard}>
+      <View style={[styles.locationCard, isWide && styles.locationCardWide]}>
         <View style={styles.locationIcon}>
           <Navigation size={20} color="#FFFFFF" fill="#FFFFFF" />
         </View>
         <View style={styles.locationCopy}>
-           <Text style={styles.locationEyebrow}>{t('eyebrow')}</Text>
+            <Text style={styles.locationEyebrow}>{selectedOrchard ? t('currentOrchard') : t('eyebrow')}</Text>
           <Text style={styles.locationCardTitle} numberOfLines={1}>{locationTitle}</Text>
           <Text style={styles.locationCardDetail} numberOfLines={1}>{locationDetail}</Text>
         </View>
         <MapPin size={19} color="#9EE7D2" />
       </View>
 
-      <BlurView intensity={55} tint="light" style={styles.bottomPanel}>
+      {!isWide && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('openOrchards')}
+          onPress={() => setOrchardsOpen(value => !value)}
+          style={({ pressed }) => [styles.mobileOrchardsButton, pressed && styles.actionPressed]}
+        >
+          <Sprout size={17} color="#FFFFFF" />
+          <Text style={styles.mobileOrchardsButtonText}>{t('orchards')}</Text>
+          <ChevronRight size={16} color="#9EE7D2" />
+        </Pressable>
+      )}
+
+      {(isWide || orchardsOpen) && (
+        <View style={[styles.orchardsPanel, !isWide && styles.orchardsPanelMobile]}>
+          <View style={styles.orchardsHeader}>
+            <View>
+              <Text style={styles.orchardsEyebrow}>AVOTEX</Text>
+              <Text style={styles.orchardsTitle}>{t('orchards')}</Text>
+            </View>
+            {!isWide && (
+              <Pressable onPress={() => setOrchardsOpen(false)} style={styles.panelClose}>
+                <X size={16} color="#173E36" />
+              </Pressable>
+            )}
+          </View>
+          <Pressable onPress={createNewOrchard} style={({ pressed }) => [styles.newOrchardButton, pressed && styles.actionPressed]}>
+            <Plus size={16} color="#FFFFFF" />
+            <Text style={styles.newOrchardButtonText}>{t('newOrchard')}</Text>
+          </Pressable>
+          {loadingOrchards ? (
+            <ActivityIndicator color="#0D756B" style={styles.orchardsLoader} />
+          ) : orchardsError ? (
+            <Text style={styles.orchardsError}>{orchardsError}</Text>
+          ) : orchards.length === 0 ? (
+            <View style={styles.emptyOrchards}>
+              <Sprout size={24} color="#70A496" />
+              <Text style={styles.emptyOrchardsTitle}>{t('noOrchards')}</Text>
+              <Text style={styles.emptyOrchardsText}>{t('createFirst')}</Text>
+            </View>
+          ) : (
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.orchardsList}>
+              {orchards.map(orchard => (
+                <Pressable
+                  key={orchard.id}
+                  onPress={() => selectOrchard(orchard)}
+                  style={({ pressed }) => [
+                    styles.orchardRow,
+                    selectedOrchard?.id === orchard.id && styles.orchardRowSelected,
+                    pressed && styles.actionPressed,
+                  ]}
+                >
+                  <View style={styles.orchardIcon}><Sprout size={15} color="#0D756B" /></View>
+                  <View style={styles.orchardCopy}>
+                    <Text style={styles.orchardName} numberOfLines={1}>{orchard.nombre}</Text>
+                    <Text style={styles.orchardArea}>{t('area', { area: (orchard.area_m2 / 10000).toFixed(2) })}</Text>
+                  </View>
+                  <Pressable
+                    accessibilityLabel={t('delete')}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      confirmDeleteOrchard(orchard);
+                    }}
+                    hitSlop={8}
+                  >
+                    <Trash2 size={15} color="#B45B54" />
+                  </Pressable>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      )}
+
+      <BlurView intensity={55} tint="light" style={[styles.bottomPanel, isWide && styles.bottomPanelWide]}>
         <View style={styles.panelCopy}>
           <View>
            <Text style={styles.title}>{t('title')}</Text>
@@ -230,6 +460,21 @@ export default function Mapping() {
             <Pencil size={20} color="#176B62" />
              <Text style={styles.actionLabel}>{t('draw')}</Text>
           </Pressable>
+
+          {selectedOrchard && polygon.length >= 3 && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('editBoundary')}
+              onPress={() => {
+                mapRef.current?.editDrawing();
+                setNotice(t('editingBoundary'));
+              }}
+              style={({ pressed }) => [styles.actionButton, pressed && styles.actionPressed]}
+            >
+              <Pencil size={20} color="#176B62" />
+              <Text style={styles.actionLabel}>{t('editBoundary')}</Text>
+            </Pressable>
+          )}
 
           <Pressable
             accessibilityRole="button"
@@ -300,12 +545,24 @@ export default function Mapping() {
               </View>
             </View>
 
+            <TextInput
+              value={orchardName}
+              onChangeText={setOrchardName}
+              placeholder={t('orchardPlaceholder')}
+              placeholderTextColor="#8A9995"
+              maxLength={80}
+              style={styles.orchardNameInput}
+              accessibilityLabel={t('orchardName')}
+            />
+
             <Pressable
               accessibilityRole="button"
                accessibilityLabel={t('saveLabel')}
-              style={({ pressed }) => [styles.previewSaveButton, pressed && styles.saveButtonPressed]}
+               onPress={persistOrchard}
+               disabled={savingOrchard}
+               style={({ pressed }) => [styles.previewSaveButton, savingOrchard && styles.actionButtonDisabled, pressed && styles.saveButtonPressed]}
             >
-              <Save size={18} color="#FFFFFF" />
+              {savingOrchard ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Save size={18} color="#FFFFFF" />}
                <Text style={styles.previewSaveButtonText}>{t('save')}</Text>
             </Pressable>
           </View>
@@ -337,6 +594,7 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 11,
   },
+  locationCardWide: { right: 306 },
   locationIcon: {
     width: 42,
     height: 42,
@@ -368,6 +626,105 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 12,
   },
+  bottomPanelWide: { right: 306 },
+  mobileOrchardsButton: {
+    position: 'absolute',
+    top: 112,
+    right: 18,
+    minHeight: 38,
+    paddingHorizontal: 12,
+    borderRadius: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: 'rgba(5,7,7,0.94)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 9,
+  },
+  mobileOrchardsButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  orchardsPanel: {
+    position: 'absolute',
+    top: 18,
+    right: 18,
+    width: 270,
+    maxHeight: 430,
+    padding: 14,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.8)',
+    shadowColor: '#102D27',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 14,
+  },
+  orchardsPanelMobile: {
+    top: 158,
+    right: 14,
+    width: 250,
+    maxHeight: 340,
+  },
+  orchardsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 11,
+  },
+  orchardsEyebrow: { color: '#70A496', fontSize: 8, fontWeight: '800', letterSpacing: 1.4 },
+  orchardsTitle: { color: '#112B26', fontSize: 19, lineHeight: 24, fontWeight: '800' },
+  panelClose: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EEF4F2',
+  },
+  newOrchardButton: {
+    minHeight: 42,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    backgroundColor: '#0D756B',
+  },
+  newOrchardButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
+  orchardsLoader: { marginVertical: 28 },
+  orchardsError: { color: '#A64A43', fontSize: 10, lineHeight: 15, marginTop: 13 },
+  emptyOrchards: { alignItems: 'center', paddingHorizontal: 10, paddingVertical: 23 },
+  emptyOrchardsTitle: { color: '#25443D', fontSize: 11, fontWeight: '700', textAlign: 'center', marginTop: 8 },
+  emptyOrchardsText: { color: '#738A84', fontSize: 9, lineHeight: 14, textAlign: 'center', marginTop: 3 },
+  orchardsList: { marginTop: 9 },
+  orchardRow: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+    marginBottom: 6,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: '#E3ECE9',
+    backgroundColor: '#F8FBFA',
+  },
+  orchardRowSelected: { borderColor: '#85CDBA', backgroundColor: '#E5F5F0' },
+  orchardIcon: {
+    width: 31,
+    height: 31,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
+    backgroundColor: '#DDF1EB',
+  },
+  orchardCopy: { flex: 1, minWidth: 0, marginRight: 6 },
+  orchardName: { color: '#173E36', fontSize: 11, fontWeight: '800' },
+  orchardArea: { color: '#70847F', fontSize: 9, marginTop: 2 },
   panelCopy: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -503,6 +860,17 @@ const styles = StyleSheet.create({
   },
   previewStatusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#0D9B78' },
   previewStatusText: { color: '#16745F', fontSize: 10, fontWeight: '600' },
+  orchardNameInput: {
+    minHeight: 46,
+    marginTop: 13,
+    paddingHorizontal: 14,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: '#DDE7E4',
+    color: '#173E36',
+    fontSize: 12,
+    backgroundColor: '#F5F9F8',
+  },
   previewSaveButton: {
     minHeight: 48,
     marginTop: 13,

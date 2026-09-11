@@ -8,7 +8,7 @@ interface GuestContextType {
   isGuest: boolean;
   guestScansLeft: number;
   enterGuestMode: () => void;
-  exitGuestMode: () => void;
+  exitGuestMode: () => Promise<void>;
   decrementGuestScans: () => Promise<boolean>;
 }
 

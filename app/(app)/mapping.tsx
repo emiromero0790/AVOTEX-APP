@@ -1,10 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Poppins_400Regular, useFonts } from '@expo-google-fonts/poppins';
 import * as Location from 'expo-location';
-import { Eraser, MapPin, Navigation, Pencil, Save, X } from 'lucide-react-native';
+import { Eraser, MapPin, MapPinOff, Navigation, Pencil, Save, X } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from 'expo-router';
 import PolygonMap, { PolygonMapHandle } from '../../components/PolygonMap';
+
+const LOCATION_SETTING_KEY = 'avotex_share_location';
 
 type PolygonPoint = {
   latitude: number;
@@ -20,12 +24,32 @@ export default function Mapping() {
   const [notice, setNotice] = useState<string | null>('Obteniendo tu ubicación precisa…');
   const [polygon, setPolygon] = useState<PolygonPoint[]>([]);
   const [previewVisible, setPreviewVisible] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(true);
 
-  useEffect(() => {
-    let active = true;
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
 
-    const requestLocation = async () => {
-      try {
+      const requestLocation = async () => {
+        const savedValue = await AsyncStorage.getItem(LOCATION_SETTING_KEY);
+        if (!active) return;
+        const enabled = savedValue !== 'false';
+        setLocationEnabled(enabled);
+
+        if (!enabled) {
+          setLocation(null);
+          setPolygon([]);
+          setPreviewVisible(false);
+          setLocationTitle('Ubicación desactivada');
+          setLocationDetail('Actívala desde Ajustes para usar el mapa.');
+          setNotice('La ubicación está desactivada en Ajustes.');
+          return;
+        }
+
+        try {
+          setLocationTitle('Buscando ubicación');
+          setLocationDetail('Obteniendo una lectura precisa del GPS…');
+          setNotice('Obteniendo tu ubicación precisa…');
         const permission = await Location.requestForegroundPermissionsAsync();
         if (!active) return;
         if (permission.status !== 'granted') {
@@ -71,25 +95,26 @@ export default function Mapping() {
             }
           }
         }
-      } catch {
-        if (active) {
-          setNotice('No pudimos obtener tu ubicación. Revisa que el GPS esté activo e inténtalo de nuevo.');
-          setLocationTitle('Ubicación no disponible');
-          setLocationDetail('Revisa que el GPS esté activo.');
+        } catch {
+          if (active) {
+            setNotice('No pudimos obtener tu ubicación. Revisa que el GPS esté activo e inténtalo de nuevo.');
+            setLocationTitle('Ubicación no disponible');
+            setLocationDetail('Revisa que el GPS esté activo.');
+          }
         }
-      }
-    };
+      };
 
-    requestLocation();
-    return () => {
-      active = false;
-    };
-  }, []);
+      requestLocation();
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   return (
     <View style={styles.screen}>
       <View style={styles.mapLayer}>
-        {location ? (
+        {locationEnabled && location ? (
           <PolygonMap
             ref={mapRef}
             location={location}
@@ -106,10 +131,18 @@ export default function Mapping() {
         ) : (
           <View style={styles.locationLoading}>
             <View style={styles.locationLoadingIcon}>
-              <ActivityIndicator size="large" color="#0D756B" />
+              {locationEnabled
+                ? <ActivityIndicator size="large" color="#0D756B" />
+                : <MapPinOff size={31} color="#0D756B" />}
             </View>
-            <Text style={styles.locationLoadingTitle}>Buscando tu ubicación</Text>
-            <Text style={styles.locationLoadingText}>Esperaremos una lectura precisa antes de mostrar el mapa.</Text>
+            <Text style={styles.locationLoadingTitle}>
+              {locationEnabled ? 'Buscando tu ubicación' : 'Ubicación desactivada'}
+            </Text>
+            <Text style={styles.locationLoadingText}>
+              {locationEnabled
+                ? 'Esperaremos una lectura precisa antes de mostrar el mapa.'
+                : 'Activa Compartir ubicación en Ajustes para mostrar y delimitar tu huerta.'}
+            </Text>
           </View>
         )}
       </View>

@@ -63,7 +63,7 @@ export default function SettingsScreen() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold });
-  const { isGuest } = useGuest();
+  const { isGuest, exitGuestMode } = useGuest();
   const { isColorblindMode, toggleColorblindMode } = useAccessibility();
   const [shareLocation, setShareLocation] = useState(true);
 
@@ -99,7 +99,14 @@ export default function SettingsScreen() {
         <TouchableOpacity
           style={styles.accountCard}
           activeOpacity={0.6}
-          onPress={() => isGuest ? router.replace('/(auth)') : router.push('/(app)/profile')}
+          onPress={async () => {
+            if (isGuest) {
+              await exitGuestMode();
+              router.replace('/(auth)');
+              return;
+            }
+            router.push('/(app)/profile');
+          }}
         >
           <View style={styles.accountAvatar}>
             {isGuest

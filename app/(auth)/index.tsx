@@ -32,7 +32,7 @@ const ERROR_DURATION_MS = 4000;
 export default function Login() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
-  const { enterGuestMode } = useGuest();
+  const { enterGuestMode, exitGuestMode } = useGuest();
 
   const [email, setEmail]           = useState('');
   const [password, setPassword]     = useState('');
@@ -127,6 +127,7 @@ export default function Login() {
     setLoading(true);
     setError('');
     try {
+      await exitGuestMode();
       await signInWithEmailAndPassword(auth, email, password);
       router.replace('/(app)');
     } catch (err: any) {

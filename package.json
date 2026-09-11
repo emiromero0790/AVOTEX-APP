@@ -3,6 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.2",
   "private": true,
+  "packageManager": "npm@10.9.4",
   "scripts": {
     "dev": "EXPO_NO_TELEMETRY=1 expo start --web --port 8081 --host tunnel",
     "web": "EXPO_NO_TELEMETRY=1 BROWSER=none expo start --web --port 5000 --host tunnel --clear",
@@ -10,6 +11,7 @@
     "lint": "expo lint",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "eas-build-pre-install": "npm install --global npm@10.9.4",
     "eas:build:ios": "eas build --platform ios",
     "eas:build:android": "eas build --platform android",
     "eas:build:preview": "eas build --profile preview --platform all"

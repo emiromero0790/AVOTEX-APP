@@ -1,2 +1,3 @@
 - [Expo y Preview comparten Metro](expo-preview-single-metro.md) — usar un solo proceso Expo con web+túnel; dos Metro simultáneos agotan los observadores del entorno.
 - [Dirección aprobada para Actividad](activity-design-direction.md) — conservar la estructura ActionCenter, traducida a la paleta verde, blanca y azul claro de Avotex.
+- [npm estable para EAS](eas-npm-version.md) — actualizar npm antes de instalar dependencias; la imagen iOS incluida falla internamente con npm 10.8.2.

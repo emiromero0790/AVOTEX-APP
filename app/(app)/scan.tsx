@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Animated,
   Modal,
+  Platform,
   ScrollView,
   useWindowDimensions,
 } from "react-native";
@@ -14,7 +15,7 @@ import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import { RotateCw as RotateCwIcon, Camera as CameraIcon, Shield, Lock } from "lucide-react-native";
 import Toast from "react-native-toast-message";
 import { useFocusEffect } from "expo-router";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 
@@ -309,8 +310,10 @@ export default function Scan() {
         skipProcessing: true,
       });
 
-      let pred = await sendImageMultipart(photo);
-      if (!pred) pred = await sendImageBase64(photo);
+      let pred = Platform.OS === "web"
+        ? await sendImageMultipart(photo)
+        : await sendImageBase64(photo);
+      if (!pred && Platform.OS === "web") pred = await sendImageBase64(photo);
 
       if (pred) {
         setPrediction(pred);

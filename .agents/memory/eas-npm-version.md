@@ -1,10 +1,10 @@
 ---
-name: npm estable para EAS
-description: Restricción de versión de npm para instalaciones reproducibles en builds iOS de EAS.
+name: Yarn para builds EAS
+description: Elección del gestor de dependencias para builds iOS reproducibles de EAS.
 ---
 
-Usar Node 22.14.0 en el perfil de producción de EAS y mantener npm 10.9.4 como versión declarada y protección secundaria.
+Usar Yarn Classic 1.22.22 con su lockfile como gestor de dependencias y Node 22.14.0 en el perfil de producción de EAS.
 
-**Why:** La imagen macOS seleccionada incluye npm 10.8.2, que puede abortar `npm ci` con el error interno “Exit handler never called” aunque el lockfile sea válido. El hook previo de npm no siempre se ejecuta antes de esa etapa, mientras que EAS prepara Node antes de instalar dependencias.
+**Why:** La imagen macOS seleccionada aborta repetidamente `npm ci` con el error interno “Exit handler never called”. Actualizar npm en el hook y cambiar Node no evitó que la etapa gestionada por EAS siguiera fallando.
 
-**How to apply:** Mantener Node 22.14.0 en builds de producción y alineadas la versión declarada de npm y el hook previo; validar Expo con esa versión de Node y el lockfile con una instalación limpia.
+**How to apply:** No reintroducir un lockfile de npm junto al de Yarn, porque EAS volvería a seleccionar npm. Validar cambios de dependencias con una instalación Yarn limpia y lockfile congelado.

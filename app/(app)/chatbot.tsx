@@ -374,19 +374,6 @@ export default function ChatbotScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            <View style={[styles.inputContainer, styles.initialInput, !accepted && styles.inputContainerDisabled]}>
-              <TextInput value={input} onChangeText={setInput}
-                 placeholder={!accepted ? t('chat.accept') : waitingForEmail ? t('chat.email') : t('chat.ask')}
-                placeholderTextColor="#91b8ad" style={[styles.input, styles.initialInputText, !accepted && styles.inputDisabled]}
-                onSubmitEditing={sendMessage} multiline={!waitingForEmail}
-                keyboardType={waitingForEmail ? "email-address" : "default"} autoCapitalize={waitingForEmail ? "none" : "sentences"} editable={accepted} />
-              <View style={styles.initialControls}>
-                 <Text style={styles.inputHint}>{t('chat.hint')}</Text>
-                <TouchableOpacity style={styles.sendBtn} onPress={accepted ? sendMessage : () => setModalVisible(true)} disabled={loading}>
-                  {!accepted ? <View style={styles.sendBtnPlain}><Shield size={20} color="#b9ffe9" /></View> : <View style={styles.sendBtnGradient}><Send size={19} color="#05231b" /></View>}
-                </TouchableOpacity>
-              </View>
-            </View>
           </View>
         )}
 
@@ -421,6 +408,35 @@ export default function ChatbotScreen() {
         )}
       </ScrollView>
       </LinearGradient>
+
+      {messages.length === 0 && !modalVisible && (
+        <View style={[styles.inputContainer, styles.initialInput, !accepted && styles.inputContainerDisabled]}>
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder={!accepted ? t('chat.accept') : waitingForEmail ? t('chat.email') : t('chat.ask')}
+            placeholderTextColor="#91b8ad"
+            style={[styles.input, styles.initialInputText, !accepted && styles.inputDisabled]}
+            onSubmitEditing={sendMessage}
+            multiline={!waitingForEmail}
+            keyboardType={waitingForEmail ? "email-address" : "default"}
+            autoCapitalize={waitingForEmail ? "none" : "sentences"}
+            editable={accepted}
+          />
+          <View style={styles.initialControls}>
+            <Text style={styles.inputHint}>{t('chat.hint')}</Text>
+            <TouchableOpacity
+              style={styles.sendBtn}
+              onPress={accepted ? sendMessage : () => setModalVisible(true)}
+              disabled={loading}
+            >
+              {!accepted
+                ? <View style={styles.sendBtnPlain}><Shield size={20} color="#b9ffe9" /></View>
+                : <View style={styles.sendBtnGradient}><Send size={19} color="#05231b" /></View>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {messages.length > 0 && <View style={[styles.inputContainer, !accepted && styles.inputContainerDisabled]}>
         <TextInput

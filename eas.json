@@ -9,7 +9,7 @@
       "distribution": "internal",
       "ios": {
         "simulator": true,
-        "image": "macos-sequoia-15.6-xcode-26.2"
+        "image": "macos-tahoe-26.5-xcode-26.6"
       }
     },
     "preview": {
@@ -19,14 +19,13 @@
       },
       "ios": {
         "simulator": false,
-        "image": "macos-sequoia-15.6-xcode-26.2"
+        "image": "macos-tahoe-26.5-xcode-26.6"
       }
     },
     "production": {
-      "node": "22.14.0",
       "autoIncrement": true,
       "ios": {
-        "image": "macos-sequoia-15.6-xcode-26.2"
+        "image": "macos-tahoe-26.5-xcode-26.6"
       },
       "android": {
         "buildType": "app-bundle"

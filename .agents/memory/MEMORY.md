@@ -1,3 +1,4 @@
 - [Expo y Preview comparten Metro](expo-preview-single-metro.md) — usar un solo proceso Expo con web+túnel; dos Metro simultáneos agotan los observadores del entorno.
 - [Dirección aprobada para Actividad](activity-design-direction.md) — conservar la estructura ActionCenter, traducida a la paleta verde, blanca y azul claro de Avotex.
 - [Yarn para builds EAS](eas-npm-version.md) — EAS debe instalar con Yarn Classic; npm ci falla internamente en la imagen iOS aun después del hook.
+- [Xcode mínimo para Expo 57](expo57-xcode.md) — usar Xcode 26.4 o superior; Xcode 26.2 rompe la compilación de expo-modules-jsi.

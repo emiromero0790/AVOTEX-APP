@@ -29,7 +29,15 @@ export default function RootLayout() {
   });
 
   if (!fontsLoaded) {
-    return <View style={styles.loadingScreen} />;
+    return (
+      <View style={styles.loadingScreen}>
+        <Image
+          source={require('../assets/images/AvotexNuevoLogo.png')}
+          style={styles.loadingLogo}
+          resizeMode="contain"
+        />
+      </View>
+    );
   }
 
   return (
@@ -55,7 +63,14 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   loadingScreen: {
     flex: 1,
-    backgroundColor: '#071D1D',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  loadingLogo: {
+    width: '82%',
+    maxWidth: 420,
+    height: 240,
   },
   toastContainer: {
     flexDirection: 'row',

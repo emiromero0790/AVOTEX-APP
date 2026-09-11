@@ -31,6 +31,15 @@
     "plugins": [
       "expo-router",
       [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/images/AvotexNuevoLogo.png",
+          "imageWidth": 320,
+          "resizeMode": "contain"
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "ios": {

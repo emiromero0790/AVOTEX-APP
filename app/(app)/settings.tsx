@@ -41,7 +41,7 @@ const translations: TranslationResource = {
   language: { es: 'Idioma de la aplicación', en: 'App language' },
   languageSubtitle: { es: 'Elige cómo quieres ver Avotex', en: 'Choose how you want to view Avotex' },
   information: { es: 'INFORMACIÓN', en: 'INFORMATION' },
-  avotexSubtitle: { es: 'Detección y seguimiento agrícola', en: 'Agricultural detection and monitoring' },
+  avotexSubtitle: { es: 'Versión 1.0.1', en: 'Version 1.0.1' },
   footer: {
     es: 'La ubicación está activada por defecto y puedes cambiarla aquí cuando quieras.',
     en: 'Location is enabled by default and you can change it here at any time.',

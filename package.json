@@ -10,9 +10,9 @@
     "lint": "expo lint",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "eas:build:ios": "/home/runner/workspace/.config/npm/node_global/bin/eas build --platform ios",
-    "eas:build:android": "/home/runner/workspace/.config/npm/node_global/bin/eas build --platform android",
-    "eas:build:preview": "/home/runner/workspace/.config/npm/node_global/bin/eas build --profile preview --platform all"
+    "eas:build:ios": "eas build --platform ios",
+    "eas:build:android": "eas build --platform android",
+    "eas:build:preview": "eas build --profile preview --platform all"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
@@ -27,6 +27,7 @@
     "@react-navigation/native": "^7.1.8",
     "@supabase/supabase-js": "^2.109.0",
     "axios": "^1.20.0",
+    "eas-cli": "^24.3.0",
     "expo": "^57.0.0",
     "expo-asset": "~57.0.16",
     "expo-blur": "~57.0.2",

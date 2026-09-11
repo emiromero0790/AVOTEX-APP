@@ -7,8 +7,46 @@ import { Eraser, MapPin, MapPinOff, Navigation, Pencil, Save, X } from 'lucide-r
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 import PolygonMap, { PolygonMapHandle } from '../../components/PolygonMap';
+import { TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 
 const LOCATION_SETTING_KEY = 'avotex_share_location';
+const mappingTranslations: TranslationResource = {
+  searching: { es: 'Buscando ubicación', en: 'Searching for location' },
+  preciseReading: { es: 'Obteniendo una lectura precisa del GPS…', en: 'Getting a precise GPS reading…' },
+  gettingPrecise: { es: 'Obteniendo tu ubicación precisa…', en: 'Getting your precise location…' },
+  disabled: { es: 'Ubicación desactivada', en: 'Location disabled' },
+  enableSettings: { es: 'Actívala desde Ajustes para usar el mapa.', en: 'Enable it in Settings to use the map.' },
+  disabledNotice: { es: 'La ubicación está desactivada en Ajustes.', en: 'Location is disabled in Settings.' },
+  permissionNotice: { es: 'Activa el permiso de ubicación para mostrar tu posición en el mapa.', en: 'Enable location permission to show your position on the map.' },
+  unavailable: { es: 'Ubicación no disponible', en: 'Location unavailable' },
+  devicePermission: { es: 'Activa el permiso de ubicación en tu dispositivo.', en: 'Enable location permission on your device.' },
+  readyAccuracy: { es: 'Ubicación lista · precisión aproximada de {meters} m.', en: 'Location ready · approximate accuracy of {meters} m.' },
+  ready: { es: 'Ubicación precisa lista.', en: 'Precise location ready.' },
+  gpsError: { es: 'No pudimos obtener tu ubicación. Revisa que el GPS esté activo e inténtalo de nuevo.', en: 'We could not get your location. Check that GPS is active and try again.' },
+  gpsCheck: { es: 'Revisa que el GPS esté activo.', en: 'Check that GPS is active.' },
+  current: { es: 'Ubicación actual', en: 'Current location' },
+  boundaryReady: { es: 'Delimitación lista para guardar.', en: 'Boundary ready to save.' },
+  tapCorners: { es: 'Toca cada esquina de tu huerta.', en: 'Tap each corner of your garden.' },
+  drawInstruction: { es: 'Toca cada esquina de tu huerta y cierra la figura en el primer punto.', en: 'Tap each corner of your garden and close the shape at the first point.' },
+  cleared: { es: 'Delimitación borrada. Puedes comenzar de nuevo.', en: 'Boundary cleared. You can start again.' },
+  waiting: { es: 'Esperaremos una lectura precisa antes de mostrar el mapa.', en: 'We will wait for a precise reading before showing the map.' },
+  enableShare: { es: 'Activa Compartir ubicación en Ajustes para mostrar y delimitar tu huerta.', en: 'Enable Share location in Settings to show and outline your garden.' },
+  eyebrow: { es: 'TU UBICACIÓN', en: 'YOUR LOCATION' },
+  title: { es: 'Delimita tu huerta', en: 'Outline your garden' },
+  points: { es: '{count} pts', en: '{count} pts' },
+  draw: { es: 'Dibujar', en: 'Draw' },
+  erase: { es: 'Borrar', en: 'Erase' },
+  drawLabel: { es: 'Dibujar delimitación', en: 'Draw boundary' },
+  eraseLabel: { es: 'Borrar delimitación', en: 'Erase boundary' },
+  preview: { es: 'VISTA PREVIA', en: 'PREVIEW' },
+  zone: { es: 'Zona delimitada', en: 'Outlined area' },
+  closePreview: { es: 'Cerrar vista previa', en: 'Close preview' },
+  marked: { es: 'PUNTOS MARCADOS', en: 'MARKED POINTS' },
+  pointCount: { es: '{count} puntos', en: '{count} points' },
+  contour: { es: 'Contorno listo', en: 'Outline ready' },
+  save: { es: 'Guardar delimitación', en: 'Save boundary' },
+  saveLabel: { es: 'Guardar delimitación', en: 'Save boundary' },
+};
 
 type PolygonPoint = {
   latitude: number;
@@ -16,12 +54,14 @@ type PolygonPoint = {
 };
 
 export default function Mapping() {
+  const t = useTranslations(mappingTranslations);
+  const { locale } = useLanguage();
   useFonts({ Poppins_400Regular });
   const mapRef = useRef<PolygonMapHandle>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [locationTitle, setLocationTitle] = useState('Buscando ubicación');
-  const [locationDetail, setLocationDetail] = useState('Obteniendo una lectura precisa del GPS…');
-  const [notice, setNotice] = useState<string | null>('Obteniendo tu ubicación precisa…');
+  const [locationTitle, setLocationTitle] = useState(t('searching'));
+  const [locationDetail, setLocationDetail] = useState(t('preciseReading'));
+  const [notice, setNotice] = useState<string | null>(t('gettingPrecise'));
   const [polygon, setPolygon] = useState<PolygonPoint[]>([]);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [locationEnabled, setLocationEnabled] = useState(true);
@@ -40,37 +80,37 @@ export default function Mapping() {
           setLocation(null);
           setPolygon([]);
           setPreviewVisible(false);
-          setLocationTitle('Ubicación desactivada');
-          setLocationDetail('Actívala desde Ajustes para usar el mapa.');
-          setNotice('La ubicación está desactivada en Ajustes.');
+          setLocationTitle(t('disabled'));
+          setLocationDetail(t('enableSettings'));
+          setNotice(t('disabledNotice'));
           return;
         }
 
         try {
-          setLocationTitle('Buscando ubicación');
-          setLocationDetail('Obteniendo una lectura precisa del GPS…');
-          setNotice('Obteniendo tu ubicación precisa…');
+          setLocationTitle(t('searching'));
+          setLocationDetail(t('preciseReading'));
+          setNotice(t('gettingPrecise'));
         const permission = await Location.requestForegroundPermissionsAsync();
         if (!active) return;
         if (permission.status !== 'granted') {
-          setNotice('Activa el permiso de ubicación para mostrar tu posición en el mapa.');
-          setLocationTitle('Ubicación no disponible');
-          setLocationDetail('Activa el permiso de ubicación en tu dispositivo.');
+          setNotice(t('permissionNotice'));
+          setLocationTitle(t('unavailable'));
+          setLocationDetail(t('devicePermission'));
           return;
         }
-        setNotice('Obteniendo tu ubicación precisa…');
+        setNotice(t('gettingPrecise'));
         const current = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Highest,
         });
         if (active) {
           setLocation(current);
-          setLocationTitle('Ubicación actual');
+           setLocationTitle(t('current'));
           setLocationDetail(`${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}`);
           const accuracy = current.coords.accuracy;
           setNotice(
             typeof accuracy === 'number'
-              ? `Ubicación lista · precisión aproximada de ${Math.round(accuracy)} m.`
-              : 'Ubicación precisa lista.',
+              ? t('readyAccuracy', { meters: Math.round(accuracy) })
+              : t('ready'),
           );
         }
 
@@ -85,21 +125,21 @@ export default function Mapping() {
               const secondary = [address.district, address.city, address.region]
                 .filter((part, index, parts) => part && parts.indexOf(part) === index)
                 .join(', ');
-              setLocationTitle(primary || 'Ubicación actual');
+               setLocationTitle(primary || t('current'));
               setLocationDetail(secondary || `${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}`);
             }
           } catch {
             if (active) {
-              setLocationTitle('Ubicación actual');
+               setLocationTitle(t('current'));
               setLocationDetail(`${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}`);
             }
           }
         }
         } catch {
           if (active) {
-            setNotice('No pudimos obtener tu ubicación. Revisa que el GPS esté activo e inténtalo de nuevo.');
-            setLocationTitle('Ubicación no disponible');
-            setLocationDetail('Revisa que el GPS esté activo.');
+             setNotice(t('gpsError'));
+             setLocationTitle(t('unavailable'));
+             setLocationDetail(t('gpsCheck'));
           }
         }
       };
@@ -108,7 +148,7 @@ export default function Mapping() {
       return () => {
         active = false;
       };
-    }, []),
+    }, [t, locale]),
   );
 
   return (
@@ -121,10 +161,10 @@ export default function Mapping() {
             onPolygonChange={(points: PolygonPoint[]) => {
               setPolygon(points);
               if (points.length >= 3) {
-                setNotice('Delimitación lista para guardar.');
+                 setNotice(t('boundaryReady'));
                 setPreviewVisible(true);
               } else {
-                setNotice('Toca cada esquina de tu huerta.');
+                 setNotice(t('tapCorners'));
               }
             }}
           />
@@ -136,12 +176,12 @@ export default function Mapping() {
                 : <MapPinOff size={31} color="#0D756B" />}
             </View>
             <Text style={styles.locationLoadingTitle}>
-              {locationEnabled ? 'Buscando tu ubicación' : 'Ubicación desactivada'}
+               {locationEnabled ? t('searching') : t('disabled')}
             </Text>
             <Text style={styles.locationLoadingText}>
               {locationEnabled
-                ? 'Esperaremos una lectura precisa antes de mostrar el mapa.'
-                : 'Activa Compartir ubicación en Ajustes para mostrar y delimitar tu huerta.'}
+                 ? t('waiting')
+                 : t('enableShare')}
             </Text>
           </View>
         )}
@@ -152,7 +192,7 @@ export default function Mapping() {
           <Navigation size={20} color="#FFFFFF" fill="#FFFFFF" />
         </View>
         <View style={styles.locationCopy}>
-          <Text style={styles.locationEyebrow}>TU UBICACIÓN</Text>
+           <Text style={styles.locationEyebrow}>{t('eyebrow')}</Text>
           <Text style={styles.locationCardTitle} numberOfLines={1}>{locationTitle}</Text>
           <Text style={styles.locationCardDetail} numberOfLines={1}>{locationDetail}</Text>
         </View>
@@ -162,11 +202,11 @@ export default function Mapping() {
       <BlurView intensity={55} tint="light" style={styles.bottomPanel}>
         <View style={styles.panelCopy}>
           <View>
-            <Text style={styles.title}>Delimita tu huerta</Text>
+           <Text style={styles.title}>{t('title')}</Text>
           </View>
           <View style={[styles.pointBadge, polygon.length >= 3 && styles.pointBadgeReady]}>
             <Text style={[styles.pointBadgeText, polygon.length >= 3 && styles.pointBadgeTextReady]}>
-              {polygon.length} pts
+               {t('points', { count: polygon.length })}
             </Text>
           </View>
         </View>
@@ -174,12 +214,12 @@ export default function Mapping() {
         <View style={styles.actions}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Dibujar delimitación"
+                 accessibilityLabel={t('drawLabel')}
             accessibilityState={{ disabled: !location }}
             disabled={!location}
             onPress={() => {
               mapRef.current?.startDrawing();
-              setNotice('Toca cada esquina de tu huerta y cierra la figura en el primer punto.');
+               setNotice(t('drawInstruction'));
             }}
             style={({ pressed }) => [
               styles.actionButton,
@@ -188,18 +228,18 @@ export default function Mapping() {
             ]}
           >
             <Pencil size={20} color="#176B62" />
-            <Text style={styles.actionLabel}>Dibujar</Text>
+             <Text style={styles.actionLabel}>{t('draw')}</Text>
           </Pressable>
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Borrar delimitación"
+             accessibilityLabel={t('eraseLabel')}
             accessibilityState={{ disabled: !location || polygon.length === 0 }}
             disabled={!location || polygon.length === 0}
             onPress={() => {
               mapRef.current?.clearDrawing();
               setPolygon([]);
-              setNotice('Delimitación borrada. Puedes comenzar de nuevo.');
+               setNotice(t('cleared'));
             }}
             style={({ pressed }) => [
               styles.actionButton,
@@ -208,7 +248,7 @@ export default function Mapping() {
             ]}
           >
             <Eraser size={20} color="#D1534A" />
-            <Text style={styles.actionLabel}>Borrar</Text>
+             <Text style={styles.actionLabel}>{t('erase')}</Text>
           </Pressable>
 
         </View>
@@ -226,12 +266,12 @@ export default function Mapping() {
             <View style={styles.previewHandle} />
             <View style={styles.previewHeader}>
               <View>
-                <Text style={styles.previewEyebrow}>VISTA PREVIA</Text>
-                <Text style={styles.previewTitle}>Zona delimitada</Text>
+                <Text style={styles.previewEyebrow}>{t('preview')}</Text>
+                <Text style={styles.previewTitle}>{t('zone')}</Text>
               </View>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Cerrar vista previa"
+                 accessibilityLabel={t('closePreview')}
                 onPress={() => setPreviewVisible(false)}
                 style={({ pressed }) => [styles.previewClose, pressed && styles.actionPressed]}
               >
@@ -251,22 +291,22 @@ export default function Mapping() {
 
             <View style={styles.previewInfo}>
               <View>
-                <Text style={styles.previewInfoLabel}>PUNTOS MARCADOS</Text>
-                <Text style={styles.previewInfoValue}>{polygon.length} puntos</Text>
+                <Text style={styles.previewInfoLabel}>{t('marked')}</Text>
+                <Text style={styles.previewInfoValue}>{t('pointCount', { count: polygon.length })}</Text>
               </View>
               <View style={styles.previewStatus}>
                 <View style={styles.previewStatusDot} />
-                <Text style={styles.previewStatusText}>Contorno listo</Text>
+                 <Text style={styles.previewStatusText}>{t('contour')}</Text>
               </View>
             </View>
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Guardar delimitación"
+               accessibilityLabel={t('saveLabel')}
               style={({ pressed }) => [styles.previewSaveButton, pressed && styles.saveButtonPressed]}
             >
               <Save size={18} color="#FFFFFF" />
-              <Text style={styles.previewSaveButtonText}>Guardar delimitación</Text>
+               <Text style={styles.previewSaveButtonText}>{t('save')}</Text>
             </Pressable>
           </View>
         </Pressable>

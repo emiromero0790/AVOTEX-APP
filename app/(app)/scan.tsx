@@ -22,6 +22,51 @@ import { auth } from "../../firebaseConfig";
 import { User, onAuthStateChanged } from "firebase/auth";
 import { supabase } from "../../supabaseConfig";
 import { useGuest, GUEST_MAX_SCANS } from "../../context/GuestContext";
+import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations } from "../../context/LanguageContext";
+
+const scanTranslations: TranslationResource = {
+  cameraAccess: { es: "Necesitamos acceso a la cámara", en: "Camera access is required" },
+  continue: { es: "Continuar", en: "Continue" },
+  saved: { es: "Diagnóstico Guardado", en: "Diagnosis Saved" },
+  saveError: { es: "Error al Guardar", en: "Save Error" },
+  saveErrorDetail: { es: "No se pudieron guardar los datos.", en: "The data could not be saved." },
+  guestLimit: { es: "Límite alcanzado", en: "Limit reached" },
+  guestLimitDetail: { es: "Crea una cuenta para continuar escaneando.", en: "Create an account to keep scanning." },
+  noTokens: { es: "Sin Tokens disponibles", en: "No Tokens available" },
+  noTokensDetail: { es: "Contacta a VEX para obtener más Tokens.", en: "Contact VEX to get more Tokens." },
+  analyzeError: { es: "No se pudo analizar la imagen", en: "The image could not be analyzed" },
+  tryAgain: { es: "Intenta de nuevo.", en: "Try again." },
+  captureError: { es: "Error de captura", en: "Capture error" },
+  confidence: { es: "Confianza: {percent}%", en: "Confidence: {percent}%" },
+  accept: { es: "Aceptar", en: "Accept" },
+  cameraTitle: { es: "Uso de la cámara e imágenes", en: "Camera and image use" },
+  cameraSubtitle: { es: "Importante leer antes de escanear", en: "Important: read before scanning" },
+  guestTokens: { es: "Modo invitado: tienes {tokens} Tokens disponibles", en: "Guest mode: you have {tokens} Tokens available" },
+  tokensAvailable: { es: "Tienes {tokens} Tokens disponibles", en: "You have {tokens} Tokens available" },
+  loadingTokens: { es: "Cargando Tokens...", en: "Loading Tokens..." },
+  howScan: { es: "¿Cómo funciona el escaneo?", en: "How does scanning work?" },
+  howScanBody: { es: "La cámara captura una foto del cultivo o fruto y la envía a nuestra IA para su análisis en tiempo real. El modelo detecta el tipo de fruta y su estado de salud.", en: "The camera captures a photo of the crop or fruit and sends it to our AI for real-time analysis. The model detects the type of fruit and its health condition." },
+  imageUse: { es: "Uso de imágenes (IMPORTANTE)", en: "Image use (IMPORTANT)" },
+  noStore: { es: "Las imágenes NO se almacenan en servidores ni bases de datos", en: "Images are NOT stored on servers or databases" },
+  temporary: { es: "Se envían temporalmente a una API de Inteligencia Artificial para su análisis", en: "They are temporarily sent to an Artificial Intelligence API for analysis" },
+  deleted: { es: "Una vez procesadas, la imagen se elimina y no se conserva", en: "Once processed, the image is deleted and not retained" },
+  whatSaved: { es: "✅ ¿Qué sí se guarda?", en: "✅ What is saved?" },
+  guestNotSaved: { es: "En modo invitado, los resultados no se guardan en ninguna base de datos.", en: "In guest mode, results are not saved to any database." },
+  savedDetail: { es: "Solo se almacena el resultado: el tipo de fruta detectada, el diagnóstico de salud y el porcentaje de confianza.", en: "Only the result is stored: the detected fruit type, health diagnosis, and confidence percentage." },
+  understood: { es: "Entendido, continuar", en: "Understood, continue" },
+  usedAll: { es: "Has utilizado todos tus Tokens.\nContacta a VEX para recargar tu cuenta.", en: "You have used all your Tokens.\nContact VEX to recharge your account." },
+  guestReached: { es: "Has alcanzado el límite del modo invitado.\nCrea una cuenta para continuar escaneando.", en: "You have reached the guest mode limit.\nCreate an account to keep scanning." },
+  account: { es: "Crear cuenta / Iniciar sesión", en: "Create account / Sign in" },
+  scan: { es: "Escanear Fruto", en: "Scan Fruit" },
+  aim: { es: "Apunta al fruto para analizarlo", en: "Point at the fruit to analyze it" },
+  remaining: { es: "{tokens} Tokens restantes", en: "{tokens} Tokens remaining" },
+  analyzing: { es: "Analizando", en: "Analyzing" },
+  saving: { es: "Guardando", en: "Saving" },
+  analyzingDetail: { es: "Detectando fruto y estado del cultivo...", en: "Detecting fruit and crop condition..." },
+  savingDetail: { es: "Tu diagnóstico se está guardando...", en: "Your diagnosis is being saved..." },
+  flipCamera: { es: "Cambiar cámara", en: "Switch camera" },
+  takePhoto: { es: "Tomar foto", en: "Take photo" },
+};
 
 const IA_ROW_ID = '7293688b-1ee9-469c-9679-d69d9a1089a5';
 
@@ -50,6 +95,8 @@ const isHealthyLabel = (label: string) =>
   HEALTHY_LABELS.some((h) => label.toLowerCase().includes(h));
 
 export default function Scan() {
+  const t = useTranslations(scanTranslations);
+  const { locale, language } = useLanguage();
   const [permission, requestPermission] = useCameraPermissions();
   const [type, setType] = useState<CameraType>("back");
   const [prediction, setPrediction] = useState<NormalizedPrediction | null>(null);
@@ -165,13 +212,13 @@ export default function Scan() {
       };
       const { error } = await supabase.from("scans").insert([scanRecord]);
       if (error) throw error;
-      Toast.show({ type: "success", text1: "Diagnóstico Guardado" });
+        Toast.show({ type: "success", text1: t("saved") });
     } catch (error) {
       console.error("Error al guardar datos en Supabase:", error);
       Toast.show({
         type: "error",
-        text1: "Error al Guardar",
-        text2: "No se pudieron guardar los datos.",
+        text1: t("saveError"),
+        text2: t("saveErrorDetail"),
       });
     } finally {
       setIsSaving(false);
@@ -231,8 +278,8 @@ export default function Scan() {
       if (!allowed) {
         Toast.show({
           type: "error",
-          text1: "Límite alcanzado",
-          text2: "Crea una cuenta para continuar escaneando.",
+          text1: t("guestLimit"),
+          text2: t("guestLimitDetail"),
         });
         return;
       }
@@ -240,8 +287,8 @@ export default function Scan() {
       if (userTokens !== null && userTokens <= 0) {
         Toast.show({
           type: "error",
-          text1: "Sin Tokens disponibles",
-          text2: "Contacta a VEX para obtener más Tokens.",
+          text1: t("noTokens"),
+          text2: t("noTokensDetail"),
         });
         return;
       }
@@ -272,11 +319,11 @@ export default function Scan() {
         }
       } else {
         setPrediction(null);
-        Toast.show({ type: "error", text1: "No se pudo analizar la imagen", text2: "Intenta de nuevo." });
+        Toast.show({ type: "error", text1: t("analyzeError"), text2: t("tryAgain") });
       }
     } catch (e) {
       console.error("Error capturando o procesando foto:", e);
-      Toast.show({ type: "error", text1: "Error de captura" });
+      Toast.show({ type: "error", text1: t("captureError") });
     } finally {
       setIsProcessing(false);
       isBusyRef.current = false;
@@ -288,9 +335,9 @@ export default function Scan() {
   if (!permission.granted) {
     return (
       <View style={styles.container}>
-        <Text style={styles.text}>Necesitamos acceso a la cámara</Text>
+        <Text style={styles.text}>{t("cameraAccess")}</Text>
         <TouchableOpacity style={styles.button} onPress={requestPermission}>
-          <Text style={styles.buttonText}>Continuar</Text>
+          <Text style={styles.buttonText}>{t("continue")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -314,10 +361,10 @@ export default function Scan() {
            <View style={styles.predictionMarker} />
           <View style={styles.predictionInfo}>
             <Text style={[styles.predictionLabel, isTablet && styles.predictionLabelTablet]}>
-              {prediction.fruit.class_name}
+              {localizeDomainLabel(prediction.fruit.class_name, language)}
             </Text>
             <Text style={[styles.predictionSub, isTablet && styles.predictionSubTablet]}>
-              Confianza: {fruitPct}%
+               {t("confidence", { percent: fruitPct })}
             </Text>
           </View>
         </View>
@@ -333,10 +380,10 @@ export default function Scan() {
               isTablet && styles.predictionLabelTablet,
               { color: healthy ? "#86efac" : "#fca5a5" },
             ]}>
-              {prediction.state.class_name}
+              {localizeDomainLabel(prediction.state.class_name, language)}
             </Text>
             <Text style={[styles.predictionSub, isTablet && styles.predictionSubTablet]}>
-              Confianza: {statePct}%
+               {t("confidence", { percent: statePct })}
             </Text>
           </View>
         </View>
@@ -348,7 +395,7 @@ export default function Scan() {
           activeOpacity={0.75}
         >
           <Text style={[styles.acceptButtonText, isTablet && styles.acceptButtonTextTablet]}>
-            Aceptar
+             {t("accept")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -376,8 +423,8 @@ export default function Scan() {
               <Shield size={30} color="#0f766e" />
             </View>
 
-            <Text style={[styles.modalTitle, isTablet && styles.modalTitleTablet]}>Uso de la cámara e imágenes</Text>
-            <Text style={[styles.modalSubtitle, isTablet && styles.modalSubtitleTablet]}>Importante leer antes de escanear</Text>
+            <Text style={[styles.modalTitle, isTablet && styles.modalTitleTablet]}>{t("cameraTitle")}</Text>
+            <Text style={[styles.modalSubtitle, isTablet && styles.modalSubtitleTablet]}>{t("cameraSubtitle")}</Text>
 
             <ScrollView
               style={styles.modalScroll}
@@ -389,45 +436,45 @@ export default function Scan() {
               <View style={styles.guestScanInfo}>
                 <Text style={styles.guestScanInfoText}>
                   {isGuest
-                    ? <>Modo invitado: tienes <Text style={styles.guestScanCount}>{(guestScansLeft * 100).toLocaleString('es-MX')} Tokens</Text> disponibles</>
+                    ? <>{t("guestTokens", { tokens: (guestScansLeft * 100).toLocaleString(locale) })}</>
                     : userTokens !== null
-                      ? <>Tienes <Text style={styles.guestScanCount}>{(userTokens * 100).toLocaleString('es-MX')} Tokens</Text> disponibles</>
-                      : <>Cargando Tokens...</>
+                      ? <>{t("tokensAvailable", { tokens: (userTokens * 100).toLocaleString(locale) })}</>
+                      : <>{t("loadingTokens")}</>
                   }
                 </Text>
               </View>
 
               <View style={styles.modalSection}>
-                <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>¿Cómo funciona el escaneo?</Text>
+                <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>{t("howScan")}</Text>
                 <Text style={[styles.modalBodyText, isTablet && styles.modalBodyTextTablet]}>
-                  La cámara captura una foto del cultivo o fruto y la envía a nuestra IA para su análisis en tiempo real. El modelo detecta el tipo de fruta y su estado de salud.
+                  {t("howScanBody")}
                 </Text>
               </View>
 
               <View style={styles.modalSection}>
-                <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>Uso de imágenes (IMPORTANTE)</Text>
+                <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>{t("imageUse")}</Text>
                 <View style={styles.highlightBox}>
                   <View style={styles.bulletRow}>
                     <Text style={styles.bulletDot}>•</Text>
-                    <Text style={[styles.bulletText, styles.boldText]}>Las imágenes NO se almacenan en servidores ni bases de datos</Text>
+                     <Text style={[styles.bulletText, styles.boldText]}>{t("noStore")}</Text>
                   </View>
                   <View style={styles.bulletRow}>
                     <Text style={styles.bulletDot}>•</Text>
-                    <Text style={styles.bulletText}>Se envían temporalmente a una API de Inteligencia Artificial para su análisis</Text>
+                     <Text style={styles.bulletText}>{t("temporary")}</Text>
                   </View>
                   <View style={styles.bulletRow}>
                     <Text style={styles.bulletDot}>•</Text>
-                    <Text style={[styles.bulletText, styles.boldText]}>Una vez procesadas, la imagen se elimina y no se conserva</Text>
+                     <Text style={[styles.bulletText, styles.boldText]}>{t("deleted")}</Text>
                   </View>
                 </View>
               </View>
 
               <View style={styles.modalSection}>
-                <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>✅ ¿Qué sí se guarda?</Text>
+                <Text style={[styles.modalSectionTitle, isTablet && styles.modalSectionTitleTablet]}>{t("whatSaved")}</Text>
                 <Text style={[styles.modalBodyText, isTablet && styles.modalBodyTextTablet]}>
                   {isGuest
-                    ? "En modo invitado, los resultados no se guardan en ninguna base de datos."
-                    : "Solo se almacena el resultado: el tipo de fruta detectada, el diagnóstico de salud y el porcentaje de confianza."}
+                     ? t("guestNotSaved")
+                     : t("savedDetail")}
                 </Text>
               </View>
             </ScrollView>
@@ -438,7 +485,7 @@ export default function Scan() {
                 onPress={() => { setScanAccepted(true); setScanModalVisible(false); }}
               >
                 <LinearGradient colors={['#34d399', '#0f766e']} style={styles.acceptBtnGrad}>
-                  <Text style={[styles.acceptBtnText, isTablet && styles.acceptBtnTextTablet]}>Entendido, continuar</Text>
+                  <Text style={[styles.acceptBtnText, isTablet && styles.acceptBtnTextTablet]}>{t("understood")}</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -455,12 +502,12 @@ export default function Scan() {
               <Lock size={36} color="#0f766e" />
             </View>
             <Text style={[styles.limitTitle, isTablet && styles.limitTitleTablet]}>
-              {userLimitReached ? 'Sin Tokens disponibles' : 'Límite alcanzado'}
+               {userLimitReached ? t("noTokens") : t("guestLimit")}
             </Text>
             <Text style={[styles.limitBody, isTablet && styles.limitBodyTablet]}>
               {userLimitReached
-                ? 'Has utilizado todos tus Tokens.\nContacta a VEX para recargar tu cuenta.'
-                : 'Has alcanzado el límite del modo invitado.\nCrea una cuenta para continuar escaneando.'}
+                 ? t("usedAll")
+                 : t("guestReached")}
             </Text>
             {guestLimitReached && (
               <TouchableOpacity
@@ -468,7 +515,7 @@ export default function Scan() {
                 onPress={() => router.replace('/(auth)')}
               >
                 <LinearGradient colors={['#34d399', '#0f766e']} style={styles.limitBtnGrad}>
-                  <Text style={[styles.limitBtnText, isTablet && styles.limitBtnTextTablet]}>Crear cuenta / Iniciar sesión</Text>
+                  <Text style={[styles.limitBtnText, isTablet && styles.limitBtnTextTablet]}>{t("account")}</Text>
                 </LinearGradient>
               </TouchableOpacity>
             )}
@@ -478,18 +525,18 @@ export default function Scan() {
         <CameraView style={styles.camera} type={type} ref={cameraRef} facing={type}>
           <View style={styles.overlay}>
             <View style={[styles.header, isTablet && styles.headerTablet]}>
-              <Text style={[styles.headerText, isTablet && styles.headerTextTablet]}>Escanear Fruto</Text>
-              <Text style={[styles.headerSubtext, isTablet && styles.headerSubtextTablet]}>Apunta al fruto para analizarlo</Text>
+               <Text style={[styles.headerText, isTablet && styles.headerTextTablet]}>{t("scan")}</Text>
+               <Text style={[styles.headerSubtext, isTablet && styles.headerSubtextTablet]}>{t("aim")}</Text>
               {isGuest ? (
                 <View style={[styles.guestCounter, isTablet && styles.guestCounterTablet]}>
                   <Text style={[styles.guestCounterText, isTablet && styles.guestCounterTextTablet]}>
-                    {(guestScansLeft * 100).toLocaleString('es-MX')} Tokens restantes
+                     {t("remaining", { tokens: (guestScansLeft * 100).toLocaleString(locale) })}
                   </Text>
                 </View>
               ) : userTokens !== null ? (
                 <View style={[styles.guestCounter, isTablet && styles.guestCounterTablet]}>
                   <Text style={[styles.guestCounterText, isTablet && styles.guestCounterTextTablet]}>
-                    {(userTokens * 100).toLocaleString('es-MX')} Tokens disponibles
+                     {t("tokensAvailable", { tokens: (userTokens * 100).toLocaleString(locale) })}
                   </Text>
                 </View>
               ) : null}
@@ -505,6 +552,8 @@ export default function Scan() {
             <View style={[styles.controls, isTablet && styles.controlsTablet]}>
               <TouchableOpacity
                 style={[styles.flipButton, isTablet && styles.flipButtonTablet]}
+                accessibilityRole="button"
+                accessibilityLabel={t("flipCamera")}
                 onPress={toggleCameraType}
                 disabled={isProcessing}
               >
@@ -518,6 +567,8 @@ export default function Scan() {
                   (isProcessing || isSaving) && styles.captureButtonDisabled,
                 ]}
                 onPress={takePicture}
+                accessibilityRole="button"
+                accessibilityLabel={t("takePhoto")}
                 disabled={isProcessing || isSaving}
               >
                 <View style={[styles.captureButtonInner, isTablet && styles.captureButtonInnerTablet]}>
@@ -541,10 +592,10 @@ export default function Scan() {
                <View style={styles.fruitSpinnerMark} />
             </Animated.View>
             <Text style={[styles.savingTitle, isTablet && styles.savingTitleTablet]}>
-              {isSaving ? "Guardando" : "Analizando"}
+               {isSaving ? t("saving") : t("analyzing")}
             </Text>
             <Text style={[styles.savingSubtitle, isTablet && styles.savingSubtitleTablet]}>
-              {isSaving ? "Tu diagnóstico se está guardando..." : "Detectando fruto y estado del cultivo..."}
+               {isSaving ? t("savingDetail") : t("analyzingDetail")}
             </Text>
           </View>
         </View>

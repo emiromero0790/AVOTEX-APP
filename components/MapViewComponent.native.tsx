@@ -1,6 +1,12 @@
 import React from 'react';
 import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { TranslationResource, useTranslations } from '../context/LanguageContext';
+
+const translations: TranslationResource = {
+  loading: { es: 'Cargando ubicación 🥑...', en: 'Loading location 🥑...' },
+  unavailable: { es: 'Ubicación no disponible', en: 'Location unavailable' },
+};
 
 function buildMapHTML(lat: number, lng: number): string {
   return `<!DOCTYPE html>
@@ -57,12 +63,13 @@ export default function MapViewComponent({
   errorMsg: string | null;
   compact?: boolean;
 }) {
+  const t = useTranslations(translations);
   if (!location || !location.coords) {
     return (
       <View style={[styles.loadingContainer, compact && styles.compactContainer]}>
         <ActivityIndicator size="large" color="#16a34a" />
         <Text style={styles.loadingText}>
-          {errorMsg ?? 'Cargando ubicación 🥑...'}
+          {errorMsg ?? t('loading')}
         </Text>
       </View>
     );
@@ -74,7 +81,7 @@ export default function MapViewComponent({
       typeof longitude !== 'number' || isNaN(longitude)) {
     return (
       <View style={[styles.loadingContainer, compact && styles.compactContainer]}>
-        <Text style={styles.loadingText}>Ubicación no disponible</Text>
+        <Text style={styles.loadingText}>{t('unavailable')}</Text>
       </View>
     );
   }

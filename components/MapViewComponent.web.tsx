@@ -2,6 +2,11 @@
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { TranslationResource, useTranslations } from '../context/LanguageContext';
+
+const translations: TranslationResource = {
+  mobileOnly: { es: '🗺️ El mapa solo está disponible en la app móvil.', en: '🗺️ The map is only available in the mobile app.' },
+};
 
 type MapViewComponentProps = {
   location: unknown;
@@ -10,9 +15,10 @@ type MapViewComponentProps = {
 };
 
 export default function MapViewComponent({ location, errorMsg, compact = false }: MapViewComponentProps) {
+  const t = useTranslations(translations);
   return (
     <View style={[styles.container, compact && styles.compactContainer]}>
-      <Text style={styles.text}>🗺️ El mapa solo está disponible en la app móvil.</Text>
+      <Text style={styles.text}>{t('mobileOnly')}</Text>
     </View>
   );
 }

@@ -3,12 +3,18 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Slider from '@react-native-community/slider';
+import { TranslationResource, useTranslations } from '../context/LanguageContext';
+
+const translations: TranslationResource = {
+  zoneSize: { es: 'Tamaño de la zona:', en: 'Area size:' },
+};
 
 // Este componente recibe el valor actual (offset) y la función para cambiarlo (onOffsetChange)
 export default function PolygonSlider({ offset, onOffsetChange }) {
+  const t = useTranslations(translations);
   return (
     <View style={styles.sliderContainer}>
-      <Text style={styles.sliderLabel}>Tamaño de la zona:</Text>
+      <Text style={styles.sliderLabel}>{t('zoneSize')}</Text>
       <Slider
         style={{ width: '100%', height: 40 }}
         minimumValue={0.0005}

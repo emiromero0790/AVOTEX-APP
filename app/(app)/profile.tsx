@@ -33,8 +33,15 @@ import {
 import { auth } from '../../firebaseConfig';
 import { supabase } from '../../supabaseConfig';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
+import { TranslationResource, useTranslations, useLanguage } from '../../context/LanguageContext';
+
+const translations: TranslationResource = {
+  'profile.title': { es: 'Mi Perfil', en: 'My Profile' }, 'profile.account': { es: 'CUENTA', en: 'ACCOUNT' }, 'profile.myAccount': { es: 'Mi cuenta', en: 'My account' }, 'profile.balance': { es: 'SALDO', en: 'BALANCE' }, 'profile.tokens': { es: 'Mis Tokens', en: 'My Tokens' }, 'profile.available': { es: 'Disponibles para escanear', en: 'Available for scanning' }, 'profile.session': { es: 'SESIÓN', en: 'SESSION' }, 'profile.signOut': { es: 'Cerrar sesión', en: 'Sign out' }, 'profile.security': { es: 'SEGURIDAD', en: 'SECURITY' }, 'profile.changePassword': { es: 'Cambiar contraseña', en: 'Change password' }, 'profile.current': { es: 'Contraseña actual', en: 'Current password' }, 'profile.new': { es: 'Nueva contraseña', en: 'New password' }, 'profile.repeat': { es: 'Repetir nueva contraseña', en: 'Repeat new password' }, 'profile.confirm': { es: 'Confirmar cambio', en: 'Confirm change' }, 'profile.success': { es: 'Contraseña actualizada exitosamente. Inicia sesión nuevamente.', en: 'Password updated successfully. Sign in again.' }, 'profile.login': { es: 'Ir al inicio de sesión', en: 'Go to sign in' }, 'profile.dangerZone': { es: 'ZONA DE PELIGRO', en: 'DANGER ZONE' }, 'profile.dangerTitle': { es: 'Zona de peligro', en: 'Danger zone' }, 'profile.dangerBody': { es: 'Eliminar tu cuenta es una acción {permanent}. Se eliminarán todos tus datos de la aplicación.', en: 'Deleting your account is {permanent}. All your app data will be deleted.' }, 'profile.permanent': { es: 'permanente e irreversible', en: 'permanent and irreversible' }, 'profile.delete': { es: 'Eliminar cuenta', en: 'Delete account' }, 'profile.deleteTitle': { es: '¿Eliminar cuenta?', en: 'Delete account?' }, 'profile.deleteBody': { es: 'Esta acción es permanente e irreversible.\\n\\nSe eliminarán tu cuenta y todos tus datos de la aplicación. No podrás recuperarlos.', en: 'This action is permanent and irreversible.\\n\\nYour account and all app data will be deleted. You cannot recover them.' }, 'profile.type': { es: 'Escribe {phrase} para continuar:', en: 'Type {phrase} to continue:' }, 'profile.cancel': { es: 'Cancelar', en: 'Cancel' }, 'profile.yesDelete': { es: 'Sí, eliminar', en: 'Yes, delete' }, 'profile.required': { es: 'Por favor completa todos los campos.', en: 'Please complete all fields.' }, 'profile.mismatch': { es: 'Las contraseñas nuevas no coinciden.', en: 'The new passwords do not match.' }, 'profile.length': { es: 'La nueva contraseña debe tener al menos 6 caracteres.', en: 'The new password must be at least 6 characters.' }, 'profile.different': { es: 'La nueva contraseña debe ser diferente a la actual.', en: 'The new password must differ from the current one.' }, 'profile.credentials': { es: 'Correo o contraseña actual incorrectos.', en: 'Incorrect email or current password.' }, 'profile.weak': { es: 'La contraseña nueva es demasiado débil.', en: 'The new password is too weak.' }, 'profile.changeError': { es: 'No se pudo cambiar la contraseña. Intenta de nuevo.', en: 'Could not change password. Try again.' }, 'profile.recent': { es: 'Por seguridad, cierra sesión, vuelve a iniciar sesión y luego intenta de nuevo.', en: 'For security, sign out, sign in again, and then try again.' }, 'profile.deleteError': { es: 'No se pudo eliminar la cuenta. Intenta de nuevo.', en: 'Could not delete the account. Try again.' }, 'profile.confirmPhrase': { es: 'ELIMINAR', en: 'DELETE' }, 'profile.deletePrompt': { es: 'Esta acción es', en: 'This action is' },
+};
 
 export default function ProfileScreen() {
+  const t = useTranslations(translations);
+  const { locale } = useLanguage();
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
 
   const currentUser = auth.currentUser;
@@ -61,19 +68,19 @@ export default function ProfileScreen() {
 
   const handleChangePassword = async () => {
     if (!oldPw || !newPw || !confirmPw) {
-      setPwError('Por favor completa todos los campos.');
+      setPwError(t('profile.required'));
       return;
     }
     if (newPw !== confirmPw) {
-      setPwError('Las contraseñas nuevas no coinciden.');
+      setPwError(t('profile.mismatch'));
       return;
     }
     if (newPw.length < 6) {
-      setPwError('La nueva contraseña debe tener al menos 6 caracteres.');
+      setPwError(t('profile.length'));
       return;
     }
     if (newPw === oldPw) {
-      setPwError('La nueva contraseña debe ser diferente a la actual.');
+      setPwError(t('profile.different'));
       return;
     }
     setPwLoading(true);
@@ -93,11 +100,11 @@ export default function ProfileScreen() {
         code === 'auth/invalid-credential' ||
         code === 'auth/user-not-found'
       ) {
-        setPwError('Correo o contraseña actual incorrectos.');
+        setPwError(t('profile.credentials'));
       } else if (code === 'auth/weak-password') {
-        setPwError('La contraseña nueva es demasiado débil.');
+        setPwError(t('profile.weak'));
       } else {
-        setPwError('No se pudo cambiar la contraseña. Intenta de nuevo.');
+        setPwError(t('profile.changeError'));
       }
     } finally {
       setPwLoading(false);
@@ -122,7 +129,7 @@ export default function ProfileScreen() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const CONFIRM_PHRASE = 'ELIMINAR';
+  const CONFIRM_PHRASE = t('profile.confirmPhrase');
 
   const handleDeleteAccount = async () => {
     setDeleteLoading(true);
@@ -137,10 +144,10 @@ export default function ProfileScreen() {
       const code = err?.code ?? '';
       if (code === 'auth/requires-recent-login') {
         setDeleteError(
-          'Por seguridad, cierra sesión, vuelve a iniciar sesión y luego intenta de nuevo.'
+          t('profile.recent')
         );
       } else {
-        setDeleteError('No se pudo eliminar la cuenta. Intenta de nuevo.');
+        setDeleteError(t('profile.deleteError'));
       }
     } finally {
       setDeleteLoading(false);
@@ -158,7 +165,7 @@ export default function ProfileScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
           <ChevronLeft size={24} color="#007AFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mi Perfil</Text>
+        <Text style={styles.headerTitle}>{t('profile.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -168,13 +175,13 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.sectionLabel}>CUENTA</Text>
+        <Text style={styles.sectionLabel}>{t('profile.account')}</Text>
         <View style={styles.avatarCard}>
           <View style={styles.avatarCircle}>
             <User size={36} color="#fff" />
           </View>
           <View style={styles.accountCopy}>
-            <Text style={styles.accountName}>Mi cuenta</Text>
+            <Text style={styles.accountName}>{t('profile.myAccount')}</Text>
             <View style={styles.emailRow}>
               <Mail size={14} color="#8E8E93" />
               <Text style={styles.emailText} numberOfLines={1}>{userEmail}</Text>
@@ -182,25 +189,25 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <Text style={styles.sectionLabel}>SALDO</Text>
+        <Text style={styles.sectionLabel}>{t('profile.balance')}</Text>
         <View style={styles.tokenCard}>
           <View style={styles.tokenCardGrad}>
             <View style={styles.tokenCardLeft}>
               <Coins size={20} color="#FFFFFF" />
             </View>
             <View style={styles.tokenCardRight}>
-              <Text style={styles.tokenCardLabel}>Mis Tokens</Text>
-              <Text style={styles.tokenCardSub}>Disponibles para escanear</Text>
+              <Text style={styles.tokenCardLabel}>{t('profile.tokens')}</Text>
+              <Text style={styles.tokenCardSub}>{t('profile.available')}</Text>
             </View>
             <View style={styles.tokenAmountRow}>
               <Text style={styles.tokenCardAmount}>
-                {userTokens !== null ? (userTokens * 100).toLocaleString('es-MX') : '—'}
+                {userTokens !== null ? (userTokens * 100).toLocaleString(locale) : '—'}
               </Text>
             </View>
           </View>
         </View>
 
-        <Text style={styles.sectionLabel}>SESIÓN</Text>
+        <Text style={styles.sectionLabel}>{t('profile.session')}</Text>
         <TouchableOpacity
           style={[styles.signOutBtn, signOutLoading && { opacity: 0.7 }]}
           onPress={handleSignOut}
@@ -212,29 +219,29 @@ export default function ProfileScreen() {
           ) : (
             <>
               <LogOut size={16} color="#FF3B30" />
-              <Text style={styles.signOutBtnText}>Cerrar sesión</Text>
+              <Text style={styles.signOutBtnText}>{t('profile.signOut')}</Text>
             </>
           )}
         </TouchableOpacity>
 
-        <Text style={styles.sectionLabel}>SEGURIDAD</Text>
+        <Text style={styles.sectionLabel}>{t('profile.security')}</Text>
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionIconCircle}>
               <KeyRound size={18} color="#FFFFFF" />
             </View>
-            <Text style={styles.sectionTitle}>Cambiar contraseña</Text>
+            <Text style={styles.sectionTitle}>{t('profile.changePassword')}</Text>
           </View>
 
           {pwSuccess ? (
             <View style={styles.successBox}>
-                  <Text style={styles.successText}>Contraseña actualizada exitosamente. Inicia sesión nuevamente.</Text>
+                  <Text style={styles.successText}>{t('profile.success')}</Text>
               <TouchableOpacity
                 style={styles.successBtn}
                 onPress={() => { setPwSuccess(false); router.replace('/(auth)'); }}
               >
                 <View style={styles.successBtnGrad}>
-                  <Text style={styles.successBtnText}>Ir al inicio de sesión</Text>
+                    <Text style={styles.successBtnText}>{t('profile.login')}</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -250,7 +257,7 @@ export default function ProfileScreen() {
                 <Lock size={18} color="#8E8E93" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Contraseña actual"
+                  placeholder={t('profile.current')}
                   placeholderTextColor="#8E8E93"
                   value={oldPw}
                   onChangeText={(t) => { setOldPw(t); setPwError(''); }}
@@ -266,7 +273,7 @@ export default function ProfileScreen() {
                 <Lock size={18} color="#8E8E93" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Nueva contraseña"
+                  placeholder={t('profile.new')}
                   placeholderTextColor="#8E8E93"
                   value={newPw}
                   onChangeText={(t) => { setNewPw(t); setPwError(''); }}
@@ -282,7 +289,7 @@ export default function ProfileScreen() {
                 <Lock size={18} color="#8E8E93" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="Repetir nueva contraseña"
+                  placeholder={t('profile.repeat')}
                   placeholderTextColor="#8E8E93"
                   value={confirmPw}
                   onChangeText={(t) => { setConfirmPw(t); setPwError(''); }}
@@ -303,7 +310,7 @@ export default function ProfileScreen() {
                 <View style={styles.primaryBtnGrad}>
                   {pwLoading
                     ? <ActivityIndicator color="#fff" size="small" />
-                    : <Text style={styles.primaryBtnText}>Confirmar cambio</Text>
+                    : <Text style={styles.primaryBtnText}>{t('profile.confirm')}</Text>
                   }
                 </View>
               </TouchableOpacity>
@@ -311,17 +318,17 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        <Text style={styles.sectionLabel}>ZONA DE PELIGRO</Text>
+        <Text style={styles.sectionLabel}>{t('profile.dangerZone')}</Text>
         <View style={[styles.section, styles.dangerSection]}>
           <View style={styles.sectionHeader}>
             <View style={[styles.sectionIconCircle, styles.dangerIconCircle]}>
               <Trash2 size={18} color="#FFFFFF" />
             </View>
-            <Text style={[styles.sectionTitle, styles.dangerTitle]}>Zona de peligro</Text>
+            <Text style={[styles.sectionTitle, styles.dangerTitle]}>{t('profile.dangerTitle')}</Text>
           </View>
 
           <Text style={styles.dangerBody}>
-            Eliminar tu cuenta es una acción <Text style={styles.dangerBold}>permanente e irreversible</Text>. Se eliminarán todos tus datos de la aplicación.
+             {t('profile.dangerBody', { permanent: t('profile.permanent') })}
           </Text>
 
           <TouchableOpacity
@@ -330,7 +337,7 @@ export default function ProfileScreen() {
             activeOpacity={0.82}
           >
             <Trash2 size={17} color="#FF3B30" />
-            <Text style={styles.deleteBtnText}>Eliminar cuenta</Text>
+            <Text style={styles.deleteBtnText}>{t('profile.delete')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -351,16 +358,15 @@ export default function ProfileScreen() {
               <TriangleAlert size={28} color="#dc2626" />
             </View>
 
-            <Text style={styles.modalTitle}>¿Eliminar cuenta?</Text>
+            <Text style={styles.modalTitle}>{t('profile.deleteTitle')}</Text>
 
             <Text style={styles.modalBody}>
-              Esta acción es <Text style={styles.modalBold}>permanente e irreversible</Text>.
-              {'\n\n'}Se eliminarán tu cuenta y todos tus datos de la aplicación. No podrás recuperarlos.
+              {t('profile.deleteBody')}
             </Text>
 
             <View style={styles.confirmInputWrapper}>
               <Text style={styles.confirmInputLabel}>
-                Escribe <Text style={styles.confirmPhrase}>ELIMINAR</Text> para continuar:
+                {t('profile.type', { phrase: t('profile.confirmPhrase') })}
               </Text>
               <TextInput
                 style={[
@@ -369,7 +375,7 @@ export default function ProfileScreen() {
                 ]}
                 value={deleteConfirmText}
                 onChangeText={(t) => { setDeleteConfirmText(t); setDeleteError(''); }}
-                placeholder="ELIMINAR"
+                placeholder={t('profile.confirmPhrase')}
                 placeholderTextColor="#fca5a5"
                 autoCapitalize="characters"
                 autoCorrect={false}
@@ -389,7 +395,7 @@ export default function ProfileScreen() {
                 onPress={() => { setDeleteModalVisible(false); setDeleteError(''); setDeleteConfirmText(''); }}
                 disabled={deleteLoading}
               >
-                <Text style={styles.cancelBtnText}>Cancelar</Text>
+                <Text style={styles.cancelBtnText}>{t('profile.cancel')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -406,7 +412,7 @@ export default function ProfileScreen() {
                 ) : (
                   <>
                     <Trash2 size={16} color="#fff" />
-                    <Text style={styles.confirmDeleteText}>Sí, eliminar</Text>
+                    <Text style={styles.confirmDeleteText}>{t('profile.yesDelete')}</Text>
                   </>
                 )}
               </TouchableOpacity>

@@ -14,7 +14,7 @@ import {
   UserRound,
   ShieldCheck,
   MapPin,
-  Eye,
+  Languages,
   ChevronRight,
   LogIn,
   Info,
@@ -23,9 +23,30 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { getAuth } from 'firebase/auth';
 import { useGuest } from '../../context/GuestContext';
-import { useAccessibility } from '../../context/AccessibilityContext';
+import { TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 
 const LOCATION_SETTING_KEY = 'avotex_share_location';
+const translations: TranslationResource = {
+  settings: { es: 'Ajustes', en: 'Settings' },
+  signIn: { es: 'Iniciar sesión', en: 'Sign in' },
+  profile: { es: 'Mi perfil', en: 'My profile' },
+  guestSubtitle: { es: 'Accede a todas las funciones de Avotex', en: 'Access all Avotex features' },
+  accountSubtitle: { es: 'Administra tu cuenta', en: 'Manage your account' },
+  privacySection: { es: 'PRIVACIDAD', en: 'PRIVACY' },
+  privacyNotice: { es: 'Aviso de privacidad', en: 'Privacy notice' },
+  privacySubtitle: { es: 'Consulta cómo protegemos tus datos', en: 'See how we protect your data' },
+  shareLocation: { es: 'Compartir ubicación', en: 'Share location' },
+  shareLocationSubtitle: { es: 'Clima y mapa en Inicio', en: 'Weather and map on Home' },
+  languageSection: { es: 'IDIOMA', en: 'LANGUAGE' },
+  language: { es: 'Idioma de la aplicación', en: 'App language' },
+  languageSubtitle: { es: 'Elige cómo quieres ver Avotex', en: 'Choose how you want to view Avotex' },
+  information: { es: 'INFORMACIÓN', en: 'INFORMATION' },
+  avotexSubtitle: { es: 'Detección y seguimiento agrícola', en: 'Agricultural detection and monitoring' },
+  footer: {
+    es: 'La ubicación está activada por defecto y puedes cambiarla aquí cuando quieras.',
+    en: 'Location is enabled by default and you can change it here at any time.',
+  },
+};
 
 type SettingsRowProps = {
   icon: React.ReactNode;
@@ -64,7 +85,8 @@ export default function SettingsScreen() {
   const isTablet = width >= 768;
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold });
   const { isGuest, exitGuestMode } = useGuest();
-  const { isColorblindMode, toggleColorblindMode } = useAccessibility();
+  const { language, setLanguage } = useLanguage();
+  const t = useTranslations(translations);
   const [shareLocation, setShareLocation] = useState(true);
 
   useFocusEffect(
@@ -83,10 +105,10 @@ export default function SettingsScreen() {
   if (!fontsLoaded) return <View style={styles.screen} />;
 
   const user = getAuth().currentUser;
-  const accountTitle = isGuest ? 'Iniciar sesión' : user?.displayName || 'Mi perfil';
+  const accountTitle = isGuest ? t('signIn') : user?.displayName || t('profile');
   const accountSubtitle = isGuest
-    ? 'Accede a todas las funciones de Avotex'
-    : user?.email || 'Administra tu cuenta';
+    ? t('guestSubtitle')
+    : user?.email || t('accountSubtitle');
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -94,7 +116,7 @@ export default function SettingsScreen() {
         contentContainerStyle={[styles.content, isTablet && styles.contentTablet]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.title, isTablet && styles.titleTablet]}>Ajustes</Text>
+        <Text style={[styles.title, isTablet && styles.titleTablet]}>{t('settings')}</Text>
 
         <TouchableOpacity
           style={styles.accountCard}
@@ -120,18 +142,18 @@ export default function SettingsScreen() {
           <ChevronRight size={21} color="#C7C7CC" />
         </TouchableOpacity>
 
-        <Text style={styles.sectionLabel}>PRIVACIDAD</Text>
+        <Text style={styles.sectionLabel}>{t('privacySection')}</Text>
         <View style={styles.group}>
           <SettingsRow
             icon={<ShieldCheck size={20} color="#FFFFFF" />}
-            title="Aviso de privacidad"
-            subtitle="Consulta cómo protegemos tus datos"
+            title={t('privacyNotice')}
+            subtitle={t('privacySubtitle')}
             onPress={() => router.push('/(app)/privacy')}
           />
           <SettingsRow
             icon={<MapPin size={20} color="#FFFFFF" />}
-            title="Compartir ubicación"
-            subtitle="Clima y mapa en Inicio"
+            title={t('shareLocation')}
+            subtitle={t('shareLocationSubtitle')}
             trailing={
               <Switch
                 value={shareLocation}
@@ -145,36 +167,49 @@ export default function SettingsScreen() {
           />
         </View>
 
-        <Text style={styles.sectionLabel}>ACCESIBILIDAD</Text>
+        <Text style={styles.sectionLabel}>{t('languageSection')}</Text>
         <View style={styles.group}>
           <SettingsRow
-            icon={<Eye size={20} color="#FFFFFF" />}
-            title="Modo para daltonismo"
-            subtitle="Ajusta los colores de diagnóstico"
+            icon={<Languages size={20} color="#FFFFFF" />}
+            title={t('language')}
+            subtitle={t('languageSubtitle')}
             trailing={
-              <Switch
-                value={isColorblindMode}
-                onValueChange={toggleColorblindMode}
-                trackColor={{ false: '#D1D1D6', true: '#007AFF' }}
-                thumbColor="#FFFFFF"
-                ios_backgroundColor="#D1D1D6"
-              />
+              <View style={styles.languageControl}>
+                <TouchableOpacity
+                  onPress={() => setLanguage('es')}
+                  style={[styles.languageButton, language === 'es' && styles.languageButtonActive]}
+                  accessibilityRole="radio"
+                  accessibilityLabel="Español"
+                  accessibilityState={{ selected: language === 'es' }}
+                >
+                  <Text style={[styles.languageButtonText, language === 'es' && styles.languageButtonTextActive]}>ES</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setLanguage('en')}
+                  style={[styles.languageButton, language === 'en' && styles.languageButtonActive]}
+                  accessibilityRole="radio"
+                  accessibilityLabel="English"
+                  accessibilityState={{ selected: language === 'en' }}
+                >
+                  <Text style={[styles.languageButtonText, language === 'en' && styles.languageButtonTextActive]}>EN</Text>
+                </TouchableOpacity>
+              </View>
             }
             isLast
           />
         </View>
 
-        <Text style={styles.sectionLabel}>INFORMACIÓN</Text>
+        <Text style={styles.sectionLabel}>{t('information')}</Text>
         <View style={styles.group}>
           <SettingsRow
             icon={<Info size={20} color="#FFFFFF" />}
             title="Avotex"
-            subtitle="Detección y seguimiento agrícola"
+            subtitle={t('avotexSubtitle')}
             isLast
           />
         </View>
 
-        <Text style={styles.footer}>La ubicación está activada por defecto y puedes cambiarla aquí cuando quieras.</Text>
+        <Text style={styles.footer}>{t('footer')}</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -295,6 +330,26 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 1,
   },
+  languageControl: {
+    flexDirection: 'row',
+    padding: 2,
+    borderRadius: 10,
+    backgroundColor: '#E9E9EE',
+  },
+  languageButton: {
+    minWidth: 34,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  languageButtonActive: { backgroundColor: '#FFFFFF' },
+  languageButtonText: {
+    color: '#8A8A90',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 11,
+  },
+  languageButtonTextActive: { color: '#007AFF' },
   footer: {
     color: '#8E8E93',
     fontFamily: 'Poppins_400Regular',

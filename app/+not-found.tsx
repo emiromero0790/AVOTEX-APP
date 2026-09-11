@@ -1,7 +1,20 @@
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { Stack, router } from 'expo-router';
+import { TranslationResource, useTranslations } from '../context/LanguageContext';
+
+const translations: TranslationResource = {
+  title: { es: 'Página no encontrada', en: 'Page not found' },
+  subtitle: {
+    es: 'La ruta que buscas no existe.{newline}Regresa al inicio para continuar.',
+    en: 'The route you are looking for does not exist.{newline}Return home to continue.',
+  },
+  goHome: { es: 'Ir al inicio', en: 'Go home' },
+  crops: { es: 'Limón · Mango · Café · Guayaba · Berries · Aguacate', en: 'Lemon · Mango · Coffee · Guava · Berries · Avocado' },
+};
 
 export default function NotFoundScreen() {
+  const t = useTranslations(translations);
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -17,18 +30,18 @@ export default function NotFoundScreen() {
             <Text style={s.badgeText}>404</Text>
           </View>
 
-          <Text style={s.title}>Página no encontrada</Text>
+          <Text style={s.title}>{t('title')}</Text>
           <Text style={s.subtitle}>
-            La ruta que buscas no existe.{'\n'}Regresa al inicio para continuar.
+            {t('subtitle', { newline: '\n' })}
           </Text>
 
           <TouchableOpacity style={s.btn} onPress={() => router.replace('/')} activeOpacity={0.88}>
-            <Text style={s.btnText}>Ir al inicio</Text>
+            <Text style={s.btnText}>{t('goHome')}</Text>
           </TouchableOpacity>
         </View>
 
         <View style={s.footer}>
-          <Text style={s.footerText}>Limón · Mango · Café · Guayaba · Berries · Aguacate</Text>
+          <Text style={s.footerText}>{t('crops')}</Text>
         </View>
       </View>
     </>

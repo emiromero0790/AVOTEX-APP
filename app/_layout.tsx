@@ -6,6 +6,7 @@ import { View, Text, Image, StyleSheet } from 'react-native';
 import { LogBox } from 'react-native';
 import { AccessibilityProvider } from '../context/AccessibilityContext';
 import { GuestProvider } from '../context/GuestContext';
+import { LanguageProvider } from '../context/LanguageContext';
 
 LogBox.ignoreAllLogs(true);
 
@@ -32,20 +33,22 @@ export default function RootLayout() {
   }
 
   return (
-    <GuestProvider>
-      <AccessibilityProvider>
-        <>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-            <Stack.Screen name="(app)" options={{ headerShown: false }} />
-            <Stack.Screen name="+not-found" options={{ presentation: 'modal' }} />
-          </Stack>
-          <StatusBar style="dark" />
-          <Toast config={toastConfig} />
-        </>
-      </AccessibilityProvider>
-    </GuestProvider>
+    <LanguageProvider>
+      <GuestProvider>
+        <AccessibilityProvider>
+          <>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+              <Stack.Screen name="(app)" options={{ headerShown: false }} />
+              <Stack.Screen name="+not-found" options={{ presentation: 'modal' }} />
+            </Stack>
+            <StatusBar style="dark" />
+            <Toast config={toastConfig} />
+          </>
+        </AccessibilityProvider>
+      </GuestProvider>
+    </LanguageProvider>
   );
 }
 

@@ -21,8 +21,22 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_600SemiBold, Poppins_400Regular } from '@expo-google-fonts/poppins';
 import { useGuest } from '../../context/GuestContext';
 import { useState } from 'react';
+import { TranslationResource, useTranslations } from '../../context/LanguageContext';
+
+const translations: TranslationResource = {
+  locked: { es: 'Función bloqueada', en: 'Feature locked' },
+  lockedBody: { es: 'Registra una cuenta con VEX para continuar y acceder a todas las funciones de Avotex.', en: 'Create a VEX account to continue and access all Avotex features.' },
+  signIn: { es: 'Crear cuenta / Iniciar sesión', en: 'Create account / Sign in' },
+  back: { es: 'Volver', en: 'Back' },
+  home: { es: 'Inicio', en: 'Home' },
+  scan: { es: 'Escanear', en: 'Scan' },
+  mapping: { es: 'Mapeo', en: 'Mapping' },
+  activity: { es: 'Actividad', en: 'Activity' },
+  settings: { es: 'Ajustes', en: 'Settings' },
+};
 
 function GuestLockedModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const t = useTranslations(translations);
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
       <View style={styles.lockOverlay}>
@@ -30,20 +44,20 @@ function GuestLockedModal({ visible, onClose }: { visible: boolean; onClose: () 
           <View style={styles.lockIconCircle}>
             <Lock size={30} color="#0f766e" />
           </View>
-          <Text style={styles.lockTitle}>Función bloqueada</Text>
+          <Text style={styles.lockTitle}>{t('locked')}</Text>
           <Text style={styles.lockBody}>
-            Registra una cuenta con VEX para continuar y acceder a todas las funciones de Avotex.
+            {t('lockedBody')}
           </Text>
           <TouchableOpacity
             style={styles.lockLoginBtn}
             onPress={() => { onClose(); router.replace('/(auth)'); }}
           >
             <LinearGradient colors={['#34d399', '#0f766e']} style={styles.lockBtnGrad}>
-              <Text style={styles.lockBtnText}>Crear cuenta / Iniciar sesión</Text>
+              <Text style={styles.lockBtnText}>{t('signIn')}</Text>
             </LinearGradient>
           </TouchableOpacity>
           <TouchableOpacity style={styles.lockCancelBtn} onPress={onClose}>
-            <Text style={styles.lockCancelText}>Volver</Text>
+            <Text style={styles.lockCancelText}>{t('back')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -59,6 +73,7 @@ export default function TabLayout() {
     pathname === '/(app)/plans' ||
     pathname === '/plans';
   const { isGuest } = useGuest();
+  const t = useTranslations(translations);
   const [showLockModal, setShowLockModal] = useState(false);
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
@@ -112,7 +127,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: 'Inicio',
+            title: t('home'),
             tabBarIcon: ({ color, focused }) => (
               <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
                 <Home size={isTablet ? 26 : 22} color={focused ? '#0f766e' : color} />
@@ -123,7 +138,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="scan"
           options={{
-            title: 'Escanear',
+            title: t('scan'),
             tabBarIcon: () => (
               <View style={[styles.scanIconContainer, isTablet && styles.scanIconContainerTablet]}>
                 <LinearGradient
@@ -140,7 +155,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="mapping"
           options={{
-            title: 'Mapeo',
+            title: t('mapping'),
             tabBarIcon: ({ color, focused }) => isGuest ? (
               <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
                 <Lock size={isTablet ? 26 : 22} color="#cbd5e1" />
@@ -160,7 +175,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="results"
           options={{
-            title: 'Actividad',
+            title: t('activity'),
             tabBarIcon: ({ color, focused }) => isGuest ? (
               <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
                 <Lock size={isTablet ? 26 : 22} color="#cbd5e1" />
@@ -184,7 +199,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="settings"
           options={{
-            title: 'Ajustes',
+            title: t('settings'),
             tabBarIcon: ({ color, focused }) => (
               <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
                 <Settings size={isTablet ? 26 : 22} color={focused ? '#111827' : color} />

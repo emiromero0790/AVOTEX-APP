@@ -1,6 +1,11 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { StyleSheet } from 'react-native';
 import type * as Location from 'expo-location';
+import { TranslationResource, useTranslations } from '../context/LanguageContext';
+
+const translations: TranslationResource = {
+  mapTitle: { es: 'Mapa para delimitar la huerta', en: 'Map for outlining the orchard' },
+};
 
 export type PolygonMapProps = {
   location: Location.LocationObject;
@@ -54,6 +59,7 @@ map.on(L.Draw.Event.CREATED,function(e){
 }
 
 const PolygonMap = forwardRef<PolygonMapHandle, PolygonMapProps>(({ location, onPolygonChange, initialPolygon = [], preview = false }, ref) => {
+  const t = useTranslations(translations);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const html = buildMapHTML(location.coords.latitude, location.coords.longitude, initialPolygon, preview);
 
@@ -77,7 +83,7 @@ const PolygonMap = forwardRef<PolygonMapHandle, PolygonMapProps>(({ location, on
   return (
     <iframe
       ref={iframeRef}
-      title="Mapa para delimitar la huerta"
+      title={t('mapTitle')}
       srcDoc={html}
       style={styles.map}
       allow="geolocation"

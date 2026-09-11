@@ -28,8 +28,26 @@ import { supabase } from '../../supabaseConfig';
 import Reanimated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useGuest, GUEST_MAX_SCANS } from '../../context/GuestContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 
 const OPENWEATHER_API_KEY = process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY!;
+
+const translations: TranslationResource = {
+  loading: { es: 'Cargando…', en: 'Loading…' }, logout: { es: 'Salir', en: 'Log out' },
+  guestLogout: { es: 'Salir (invitado)', en: 'Log out (guest)' }, tokensPlans: { es: 'Ver tokens y planes disponibles', en: 'View available tokens and plans' },
+  tokens: { es: 'Tokens', en: 'Tokens' }, location: { es: 'Tu ubicación', en: 'Your location' },
+  realtimeMap: { es: 'Mapa en tiempo real', en: 'Real-time map' }, closeMap: { es: 'Cerrar mapa', en: 'Close map' },
+  gettingLocation: { es: 'Obteniendo ubicación…', en: 'Getting location…' }, enableLocation: { es: 'Activa la ubicación en Ajustes para ver el mapa', en: 'Enable location in Settings to view the map' },
+  temperature: { es: 'Temperatura', en: 'Temperature' }, humidity: { es: 'Humedad', en: 'Humidity' },
+  health: { es: 'Salud', en: 'Health' }, wind: { es: 'Viento', en: 'Wind' }, noLocation: { es: 'Sin ubicación', en: 'No location' },
+  inRange: { es: 'Dentro de rango', en: 'In range' }, review: { es: 'Revisar', en: 'Review' }, adequate: { es: 'Adecuada', en: 'Adequate' },
+  outOfRange: { es: 'Fuera de rango', en: 'Out of range' }, critical: { es: 'Crítica', en: 'Critical' }, attention: { es: 'Atención', en: 'Attention' },
+  good: { es: 'Buena', en: 'Good' }, healthy: { es: 'Saludable', en: 'Healthy' }, stableWind: { es: 'Viento estable', en: 'Stable wind' },
+  strongWind: { es: 'Viento fuerte', en: 'Strong wind' }, guestMode: { es: 'MODO INVITADO', en: 'GUEST MODE' }, welcome: { es: 'BIENVENIDO', en: 'WELCOME' },
+  guest: { es: 'Invitado', en: 'Guest' }, user: { es: 'Usuario', en: 'User' }, quickActions: { es: 'Acciones rápidas', en: 'Quick actions' },
+  scan: { es: 'Escanear', en: 'Scan' }, remaining: { es: '{count} restantes', en: '{count} remaining' },
+  enlargeMap: { es: 'Ampliar mapa', en: 'Enlarge map' }, map: { es: 'Mapa', en: 'Map' }, mapping: { es: 'Mapeo', en: 'Mapping' }, activity: { es: 'Actividad', en: 'Activity' },
+};
 
 interface Scan {
   label: string;
@@ -185,17 +203,7 @@ const FloatingOrb = ({ orb, screenWidth }: { orb: typeof CROP_ORBS[0]; screenWid
   );
 };
 
-const getWeatherEmoji = (temp: number) => {
-  if (temp < 15) return 'Frío';
-  if (temp < 25) return 'Templado';
-  if (temp < 32) return 'Cálido';
-  return 'Calor';
-};
-const formatDate = (date: Date) => {
-  const d = date.getDate().toString().padStart(2, '0');
-  const m = (date.getMonth() + 1).toString().padStart(2, '0');
-  return `${d}/${m}/${date.getFullYear()}`;
-};
+const formatDate = (date: Date, locale: 'es-MX' | 'en-US') => date.toLocaleDateString(locale);
 const formatTime12h = (date: Date) => {
   let h = date.getHours();
   const mm = date.getMinutes().toString().padStart(2, '0');
@@ -211,6 +219,8 @@ export default function Home() {
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
   const { isColorblindMode } = useAccessibility();
   const { isGuest, guestScansLeft, exitGuestMode } = useGuest();
+  const { locale, language } = useLanguage();
+  const t = useTranslations(translations);
 
   const [userTokens, setUserTokens] = useState<number | null>(null);
 
@@ -232,7 +242,7 @@ export default function Home() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        setErrorMsg('Permiso de ubicación denegado');
+        setErrorMsg(t('noLocation'));
         setLocationEnabled(false);
         return;
       }
@@ -248,7 +258,7 @@ export default function Home() {
         setMunicipio(`${p.city || p.subregion || ''}, ${p.region || ''}`);
       }
     } catch {
-      setErrorMsg('No se pudo obtener ubicación');
+      setErrorMsg(t('noLocation'));
     }
   };
 
@@ -286,22 +296,22 @@ export default function Home() {
       try {
         const { latitude, longitude } = location.coords;
         const r = await axios.get(
-          `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=metric&lang=es&appid=${OPENWEATHER_API_KEY}`
+          `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=metric&lang=${language}&appid=${OPENWEATHER_API_KEY}`
         );
         setTemperature(r.data.main.temp);
         setHumidity(r.data.main.humidity);
         setWindSpeed(r.data.wind?.speed ?? null);
       } catch {}
     })();
-  }, [location]);
+  }, [location, language]);
 
   useEffect(() => {
     const iv = setInterval(() => {
       const now = new Date();
-      setDateTime({ date: formatDate(now), time: formatTime12h(now) });
+       setDateTime({ date: formatDate(now, locale), time: formatTime12h(now) });
     }, 1000);
     return () => clearInterval(iv);
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => { setUser(u); setLoadingUser(false); });
@@ -338,7 +348,10 @@ export default function Home() {
 
   useEffect(() => {
     if (scans.length > 0) {
-      const h = scans.filter(s => s.label.toLowerCase().includes('saludable')).length;
+      const h = scans.filter(s => {
+        const label = s.label.toLowerCase();
+        return label.includes('saludable') || label.includes('healthy');
+      }).length;
       setHealthPct((h / scans.length) * 100);
     } else setHealthPct(null);
   }, [scans]);
@@ -347,7 +360,7 @@ export default function Home() {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#ecfdf5' }}>
         <ActivityIndicator size="large" color="#14b8a6" />
-        <Text style={{ marginTop: 16, fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#0f766e' }}>Cargando…</Text>
+        <Text style={{ marginTop: 16, fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#0f766e' }}>{t('loading')}</Text>
       </View>
     );
   }
@@ -389,7 +402,7 @@ export default function Home() {
       >
         <LogOut color="#ef4444" size={isTablet ? 16 : 14} />
         <Text style={[s.logoutText, isTablet && s.logoutTextTablet]}>
-          {isGuest ? 'Salir (invitado)' : 'Salir'}
+          {isGuest ? t('guestLogout') : t('logout')}
         </Text>
       </TouchableOpacity>
 
@@ -398,19 +411,19 @@ export default function Home() {
         onPress={() => router.push('/(app)/plans')}
         activeOpacity={0.85}
         accessibilityRole="button"
-        accessibilityLabel="Ver tokens y planes disponibles"
+        accessibilityLabel={t('tokensPlans')}
       >
         <View style={s.tokenWidget} pointerEvents="none">
           <Coins size={isTablet ? 26 : 22} color="#d97706" />
           <View style={{ marginLeft: 6 }}>
             <Text style={[s.tokenAmount, isTablet && s.tokenAmountTablet]}>
               {isGuest
-                ? (guestScansLeft * 100).toLocaleString('es-MX')
+                 ? (guestScansLeft * 100).toLocaleString(locale)
                 : userTokens !== null
-                  ? (userTokens * 100).toLocaleString('es-MX')
+                   ? (userTokens * 100).toLocaleString(locale)
                   : '—'}
             </Text>
-            <Text style={[s.tokenLabel, isTablet && s.tokenLabelTablet]}>Tokens</Text>
+            <Text style={[s.tokenLabel, isTablet && s.tokenLabelTablet]}>{t('tokens')}</Text>
           </View>
           <View style={[s.tokenAddButton, isTablet && s.tokenAddButtonTablet]}>
             <Text style={[s.tokenAddText, isTablet && s.tokenAddTextTablet]}>+</Text>
@@ -432,11 +445,11 @@ export default function Home() {
           >
             <View style={s.mapModalHeader}>
               <View>
-                <Text style={s.mapModalTitle}>Tu ubicación</Text>
-                <Text style={s.mapModalSubtitle}>{municipio || 'Mapa en tiempo real'}</Text>
+                <Text style={s.mapModalTitle}>{t('location')}</Text>
+                <Text style={s.mapModalSubtitle}>{municipio || t('realtimeMap')}</Text>
               </View>
               <TouchableOpacity
-                accessibilityLabel="Cerrar mapa"
+                accessibilityLabel={t('closeMap')}
                 style={s.mapModalClose}
                 onPress={() => setMapExpanded(false)}
               >
@@ -450,7 +463,7 @@ export default function Home() {
                 <View style={s.mapModalEmpty}>
                   <MapPinOff color="#6B7D78" size={38} />
                   <Text style={s.mapModalEmptyText}>
-                    {locationEnabled ? 'Obteniendo ubicación…' : 'Activa la ubicación en Ajustes para ver el mapa'}
+                    {locationEnabled ? t('gettingLocation') : t('enableLocation')}
                   </Text>
                 </View>
               )}
@@ -477,7 +490,7 @@ export default function Home() {
               <View style={[s.environmentCard, isTablet && s.environmentCardTablet]}>
                 <View style={s.environmentLabelRow}>
                   <Sun color="#f59e0b" size={isTablet ? 23 : 19} />
-                  <Text style={[s.environmentLabel, isTablet && s.environmentLabelTablet]}>Temperatura</Text>
+                  <Text style={[s.environmentLabel, isTablet && s.environmentLabelTablet]}>{t('temperature')}</Text>
                 </View>
                 <View style={s.environmentReadingRow}>
                   <Text style={[s.environmentValue, isTablet && s.environmentValueTablet]}>
@@ -496,7 +509,7 @@ export default function Home() {
                 </View>
                 <View style={[s.statusPill, temperature !== null && temperature >= 15 && temperature <= 30 ? s.statusGood : s.statusNeutral]}>
                   <Text style={s.statusPillText}>
-                    {temperature === null ? 'Sin ubicación' : temperature >= 15 && temperature <= 30 ? 'Dentro de rango' : 'Revisar'}
+                    {temperature === null ? t('noLocation') : temperature >= 15 && temperature <= 30 ? t('inRange') : t('review')}
                   </Text>
                 </View>
               </View>
@@ -504,7 +517,7 @@ export default function Home() {
               <View style={[s.environmentCard, isTablet && s.environmentCardTablet]}>
                 <View style={s.environmentLabelRow}>
                   <Droplets color="#38bdf8" size={isTablet ? 23 : 19} />
-                  <Text style={[s.environmentLabel, isTablet && s.environmentLabelTablet]}>Humedad</Text>
+                  <Text style={[s.environmentLabel, isTablet && s.environmentLabelTablet]}>{t('humidity')}</Text>
                 </View>
                 <View style={s.environmentReadingRow}>
                   <Text style={[s.environmentValue, isTablet && s.environmentValueTablet]}>
@@ -523,7 +536,7 @@ export default function Home() {
                 </View>
                 <View style={[s.statusPill, humidity !== null && humidity >= 40 && humidity <= 75 ? s.statusGood : s.statusNeutral]}>
                   <Text style={s.statusPillText}>
-                    {humidity === null ? 'Sin ubicación' : humidity >= 40 && humidity <= 75 ? 'Adecuada' : 'Fuera de rango'}
+                    {humidity === null ? t('noLocation') : humidity >= 40 && humidity <= 75 ? t('adequate') : t('outOfRange')}
                   </Text>
                 </View>
               </View>
@@ -531,7 +544,7 @@ export default function Home() {
               <View style={[s.environmentCard, isTablet && s.environmentCardTablet]}>
                 <View style={s.environmentLabelRow}>
                   <Leaf color="#22a06b" size={isTablet ? 23 : 19} />
-                  <Text style={[s.environmentLabel, isTablet && s.environmentLabelTablet]}>Salud</Text>
+                  <Text style={[s.environmentLabel, isTablet && s.environmentLabelTablet]}>{t('health')}</Text>
                 </View>
                 <Text style={[s.environmentValue, isTablet && s.environmentValueTablet]}>
                   {isGuest || healthPct === null ? 'N/A' : `${healthPct.toFixed(0)}%`}
@@ -556,19 +569,19 @@ export default function Home() {
                   <View style={s.healthLegend}>
                     <View style={s.healthLegendItem}>
                       <View style={[s.healthLegendDot, { backgroundColor: '#EF4444' }]} />
-                      <Text style={s.healthLegendText}>Crítica</Text>
+                      <Text style={s.healthLegendText}>{t('critical')}</Text>
                     </View>
                     <View style={s.healthLegendItem}>
                       <View style={[s.healthLegendDot, { backgroundColor: '#F97316' }]} />
-                      <Text style={s.healthLegendText}>Atención</Text>
+                      <Text style={s.healthLegendText}>{t('attention')}</Text>
                     </View>
                     <View style={s.healthLegendItem}>
                       <View style={[s.healthLegendDot, { backgroundColor: '#FACC15' }]} />
-                      <Text style={s.healthLegendText}>Buena</Text>
+                      <Text style={s.healthLegendText}>{t('good')}</Text>
                     </View>
                     <View style={s.healthLegendItem}>
                       <View style={[s.healthLegendDot, { backgroundColor: '#22C55E' }]} />
-                      <Text style={s.healthLegendText}>Saludable</Text>
+                      <Text style={s.healthLegendText}>{t('healthy')}</Text>
                     </View>
                   </View>
                 </View>
@@ -577,7 +590,7 @@ export default function Home() {
               <View style={[s.environmentCard, isTablet && s.environmentCardTablet]}>
                 <View style={s.environmentLabelRow}>
                   <Wind color="#64748b" size={isTablet ? 23 : 19} />
-                  <Text style={[s.environmentLabel, isTablet && s.environmentLabelTablet]}>Viento</Text>
+                  <Text style={[s.environmentLabel, isTablet && s.environmentLabelTablet]}>{t('wind')}</Text>
                 </View>
                 <Text style={[s.environmentValue, isTablet && s.environmentValueTablet]}>
                   {windSpeed !== null ? `${windSpeed.toFixed(1)}` : '—'}
@@ -585,7 +598,7 @@ export default function Home() {
                 </Text>
                 <View style={[s.statusPill, windSpeed !== null && windSpeed <= 8 ? s.statusGood : s.statusNeutral]}>
                   <Text style={s.statusPillText}>
-                    {windSpeed === null ? 'Sin ubicación' : windSpeed <= 8 ? 'Viento estable' : 'Viento fuerte'}
+                    {windSpeed === null ? t('noLocation') : windSpeed <= 8 ? t('stableWind') : t('strongWind')}
                   </Text>
                 </View>
               </View>
@@ -593,10 +606,10 @@ export default function Home() {
               <View style={s.environmentPanelFooter}>
                 <View style={s.environmentPanelFooterCopy}>
                   <Text style={s.environmentPanelFooterLabel}>
-                    {isGuest ? 'MODO INVITADO' : 'BIENVENIDO'}
+                    {isGuest ? t('guestMode') : t('welcome')}
                   </Text>
                   <Text style={s.environmentPanelFooterValue}>
-                    {isGuest ? 'Invitado' : user?.email || user?.displayName || 'Usuario'}
+                    {isGuest ? t('guest') : user?.email || user?.displayName || t('user')}
                   </Text>
                 </View>
                 <Image
@@ -614,7 +627,7 @@ export default function Home() {
             entering={FadeInUp.delay(500).duration(700)}
             style={[s.quickActionsPanel, isTablet && s.quickActionsPanelTablet]}
           >
-            <Text style={[s.quickActionsTitle, isTablet && s.quickActionsTitleTablet]}>Acciones rápidas</Text>
+            <Text style={[s.quickActionsTitle, isTablet && s.quickActionsTitleTablet]}>{t('quickActions')}</Text>
             <View style={[s.quickActionsGrid, isTablet && s.quickActionsGridTablet]}>
               <TouchableOpacity
                 style={[s.quickActionCard, isTablet && s.quickActionCardTablet]}
@@ -630,8 +643,8 @@ export default function Home() {
                   <View style={[s.quickActionIcon, isTablet && s.quickActionIconTablet]}>
                     <Camera color="#44227C" size={isTablet ? 31 : 25} />
                   </View>
-                  <Text style={[s.quickActionLabel, isTablet && s.quickActionLabelTablet]}>Escanear</Text>
-                  {isGuest ? <Text style={s.quickActionMeta}>{guestScansLeft} restantes</Text> : null}
+                  <Text style={[s.quickActionLabel, isTablet && s.quickActionLabelTablet]}>{t('scan')}</Text>
+                  {isGuest ? <Text style={s.quickActionMeta}>{t('remaining', { count: guestScansLeft })}</Text> : null}
                 </LinearGradient>
               </TouchableOpacity>
 
@@ -639,7 +652,7 @@ export default function Home() {
                 style={[s.quickActionCard, s.mapQuickActionCard, isTablet && s.quickActionCardTablet]}
                 onPress={() => setMapExpanded(true)}
                 activeOpacity={0.9}
-                accessibilityLabel="Ampliar mapa"
+                accessibilityLabel={t('enlargeMap')}
               >
                 {locationEnabled && location?.coords ? (
                   <View style={s.quickMap} pointerEvents="none">
@@ -656,7 +669,7 @@ export default function Home() {
                   </LinearGradient>
                 )}
                 <View style={s.quickMapLabel}>
-                  <Text style={[s.quickActionLabel, isTablet && s.quickActionLabelTablet]}>Mapa</Text>
+                    <Text style={[s.quickActionLabel, isTablet && s.quickActionLabelTablet]}>{t('map')}</Text>
                 </View>
               </TouchableOpacity>
 
@@ -675,7 +688,7 @@ export default function Home() {
                   <View style={[s.quickActionIcon, isTablet && s.quickActionIconTablet]}>
                     {isGuest ? <Lock color="#9CA3AF" size={isTablet ? 29 : 23} /> : <Map color="#D29A35" size={isTablet ? 31 : 25} />}
                   </View>
-                  <Text style={[s.quickActionLabel, isTablet && s.quickActionLabelTablet, isGuest && s.secTitleLocked]}>Mapeo</Text>
+                  <Text style={[s.quickActionLabel, isTablet && s.quickActionLabelTablet, isGuest && s.secTitleLocked]}>{t('mapping')}</Text>
                 </LinearGradient>
               </TouchableOpacity>
 
@@ -694,7 +707,7 @@ export default function Home() {
                   <View style={[s.quickActionIcon, isTablet && s.quickActionIconTablet]}>
                     {isGuest ? <Lock color="#9CA3AF" size={isTablet ? 29 : 23} /> : <LineChart color="#298D4B" size={isTablet ? 31 : 25} />}
                   </View>
-                  <Text style={[s.quickActionLabel, isTablet && s.quickActionLabelTablet, isGuest && s.secTitleLocked]}>Actividad</Text>
+                  <Text style={[s.quickActionLabel, isTablet && s.quickActionLabelTablet, isGuest && s.secTitleLocked]}>{t('activity')}</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>

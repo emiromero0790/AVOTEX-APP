@@ -20,6 +20,11 @@ import emailjs from '@emailjs/browser';
 import { LinearGradient } from 'expo-linear-gradient';
 import { auth } from '../../firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
+import { TranslationResource, useTranslations, useLanguage } from '../../context/LanguageContext';
+
+const translations: TranslationResource = {
+  'chat.guest': { es: 'Invitado', en: 'Guest' }, 'chat.reportSubject': { es: 'Reporte de respuesta — Asistente Avotex', en: 'Response report — Avotex Assistant' }, 'chat.reportBody': { es: 'Hola equipo VEX,\n\nQuiero reportar la siguiente respuesta del asistente:\n\n"{message}"\n\nMotivo del reporte: [describe aquí el problema]\n\nGracias.', en: 'Hello VEX team,\n\nI would like to report the following assistant response:\n\n"{message}"\n\nReport reason: [describe the issue here]\n\nThank you.' }, 'chat.sending': { es: 'Enviando tu consulta al equipo de VEX...', en: 'Sending your request to the VEX team...' }, 'chat.sent': { es: 'Perfecto. Tu consulta ha sido enviada.\n\nTe responderán pronto a: {email}\n\n¿Hay algo más en lo que pueda ayudarte?', en: 'Perfect. Your request has been sent.\n\nThey will reply soon at: {email}\n\nIs there anything else I can help you with?' }, 'chat.sendError': { es: 'Hubo un problema al enviar el correo.\n\nContacta directamente a:\n{email}', en: 'There was a problem sending the email.\n\nContact directly:\n{email}' }, 'chat.cancelled': { es: 'Entendido. ¿En qué más puedo ayudarte?', en: 'Understood. What else can I help you with?' }, 'chat.invalidEmail': { es: "Correo no válido. Intenta de nuevo o escribe 'cancelar'.", en: "Invalid email. Try again or type 'cancel'." }, 'chat.contact': { es: "Para esa consulta necesito conectarte con el equipo.\n\nPor favor escribe tu correo electrónico aquí (o escribe 'cancelar').", en: "For that request, I need to connect you with the team.\n\nPlease enter your email here (or type 'cancel')." }, 'chat.connection': { es: 'Error de conexión. Intenta de nuevo.', en: 'Connection error. Try again.' }, 'chat.title': { es: 'Asistente Avotex', en: 'Avotex Assistant' }, 'chat.hello': { es: '¡Hola! Soy Avotex', en: 'Hi! I am Avotex' }, 'chat.modalBody': { es: 'Soy un asistente inteligente impulsado por Inteligencia Artificial diseñado para ayudarte a entender el estado de tus cultivos y sacarle el máximo provecho a la app.', en: 'I am an AI-powered assistant designed to help you understand the state of your crops and get the most out of the app.' }, 'chat.before': { es: 'Antes de continuar, toma en cuenta lo siguiente:', en: 'Before continuing, please note the following:' }, 'chat.bullet1': { es: 'Mis respuestas se basan en el análisis de imágenes, datos de la app y mi base de conocimientos', en: 'My answers are based on image analysis, app data, and my knowledge base' }, 'chat.bullet2': { es: 'Los diagnósticos y recomendaciones son orientativos y no sustituyen la asesoría de un especialista agrícola', en: 'Diagnoses and recommendations are guidance only and do not replace advice from an agricultural specialist' }, 'chat.bullet3': { es: 'Puedo utilizar información como imágenes capturadas y tu ubicación para ofrecer resultados más precisos.', en: 'I may use information such as captured images and your location to provide more accurate results.' }, 'chat.bullet4': { es: 'Tu información puede ser procesada por servicios externos únicamente para el funcionamiento de la app', en: 'Your information may be processed by external services solely for the app to function' }, 'chat.bullet5': { es: 'No vendemos ni compartimos tu información personal con terceros con fines comerciales.', en: 'We do not sell or share your personal information with third parties for commercial purposes.' }, 'chat.bullet6': { es: 'Aunque estoy diseñado para ayudarte, puedo cometer errores', en: 'Although I am designed to help, I can make mistakes' }, 'chat.footnote': { es: 'Al continuar, aceptas usar este asistente bajo tu propia responsabilidad.', en: 'By continuing, you agree to use this assistant at your own risk.' }, 'chat.cancel': { es: 'Cancelar', en: 'Cancel' }, 'chat.continue': { es: 'Continuar', en: 'Continue' }, 'chat.back': { es: 'Volver', en: 'Back' }, 'chat.welcome': { es: 'Bienvenido', en: 'Welcome' }, 'chat.discover': { es: '¿Qué quieres\ndescubrir hoy?', en: 'What do you want to\ndiscover today?' }, 'chat.subtitle': { es: 'Pregunta sobre la app, tus cultivos o el siguiente paso.', en: 'Ask about the app, your crops, or the next step.' }, 'chat.s1': { es: '¿Cómo funciona Escanear?', en: 'How does Scan work?' }, 'chat.s2': { es: '¿Qué muestra Mapeo?', en: 'What does Mapping show?' }, 'chat.s3': { es: 'Ayúdame con una recomendación', en: 'Help me with a recommendation' }, 'chat.accept': { es: 'Acepta los términos para escribir...', en: 'Accept the terms to write...' }, 'chat.email': { es: 'Escribe tu correo...', en: 'Enter your email...' }, 'chat.ask': { es: 'Pregunta algo o describe tu idea', en: 'Ask something or describe your idea' }, 'chat.write': { es: 'Escribe algo...', en: 'Write something...' }, 'chat.hint': { es: 'Avotex · asistente inteligente', en: 'Avotex · intelligent assistant' }, 'chat.report': { es: 'Reportar respuesta', en: 'Report response' },
+};
 
 const EMAILJS_SERVICE_ID = process.env.EXPO_PUBLIC_EMAILJS_SERVICE_ID!;
 const EMAILJS_TEMPLATE_ID = process.env.EXPO_PUBLIC_EMAILJS_TEMPLATE_ID!;
@@ -72,6 +77,8 @@ interface Message {
 }
 
 export default function ChatbotScreen() {
+  const t = useTranslations(translations);
+  const { locale, language } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -83,12 +90,12 @@ export default function ChatbotScreen() {
 
   const [modalVisible, setModalVisible] = useState(true);
   const [accepted, setAccepted] = useState(false);
-  const [userEmail, setUserEmail] = useState("Invitado");
+  const [userEmail, setUserEmail] = useState(t('chat.guest'));
 
   useEffect(() => {
-    setUserEmail(auth.currentUser?.email || "Invitado");
+    setUserEmail(auth.currentUser?.email || t('chat.guest'));
     return onAuthStateChanged(auth, (currentUser) => {
-      setUserEmail(currentUser?.email || "Invitado");
+      setUserEmail(currentUser?.email || t('chat.guest'));
     });
   }, []);
 
@@ -98,9 +105,9 @@ export default function ChatbotScreen() {
   };
 
   const handleReportMessage = (messageText: string) => {
-    const subject = encodeURIComponent('Reporte de respuesta — Asistente Avotex');
+    const subject = encodeURIComponent(t('chat.reportSubject'));
     const body = encodeURIComponent(
-      `Hola equipo VEX,\n\nQuiero reportar la siguiente respuesta del asistente:\n\n"${messageText}"\n\nMotivo del reporte: [describe aquí el problema]\n\nGracias.`
+      t('chat.reportBody', { message: messageText })
     );
     Linking.openURL(`mailto:${REPORT_EMAIL}?subject=${subject}&body=${body}`).catch(() => {});
   };
@@ -108,7 +115,7 @@ export default function ChatbotScreen() {
   const processEmailSending = async (userMessage: string, userEmail: string) => {
     setMessages((prev) => [...prev, {
       role: "bot",
-      text: "Enviando tu consulta al equipo de VEX...",
+       text: t('chat.sending'),
       timestamp: new Date()
     }]);
 
@@ -120,7 +127,7 @@ export default function ChatbotScreen() {
         user_message: userMessage,
         to_email: REPORT_EMAIL,
         reply_to: userEmail,
-        date: new Date().toLocaleString('es-MX', {
+         date: new Date().toLocaleString(locale, {
           year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
         }),
       };
@@ -129,7 +136,7 @@ export default function ChatbotScreen() {
         const newMessages = [...prev];
         newMessages[newMessages.length - 1] = {
           role: "bot",
-          text: `Perfecto. Tu consulta ha sido enviada.\n\nTe responderán pronto a: ${userEmail}\n\n¿Hay algo más en lo que pueda ayudarte?`,
+           text: t('chat.sent', { email: userEmail }),
           timestamp: new Date()
         };
         return newMessages;
@@ -141,7 +148,7 @@ export default function ChatbotScreen() {
         const newMessages = [...prev];
         newMessages[newMessages.length - 1] = {
           role: "bot",
-          text: `Hubo un problema al enviar el correo.\n\nContacta directamente a:\n${REPORT_EMAIL}`,
+           text: t('chat.sendError', { email: REPORT_EMAIL }),
           timestamp: new Date()
         };
         return newMessages;
@@ -162,12 +169,12 @@ export default function ChatbotScreen() {
 
     if (waitingForEmail) {
       setLoading(true);
-      if (currentInput.toLowerCase() === 'cancelar') {
+       if (currentInput.toLowerCase() === (language === 'en' ? 'cancel' : 'cancelar')) {
         setWaitingForEmail(false);
         setPendingUserMessage("");
         setMessages((prev) => [...prev, {
           role: "bot",
-          text: "Entendido. ¿En qué más puedo ayudarte?",
+           text: t('chat.cancelled'),
           timestamp: new Date()
         }]);
       } else if (isValidEmail(currentInput)) {
@@ -175,7 +182,7 @@ export default function ChatbotScreen() {
       } else {
         setMessages((prev) => [...prev, {
           role: "bot",
-          text: "Correo no válido. Intenta de nuevo o escribe 'cancelar'.",
+           text: t('chat.invalidEmail'),
           timestamp: new Date()
         }]);
       }
@@ -186,7 +193,7 @@ export default function ChatbotScreen() {
     setLoading(true);
 
     const historyForAPI = messages
-      .filter(msg => !msg.text.includes("Para enviarte una respuesta") && !msg.text.includes("Enviando tu consulta"))
+       .filter(msg => !msg.text.includes(t('chat.contact')) && !msg.text.includes(t('chat.sending')))
       .map(msg => ({
         role: msg.role === 'bot' ? 'model' : 'user',
         parts: [{ text: msg.text }]
@@ -194,7 +201,12 @@ export default function ChatbotScreen() {
 
     try {
       const chat = model.startChat({
-        systemInstruction: { parts: [{ text: systemInstruction }], role: "system" },
+        systemInstruction: {
+          parts: [{
+            text: `${systemInstruction}\n\nIDIOMA DE RESPUESTA\nResponde siempre en ${language === 'en' ? 'inglés' : 'español'}, excepto el marcador exacto ACTION:CONTACT.`,
+          }],
+          role: "system",
+        },
         history: historyForAPI,
       });
       const result = await chat.sendMessage(currentInput);
@@ -205,7 +217,7 @@ export default function ChatbotScreen() {
         setPendingUserMessage(currentInput);
         setMessages((prev) => [...prev, {
           role: "bot",
-          text: "Para esa consulta necesito conectarte con el equipo.\n\nPor favor escribe tu correo electrónico aquí (o escribe 'cancelar').",
+           text: t('chat.contact'),
           timestamp: new Date()
         }]);
       } else {
@@ -214,7 +226,7 @@ export default function ChatbotScreen() {
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        { role: "bot", text: "Error de conexión. Intenta de nuevo.", timestamp: new Date() },
+         { role: "bot", text: t('chat.connection'), timestamp: new Date() },
       ]);
     }
     setLoading(false);
@@ -231,7 +243,7 @@ export default function ChatbotScreen() {
       <Stack.Screen
         options={{
           headerShown: false,
-          title: "Asistente Avotex",
+           title: t('chat.title'),
           headerTitleStyle: { fontFamily: 'Poppins_600SemiBold' },
           headerStyle: { backgroundColor: '#FFFFFF' },
           headerTintColor: '#174E43',
@@ -260,7 +272,7 @@ export default function ChatbotScreen() {
               </View>
             </View>
 
-            <Text style={styles.modalTitle}>¡Hola! Soy Avotex</Text>
+             <Text style={styles.modalTitle}>{t('chat.hello')}</Text>
 
             <ScrollView
               style={styles.modalScroll}
@@ -269,40 +281,40 @@ export default function ChatbotScreen() {
               persistentScrollbar={true}
             >
               <Text style={styles.modalBody}>
-                Soy un asistente inteligente impulsado por Inteligencia Artificial diseñado para ayudarte a entender el estado de tus cultivos y sacarle el máximo provecho a la app.
+                 {t('chat.modalBody')}
               </Text>
 
-              <Text style={styles.modalSubheading}>Antes de continuar, toma en cuenta lo siguiente:</Text>
+               <Text style={styles.modalSubheading}>{t('chat.before')}</Text>
 
               <View style={styles.modalBullets}>
                 <View style={styles.modalBulletRow}>
                   <Text style={styles.modalBulletDot}>•</Text>
-                  <Text style={styles.modalBulletText}>Mis respuestas se basan en el análisis de imágenes, datos de la app y mi base de conocimientos</Text>
+                   <Text style={styles.modalBulletText}>{t('chat.bullet1')}</Text>
                 </View>
                 <View style={styles.modalBulletRow}>
                   <Text style={styles.modalBulletDot}>•</Text>
-                  <Text style={styles.modalBulletText}>Los diagnósticos y recomendaciones son <Text style={styles.modalBold}>orientativos</Text> y no sustituyen la asesoría de un especialista agrícola</Text>
+                   <Text style={styles.modalBulletText}>{t('chat.bullet2')}</Text>
                 </View>
                 <View style={styles.modalBulletRow}>
                   <Text style={styles.modalBulletDot}>•</Text>
-                  <Text style={styles.modalBulletText}>Puedo utilizar información como imágenes capturadas y tu ubicación para ofrecer resultados más precisos.</Text>
+                   <Text style={styles.modalBulletText}>{t('chat.bullet3')}</Text>
                 </View>
                 <View style={styles.modalBulletRow}>
                   <Text style={styles.modalBulletDot}>•</Text>
-                  <Text style={styles.modalBulletText}>Tu información puede ser procesada por servicios externos únicamente para el funcionamiento de la app</Text>
+                   <Text style={styles.modalBulletText}>{t('chat.bullet4')}</Text>
                 </View>
                 <View style={styles.modalBulletRow}>
                   <Text style={styles.modalBulletDot}>•</Text>
-                  <Text style={[styles.modalBulletText, styles.modalBold]}>No vendemos ni compartimos tu información personal con terceros con fines comerciales.</Text>
+                   <Text style={[styles.modalBulletText, styles.modalBold]}>{t('chat.bullet5')}</Text>
                 </View>
                 <View style={styles.modalBulletRow}>
                   <Text style={styles.modalBulletDot}>•</Text>
-                  <Text style={styles.modalBulletText}>Aunque estoy diseñado para ayudarte, <Text style={styles.modalBold}>puedo cometer errores</Text></Text>
+                   <Text style={styles.modalBulletText}>{t('chat.bullet6')}</Text>
                 </View>
               </View>
 
               <Text style={styles.modalFootnote}>
-                Al continuar, aceptas usar este asistente bajo tu propia responsabilidad.
+                 {t('chat.footnote')}
               </Text>
             </ScrollView>
 
@@ -311,14 +323,14 @@ export default function ChatbotScreen() {
                 style={styles.cancelBtn}
                 onPress={() => { setModalVisible(false); router.back(); }}
               >
-                <Text style={styles.cancelBtnText}>Cancelar</Text>
+                 <Text style={styles.cancelBtnText}>{t('chat.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.acceptBtn}
                 onPress={() => { setAccepted(true); setModalVisible(false); }}
               >
                 <LinearGradient colors={['#34d399', '#0f766e']} style={styles.acceptBtnGrad}>
-                  <Text style={styles.acceptBtnText}>Continuar</Text>
+                   <Text style={styles.acceptBtnText}>{t('chat.continue')}</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -339,21 +351,21 @@ export default function ChatbotScreen() {
         {messages.length === 0 && !modalVisible && (
           <View style={styles.welcomeContainer}>
             <View style={styles.profileHeader}>
-              <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Volver" style={styles.backButton}>
+               <TouchableOpacity onPress={() => router.back()} accessibilityLabel={t('chat.back')} style={styles.backButton}>
                 <ChevronLeft size={20} color="#174E43" />
               </TouchableOpacity>
               <View style={styles.userCircle}><User size={17} color="#174E43" /></View>
               <View>
-                <Text style={styles.welcomeLabel}>Bienvenido</Text>
+                 <Text style={styles.welcomeLabel}>{t('chat.welcome')}</Text>
                 <Text style={styles.emailLabel} numberOfLines={1}>{userEmail}</Text>
               </View>
             </View>
-            <Text style={styles.welcomeTitle}>¿Qué quieres{"\n"}descubrir hoy?</Text>
+             <Text style={styles.welcomeTitle}>{t('chat.discover')}</Text>
             <Text style={styles.welcomeSubtitle}>
-              Pregunta sobre la app, tus cultivos o el siguiente paso.
+               {t('chat.subtitle')}
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsScroll} contentContainerStyle={styles.suggestions}>
-              {['¿Cómo funciona Escanear?', '¿Qué muestra Mapeo?', 'Ayúdame con una recomendación'].map((suggestion) => (
+               {[t('chat.s1'), t('chat.s2'), t('chat.s3')].map((suggestion) => (
                 <TouchableOpacity key={suggestion} style={styles.suggestionCard} onPress={() => setInput(suggestion)} activeOpacity={0.8}>
                   <Sparkles size={14} color="#79d7c1" />
                   <Text style={styles.suggestionText}>{suggestion}</Text>
@@ -362,12 +374,12 @@ export default function ChatbotScreen() {
             </ScrollView>
             <View style={[styles.inputContainer, styles.initialInput, !accepted && styles.inputContainerDisabled]}>
               <TextInput value={input} onChangeText={setInput}
-                placeholder={!accepted ? "Acepta los términos para escribir..." : waitingForEmail ? "Escribe tu correo..." : "Pregunta algo o describe tu idea"}
+                 placeholder={!accepted ? t('chat.accept') : waitingForEmail ? t('chat.email') : t('chat.ask')}
                 placeholderTextColor="#91b8ad" style={[styles.input, styles.initialInputText, !accepted && styles.inputDisabled]}
                 onSubmitEditing={sendMessage} multiline={!waitingForEmail}
                 keyboardType={waitingForEmail ? "email-address" : "default"} autoCapitalize={waitingForEmail ? "none" : "sentences"} editable={accepted} />
               <View style={styles.initialControls}>
-                <Text style={styles.inputHint}>Avotex · asistente inteligente</Text>
+                 <Text style={styles.inputHint}>{t('chat.hint')}</Text>
                 <TouchableOpacity style={styles.sendBtn} onPress={accepted ? sendMessage : () => setModalVisible(true)} disabled={loading}>
                   {!accepted ? <View style={styles.sendBtnPlain}><Shield size={20} color="#b9ffe9" /></View> : <View style={styles.sendBtnGradient}><Send size={19} color="#05231b" /></View>}
                 </TouchableOpacity>
@@ -390,7 +402,7 @@ export default function ChatbotScreen() {
                   activeOpacity={0.7}
                 >
                   <Flag size={11} color="#94a3b8" />
-                  <Text style={styles.reportBtnText}>Reportar respuesta</Text>
+                   <Text style={styles.reportBtnText}>{t('chat.report')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -412,7 +424,7 @@ export default function ChatbotScreen() {
         <TextInput
           value={input}
           onChangeText={setInput}
-          placeholder={!accepted ? "Acepta los términos para escribir..." : waitingForEmail ? "Escribe tu correo..." : "Escribe algo..."}
+           placeholder={!accepted ? t('chat.accept') : waitingForEmail ? t('chat.email') : t('chat.write')}
           placeholderTextColor="#aaa"
           style={[styles.input, !accepted && styles.inputDisabled]}
           onSubmitEditing={sendMessage}

@@ -20,14 +20,41 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../firebaseConfig';
 import { useGuest } from '../../context/GuestContext';
+import { TranslationResource, useTranslations } from '../../context/LanguageContext';
 
 const CONTACT_EMAIL = 'vexmxoficial@gmail.com';
 const ERROR_DURATION_MS = 4000;
+
+const translations: TranslationResource = {
+  eyebrow: { es: 'AVOTEX · INTELIGENCIA PARA EL CAMPO', en: 'AVOTEX · INTELLIGENCE FOR THE FIELD' },
+  coverTitle: { es: 'Lee tu viñedo. Decide con certeza.', en: 'Read your vineyard. Decide with confidence.' },
+  coverSubtitle: { es: 'Cada hoja cuenta una historia. Nosotros te ayudamos a verla.', en: 'Every leaf tells a story. We help you see it.' },
+  signIn: { es: 'Iniciar sesión', en: 'Sign in' },
+  guestAccess: { es: 'Entrar como invitado', en: 'Continue as guest' },
+  backToCover: { es: 'Volver a la portada', en: 'Back to welcome screen' },
+  back: { es: 'Volver', en: 'Back' },
+  welcome: { es: 'Bienvenido', en: 'Welcome' },
+  smartCrops: { es: 'Conecta con tus cultivos inteligentes', en: 'Connect with your smart crops' },
+  emailPlaceholder: { es: 'Correo electrónico', en: 'Email address' },
+  passwordPlaceholder: { es: 'Contraseña', en: 'Password' },
+  emailLabel: { es: 'Correo electrónico', en: 'Email address' },
+  passwordLabel: { es: 'Contraseña', en: 'Password' },
+  showPassword: { es: 'Mostrar contraseña', en: 'Show password' },
+  hidePassword: { es: 'Ocultar contraseña', en: 'Hide password' },
+  startSession: { es: 'Iniciar Sesión', en: 'Sign In' },
+  freeTrial: { es: 'Empezar prueba gratuita', en: 'Start free trial' },
+  contactBefore: { es: 'Envía un correo a', en: 'Send an email to' },
+  contactAfter: { es: 'para registrarte.', en: 'to register.' },
+  missingCredentials: { es: 'Por favor ingresa tu correo y contraseña', en: 'Please enter your email and password' },
+  invalidCredentials: { es: 'Correo o contraseña incorrectos', en: 'Incorrect email or password' },
+  signInError: { es: 'Error al iniciar sesión. Intenta de nuevo.', en: 'Unable to sign in. Please try again.' },
+};
 
 export default function Login() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
   const { enterGuestMode, exitGuestMode } = useGuest();
+  const t = useTranslations(translations);
 
   const [email, setEmail]           = useState('');
   const [password, setPassword]     = useState('');
@@ -50,7 +77,7 @@ export default function Login() {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      setError('Por favor ingresa tu correo y contraseña');
+      setError(t('missingCredentials'));
       return;
     }
     setLoading(true);
@@ -66,9 +93,9 @@ export default function Login() {
         code === 'auth/wrong-password' ||
         code === 'auth/invalid-credential'
       ) {
-        setError('Correo o contraseña incorrectos');
+        setError(t('invalidCredentials'));
       } else {
-        setError('Error al iniciar sesión. Intenta de nuevo.');
+        setError(t('signInError'));
       }
     } finally {
       setLoading(false);
@@ -111,30 +138,30 @@ export default function Login() {
                 style={[s.brandLogo, isTablet && s.brandLogoTablet]}
                 resizeMode="contain"
               />
-              <Text style={s.coverEyebrow}>AVOTEX · INTELIGENCIA PARA EL CAMPO</Text>
-              <Text style={[s.coverTitle, isTablet && s.coverTitleTablet]}>Lee tu viñedo. Decide con certeza.</Text>
-              <Text style={s.coverSubtitle}>Cada hoja cuenta una historia. Nosotros te ayudamos a verla.</Text>
+              <Text style={s.coverEyebrow}>{t('eyebrow')}</Text>
+              <Text style={[s.coverTitle, isTablet && s.coverTitleTablet]}>{t('coverTitle')}</Text>
+              <Text style={s.coverSubtitle}>{t('coverSubtitle')}</Text>
             </View>
             <View style={[s.coverActions, isTablet && s.coverActionsTablet]}>
               <TouchableOpacity style={s.coverLoginButton} onPress={() => togglePanel(true)} activeOpacity={0.86}>
-                <Text style={s.coverLoginText}>Iniciar sesión</Text>
+                <Text style={s.coverLoginText}>{t('signIn')}</Text>
                 <ChevronRight size={20} color="#0B3E3A" />
               </TouchableOpacity>
               <TouchableOpacity style={s.coverGuestButton} onPress={handleGuestAccess} activeOpacity={0.86}>
                 <UserX color="#E6F4F0" size={18} />
-                <Text style={s.coverGuestText}>Entrar como invitado</Text>
+                <Text style={s.coverGuestText}>{t('guestAccess')}</Text>
               </TouchableOpacity>
             </View>
           </View>
         ) : (
           <View style={s.formScreen}>
-            <TouchableOpacity onPress={() => togglePanel(false)} style={s.backButton} accessibilityLabel="Volver a la portada">
+            <TouchableOpacity onPress={() => togglePanel(false)} style={s.backButton} accessibilityLabel={t('backToCover')}>
               <X size={21} color="#E6F4F0" />
-              <Text style={s.backText}>Volver</Text>
+              <Text style={s.backText}>{t('back')}</Text>
             </TouchableOpacity>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={[s.formContent, isTablet && s.formContentTablet]}>
-            <Text style={[s.title, isTablet && s.titleTablet]}>Bienvenido</Text>
-            <Text style={[s.subtitle, isTablet && s.subtitleTablet]}>Conecta con tus cultivos inteligentes</Text>
+            <Text style={[s.title, isTablet && s.titleTablet]}>{t('welcome')}</Text>
+            <Text style={[s.subtitle, isTablet && s.subtitleTablet]}>{t('smartCrops')}</Text>
 
             {error ? (
               <View style={s.errorBox}>
@@ -146,7 +173,8 @@ export default function Login() {
               <Mail color="#0F766E" size={20} style={s.inputIcon} />
               <TextInput
                 style={[s.input, isTablet && s.inputTablet]}
-                placeholder="Correo electrónico"
+                placeholder={t('emailPlaceholder')}
+                accessibilityLabel={t('emailLabel')}
                 value={email}
                 onChangeText={(t) => { setEmail(t); setError(''); }}
                 keyboardType="email-address"
@@ -159,13 +187,19 @@ export default function Login() {
               <Lock color="#0F766E" size={20} style={s.inputIcon} />
               <TextInput
                 style={[s.input, isTablet && s.inputTablet]}
-                placeholder="Contraseña"
+                placeholder={t('passwordPlaceholder')}
+                accessibilityLabel={t('passwordLabel')}
                 value={password}
                 onChangeText={(t) => { setPassword(t); setError(''); }}
                 secureTextEntry={!showPassword}
                 placeholderTextColor="#D1D5DB"
               />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={s.eyeBtn}>
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={s.eyeBtn}
+                accessibilityLabel={t(showPassword ? 'hidePassword' : 'showPassword')}
+                accessibilityRole="button"
+              >
                 {showPassword ? <Eye color="#FFFFFF" size={20} /> : <EyeOff color="#FFFFFF" size={20} />}
               </TouchableOpacity>
             </View>
@@ -181,7 +215,7 @@ export default function Login() {
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
                     <>
-                      <Text style={[s.loginText, isTablet && s.loginTextTablet]}>Iniciar Sesión</Text>
+                      <Text style={[s.loginText, isTablet && s.loginTextTablet]}>{t('startSession')}</Text>
                       <ChevronRight color="#0F766E" size={22} />
                     </>
                   )}
@@ -195,18 +229,18 @@ export default function Login() {
               >
                 <UserX color="#64748b" size={isTablet ? 20 : 17} />
                 <Text style={[s.guestBtnText, isTablet && s.guestBtnTextTablet]}>
-                  Empezar prueba gratuita
+                  {t('freeTrial')}
                 </Text>
               </TouchableOpacity>
 
             <View style={s.registerRow}>
               <Text style={[s.registerText, isTablet && s.registerTextTablet]}>
-                Envía un correo a{' '}
+                 {t('contactBefore')}{' '}
               </Text>
               <TouchableOpacity onPress={() => Linking.openURL(`mailto:${CONTACT_EMAIL}`)}>
                 <Text style={[s.registerEmail, s.registerEmailLink, isTablet && s.registerTextTablet]}>{CONTACT_EMAIL}</Text>
               </TouchableOpacity>
-              <Text style={[s.registerText, isTablet && s.registerTextTablet]}>{' '}para registrarte.</Text>
+               <Text style={[s.registerText, isTablet && s.registerTextTablet]}>{' '}{t('contactAfter')}</Text>
             </View>
             </ScrollView>
           </View>

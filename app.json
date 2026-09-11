@@ -2,8 +2,8 @@
   "expo": {
     "name": "Avotex",
     "slug": "avotex",
-    "version": "1.0.0",
-    "orientation": "portrait",
+    "version": "1.0.1",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
@@ -11,7 +11,8 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
+      "buildNumber": "2",
       "bundleIdentifier": "com.vex.avotex",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Usamos tu ubicación para obtener condiciones climáticas y mejorar el análisis de cultivos.",
@@ -64,6 +65,7 @@
     },
     "android": {
       "package": "com.vex.avotex",
+      "versionCode": 2,
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "android.permission.INTERNET",

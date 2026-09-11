@@ -390,7 +390,7 @@ export default function Home() {
 
   const handleLockedCardPress = () => {};
 
-  const contentMaxWidth = isTablet ? 900 : undefined;
+  const contentMaxWidth = isTablet ? 1180 : undefined;
 
   return (
     <View style={{ flex: 1 }}>

@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressa
 import { BlurView } from 'expo-blur';
 import { Poppins_400Regular, useFonts } from '@expo-google-fonts/poppins';
 import * as Location from 'expo-location';
-import { ChevronRight, Eraser, MapPin, MapPinOff, Navigation, Pencil, Plus, Save, Sprout, Trash2, X } from 'lucide-react-native';
+import { ChevronRight, Eraser, MapPin, MapPinOff, Navigation, Pencil, Plus, Save, ShieldCheck, Sprout, Trash2, X } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 import PolygonMap, { PolygonMapHandle } from '../../components/PolygonMap';
@@ -70,6 +70,13 @@ const mappingTranslations: TranslationResource = {
   area: { es: '{area} ha', en: '{area} ha' },
   currentOrchard: { es: 'HUERTA SELECCIONADA', en: 'SELECTED ORCHARD' },
   openOrchards: { es: 'Abrir tus huertas', en: 'Open your orchards' },
+  savePermissionTitle: { es: 'Guardar datos de esta huerta', en: 'Save this orchard’s data' },
+  savePermissionBody: {
+    es: 'Avotex guardará en tu cuenta el nombre de la huerta, su delimitación geográfica, ubicación central y superficie calculada. Estos datos se almacenan de forma remota en Supabase para que puedas consultar y editar tus huertas en la app. No se venden ni se usan con fines publicitarios. Puedes eliminar la huerta posteriormente desde “Tus huertas”.',
+    en: 'Avotex will save the orchard name, geographic boundary, center location, and calculated area to your account. This data is stored remotely in Supabase so you can view and edit your orchards in the app. It is not sold or used for advertising. You can delete the orchard later from “Your orchards”.',
+  },
+  savePermissionNote: { es: 'Al continuar, autorizas guardar esta información.', en: 'By continuing, you authorize this information to be saved.' },
+  authorizeSave: { es: 'Autorizar y guardar', en: 'Authorize and save' },
 };
 
 const orchardLocation = (orchard: Orchard): Location.LocationObject => ({
@@ -111,6 +118,8 @@ export default function Mapping() {
   const [orchardsOpen, setOrchardsOpen] = useState(false);
   const [mapVersion, setMapVersion] = useState(0);
   const [editingBoundary, setEditingBoundary] = useState(false);
+  const [savePermissionVisible, setSavePermissionVisible] = useState(false);
+  const [pendingSaveMode, setPendingSaveMode] = useState<'boundary' | 'edit'>('boundary');
 
   const loadUserOrchards = useCallback(async () => {
     const email = auth.currentUser?.email;
@@ -283,6 +292,36 @@ export default function Mapping() {
     } finally {
       setSavingOrchard(false);
     }
+  };
+
+  const requestSavePermission = (mode: 'boundary' | 'edit') => {
+    if (!orchardName.trim()) {
+      setNotice(t('nameRequired'));
+      return;
+    }
+    if (polygon.length < 3) {
+      setNotice(t('invalidBoundary'));
+      return;
+    }
+    setPendingSaveMode(mode);
+    if (mode === 'boundary') setPreviewVisible(false);
+    setSavePermissionVisible(true);
+  };
+
+  const cancelSavePermission = () => {
+    setSavePermissionVisible(false);
+    if (pendingSaveMode === 'boundary') setPreviewVisible(true);
+  };
+
+  const authorizeAndSave = () => {
+    setSavePermissionVisible(false);
+    if (pendingSaveMode === 'edit') {
+      saveEditedPolygonRef.current = true;
+      setEditingBoundary(false);
+      mapRef.current?.finishEditing();
+      return;
+    }
+    void persistOrchard();
   };
 
   const confirmDeleteOrchard = (orchard: Orchard) => {
@@ -494,9 +533,7 @@ export default function Mapping() {
               accessibilityLabel={t('saveChanges')}
               disabled={savingOrchard}
               onPress={() => {
-                saveEditedPolygonRef.current = true;
-                setEditingBoundary(false);
-                mapRef.current?.finishEditing();
+                requestSavePermission('edit');
               }}
               style={({ pressed }) => [
                 styles.actionButton,
@@ -533,6 +570,34 @@ export default function Mapping() {
 
         </View>
       </BlurView>
+
+      <Modal
+        visible={savePermissionVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={cancelSavePermission}
+      >
+        <View style={styles.permissionBackdrop}>
+          <View style={styles.permissionCard}>
+            <View style={styles.permissionIcon}>
+              <ShieldCheck size={28} color="#0D756B" />
+            </View>
+            <Text style={styles.permissionTitle}>{t('savePermissionTitle')}</Text>
+            <Text style={styles.permissionBody}>{t('savePermissionBody')}</Text>
+            <Text style={styles.permissionNote}>{t('savePermissionNote')}</Text>
+            <View style={styles.permissionActions}>
+              <Pressable onPress={cancelSavePermission} style={({ pressed }) => [styles.permissionCancel, pressed && styles.actionPressed]}>
+                <Text style={styles.permissionCancelText}>{t('cancel')}</Text>
+              </Pressable>
+              <Pressable onPress={authorizeAndSave} style={({ pressed }) => [styles.permissionConfirm, pressed && styles.saveButtonPressed]}>
+                <ShieldCheck size={17} color="#FFFFFF" />
+                <Text style={styles.permissionConfirmText}>{t('authorizeSave')}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={previewVisible}
@@ -592,7 +657,7 @@ export default function Mapping() {
               placeholderTextColor="#8A9995"
               maxLength={80}
               returnKeyType="done"
-              onSubmitEditing={() => void persistOrchard()}
+              onSubmitEditing={() => requestSavePermission('boundary')}
               style={styles.orchardNameInput}
               accessibilityLabel={t('orchardName')}
             />
@@ -600,7 +665,7 @@ export default function Mapping() {
             <Pressable
               accessibilityRole="button"
                accessibilityLabel={t('saveLabel')}
-               onPress={() => void persistOrchard()}
+               onPress={() => requestSavePermission('boundary')}
                disabled={savingOrchard}
                style={({ pressed }) => [styles.previewSaveButton, savingOrchard && styles.actionButtonDisabled, pressed && styles.saveButtonPressed]}
             >
@@ -833,6 +898,85 @@ const styles = StyleSheet.create({
   saveChangesLabel: { color: '#FFFFFF' },
   saveButtonPressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
   keyboardAvoiding: { flex: 1 },
+  permissionBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: 'rgba(8,18,15,0.62)',
+  },
+  permissionCard: {
+    width: '100%',
+    maxWidth: 520,
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    paddingBottom: 19,
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.24,
+    shadowRadius: 24,
+    elevation: 24,
+  },
+  permissionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: 14,
+    backgroundColor: '#DDF4EC',
+  },
+  permissionTitle: {
+    color: '#132E28',
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  permissionBody: {
+    marginTop: 11,
+    color: '#536B65',
+    fontSize: 12,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  permissionNote: {
+    marginTop: 11,
+    color: '#173E36',
+    fontSize: 11,
+    lineHeight: 17,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  permissionActions: {
+    flexDirection: 'row',
+    gap: 9,
+    marginTop: 18,
+  },
+  permissionCancel: {
+    flex: 0.8,
+    minHeight: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EDF3F1',
+  },
+  permissionCancelText: { color: '#455E58', fontSize: 11, fontWeight: '800' },
+  permissionConfirm: {
+    flex: 1.5,
+    minHeight: 48,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    backgroundColor: '#0D756B',
+  },
+  permissionConfirmText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800', textAlign: 'center' },
   previewBackdrop: {
     flex: 1,
     justifyContent: 'flex-end',

@@ -92,7 +92,7 @@ export default function PlansScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F4FAF7' },
-  content: { padding: 18, paddingTop: 38, paddingBottom: 90, maxWidth: 620, width: '100%', alignSelf: 'center' },
+  content: { padding: 18, paddingTop: 38, paddingBottom: 90, maxWidth: 1100, width: '100%', alignSelf: 'center' },
   back: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 2 },
   backText: { color: '#0F766E', fontWeight: '700', fontSize: 14 },
   hero: { alignItems: 'center', paddingTop: 3, paddingBottom: 18, paddingHorizontal: 12 },

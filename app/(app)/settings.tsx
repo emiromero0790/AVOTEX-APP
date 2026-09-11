@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   },
   contentTablet: {
     width: '100%',
-    maxWidth: 760,
+    maxWidth: 1000,
     alignSelf: 'center',
     paddingTop: 58,
   },

@@ -237,8 +237,8 @@ export default function ChatbotScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior="padding"
-      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={0}
     >
       <Stack.Screen
         options={{
@@ -347,6 +347,8 @@ export default function ChatbotScreen() {
         ref={scrollViewRef}
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+        keyboardDismissMode="interactive"
       >
         {messages.length === 0 && !modalVisible && (
           <View style={styles.welcomeContainer}>
@@ -466,7 +468,7 @@ const styles = StyleSheet.create({
     borderRadius: 170, backgroundColor: '#A7E9D4', opacity: 0.28,
   },
   chatArea: { flex: 1, backgroundColor: 'transparent' },
-  chatContent: { padding: 18, paddingBottom: 20, maxWidth: 760, width: '100%', alignSelf: 'center' },
+  chatContent: { padding: 18, paddingBottom: 20, maxWidth: 1100, width: '100%', alignSelf: 'center' },
 
   modalOverlay: {
     flex: 1,
@@ -659,12 +661,12 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   initialInput: {
-    width: '100%', minHeight: 178, marginHorizontal: 0, marginTop: 8,
-    borderRadius: 22, paddingHorizontal: 17, paddingTop: 16, paddingBottom: 10,
+    width: '100%', minHeight: 92, marginHorizontal: 0, marginTop: 8,
+    borderRadius: 22, paddingHorizontal: 17, paddingTop: 12, paddingBottom: 10,
     alignItems: 'stretch', flexDirection: 'column',
   },
   initialInputText: {
-    minHeight: 102, textAlignVertical: 'top', paddingHorizontal: 0,
+    minHeight: 44, maxHeight: 100, textAlignVertical: 'top', paddingHorizontal: 0,
   },
   initialControls: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

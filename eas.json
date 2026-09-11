@@ -31,5 +31,12 @@
         "buildType": "app-bundle"
       }
     }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6766418810"
+      }
+    }
   }
 }

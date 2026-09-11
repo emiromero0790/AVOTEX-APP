@@ -14,7 +14,8 @@
     "eas-build-pre-install": "node scripts/eas-pre-install.js",
     "eas:build:ios": "eas build --platform ios",
     "eas:build:android": "eas build --platform android",
-    "eas:build:preview": "eas build --profile preview --platform all"
+    "eas:build:preview": "eas build --profile preview --platform all",
+    "eas:submit:ios": "eas submit --platform ios --latest --profile production --non-interactive"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",

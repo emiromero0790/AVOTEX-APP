@@ -13,6 +13,7 @@ export type PolygonMapProps = {
 export type PolygonMapHandle = {
   startDrawing: () => void;
   editDrawing: () => void;
+  finishEditing: () => void;
   clearDrawing: () => void;
 };
 
@@ -40,6 +41,7 @@ var activeDrawer=null;
 function sendPoints(points){window.ReactNativeWebView.postMessage(JSON.stringify({type:'polygon',points:points}));}
   function startDrawing(){if(${preview ? 'true' : 'false'})return;if(activeEditor){activeEditor.disable();activeEditor=null;}if(activeDrawer){activeDrawer.disable();}activeDrawer=new L.Draw.Polygon(map,polygonOptions);activeDrawer.enable();}
   function editDrawing(){if(${preview ? 'true' : 'false'})return;if(activeDrawer){activeDrawer.disable();activeDrawer=null;}if(activeEditor){activeEditor.disable();activeEditor=null;}if(drawn.getLayers().some(function(layer){return layer instanceof L.Polygon;})){activeEditor=new L.EditToolbar.Edit(map,{featureGroup:drawn});activeEditor.enable();}}
+  function finishEditing(){if(activeEditor){activeEditor.disable();activeEditor=null;}var layer=drawn.getLayers().find(function(item){return item instanceof L.Polygon;});if(layer){var points=layer.getLatLngs()[0].map(function(point){return {latitude:point.lat,longitude:point.lng};});sendPoints(points);}}
   function clearDrawing(){if(activeDrawer){activeDrawer.disable();activeDrawer=null;}if(activeEditor){activeEditor.disable();activeEditor=null;}drawn.clearLayers();sendPoints([]);}
 var initialPoints=${JSON.stringify(initialPolygon)};
 if(initialPoints.length>=3){
@@ -74,6 +76,7 @@ const PolygonMap = forwardRef<PolygonMapHandle, PolygonMapProps>(({ location, on
   useImperativeHandle(ref, () => ({
     startDrawing: () => webViewRef.current?.injectJavaScript('startDrawing(); true;'),
     editDrawing: () => webViewRef.current?.injectJavaScript('editDrawing(); true;'),
+    finishEditing: () => webViewRef.current?.injectJavaScript('finishEditing(); true;'),
     clearDrawing: () => webViewRef.current?.injectJavaScript('clearDrawing(); true;'),
   }), []);
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Poppins_400Regular, useFonts } from '@expo-google-fonts/poppins';
 import * as Location from 'expo-location';
@@ -55,6 +55,7 @@ const mappingTranslations: TranslationResource = {
   orchardName: { es: 'Nombre de la huerta', en: 'Orchard name' },
   orchardPlaceholder: { es: 'Ej. Huerta norte', en: 'E.g. North orchard' },
   editBoundary: { es: 'Editar', en: 'Edit' },
+  saveChanges: { es: 'Guardar cambios', en: 'Save changes' },
   editingBoundary: { es: 'Mueve los puntos del contorno y guarda los cambios.', en: 'Move the boundary points and save your changes.' },
   saved: { es: 'Huerta guardada correctamente.', en: 'Orchard saved successfully.' },
   saveError: { es: 'No se pudo guardar la huerta.', en: 'The orchard could not be saved.' },
@@ -92,6 +93,7 @@ export default function Mapping() {
   useFonts({ Poppins_400Regular });
   const mapRef = useRef<PolygonMapHandle>(null);
   const selectedOrchardRef = useRef<string | null>(null);
+  const saveEditedPolygonRef = useRef(false);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [gpsLocation, setGpsLocation] = useState<Location.LocationObject | null>(null);
   const [locationTitle, setLocationTitle] = useState(t('searching'));
@@ -108,6 +110,7 @@ export default function Mapping() {
   const [orchardsError, setOrchardsError] = useState<string | null>(null);
   const [orchardsOpen, setOrchardsOpen] = useState(false);
   const [mapVersion, setMapVersion] = useState(0);
+  const [editingBoundary, setEditingBoundary] = useState(false);
 
   const loadUserOrchards = useCallback(async () => {
     const email = auth.currentUser?.email;
@@ -224,6 +227,7 @@ export default function Mapping() {
     setLocationDetail(t('area', { area: (orchard.area_m2 / 10000).toFixed(2) }));
     setNotice(t('boundaryReady'));
     setPreviewVisible(false);
+    setEditingBoundary(false);
     setOrchardsOpen(false);
     setMapVersion(value => value + 1);
   };
@@ -240,18 +244,19 @@ export default function Mapping() {
     }
     setNotice(t('tapCorners'));
     setPreviewVisible(false);
+    setEditingBoundary(false);
     setOrchardsOpen(false);
     setMapVersion(value => value + 1);
   };
 
-  const persistOrchard = async () => {
+  const persistOrchard = async (pointsToSave: PolygonPoint[] = polygon) => {
     const email = auth.currentUser?.email;
     if (!email) return;
     if (!orchardName.trim()) {
       setNotice(t('nameRequired'));
       return;
     }
-    if (polygon.length < 3) {
+    if (pointsToSave.length < 3) {
       setNotice(t('invalidBoundary'));
       return;
     }
@@ -261,7 +266,7 @@ export default function Mapping() {
         id: selectedOrchard?.id,
         userEmail: email,
         name: orchardName,
-        coordinates: polygon,
+        coordinates: pointsToSave,
       });
       setOrchards(current => [saved, ...current.filter(item => item.id !== saved.id)]);
       selectedOrchardRef.current = saved.id;
@@ -316,6 +321,11 @@ export default function Mapping() {
             initialPolygon={polygon}
             onPolygonChange={(points: PolygonPoint[]) => {
               setPolygon(points);
+              if (saveEditedPolygonRef.current) {
+                saveEditedPolygonRef.current = false;
+                void persistOrchard(points);
+                return;
+              }
               if (points.length >= 3) {
                  setNotice(t('boundaryReady'));
                 setPreviewVisible(true);
@@ -448,6 +458,7 @@ export default function Mapping() {
             accessibilityState={{ disabled: !location }}
             disabled={!location}
             onPress={() => {
+              setEditingBoundary(false);
               mapRef.current?.startDrawing();
                setNotice(t('drawInstruction'));
             }}
@@ -467,6 +478,7 @@ export default function Mapping() {
               accessibilityLabel={t('editBoundary')}
               onPress={() => {
                 mapRef.current?.editDrawing();
+                setEditingBoundary(true);
                 setNotice(t('editingBoundary'));
               }}
               style={({ pressed }) => [styles.actionButton, pressed && styles.actionPressed]}
@@ -476,12 +488,35 @@ export default function Mapping() {
             </Pressable>
           )}
 
+          {editingBoundary && selectedOrchard && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('saveChanges')}
+              disabled={savingOrchard}
+              onPress={() => {
+                saveEditedPolygonRef.current = true;
+                setEditingBoundary(false);
+                mapRef.current?.finishEditing();
+              }}
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.saveChangesButton,
+                savingOrchard && styles.actionButtonDisabled,
+                pressed && styles.actionPressed,
+              ]}
+            >
+              {savingOrchard ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Save size={20} color="#FFFFFF" />}
+              <Text style={[styles.actionLabel, styles.saveChangesLabel]}>{t('saveChanges')}</Text>
+            </Pressable>
+          )}
+
           <Pressable
             accessibilityRole="button"
              accessibilityLabel={t('eraseLabel')}
             accessibilityState={{ disabled: !location || polygon.length === 0 }}
             disabled={!location || polygon.length === 0}
             onPress={() => {
+              setEditingBoundary(false);
               mapRef.current?.clearDrawing();
               setPolygon([]);
                setNotice(t('cleared'));
@@ -506,8 +541,13 @@ export default function Mapping() {
         statusBarTranslucent
         onRequestClose={() => setPreviewVisible(false)}
       >
-        <Pressable style={styles.previewBackdrop} onPress={() => setPreviewVisible(false)}>
-          <View style={styles.previewSheet} onStartShouldSetResponder={() => true}>
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoiding}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 16 : 0}
+        >
+          <Pressable style={styles.previewBackdrop} onPress={() => setPreviewVisible(false)}>
+            <View style={styles.previewSheet} onStartShouldSetResponder={() => true}>
             <View style={styles.previewHandle} />
             <View style={styles.previewHeader}>
               <View>
@@ -551,6 +591,8 @@ export default function Mapping() {
               placeholder={t('orchardPlaceholder')}
               placeholderTextColor="#8A9995"
               maxLength={80}
+              returnKeyType="done"
+              onSubmitEditing={() => void persistOrchard()}
               style={styles.orchardNameInput}
               accessibilityLabel={t('orchardName')}
             />
@@ -558,15 +600,16 @@ export default function Mapping() {
             <Pressable
               accessibilityRole="button"
                accessibilityLabel={t('saveLabel')}
-               onPress={persistOrchard}
+               onPress={() => void persistOrchard()}
                disabled={savingOrchard}
                style={({ pressed }) => [styles.previewSaveButton, savingOrchard && styles.actionButtonDisabled, pressed && styles.saveButtonPressed]}
             >
               {savingOrchard ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Save size={18} color="#FFFFFF" />}
                <Text style={styles.previewSaveButtonText}>{t('save')}</Text>
             </Pressable>
-          </View>
-        </Pressable>
+            </View>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -786,7 +829,10 @@ const styles = StyleSheet.create({
   actionPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
   actionButtonDisabled: { opacity: 0.42 },
   actionLabel: { color: '#455E58', fontSize: 9, fontWeight: '700' },
+  saveChangesButton: { backgroundColor: '#0D756B' },
+  saveChangesLabel: { color: '#FFFFFF' },
   saveButtonPressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
+  keyboardAvoiding: { flex: 1 },
   previewBackdrop: {
     flex: 1,
     justifyContent: 'flex-end',

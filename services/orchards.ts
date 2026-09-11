@@ -36,6 +36,14 @@ export async function saveOrchard(input: {
   name: string;
   coordinates: PolygonPoint[];
 }): Promise<Orchard> {
+  const { error: userError } = await supabase
+    .from('users')
+    .upsert(
+      { user_email: input.userEmail, tokens: 0 },
+      { onConflict: 'user_email', ignoreDuplicates: true },
+    );
+  if (userError) throw userError;
+
   const payload = {
     user_email: input.userEmail,
     nombre: input.name.trim(),

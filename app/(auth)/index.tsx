@@ -22,7 +22,7 @@ import { auth } from '../../firebaseConfig';
 import { useGuest } from '../../context/GuestContext';
 import { TranslationResource, useTranslations } from '../../context/LanguageContext';
 
-const CONTACT_EMAIL = 'vexmxoficial@gmail.com';
+const REGISTER_URL = 'https://vex-mx.com/avotex.html';
 const ERROR_DURATION_MS = 4000;
 
 const translations: TranslationResource = {
@@ -43,7 +43,7 @@ const translations: TranslationResource = {
   hidePassword: { es: 'Ocultar contraseña', en: 'Hide password' },
   startSession: { es: 'Iniciar Sesión', en: 'Sign In' },
   freeTrial: { es: 'Empezar prueba gratuita', en: 'Start free trial' },
-  contactBefore: { es: 'Envía un correo a', en: 'Send an email to' },
+  contactBefore: { es: 'Entra a', en: 'Go to' },
   contactAfter: { es: 'para registrarte.', en: 'to register.' },
   missingCredentials: { es: 'Por favor ingresa tu correo y contraseña', en: 'Please enter your email and password' },
   invalidCredentials: { es: 'Correo o contraseña incorrectos', en: 'Incorrect email or password' },
@@ -237,8 +237,8 @@ export default function Login() {
               <Text style={[s.registerText, isTablet && s.registerTextTablet]}>
                  {t('contactBefore')}{' '}
               </Text>
-              <TouchableOpacity onPress={() => Linking.openURL(`mailto:${CONTACT_EMAIL}`)}>
-                <Text style={[s.registerEmail, s.registerEmailLink, isTablet && s.registerTextTablet]}>{CONTACT_EMAIL}</Text>
+               <TouchableOpacity onPress={() => Linking.openURL(REGISTER_URL)}>
+                 <Text style={[s.registerEmail, s.registerEmailLink, isTablet && s.registerTextTablet]}>{REGISTER_URL}</Text>
               </TouchableOpacity>
                <Text style={[s.registerText, isTablet && s.registerTextTablet]}>{' '}{t('contactAfter')}</Text>
             </View>

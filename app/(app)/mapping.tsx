@@ -483,10 +483,28 @@ export default function Mapping() {
           <View>
            <Text style={styles.title}>{t('title')}</Text>
           </View>
-          <View style={[styles.pointBadge, polygon.length >= 3 && styles.pointBadgeReady]}>
-            <Text style={[styles.pointBadgeText, polygon.length >= 3 && styles.pointBadgeTextReady]}>
-               {t('points', { count: polygon.length })}
-            </Text>
+          <View style={styles.panelHeaderActions}>
+            {polygon.length > 0 && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('eraseLabel')}
+                onPress={() => {
+                  setEditingBoundary(false);
+                  mapRef.current?.clearDrawing();
+                  setPolygon([]);
+                  setNotice(t('cleared'));
+                }}
+                style={({ pressed }) => [styles.headerEraseButton, pressed && styles.actionPressed]}
+              >
+                <Eraser size={15} color="#D1534A" />
+                <Text style={styles.headerEraseLabel}>{t('erase')}</Text>
+              </Pressable>
+            )}
+            <View style={[styles.pointBadge, polygon.length >= 3 && styles.pointBadgeReady]}>
+              <Text style={[styles.pointBadgeText, polygon.length >= 3 && styles.pointBadgeTextReady]}>
+                {t('points', { count: polygon.length })}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -543,30 +561,16 @@ export default function Mapping() {
               ]}
             >
               {savingOrchard ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Save size={20} color="#FFFFFF" />}
-              <Text style={[styles.actionLabel, styles.saveChangesLabel]}>{t('saveChanges')}</Text>
+              <Text
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+                style={[styles.actionLabel, styles.saveChangesLabel]}
+              >
+                {t('saveChanges')}
+              </Text>
             </Pressable>
           )}
-
-          <Pressable
-            accessibilityRole="button"
-             accessibilityLabel={t('eraseLabel')}
-            accessibilityState={{ disabled: !location || polygon.length === 0 }}
-            disabled={!location || polygon.length === 0}
-            onPress={() => {
-              setEditingBoundary(false);
-              mapRef.current?.clearDrawing();
-              setPolygon([]);
-               setNotice(t('cleared'));
-            }}
-            style={({ pressed }) => [
-              styles.actionButton,
-              (!location || polygon.length === 0) && styles.actionButtonDisabled,
-              pressed && styles.actionPressed,
-            ]}
-          >
-            <Eraser size={20} color="#D1534A" />
-             <Text style={styles.actionLabel}>{t('erase')}</Text>
-          </Pressable>
 
         </View>
       </BlurView>
@@ -882,6 +886,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   actions: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginTop: 12 },
+  panelHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  headerEraseButton: {
+    minHeight: 32,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    backgroundColor: '#FFF0EE',
+  },
+  headerEraseLabel: { color: '#B94C44', fontSize: 10, fontWeight: '800' },
   actionButton: {
     flex: 1,
     minHeight: 50,
@@ -895,7 +911,7 @@ const styles = StyleSheet.create({
   actionButtonDisabled: { opacity: 0.42 },
   actionLabel: { color: '#455E58', fontSize: 9, fontWeight: '700' },
   saveChangesButton: { backgroundColor: '#0D756B' },
-  saveChangesLabel: { color: '#FFFFFF' },
+  saveChangesLabel: { color: '#FFFFFF', maxWidth: '100%', textAlign: 'center', lineHeight: 11 },
   saveButtonPressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
   keyboardAvoiding: { flex: 1 },
   permissionBackdrop: {

@@ -458,31 +458,33 @@ export default function Mapping() {
           ) : (
             <ScrollView showsVerticalScrollIndicator={false} style={styles.orchardsList}>
               {orchards.map(orchard => (
-                <Pressable
+                <View
                   key={orchard.id}
-                  onPress={() => selectOrchard(orchard)}
-                  style={({ pressed }) => [
+                  style={[
                     styles.orchardRow,
                     selectedOrchard?.id === orchard.id && styles.orchardRowSelected,
-                    pressed && styles.actionPressed,
                   ]}
                 >
-                  <View style={styles.orchardIcon}><Sprout size={15} color="#0D756B" /></View>
-                  <View style={styles.orchardCopy}>
-                    <Text style={styles.orchardName} numberOfLines={1}>{orchard.nombre}</Text>
-                    <Text style={styles.orchardArea}>{t('area', { area: (orchard.area_m2 / 10000).toFixed(2) })}</Text>
-                  </View>
                   <Pressable
+                    onPress={() => selectOrchard(orchard)}
+                    style={({ pressed }) => [styles.orchardSelectArea, pressed && styles.actionPressed]}
+                  >
+                    <View style={styles.orchardIcon}><Sprout size={15} color="#0D756B" /></View>
+                    <View style={styles.orchardCopy}>
+                      <Text style={styles.orchardName} numberOfLines={1}>{orchard.nombre}</Text>
+                      <Text style={styles.orchardArea}>{t('area', { area: (orchard.area_m2 / 10000).toFixed(2) })}</Text>
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
                     accessibilityLabel={t('delete')}
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      confirmDeleteOrchard(orchard);
-                    }}
-                    hitSlop={8}
+                    onPress={() => confirmDeleteOrchard(orchard)}
+                    hitSlop={10}
+                    style={({ pressed }) => [styles.orchardDeleteButton, pressed && styles.actionPressed]}
                   >
                     <Trash2 size={15} color="#B45B54" />
                   </Pressable>
-                </Pressable>
+                </View>
               ))}
             </ScrollView>
           )}
@@ -908,6 +910,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FBFA',
   },
   orchardRowSelected: { borderColor: '#85CDBA', backgroundColor: '#E5F5F0' },
+  orchardSelectArea: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
+  orchardDeleteButton: {
+    width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#FCECEB',
+  },
   orchardIcon: {
     width: 31,
     height: 31,

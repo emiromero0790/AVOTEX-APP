@@ -65,6 +65,7 @@ const mappingTranslations: TranslationResource = {
   invalidBoundary: { es: 'Marca al menos tres puntos antes de guardar.', en: 'Mark at least three points before saving.' },
   deleteTitle: { es: 'Eliminar huerta', en: 'Delete orchard' },
   deleteBody: { es: '¿Quieres eliminar “{name}”? Esta acción no se puede deshacer.', en: 'Delete “{name}”? This action cannot be undone.' },
+  deleting: { es: 'Eliminando…', en: 'Deleting…' },
   cancel: { es: 'Cancelar', en: 'Cancel' },
   delete: { es: 'Eliminar', en: 'Delete' },
   area: { es: '{area} ha', en: '{area} ha' },
@@ -119,6 +120,8 @@ export default function Mapping() {
   const [orchardName, setOrchardName] = useState('');
   const [orchardDetails, setOrchardDetails] = useState('');
   const [commentsVisible, setCommentsVisible] = useState(false);
+  const [orchardPendingDelete, setOrchardPendingDelete] = useState<Orchard | null>(null);
+  const [deletingOrchard, setDeletingOrchard] = useState(false);
   const [loadingOrchards, setLoadingOrchards] = useState(false);
   const [savingOrchard, setSavingOrchard] = useState(false);
   const [orchardsError, setOrchardsError] = useState<string | null>(null);
@@ -336,28 +339,24 @@ export default function Mapping() {
   };
 
   const confirmDeleteOrchard = (orchard: Orchard) => {
-    Alert.alert(
-      t('deleteTitle'),
-      t('deleteBody', { name: orchard.nombre }),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('delete'),
-          style: 'destructive',
-          onPress: async () => {
-            const email = auth.currentUser?.email;
-            if (!email) return;
-            try {
-              await deleteOrchard(orchard.id, email);
-              setOrchards(current => current.filter(item => item.id !== orchard.id));
-              if (selectedOrchard?.id === orchard.id) createNewOrchard();
-            } catch {
-              setNotice(t('saveError'));
-            }
-          },
-        },
-      ],
-    );
+    setOrchardPendingDelete(orchard);
+  };
+
+  const performDeleteOrchard = async () => {
+    if (!orchardPendingDelete || deletingOrchard) return;
+    const email = auth.currentUser?.email;
+    if (!email) return;
+    setDeletingOrchard(true);
+    try {
+      await deleteOrchard(orchardPendingDelete.id, email);
+      setOrchards(current => current.filter(item => item.id !== orchardPendingDelete.id));
+      if (selectedOrchard?.id === orchardPendingDelete.id) createNewOrchard();
+      setOrchardPendingDelete(null);
+    } catch (error: any) {
+      setNotice(error?.message || t('saveError'));
+    } finally {
+      setDeletingOrchard(false);
+    }
   };
 
   return (
@@ -764,6 +763,47 @@ export default function Mapping() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={orchardPendingDelete !== null}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => !deletingOrchard && setOrchardPendingDelete(null)}
+      >
+        <View style={styles.permissionBackdrop}>
+          <View style={styles.permissionCard}>
+            <View style={styles.deleteModalIcon}>
+              <Trash2 size={26} color="#B94C44" />
+            </View>
+            <Text style={styles.permissionTitle}>{t('deleteTitle')}</Text>
+            <Text style={styles.permissionBody}>
+              {t('deleteBody', { name: orchardPendingDelete?.nombre ?? '' })}
+            </Text>
+            <View style={styles.permissionActions}>
+              <Pressable
+                disabled={deletingOrchard}
+                onPress={() => setOrchardPendingDelete(null)}
+                style={({ pressed }) => [styles.permissionCancel, pressed && styles.actionPressed]}
+              >
+                <Text style={styles.permissionCancelText}>{t('cancel')}</Text>
+              </Pressable>
+              <Pressable
+                disabled={deletingOrchard}
+                onPress={performDeleteOrchard}
+                style={({ pressed }) => [styles.deleteConfirmButton, pressed && styles.actionPressed]}
+              >
+                {deletingOrchard
+                  ? <ActivityIndicator size="small" color="#FFFFFF" />
+                  : <Trash2 size={17} color="#FFFFFF" />}
+                <Text style={styles.deleteConfirmText}>
+                  {deletingOrchard ? t('deleting') : t('delete')}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -1193,4 +1233,13 @@ const styles = StyleSheet.create({
   commentsFloatingText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
   commentsModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   commentsModalInput: { minHeight: 150, paddingTop: 13, marginTop: 18 },
+  deleteModalIcon: {
+    width: 54, height: 54, borderRadius: 18, alignSelf: 'center', alignItems: 'center',
+    justifyContent: 'center', marginBottom: 14, backgroundColor: '#FCECEB',
+  },
+  deleteConfirmButton: {
+    flex: 1.2, minHeight: 48, borderRadius: 16, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: '#B94C44',
+  },
+  deleteConfirmText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
 });

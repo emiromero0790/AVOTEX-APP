@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
   chatArea: { flex: 1, backgroundColor: 'transparent' },
   chatContent: { padding: 18, paddingBottom: 20, maxWidth: 1100, width: '100%', alignSelf: 'center' },
   persistentHeader: {
-    minHeight: 68, paddingHorizontal: 16, paddingTop: 16, flexDirection: 'row',
+    minHeight: 82, paddingHorizontal: 16, paddingTop: 30, flexDirection: 'row',
     alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: '#DCECE7',
     backgroundColor: 'rgba(255,255,255,0.9)', zIndex: 10,
   },

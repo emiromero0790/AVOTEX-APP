@@ -728,7 +728,6 @@ export default function Home() {
               style={s.virtualOrchardGradient}
             >
               <View style={s.virtualOrchardArt}>
-                <View style={s.virtualOrchardSun} />
                 <View style={[s.virtualOrchardRow, { width: 36 }]} />
                 <View style={[s.virtualOrchardRow, { width: 28 }]} />
                 <Leaf size={20} color="#FFFFFF" />
@@ -1103,10 +1102,6 @@ const s = StyleSheet.create({
   virtualOrchardArt: {
     width: 58, height: 62, borderRadius: 18, overflow: 'hidden',
     alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)',
-  },
-  virtualOrchardSun: {
-    position: 'absolute', width: 20, height: 20, borderRadius: 10, top: 7, right: 8,
-    backgroundColor: '#F7D76E',
   },
   virtualOrchardRow: {
     position: 'absolute', height: 3, borderRadius: 2, left: 5,

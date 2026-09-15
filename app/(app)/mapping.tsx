@@ -568,6 +568,18 @@ export default function Mapping() {
             </Pressable>
           )}
 
+          {!selectedOrchard && polygon.length >= 3 && !editingBoundary && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('saveLabel')}
+              onPress={() => setPreviewVisible(true)}
+              style={({ pressed }) => [styles.actionButton, styles.saveChangesButton, pressed && styles.actionPressed]}
+            >
+              <Save size={20} color="#FFFFFF" />
+              <Text style={[styles.actionLabel, styles.saveChangesLabel]}>{t('save')}</Text>
+            </Pressable>
+          )}
+
           {editingBoundary && selectedOrchard && (
             <Pressable
               accessibilityRole="button"
@@ -1166,7 +1178,7 @@ const styles = StyleSheet.create({
   previewSaveButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   orchardDetailsInput: { minHeight: 88, paddingTop: 12 },
   commentsFloatingButton: {
-    position: 'absolute', right: 18, top: 122, minHeight: 46, paddingHorizontal: 15,
+    position: 'absolute', left: 18, top: 122, minHeight: 46, paddingHorizontal: 15,
     borderRadius: 23, flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: '#0D756B', shadowColor: '#000', shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.22, shadowRadius: 10, elevation: 10,

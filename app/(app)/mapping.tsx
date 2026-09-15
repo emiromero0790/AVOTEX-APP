@@ -1178,8 +1178,8 @@ const styles = StyleSheet.create({
   previewSaveButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   orchardDetailsInput: { minHeight: 88, paddingTop: 12 },
   commentsFloatingButton: {
-    position: 'absolute', left: 18, top: 122, minHeight: 46, paddingHorizontal: 15,
-    borderRadius: 23, flexDirection: 'row', alignItems: 'center', gap: 8,
+    position: 'absolute', left: 18, top: 112, minHeight: 38, paddingHorizontal: 12,
+    borderRadius: 15, flexDirection: 'row', alignItems: 'center', gap: 7,
     backgroundColor: '#0D756B', shadowColor: '#000', shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.22, shadowRadius: 10, elevation: 10,
   },

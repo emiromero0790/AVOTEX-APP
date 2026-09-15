@@ -638,7 +638,7 @@ export default function Mapping() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 16 : 0}
         >
-          <Pressable style={styles.previewBackdrop} onPress={() => setPreviewVisible(false)}>
+          <View style={styles.previewBackdrop}>
             <View style={styles.previewSheet} onStartShouldSetResponder={() => true}>
             <View style={styles.previewHandle} />
             <View style={styles.previewHeader}>
@@ -713,7 +713,7 @@ export default function Mapping() {
             </Pressable>
             </ScrollView>
             </View>
-          </Pressable>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -1166,7 +1166,7 @@ const styles = StyleSheet.create({
   previewSaveButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   orchardDetailsInput: { minHeight: 88, paddingTop: 12 },
   commentsFloatingButton: {
-    position: 'absolute', right: 18, bottom: 168, minHeight: 46, paddingHorizontal: 15,
+    position: 'absolute', right: 18, top: 122, minHeight: 46, paddingHorizontal: 15,
     borderRadius: 23, flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: '#0D756B', shadowColor: '#000', shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.22, shadowRadius: 10, elevation: 10,

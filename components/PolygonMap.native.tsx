@@ -27,7 +27,7 @@ function buildMapHTML(
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
-  <style>*{box-sizing:border-box}html,body,#map{height:100%;width:100%;margin:0}#map{background:#dbe9df}.leaflet-control{box-shadow:0 1px 5px rgba(12,63,53,.25)!important}.leaflet-marker-pane .leaflet-marker-icon:first-child{background:#e53935!important;border-color:#fff!important;width:14px!important;height:14px!important;margin-left:-7px!important;margin-top:-7px!important;border-radius:50%!important;border-width:3px!important}</style>
+  <style>*{box-sizing:border-box}html,body,#map{height:100%;width:100%;margin:0}#map{background:#dbe9df}.leaflet-control{box-shadow:0 1px 5px rgba(12,63,53,.25)!important}.first-vertex{background:#e53935!important;border:3px solid #fff!important;width:18px!important;height:18px!important;margin-left:-9px!important;margin-top:-9px!important;border-radius:50%!important;box-shadow:0 2px 8px rgba(120,0,0,.5)!important}</style>
 </head><body><div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
@@ -38,6 +38,7 @@ var drawn=new L.FeatureGroup();map.addLayer(drawn);
 var polygonOptions={allowIntersection:false,showArea:true,shapeOptions:{color:'#ecfff3',weight:3,fillColor:'#19a681',fillOpacity:.42}};
 var activeDrawer=null;
   var activeEditor=null;
+  function markFirstVertex(){setTimeout(function(){var vertices=document.querySelectorAll('.leaflet-marker-pane .leaflet-editing-icon');vertices.forEach(function(v){v.classList.remove('first-vertex');});if(vertices.length){vertices[0].classList.add('first-vertex');}},0);}
 function sendPoints(points){window.ReactNativeWebView.postMessage(JSON.stringify({type:'polygon',points:points}));}
   function startDrawing(){if(${preview ? 'true' : 'false'})return;if(activeEditor){activeEditor.disable();activeEditor=null;}if(activeDrawer){activeDrawer.disable();}activeDrawer=new L.Draw.Polygon(map,polygonOptions);activeDrawer.enable();}
   function editDrawing(){if(${preview ? 'true' : 'false'})return;if(activeDrawer){activeDrawer.disable();activeDrawer=null;}if(activeEditor){activeEditor.disable();activeEditor=null;}if(drawn.getLayers().some(function(layer){return layer instanceof L.Polygon;})){activeEditor=new L.EditToolbar.Edit(map,{featureGroup:drawn});activeEditor.enable();}}
@@ -49,6 +50,9 @@ if(initialPoints.length>=3){
   drawn.addLayer(initialLayer);
   map.fitBounds(initialLayer.getBounds(),{padding:[28,28],maxZoom:19});
 }
+map.on(L.Draw.Event.DRAWVERTEX,markFirstVertex);
+map.on(L.Draw.Event.EDITSTART,markFirstVertex);
+map.on(L.Draw.Event.EDITVERTEX,markFirstVertex);
 map.on(L.Draw.Event.CREATED,function(e){
   activeDrawer=null;
   drawn.clearLayers();drawn.addLayer(e.layer);

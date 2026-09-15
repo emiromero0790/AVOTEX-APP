@@ -721,9 +721,24 @@ export default function Home() {
             activeOpacity={0.82}
             accessibilityRole="link"
           >
-            <View style={s.virtualOrchardIcon}><Leaf size={21} color="#0D756B" /></View>
-            <Text style={s.virtualOrchardText}>{t('virtualOrchard')}</Text>
-            <ExternalLink size={18} color="#0D756B" />
+            <LinearGradient
+              colors={['#0B655C', '#12977F', '#7AD7B5']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={s.virtualOrchardGradient}
+            >
+              <View style={s.virtualOrchardArt}>
+                <View style={s.virtualOrchardSun} />
+                <View style={[s.virtualOrchardRow, { width: 36 }]} />
+                <View style={[s.virtualOrchardRow, { width: 28 }]} />
+                <Leaf size={20} color="#FFFFFF" />
+              </View>
+              <View style={s.virtualOrchardCopy}>
+                <Text style={s.virtualOrchardEyebrow}>AVOTEX DIGITAL</Text>
+                <Text style={s.virtualOrchardText}>{t('virtualOrchard')}</Text>
+              </View>
+              <View style={s.virtualOrchardArrow}><ExternalLink size={17} color="#0D756B" /></View>
+            </LinearGradient>
           </TouchableOpacity>
 
         </View>
@@ -1078,16 +1093,36 @@ const s = StyleSheet.create({
     borderRadius: 34,
   },
   virtualOrchardLink: {
-    marginHorizontal: 18, marginBottom: 110, paddingHorizontal: 18, minHeight: 72,
-    borderRadius: 22, flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#E9F7F2', borderWidth: 1, borderColor: '#C8EADF',
+    marginHorizontal: 18, marginBottom: 22, height: 92, borderRadius: 25,
+    overflow: 'hidden', shadowColor: '#087064', shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.23, shadowRadius: 14, elevation: 7,
   },
-  virtualOrchardIcon: {
-    width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+  virtualOrchardGradient: {
+    flex: 1, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 12,
+  },
+  virtualOrchardArt: {
+    width: 58, height: 62, borderRadius: 18, overflow: 'hidden',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  virtualOrchardSun: {
+    position: 'absolute', width: 20, height: 20, borderRadius: 10, top: 7, right: 8,
+    backgroundColor: '#F7D76E',
+  },
+  virtualOrchardRow: {
+    position: 'absolute', height: 3, borderRadius: 2, left: 5,
+    backgroundColor: 'rgba(255,255,255,0.35)', transform: [{ rotate: '-22deg' }],
+  },
+  virtualOrchardCopy: { flex: 1 },
+  virtualOrchardEyebrow: {
+    color: '#BFF3E2', fontFamily: 'Poppins_600SemiBold', fontSize: 8, letterSpacing: 1.3,
+    marginBottom: 3,
   },
   virtualOrchardText: {
-    flex: 1, color: '#173E36', fontFamily: 'Poppins_600SemiBold', fontSize: 14, lineHeight: 20,
+    color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold', fontSize: 14, lineHeight: 19,
+  },
+  virtualOrchardArrow: {
+    width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
   },
   quickActionsTitle: {
     color: '#111118',

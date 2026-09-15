@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressa
 import { BlurView } from 'expo-blur';
 import { Poppins_400Regular, useFonts } from '@expo-google-fonts/poppins';
 import * as Location from 'expo-location';
-import { ChevronRight, Eraser, MapPin, MapPinOff, Navigation, Pencil, Plus, Save, ShieldCheck, Sprout, Trash2, X } from 'lucide-react-native';
+import { ChevronRight, Eraser, MapPin, MapPinOff, MessageSquareText, Navigation, Pencil, Plus, Save, ShieldCheck, Sprout, Trash2, X } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 import PolygonMap, { PolygonMapHandle } from '../../components/PolygonMap';
@@ -77,6 +77,11 @@ const mappingTranslations: TranslationResource = {
   },
   savePermissionNote: { es: 'Al continuar, autorizas guardar esta información.', en: 'By continuing, you authorize this information to be saved.' },
   authorizeSave: { es: 'Autorizar y guardar', en: 'Authorize and save' },
+  details: { es: 'Comentarios sobre tu huerta', en: 'Comments about your orchard' },
+  detailsPlaceholder: { es: 'Agrega información, notas o una descripción…', en: 'Add information, notes, or a description…' },
+  editComments: { es: 'Comentarios', en: 'Comments' },
+  commentsTitle: { es: 'Comentarios de la huerta', en: 'Orchard comments' },
+  commentsSaved: { es: 'Comentarios actualizados.', en: 'Comments updated.' },
 };
 
 const orchardLocation = (orchard: Orchard): Location.LocationObject => ({
@@ -112,6 +117,8 @@ export default function Mapping() {
   const [orchards, setOrchards] = useState<Orchard[]>([]);
   const [selectedOrchard, setSelectedOrchard] = useState<Orchard | null>(null);
   const [orchardName, setOrchardName] = useState('');
+  const [orchardDetails, setOrchardDetails] = useState('');
+  const [commentsVisible, setCommentsVisible] = useState(false);
   const [loadingOrchards, setLoadingOrchards] = useState(false);
   const [savingOrchard, setSavingOrchard] = useState(false);
   const [orchardsError, setOrchardsError] = useState<string | null>(null);
@@ -230,6 +237,7 @@ export default function Mapping() {
     selectedOrchardRef.current = orchard.id;
     setSelectedOrchard(orchard);
     setOrchardName(orchard.nombre);
+    setOrchardDetails(orchard.detalles ?? '');
     setPolygon(orchard.coordinates);
     setLocation(orchardLocation(orchard));
     setLocationTitle(orchard.nombre);
@@ -245,6 +253,7 @@ export default function Mapping() {
     selectedOrchardRef.current = null;
     setSelectedOrchard(null);
     setOrchardName('');
+    setOrchardDetails('');
     setPolygon([]);
     if (gpsLocation) setLocation(gpsLocation);
     setLocationTitle(t('current'));
@@ -275,11 +284,13 @@ export default function Mapping() {
         id: selectedOrchard?.id,
         userEmail: email,
         name: orchardName,
+        details: orchardDetails,
         coordinates: pointsToSave,
       });
       setOrchards(current => [saved, ...current.filter(item => item.id !== saved.id)]);
       selectedOrchardRef.current = saved.id;
       setSelectedOrchard(saved);
+      setOrchardDetails(saved.detalles ?? '');
       setLocation(orchardLocation(saved));
       setLocationTitle(saved.nombre);
       setLocationDetail(t('area', { area: (saved.area_m2 / 10000).toFixed(2) }));
@@ -478,6 +489,18 @@ export default function Mapping() {
         </View>
       )}
 
+      {selectedOrchard && (
+        <Pressable
+          onPress={() => setCommentsVisible(true)}
+          style={({ pressed }) => [styles.commentsFloatingButton, pressed && styles.actionPressed]}
+          accessibilityRole="button"
+          accessibilityLabel={t('editComments')}
+        >
+          <MessageSquareText size={19} color="#FFFFFF" />
+          <Text style={styles.commentsFloatingText}>{t('editComments')}</Text>
+        </Pressable>
+      )}
+
       <BlurView intensity={55} tint="light" style={[styles.bottomPanel, isWide && styles.bottomPanelWide]}>
         <View style={styles.panelCopy}>
           <View>
@@ -654,6 +677,7 @@ export default function Mapping() {
               </View>
             </View>
 
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <TextInput
               value={orchardName}
               onChangeText={setOrchardName}
@@ -664,6 +688,17 @@ export default function Mapping() {
               onSubmitEditing={() => requestSavePermission('boundary')}
               style={styles.orchardNameInput}
               accessibilityLabel={t('orchardName')}
+            />
+            <TextInput
+              value={orchardDetails}
+              onChangeText={setOrchardDetails}
+              placeholder={t('detailsPlaceholder')}
+              placeholderTextColor="#8A9995"
+              maxLength={1000}
+              multiline
+              textAlignVertical="top"
+              style={[styles.orchardNameInput, styles.orchardDetailsInput]}
+              accessibilityLabel={t('details')}
             />
 
             <Pressable
@@ -676,8 +711,44 @@ export default function Mapping() {
               {savingOrchard ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Save size={18} color="#FFFFFF" />}
                <Text style={styles.previewSaveButtonText}>{t('save')}</Text>
             </Pressable>
+            </ScrollView>
             </View>
           </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={commentsVisible} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setCommentsVisible(false)}>
+        <KeyboardAvoidingView style={styles.keyboardAvoiding} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.permissionBackdrop}>
+            <View style={styles.permissionCard}>
+              <View style={styles.commentsModalHeader}>
+                <Text style={styles.permissionTitle}>{t('commentsTitle')}</Text>
+                <Pressable onPress={() => setCommentsVisible(false)} style={styles.previewClose}><X size={19} color="#173E36" /></Pressable>
+              </View>
+              <TextInput
+                value={orchardDetails}
+                onChangeText={setOrchardDetails}
+                placeholder={t('detailsPlaceholder')}
+                placeholderTextColor="#8A9995"
+                maxLength={1000}
+                multiline
+                autoFocus
+                textAlignVertical="top"
+                style={[styles.orchardNameInput, styles.commentsModalInput]}
+              />
+              <Pressable
+                style={styles.previewSaveButton}
+                disabled={savingOrchard}
+                onPress={async () => {
+                  await persistOrchard();
+                  setCommentsVisible(false);
+                }}
+              >
+                {savingOrchard ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Save size={18} color="#FFFFFF" />}
+                <Text style={styles.previewSaveButtonText}>{t('saveChanges')}</Text>
+              </Pressable>
+            </View>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
     </View>
@@ -1093,4 +1164,14 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   previewSaveButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  orchardDetailsInput: { minHeight: 88, paddingTop: 12 },
+  commentsFloatingButton: {
+    position: 'absolute', right: 18, bottom: 168, minHeight: 46, paddingHorizontal: 15,
+    borderRadius: 23, flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#0D756B', shadowColor: '#000', shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.22, shadowRadius: 10, elevation: 10,
+  },
+  commentsFloatingText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
+  commentsModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  commentsModalInput: { minHeight: 150, paddingTop: 13, marginTop: 18 },
 });

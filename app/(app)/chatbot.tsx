@@ -341,6 +341,14 @@ export default function ChatbotScreen() {
       <LinearGradient colors={['#BFEFDF', '#EAF8F3', '#FFFFFF']} locations={[0, 0.38, 0.9]} style={styles.background}>
       <View style={styles.atmosphereTop} />
       <View style={styles.atmosphereBottom} />
+      {!modalVisible && (
+        <View style={styles.persistentHeader}>
+          <TouchableOpacity onPress={() => router.back()} accessibilityLabel={t('chat.back')} style={styles.backButton}>
+            <ChevronLeft size={20} color="#174E43" />
+          </TouchableOpacity>
+          <Text style={styles.persistentHeaderTitle}>{t('chat.title')}</Text>
+        </View>
+      )}
       <ScrollView
         style={styles.chatArea}
         contentContainerStyle={styles.chatContent}
@@ -353,9 +361,6 @@ export default function ChatbotScreen() {
         {messages.length === 0 && !modalVisible && (
           <View style={styles.welcomeContainer}>
             <View style={styles.profileHeader}>
-               <TouchableOpacity onPress={() => router.back()} accessibilityLabel={t('chat.back')} style={styles.backButton}>
-                <ChevronLeft size={20} color="#174E43" />
-              </TouchableOpacity>
               <View style={styles.userCircle}><User size={17} color="#174E43" /></View>
               <View>
                  <Text style={styles.welcomeLabel}>{t('chat.welcome')}</Text>
@@ -485,6 +490,12 @@ const styles = StyleSheet.create({
   },
   chatArea: { flex: 1, backgroundColor: 'transparent' },
   chatContent: { padding: 18, paddingBottom: 20, maxWidth: 1100, width: '100%', alignSelf: 'center' },
+  persistentHeader: {
+    minHeight: 58, paddingHorizontal: 16, paddingTop: 6, flexDirection: 'row',
+    alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: '#DCECE7',
+    backgroundColor: 'rgba(255,255,255,0.9)', zIndex: 10,
+  },
+  persistentHeaderTitle: { color: '#174E43', fontFamily: 'Poppins_600SemiBold', fontSize: 17 },
 
   modalOverlay: {
     flex: 1,

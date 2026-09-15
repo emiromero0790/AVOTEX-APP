@@ -12,8 +12,9 @@ import {
   useWindowDimensions,
   Modal,
   Pressable,
+  Linking,
 } from 'react-native';
-import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, ChevronRight, X } from 'lucide-react-native';
+import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, ChevronRight, X, ExternalLink } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
@@ -47,6 +48,7 @@ const translations: TranslationResource = {
   guest: { es: 'Invitado', en: 'Guest' }, user: { es: 'Usuario', en: 'User' }, quickActions: { es: 'Acciones rápidas', en: 'Quick actions' },
   scan: { es: 'Escanear', en: 'Scan' }, remaining: { es: '{count} restantes', en: '{count} remaining' },
   enlargeMap: { es: 'Ampliar mapa', en: 'Enlarge map' }, map: { es: 'Mapa', en: 'Map' }, mapping: { es: 'Mapeo', en: 'Mapping' }, activity: { es: 'Actividad', en: 'Activity' },
+  virtualOrchard: { es: 'Encuentra más detalles de tu huerta virtual', en: 'Find more details about your virtual orchard' },
 };
 
 interface Scan {
@@ -713,6 +715,17 @@ export default function Home() {
             </View>
           </Reanimated.View>
 
+          <TouchableOpacity
+            style={s.virtualOrchardLink}
+            onPress={() => Linking.openURL('https://vex-mx.com/dashboard.html')}
+            activeOpacity={0.82}
+            accessibilityRole="link"
+          >
+            <View style={s.virtualOrchardIcon}><Leaf size={21} color="#0D756B" /></View>
+            <Text style={s.virtualOrchardText}>{t('virtualOrchard')}</Text>
+            <ExternalLink size={18} color="#0D756B" />
+          </TouchableOpacity>
+
         </View>
       </ScrollView>
     </View>
@@ -1063,6 +1076,18 @@ const s = StyleSheet.create({
     marginTop: -26,
     padding: 22,
     borderRadius: 34,
+  },
+  virtualOrchardLink: {
+    marginHorizontal: 18, marginBottom: 110, paddingHorizontal: 18, minHeight: 72,
+    borderRadius: 22, flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#E9F7F2', borderWidth: 1, borderColor: '#C8EADF',
+  },
+  virtualOrchardIcon: {
+    width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  virtualOrchardText: {
+    flex: 1, color: '#173E36', fontFamily: 'Poppins_600SemiBold', fontSize: 14, lineHeight: 20,
   },
   quickActionsTitle: {
     color: '#111118',

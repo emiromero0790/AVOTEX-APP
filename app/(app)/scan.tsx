@@ -589,11 +589,9 @@ export default function Scan() {
       {(isSaving || isProcessing) && (
         <View style={styles.savingOverlay}>
           <View style={[styles.loadingContainer, isTablet && styles.loadingContainerTablet]}>
-            <Animated.View
-              style={[styles.fruitSpinner, isTablet && styles.fruitSpinnerTablet, { transform: [{ rotate: spin }] }]}
-            >
-               <View style={styles.fruitSpinnerMark} />
-            </Animated.View>
+            <View style={[styles.fruitSpinner, isTablet && styles.fruitSpinnerTablet]}>
+              <ActivityIndicator size="large" color="#79D7C1" />
+            </View>
             <Text style={[styles.savingTitle, isTablet && styles.savingTitleTablet]}>
                {isSaving ? t("saving") : t("analyzing")}
             </Text>

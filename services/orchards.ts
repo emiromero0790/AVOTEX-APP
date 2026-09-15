@@ -9,6 +9,7 @@ export type Orchard = {
   id: string;
   user_email: string;
   nombre: string;
+  detalles: string | null;
   coordinates: PolygonPoint[];
   center_lat: number;
   center_lng: number;
@@ -18,7 +19,7 @@ export type Orchard = {
 };
 
 const ORCHARD_COLUMNS =
-  'id,user_email,nombre,coordinates,center_lat,center_lng,area_m2,created_at,updated_at';
+  'id,user_email,nombre,detalles,coordinates,center_lat,center_lng,area_m2,created_at,updated_at';
 
 export async function listOrchards(userEmail: string): Promise<Orchard[]> {
   const { data, error } = await supabase
@@ -34,6 +35,7 @@ export async function saveOrchard(input: {
   id?: string;
   userEmail: string;
   name: string;
+  details?: string;
   coordinates: PolygonPoint[];
 }): Promise<Orchard> {
   const { error: userError } = await supabase
@@ -47,6 +49,7 @@ export async function saveOrchard(input: {
   const payload = {
     user_email: input.userEmail,
     nombre: input.name.trim(),
+    detalles: input.details?.trim() || null,
     coordinates: input.coordinates,
     center_lat: input.coordinates[0]?.latitude ?? 0,
     center_lng: input.coordinates[0]?.longitude ?? 0,

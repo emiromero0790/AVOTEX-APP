@@ -191,45 +191,44 @@ export default function Mapping() {
         ]}
       >
         <BlurView
-          intensity={72}
+          intensity={58}
           tint="dark"
           style={[styles.zoneDataCard, styles.zoneDataCardPrimary, inPreview && styles.zoneDataCardPrimaryPreview]}
         >
-          <View style={styles.zoneDataHeading}>
-            <View style={styles.zoneDataIcon}>
-              <Sprout size={14} color="#E8FFF6" />
-            </View>
-            <View style={styles.zoneDataHeadingCopy}>
-              <Text style={styles.zoneDataEyebrow}>{t('zoneData')}</Text>
-              <Text style={styles.zoneDataTitle} numberOfLines={1}>
-                {selectedOrchard?.nombre || orchardName.trim() || t('zone')}
-              </Text>
-            </View>
-          </View>
+          <Text style={styles.zoneDataTitle} numberOfLines={1}>
+            {selectedOrchard?.nombre || orchardName.trim() || t('zone')}
+          </Text>
           <View style={styles.zoneMetricRow}>
             <Text style={styles.zoneMetricLabel}>{t('surface')}</Text>
             <Text style={styles.zoneMetricValue}>{areaDisplay}</Text>
           </View>
-          <View style={styles.zoneMetricDivider} />
           <View style={styles.zoneMetricRow}>
             <Text style={styles.zoneMetricLabel}>{t('perimeter')}</Text>
             <Text style={styles.zoneMetricValue}>{perimeterDisplay}</Text>
           </View>
+          <View style={styles.zoneMetricRow}>
+            <Text style={styles.zoneMetricLabel}>{t('vertices')}</Text>
+            <Text style={styles.zoneMetricValue}>{polygon.length}</Text>
+          </View>
         </BlurView>
 
         <BlurView
-          intensity={72}
+          intensity={58}
           tint="dark"
           style={[styles.zoneDataCard, styles.zoneDataCardSecondary, inPreview && styles.zoneDataCardSecondaryPreview]}
         >
           <View style={styles.zoneStatusRow}>
-            <View style={styles.zoneStatusDot} />
             <Text style={styles.zoneStatusText}>
               {selectedOrchard ? t('savedContour') : t('newContour')}
             </Text>
           </View>
-          <Text style={styles.zoneVertexValue}>{polygon.length}</Text>
-          <Text style={styles.zoneVertexLabel}>{t('vertices')}</Text>
+          <View style={styles.zoneSummaryRow}>
+            <View>
+              <Text style={styles.zoneSummaryValue}>{polygon.length}</Text>
+              <Text style={styles.zoneSummaryLabel}>{t('vertices')}</Text>
+            </View>
+            <Text style={styles.zoneSummaryArea}>{areaDisplay}</Text>
+          </View>
         </BlurView>
       </View>
     );
@@ -491,6 +490,7 @@ export default function Mapping() {
             ref={mapRef}
             location={location}
             initialPolygon={polygon}
+            perspective={Boolean(selectedOrchard) && !editingBoundary}
             onPolygonChange={(points: PolygonPoint[]) => {
               setPolygon(points);
               if (points.length >= 3 || points.length === 0) setDrawingNewBoundary(false);
@@ -958,84 +958,79 @@ const styles = StyleSheet.create({
   locationCardWide: { right: 306 },
   zoneDataCards: {
     position: 'absolute',
-    top: 162,
+    top: 142,
     left: 18,
     right: 18,
+    height: 230,
     zIndex: 8,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
   },
   zoneDataCardsWide: { right: 306 },
   zoneDataCardsPreview: {
-    top: undefined,
-    bottom: 10,
-    left: 12,
-    right: 12,
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: undefined,
     zIndex: 5,
-    gap: 7,
   },
   zoneDataCard: {
+    position: 'absolute',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.34)',
-    backgroundColor: 'rgba(7,35,31,0.68)',
-    shadowColor: '#03110F',
-    shadowOffset: { width: 0, height: 7 },
-    shadowOpacity: 0.24,
-    shadowRadius: 14,
+    borderColor: 'rgba(225,238,216,0.22)',
+    backgroundColor: 'rgba(34,57,35,0.78)',
+    shadowColor: '#101B10',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
     elevation: 10,
   },
   zoneDataCardPrimary: {
-    flex: 1,
-    maxWidth: 230,
-    minHeight: 116,
-    paddingHorizontal: 13,
-    paddingVertical: 12,
-    borderRadius: 20,
+    left: 0,
+    bottom: 0,
+    width: 176,
+    minHeight: 130,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderRadius: 14,
   },
   zoneDataCardSecondary: {
-    width: 106,
-    minHeight: 94,
-    paddingHorizontal: 11,
-    paddingVertical: 12,
-    borderRadius: 20,
+    top: 0,
+    right: 0,
+    width: 140,
+    minHeight: 78,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    borderRadius: 14,
   },
   zoneDataCardPrimaryPreview: {
-    maxWidth: 190,
-    minHeight: 91,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    borderRadius: 16,
+    left: 10,
+    bottom: 10,
+    width: 150,
+    minHeight: 105,
+    paddingHorizontal: 11,
+    paddingVertical: 10,
+    borderRadius: 12,
   },
   zoneDataCardSecondaryPreview: {
-    width: 88,
-    minHeight: 74,
-    paddingHorizontal: 9,
+    top: 10,
+    right: 10,
+    width: 125,
+    minHeight: 68,
+    paddingHorizontal: 11,
     paddingVertical: 9,
-    borderRadius: 16,
+    borderRadius: 12,
   },
-  zoneDataHeading: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 9 },
-  zoneDataIcon: {
-    width: 27,
-    height: 27,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(129,224,190,0.3)',
-  },
-  zoneDataHeadingCopy: { flex: 1, minWidth: 0 },
-  zoneDataEyebrow: { color: '#9EE7D2', fontSize: 7, fontWeight: '800', letterSpacing: 1.2 },
-  zoneDataTitle: { color: '#FFFFFF', fontSize: 12, lineHeight: 16, fontWeight: '800', marginTop: 1 },
-  zoneMetricRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  zoneMetricLabel: { color: '#C7D8D3', fontSize: 9, lineHeight: 14 },
-  zoneMetricValue: { color: '#FFFFFF', fontSize: 10, lineHeight: 14, fontWeight: '800' },
-  zoneMetricDivider: { height: 1, marginVertical: 5, backgroundColor: 'rgba(255,255,255,0.14)' },
-  zoneStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  zoneStatusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#8FE7C8' },
-  zoneStatusText: { flex: 1, color: '#DDF9EF', fontSize: 8, lineHeight: 11, fontWeight: '700' },
-  zoneVertexValue: { color: '#FFFFFF', fontSize: 25, lineHeight: 30, fontWeight: '800', marginTop: 9 },
-  zoneVertexLabel: { color: '#B7CBC5', fontSize: 8, fontWeight: '700', letterSpacing: 0.7 },
+  zoneDataTitle: { color: '#F4F7F0', fontSize: 12, lineHeight: 17, fontWeight: '600', marginBottom: 9 },
+  zoneMetricRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 20 },
+  zoneMetricLabel: { color: 'rgba(238,244,232,0.73)', fontSize: 10, lineHeight: 16 },
+  zoneMetricValue: { color: '#FFFFFF', fontSize: 10, lineHeight: 16, fontWeight: '500' },
+  zoneStatusRow: { flexDirection: 'row', alignItems: 'center' },
+  zoneStatusText: { color: 'rgba(239,245,234,0.74)', fontSize: 10, lineHeight: 15, fontWeight: '500' },
+  zoneSummaryRow: { marginTop: 5, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 },
+  zoneSummaryValue: { color: '#FFFFFF', fontSize: 13, lineHeight: 16, fontWeight: '600' },
+  zoneSummaryLabel: { color: 'rgba(239,245,234,0.7)', fontSize: 8, lineHeight: 11 },
+  zoneSummaryArea: { color: '#FFFFFF', fontSize: 10, lineHeight: 15, fontWeight: '500' },
   locationIcon: {
     width: 42,
     height: 42,

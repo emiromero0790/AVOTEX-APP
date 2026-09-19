@@ -771,7 +771,11 @@ export default function Home() {
 
           <Reanimated.View
             entering={FadeInUp.delay(500).duration(700)}
-            style={[s.quickActionsPanel, isTablet && s.quickActionsPanelTablet]}
+            style={[
+              s.quickActionsPanel,
+              isTablet && s.quickActionsPanelTablet,
+              !isGuest && orchards.length > 0 && s.quickActionsPanelAfterOrchards,
+            ]}
           >
             <Text style={[s.quickActionsTitle, isTablet && s.quickActionsTitleTablet]}>{t('quickActions')}</Text>
             <View style={[s.quickActionsGrid, isTablet && s.quickActionsGridTablet]}>
@@ -876,7 +880,7 @@ export default function Home() {
               </View>
               <View style={s.virtualOrchardImageFrame}>
                 <Image
-                  source={require('../../attached_assets/thedigitalartist-countryside-2326787_1920_1789857836050.jpg')}
+                  source={require('../../attached_assets/StockCake-Campos_agrícolas_verdes-1294813-standard_1789858772957.jpg')}
                   style={s.virtualOrchardImage}
                   resizeMode="cover"
                 />
@@ -1248,6 +1252,9 @@ const s = StyleSheet.create({
     padding: 22,
     borderRadius: 34,
   },
+  quickActionsPanelAfterOrchards: {
+    marginTop: 0,
+  },
   orchardsRail: {
     marginTop: -38,
     zIndex: 5,
@@ -1342,11 +1349,11 @@ const s = StyleSheet.create({
   },
   virtualOrchardSurface: {
     flex: 1, marginTop: 14, overflow: 'hidden',
-    borderRadius: 22, backgroundColor: '#F7F8F2',
+    borderRadius: 22, backgroundColor: '#FFFFFF',
   },
   virtualOrchardNotch: {
-    position: 'absolute', top: 0, right: 0, width: 70, height: 63,
-    borderBottomLeftRadius: 40, backgroundColor: '#FFFFFF', zIndex: 1,
+    position: 'absolute', top: 0, right: 0, width: 64, height: 56,
+    borderBottomLeftRadius: 34, backgroundColor: '#FFFFFF', zIndex: 1,
   },
   virtualOrchardTop: {
     minHeight: 93, paddingLeft: 17, paddingRight: 76, paddingTop: 14, paddingBottom: 10,

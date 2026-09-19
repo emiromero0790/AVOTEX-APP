@@ -89,6 +89,10 @@ const mappingTranslations: TranslationResource = {
   vertices: { es: 'Vértices', en: 'Vertices' },
   savedContour: { es: 'Huerta guardada', en: 'Saved orchard' },
   newContour: { es: 'Contorno nuevo', en: 'New outline' },
+  closeOrchards: { es: 'Cerrar selector de huertas', en: 'Close orchard selector' },
+  savedOrchards: { es: 'Huertas guardadas', en: 'Saved orchards' },
+  chooseOrchard: { es: 'Elige una huerta para continuar', en: 'Choose an orchard to continue' },
+  selectorNewHint: { es: 'Delimita una nueva desde tu ubicación actual', en: 'Outline a new one from your current location' },
 };
 
 const EARTH_RADIUS_METERS = 6371000;
@@ -460,11 +464,13 @@ export default function Mapping() {
           <PolygonMap
             key={`map-${mapVersion}`}
             ref={mapRef}
-            location={location}
-            initialPolygon={polygon}
-            perspective={Boolean(selectedOrchard) && !editingBoundary}
-            zoneCallout={zoneCallout}
+            location={orchardsOpen && !isWide ? (gpsLocation || location) : location}
+            initialPolygon={orchardsOpen && !isWide ? [] : polygon}
+            perspective={orchardsOpen && !isWide ? false : Boolean(selectedOrchard) && !editingBoundary}
+            zoneCallout={orchardsOpen && !isWide ? undefined : zoneCallout}
+            preview={orchardsOpen && !isWide}
             onPolygonChange={(points: PolygonPoint[]) => {
+              if (orchardsOpen && !isWide) return;
               setPolygon(points);
               if (points.length >= 3 || points.length === 0) setDrawingNewBoundary(false);
               if (saveEditedPolygonRef.current) {
@@ -499,7 +505,7 @@ export default function Mapping() {
         )}
       </View>
 
-      <View style={[styles.locationCard, isWide && styles.locationCardWide]}>
+      {!orchardsOpen || isWide ? <View style={[styles.locationCard, isWide && styles.locationCardWide]}>
         <View style={styles.locationIcon}>
           <Navigation size={20} color="#FFFFFF" fill="#FFFFFF" />
         </View>
@@ -509,13 +515,17 @@ export default function Mapping() {
           <Text style={styles.locationCardDetail} numberOfLines={1}>{locationDetail}</Text>
         </View>
         <MapPin size={19} color="#9EE7D2" />
-      </View>
+      </View> : null}
 
-      {!isWide && (
+      {!isWide && !orchardsOpen && (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('openOrchards')}
-          onPress={() => setOrchardsOpen(value => !value)}
+          onPress={() => setOrchardsOpen(value => {
+            const nextValue = !value;
+            if (nextValue) setMapVersion(version => version + 1);
+            return nextValue;
+          })}
           style={({ pressed }) => [styles.mobileOrchardsButton, pressed && styles.actionPressed]}
         >
           <Sprout size={17} color="#FFFFFF" />
@@ -524,7 +534,7 @@ export default function Mapping() {
         </Pressable>
       )}
 
-      {(isWide || orchardsOpen) && (
+      {isWide && (
         <View style={[styles.orchardsPanel, !isWide && styles.orchardsPanelMobile]}>
           <View style={styles.orchardsHeader}>
             <View>
@@ -587,7 +597,7 @@ export default function Mapping() {
         </View>
       )}
 
-      {selectedOrchard && (
+      {selectedOrchard && (!orchardsOpen || isWide) && (
         <Pressable
           onPress={() => setCommentsVisible(true)}
           style={({ pressed }) => [styles.commentsFloatingButton, pressed && styles.actionPressed]}
@@ -599,7 +609,7 @@ export default function Mapping() {
         </Pressable>
       )}
 
-      <BlurView intensity={55} tint="light" style={[styles.bottomPanel, isWide && styles.bottomPanelWide]}>
+      {(!orchardsOpen || isWide) && <BlurView intensity={55} tint="light" style={[styles.bottomPanel, isWide && styles.bottomPanelWide]}>
         <View style={styles.panelCopy}>
           <View>
            <Text style={styles.title}>{t('title')}</Text>
@@ -703,7 +713,85 @@ export default function Mapping() {
           )}
 
         </View>
-      </BlurView>
+      </BlurView>}
+
+      <Modal
+        visible={orchardsOpen && !isWide}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => {
+          setOrchardsOpen(false);
+          setMapVersion(version => version + 1);
+        }}
+      >
+        <View style={styles.orchardSelector} accessibilityViewIsModal>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('closeOrchards')}
+            onPress={() => {
+              setOrchardsOpen(false);
+              setMapVersion(version => version + 1);
+            }}
+            hitSlop={12}
+            style={({ pressed }) => [styles.selectorExit, pressed && styles.actionPressed]}
+          >
+            <X size={16} color="#FFFFFF" />
+          </Pressable>
+          <View style={styles.selectorIntro}>
+            <Text style={styles.selectorEyebrow}>AVOTEX</Text>
+            <Text style={styles.selectorTitle}>{t('orchards')}</Text>
+            <Text style={styles.selectorHint}>{t('chooseOrchard')}</Text>
+          </View>
+          <View style={styles.selectorColumns}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('newOrchard')}
+              onPress={createNewOrchard}
+              style={({ pressed }) => [styles.newOrchardTile, pressed && styles.actionPressed]}
+            >
+              <View style={styles.newOrchardTileMark}><Plus size={23} color="#173E36" /></View>
+              <Text style={styles.newOrchardTileTitle}>{t('newOrchard')}</Text>
+              <Text style={styles.newOrchardTileHint}>{t('selectorNewHint')}</Text>
+            </Pressable>
+            <BlurView intensity={38} tint="light" style={styles.savedOrchardsTile}>
+              <View style={styles.savedOrchardsHeader}>
+                <View>
+                  <Text style={styles.savedOrchardsLabel}>{t('savedOrchards')}</Text>
+                  <Text style={styles.savedOrchardsCount}>{orchards.length}</Text>
+                </View>
+                <Sprout size={19} color="#FFFFFF" />
+              </View>
+              {loadingOrchards ? (
+                <ActivityIndicator color="#FFFFFF" style={styles.selectorLoader} />
+              ) : orchardsError ? (
+                <Text style={styles.selectorError}>{orchardsError}</Text>
+              ) : orchards.length === 0 ? (
+                <Text style={styles.selectorEmpty}>{t('noOrchards')}</Text>
+              ) : (
+                <ScrollView showsVerticalScrollIndicator={false} style={styles.selectorList}>
+                  {orchards.map(orchard => (
+                    <Pressable
+                      key={orchard.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={orchard.nombre}
+                      onPress={() => selectOrchard(orchard)}
+                      style={({ pressed }) => [styles.selectorOrchardRow, pressed && styles.actionPressed]}
+                    >
+                      <View style={styles.selectorOrchardDot}><Sprout size={13} color="#173E36" /></View>
+                      <View style={styles.selectorOrchardCopy}>
+                        <Text style={styles.selectorOrchardName} numberOfLines={1}>{orchard.nombre}</Text>
+                        <Text style={styles.selectorOrchardArea}>{t('area', { area: (orchard.area_m2 / 10000).toFixed(2) })}</Text>
+                      </View>
+                      <ChevronRight size={15} color="rgba(255,255,255,0.78)" />
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+            </BlurView>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={savePermissionVisible}
@@ -1328,6 +1416,107 @@ const styles = StyleSheet.create({
   commentsFloatingText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
   commentsModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   commentsModalInput: { minHeight: 150, paddingTop: 13, marginTop: 18 },
+  orchardSelector: {
+    ...StyleSheet.absoluteFill,
+    paddingTop: 54,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(16,49,39,0.08)',
+  },
+  selectorExit: {
+    position: 'absolute',
+    top: 20,
+    right: 18,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(8,22,18,0.48)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.34)',
+  },
+  selectorIntro: { marginBottom: 17, paddingHorizontal: 3 },
+  selectorEyebrow: { color: 'rgba(255,255,255,0.82)', fontSize: 9, fontWeight: '800', letterSpacing: 2.1 },
+  selectorTitle: { color: '#FFFFFF', fontSize: 28, lineHeight: 34, fontWeight: '800', marginTop: 2 },
+  selectorHint: { color: 'rgba(255,255,255,0.82)', fontSize: 11, lineHeight: 16, marginTop: 3 },
+  selectorColumns: { flex: 1, flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  newOrchardTile: {
+    flex: 1,
+    minHeight: 224,
+    paddingHorizontal: 12,
+    paddingVertical: 18,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFDF9',
+    shadowColor: '#173E36',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 9,
+  },
+  newOrchardTileMark: {
+    width: 47,
+    height: 47,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 15,
+    backgroundColor: '#E8F1E8',
+  },
+  newOrchardTileTitle: { color: '#173E36', fontSize: 14, fontWeight: '800', textAlign: 'center' },
+  newOrchardTileHint: { color: '#73827B', fontSize: 10, lineHeight: 14, textAlign: 'center', marginTop: 7 },
+  savedOrchardsTile: {
+    flex: 1.15,
+    minHeight: 224,
+    maxHeight: 380,
+    overflow: 'hidden',
+    paddingHorizontal: 13,
+    paddingVertical: 15,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    backgroundColor: 'rgba(55,91,64,0.48)',
+    shadowColor: '#173E36',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  savedOrchardsHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingBottom: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.25)',
+  },
+  savedOrchardsLabel: { color: 'rgba(255,255,255,0.92)', fontSize: 11, lineHeight: 15, fontWeight: '800' },
+  savedOrchardsCount: { color: '#FFFFFF', fontSize: 25, lineHeight: 28, fontWeight: '800', marginTop: 1 },
+  selectorLoader: { marginVertical: 28 },
+  selectorError: { color: '#FFF1EE', fontSize: 10, lineHeight: 15, marginTop: 14 },
+  selectorEmpty: { color: 'rgba(255,255,255,0.8)', fontSize: 10, lineHeight: 15, marginTop: 18 },
+  selectorList: { marginTop: 10 },
+  selectorOrchardRow: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.18)',
+  },
+  selectorOrchardDot: {
+    width: 27,
+    height: 27,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 7,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+  },
+  selectorOrchardCopy: { flex: 1, minWidth: 0, marginRight: 4 },
+  selectorOrchardName: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  selectorOrchardArea: { color: 'rgba(255,255,255,0.72)', fontSize: 9, marginTop: 2 },
   deleteModalIcon: {
     width: 54, height: 54, borderRadius: 18, alignSelf: 'center', alignItems: 'center',
     justifyContent: 'center', marginBottom: 14, backgroundColor: '#FCECEB',

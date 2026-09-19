@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, ChevronRight, X, ExternalLink } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
+import Svg, { Polygon as SvgPolygon } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import * as Location from 'expo-location';
@@ -30,6 +31,7 @@ import Reanimated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useGuest, GUEST_MAX_SCANS } from '../../context/GuestContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
+import { listOrchards, Orchard } from '../../services/orchards';
 
 const OPENWEATHER_API_KEY = process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY!;
 
@@ -51,6 +53,7 @@ const translations: TranslationResource = {
   virtualOrchard: { es: 'Encuentra más detalles de tu huerta virtual', en: 'Find more details about your virtual orchard' },
   virtualOrchardMeta: { es: 'Datos, clima y seguimiento', en: 'Data, weather and tracking' },
   openVirtualPanel: { es: 'Abrir panel', en: 'Open dashboard' },
+  openOrchard: { es: 'Abrir huerta {name}', en: 'Open {name} orchard' },
 };
 
 interface Scan {
@@ -216,6 +219,99 @@ const formatTime12h = (date: Date) => {
   return `${h}:${mm} ${ap}`;
 };
 
+const orchardPreview = (orchard: Orchard) => {
+  const points = orchard.coordinates;
+  if (points.length < 3) return null;
+
+  let minimumLatitude = Math.min(...points.map(point => point.latitude));
+  let maximumLatitude = Math.max(...points.map(point => point.latitude));
+  let minimumLongitude = Math.min(...points.map(point => point.longitude));
+  let maximumLongitude = Math.max(...points.map(point => point.longitude));
+  const centerLatitude = (minimumLatitude + maximumLatitude) / 2;
+  const centerLongitude = (minimumLongitude + maximumLongitude) / 2;
+  let latitudeSpan = Math.max(maximumLatitude - minimumLatitude, 0.00035) * 1.34;
+  let longitudeSpan = Math.max(maximumLongitude - minimumLongitude, 0.00035) * 1.34;
+  const targetRatio = 1.48;
+  if (longitudeSpan / latitudeSpan < targetRatio) longitudeSpan = latitudeSpan * targetRatio;
+  else latitudeSpan = longitudeSpan / targetRatio;
+  minimumLatitude = centerLatitude - latitudeSpan / 2;
+  maximumLatitude = centerLatitude + latitudeSpan / 2;
+  minimumLongitude = centerLongitude - longitudeSpan / 2;
+  maximumLongitude = centerLongitude + longitudeSpan / 2;
+
+  const polygonPoints = points.map(point => {
+    const x = ((point.longitude - minimumLongitude) / longitudeSpan) * 100;
+    const y = ((maximumLatitude - point.latitude) / latitudeSpan) * 68;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(' ');
+  const bbox = [minimumLongitude, minimumLatitude, maximumLongitude, maximumLatitude].join(',');
+
+  return {
+    polygonPoints,
+    imageUrl: `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${bbox}&bboxSR=4326&imageSR=4326&size=444,300&format=jpg&f=image`,
+  };
+};
+
+function OrchardCard({
+  orchard,
+  locale,
+  isTablet,
+  onPress,
+  accessibilityLabel,
+}: {
+  orchard: Orchard;
+  locale: 'es-MX' | 'en-US';
+  isTablet: boolean;
+  onPress: () => void;
+  accessibilityLabel: string;
+}) {
+  const preview = orchardPreview(orchard);
+  const area = (orchard.area_m2 / 10000).toLocaleString(locale, {
+    minimumFractionDigits: orchard.area_m2 < 10000 ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
+
+  return (
+    <TouchableOpacity
+      style={[s.orchardCard, isTablet && s.orchardCardTablet]}
+      activeOpacity={0.86}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+    >
+      <View style={[s.orchardPreview, isTablet && s.orchardPreviewTablet]}>
+        {preview ? (
+          <>
+            <Image source={{ uri: preview.imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            <Svg width="100%" height="100%" viewBox="0 0 100 68" style={StyleSheet.absoluteFill}>
+              <SvgPolygon
+                points={preview.polygonPoints}
+                fill="rgba(164, 193, 105, 0.52)"
+                stroke="#FFFFFF"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+              />
+            </Svg>
+          </>
+        ) : (
+          <LinearGradient colors={['#9EB77A', '#587A53']} style={StyleSheet.absoluteFill} />
+        )}
+      </View>
+      <View style={s.orchardCardFooter}>
+        <View style={s.orchardCardCopy}>
+          <Text numberOfLines={1} style={[s.orchardCardName, isTablet && s.orchardCardNameTablet]}>
+            {orchard.nombre}
+          </Text>
+          <Text style={[s.orchardCardArea, isTablet && s.orchardCardAreaTablet]}>{area} ha</Text>
+        </View>
+        <View style={[s.orchardArrow, isTablet && s.orchardArrowTablet]}>
+          <ChevronRight size={isTablet ? 22 : 18} strokeWidth={2.1} color="#397913" />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 export default function Home() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
@@ -241,6 +337,7 @@ export default function Home() {
   const [healthPct, setHealthPct]     = useState<number | null>(null);
   const [locationEnabled, setLocationEnabled] = useState(true);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [orchards, setOrchards] = useState<Orchard[]>([]);
 
   const requestAndSetLocation = async () => {
     try {
@@ -286,6 +383,24 @@ export default function Home() {
       });
       return () => { active = false; };
     }, [])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      if (!user?.email || isGuest) {
+        setOrchards([]);
+        return () => { active = false; };
+      }
+      listOrchards(user.email)
+        .then(data => {
+          if (active) setOrchards(data);
+        })
+        .catch(() => {
+          if (active) setOrchards([]);
+        });
+      return () => { active = false; };
+    }, [user?.email, isGuest]),
   );
 
   useFocusEffect(
@@ -626,6 +741,31 @@ export default function Home() {
             </Reanimated.View>
 
           </View>
+
+          {!isGuest && orchards.length > 0 && (
+            <Reanimated.View entering={FadeInUp.delay(420).duration(650)} style={s.orchardsRail}>
+              <ScrollView
+                horizontal
+                nestedScrollEnabled
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={[s.orchardsRailContent, isTablet && s.orchardsRailContentTablet]}
+              >
+                {orchards.map(orchard => (
+                  <OrchardCard
+                    key={orchard.id}
+                    orchard={orchard}
+                    locale={locale}
+                    isTablet={isTablet}
+                    accessibilityLabel={t('openOrchard', { name: orchard.nombre })}
+                    onPress={() => router.push({
+                      pathname: '/(app)/mapping',
+                      params: { orchardId: orchard.id },
+                    })}
+                  />
+                ))}
+              </ScrollView>
+            </Reanimated.View>
+          )}
 
           <Reanimated.View
             entering={FadeInUp.delay(500).duration(700)}
@@ -1087,7 +1227,7 @@ const s = StyleSheet.create({
 
   quickActionsPanel: {
     marginHorizontal: 18,
-    marginTop: -22,
+    marginTop: 16,
     marginBottom: 18,
     padding: 14,
     borderRadius: 28,
@@ -1102,9 +1242,96 @@ const s = StyleSheet.create({
   },
   quickActionsPanelTablet: {
     marginHorizontal: 28,
-    marginTop: -26,
+    marginTop: 20,
     padding: 22,
     borderRadius: 34,
+  },
+  orchardsRail: {
+    marginTop: -38,
+    zIndex: 5,
+  },
+  orchardsRailContent: {
+    paddingHorizontal: 22,
+    paddingVertical: 8,
+    gap: 12,
+  },
+  orchardsRailContentTablet: {
+    paddingHorizontal: 28,
+    gap: 16,
+  },
+  orchardCard: {
+    width: 158,
+    padding: 6,
+    borderRadius: 21,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#1E3A2E',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 13,
+    elevation: 6,
+  },
+  orchardCardTablet: {
+    width: 214,
+    padding: 8,
+    borderRadius: 27,
+  },
+  orchardPreview: {
+    height: 106,
+    overflow: 'hidden',
+    borderRadius: 16,
+    backgroundColor: '#718665',
+  },
+  orchardPreviewTablet: {
+    height: 144,
+    borderRadius: 21,
+  },
+  orchardCardFooter: {
+    minHeight: 48,
+    paddingLeft: 7,
+    paddingRight: 2,
+    paddingTop: 7,
+    paddingBottom: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  orchardCardCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  orchardCardName: {
+    color: '#17241C',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  orchardCardNameTablet: {
+    fontSize: 16,
+    lineHeight: 21,
+  },
+  orchardCardArea: {
+    marginTop: 1,
+    color: '#7B877D',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 9,
+    lineHeight: 13,
+  },
+  orchardCardAreaTablet: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  orchardArrow: {
+    width: 31,
+    height: 31,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#A8E83E',
+  },
+  orchardArrowTablet: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   virtualOrchardLink: {
     marginHorizontal: 18, marginBottom: 22, height: 112, borderRadius: 27,

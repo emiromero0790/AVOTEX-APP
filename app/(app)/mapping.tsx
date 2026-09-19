@@ -5,7 +5,7 @@ import { Poppins_400Regular, useFonts } from '@expo-google-fonts/poppins';
 import * as Location from 'expo-location';
 import { ChevronRight, Eraser, MapPin, MapPinOff, MessageSquareText, Navigation, Pencil, Plus, Save, ShieldCheck, Sprout, Trash2, X } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import PolygonMap, { PolygonMapHandle } from '../../components/PolygonMap';
 import { TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 import { auth } from '../../firebaseConfig';
@@ -135,6 +135,8 @@ const orchardLocation = (orchard: Orchard): Location.LocationObject => ({
 });
 
 export default function Mapping() {
+  const { orchardId } = useLocalSearchParams<{ orchardId?: string | string[] }>();
+  const requestedOrchardId = Array.isArray(orchardId) ? orchardId[0] : orchardId;
   const t = useTranslations(mappingTranslations);
   const { locale } = useLanguage();
   const { width } = useWindowDimensions();
@@ -319,6 +321,12 @@ export default function Mapping() {
     setOrchardsOpen(false);
     setMapVersion(value => value + 1);
   };
+
+  React.useEffect(() => {
+    if (!requestedOrchardId || selectedOrchardRef.current === requestedOrchardId) return;
+    const requestedOrchard = orchards.find(orchard => orchard.id === requestedOrchardId);
+    if (requestedOrchard) selectOrchard(requestedOrchard);
+  }, [orchards, requestedOrchardId]);
 
   const createNewOrchard = () => {
     selectedOrchardRef.current = null;

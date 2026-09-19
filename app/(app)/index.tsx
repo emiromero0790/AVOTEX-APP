@@ -1359,7 +1359,7 @@ const s = StyleSheet.create({
     borderRadius: 20,
   },
   virtualOrchardLink: {
-    marginHorizontal: 18, marginTop: -8, marginBottom: 22,
+    marginHorizontal: 18, marginTop: -14, marginBottom: 22,
     shadowColor: '#435343', shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.16, shadowRadius: 12, elevation: 6,
   },
@@ -1381,7 +1381,7 @@ const s = StyleSheet.create({
   virtualOrchardText: {
     color: '#131713',
     fontFamily: Platform.select({ ios: 'Helvetica Neue', android: 'sans-serif-condensed', default: 'Arial' }),
-    fontSize: 20, lineHeight: 21, fontWeight: '400', letterSpacing: -0.35,
+    fontSize: 20, lineHeight: 21, fontWeight: '500', letterSpacing: -0.35,
     textTransform: 'uppercase',
   },
   virtualOrchardMeta: {

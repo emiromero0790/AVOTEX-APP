@@ -67,6 +67,7 @@ const translations: TranslationResource = {
   },
   openVirtualPanel: { es: 'Abrir panel', en: 'Open dashboard' },
   openOrchard: { es: 'Abrir huerta {name}', en: 'Open {name} orchard' },
+  orchardsPrompt: { es: 'Échale un vistazo a tus huertas', en: 'Take a look at your orchards' },
 };
 
 interface Scan {
@@ -757,6 +758,9 @@ export default function Home() {
 
           {!isGuest && orchards.length > 0 && (
             <Reanimated.View entering={FadeInUp.delay(420).duration(650)} style={s.orchardsRail}>
+              <Text style={[s.orchardsPrompt, isTablet && s.orchardsPromptTablet]}>
+                {t('orchardsPrompt')}
+              </Text>
               <ScrollView
                 horizontal
                 nestedScrollEnabled
@@ -1274,6 +1278,20 @@ const s = StyleSheet.create({
   orchardsRail: {
     marginTop: 0,
     zIndex: 5,
+  },
+  orchardsPrompt: {
+    position: 'absolute',
+    top: -24,
+    left: 24,
+    color: '#48665C',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12,
+    letterSpacing: 0.1,
+  },
+  orchardsPromptTablet: {
+    top: -30,
+    left: 30,
+    fontSize: 15,
   },
   orchardsRailContent: {
     paddingHorizontal: 22,

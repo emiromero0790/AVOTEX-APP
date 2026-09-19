@@ -1352,8 +1352,8 @@ const s = StyleSheet.create({
     borderRadius: 22, backgroundColor: '#FFFFFF',
   },
   virtualOrchardNotch: {
-    position: 'absolute', top: 0, right: 0, width: 64, height: 56,
-    borderBottomLeftRadius: 34, backgroundColor: '#FFFFFF', zIndex: 1,
+    position: 'absolute', top: 0, right: 0, width: 72, height: 45,
+    borderBottomLeftRadius: 36, backgroundColor: '#F4F5F3', zIndex: 1,
   },
   virtualOrchardTop: {
     minHeight: 93, paddingLeft: 17, paddingRight: 76, paddingTop: 14, paddingBottom: 10,
@@ -1376,7 +1376,7 @@ const s = StyleSheet.create({
     position: 'absolute', top: 0, right: 10, zIndex: 4,
     width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#20271D',
-    borderWidth: 3, borderColor: '#FFFFFF',
+    borderWidth: 3, borderColor: '#F4F5F3',
     shadowColor: '#111A0F', shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.26, shadowRadius: 8, elevation: 9,
   },

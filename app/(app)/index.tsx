@@ -351,6 +351,22 @@ export default function Home() {
   const [locationEnabled, setLocationEnabled] = useState(true);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [orchards, setOrchards] = useState<Orchard[]>([]);
+  const [orchardsScrollX, setOrchardsScrollX] = useState(0);
+  const [orchardsViewportWidth, setOrchardsViewportWidth] = useState(0);
+  const [orchardsContentWidth, setOrchardsContentWidth] = useState(0);
+  const [orchardsTrackWidth, setOrchardsTrackWidth] = useState(0);
+
+  const orchardsScrollRange = Math.max(1, orchardsContentWidth - orchardsViewportWidth);
+  const orchardsThumbWidth = Math.max(
+    44,
+    orchardsContentWidth > 0
+      ? Math.min(orchardsTrackWidth, orchardsTrackWidth * (orchardsViewportWidth / orchardsContentWidth))
+      : orchardsTrackWidth,
+  );
+  const orchardsThumbOffset = Math.min(
+    Math.max(0, orchardsTrackWidth - orchardsThumbWidth),
+    (orchardsScrollX / orchardsScrollRange) * Math.max(0, orchardsTrackWidth - orchardsThumbWidth),
+  );
 
   const requestAndSetLocation = async () => {
     try {
@@ -761,6 +777,10 @@ export default function Home() {
                 horizontal
                 nestedScrollEnabled
                 showsHorizontalScrollIndicator={false}
+                scrollEventThrottle={16}
+                onLayout={(event) => setOrchardsViewportWidth(event.nativeEvent.layout.width)}
+                onContentSizeChange={(contentWidth) => setOrchardsContentWidth(contentWidth)}
+                onScroll={(event) => setOrchardsScrollX(event.nativeEvent.contentOffset.x)}
                 contentContainerStyle={[s.orchardsRailContent, isTablet && s.orchardsRailContentTablet]}
               >
                 {orchards.map(orchard => (
@@ -777,6 +797,22 @@ export default function Home() {
                   />
                 ))}
               </ScrollView>
+              {orchards.length > 2 && (
+                <View
+                  style={s.orchardsScrollTrack}
+                  onLayout={(event) => setOrchardsTrackWidth(event.nativeEvent.layout.width)}
+                >
+                  <View
+                    style={[
+                      s.orchardsScrollThumb,
+                      {
+                        width: orchardsThumbWidth,
+                        transform: [{ translateX: orchardsThumbOffset }],
+                      },
+                    ]}
+                  />
+                </View>
+              )}
             </Reanimated.View>
           )}
 
@@ -1272,18 +1308,31 @@ const s = StyleSheet.create({
     marginTop: 0,
   },
   orchardsRail: {
-    marginTop: 0,
+    marginTop: -12,
+    paddingBottom: 8,
     zIndex: 5,
   },
   orchardsRailContent: {
     paddingHorizontal: 22,
     paddingTop: 2,
-    paddingBottom: 8,
+    paddingBottom: 5,
     gap: 12,
   },
   orchardsRailContentTablet: {
     paddingHorizontal: 28,
     gap: 16,
+  },
+  orchardsScrollTrack: {
+    height: 4,
+    marginHorizontal: 58,
+    overflow: 'hidden',
+    borderRadius: 2,
+    backgroundColor: '#DCE4DF',
+  },
+  orchardsScrollThumb: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#68B7A5',
   },
   orchardCard: {
     width: 158,

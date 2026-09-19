@@ -1272,7 +1272,7 @@ const s = StyleSheet.create({
     marginTop: 0,
   },
   orchardsRail: {
-    marginTop: 8,
+    marginTop: 4,
     zIndex: 5,
   },
   orchardsRailContent: {

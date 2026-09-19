@@ -53,7 +53,18 @@ const translations: TranslationResource = {
   scan: { es: 'Escanear', en: 'Scan' }, remaining: { es: '{count} restantes', en: '{count} remaining' },
   enlargeMap: { es: 'Ampliar mapa', en: 'Enlarge map' }, map: { es: 'Mapa', en: 'Map' }, mapping: { es: 'Mapeo', en: 'Mapping' }, activity: { es: 'Actividad', en: 'Activity' },
   virtualOrchard: { es: 'Encuentra más detalles de tu huerta virtual', en: 'Find more details about your virtual orchard' },
-  virtualOrchardMeta: { es: 'Datos, clima y seguimiento', en: 'Data, weather and tracking' },
+  virtualOrchardMeta: {
+    es: 'NDVI, NDRE, humedad, precipitación y temperatura',
+    en: 'NDVI, NDRE, humidity, precipitation and temperature',
+  },
+  virtualOrchardMetricsPrimary: {
+    es: 'NDVI · NDRE · Humedad',
+    en: 'NDVI · NDRE · Humidity',
+  },
+  virtualOrchardMetricsSecondary: {
+    es: 'Precipitación · Temperatura',
+    en: 'Precipitation · Temperature',
+  },
   openVirtualPanel: { es: 'Abrir panel', en: 'Open dashboard' },
   openOrchard: { es: 'Abrir huerta {name}', en: 'Open {name} orchard' },
 };
@@ -891,8 +902,13 @@ export default function Home() {
                   style={StyleSheet.absoluteFill}
                 />
                 <BlurView intensity={38} tint="dark" style={s.virtualOrchardGlass}>
-                  <Text style={s.virtualOrchardGlassLabel}>AVOTEX</Text>
-                  <Text numberOfLines={1} style={s.virtualOrchardGlassValue}>{t('virtualOrchardMeta')}</Text>
+                  <Text style={s.virtualOrchardGlassLabel}>ÍNDICES AVOTEX</Text>
+                  <Text numberOfLines={1} style={s.virtualOrchardGlassValue}>
+                    {t('virtualOrchardMetricsPrimary')}
+                  </Text>
+                  <Text numberOfLines={1} style={s.virtualOrchardGlassSecondary}>
+                    {t('virtualOrchardMetricsSecondary')}
+                  </Text>
                 </BlurView>
               </View>
             </View>
@@ -1388,7 +1404,7 @@ const s = StyleSheet.create({
     width: '100%', height: '100%', resizeMode: 'contain',
   },
   virtualOrchardGlass: {
-    position: 'absolute', right: 10, bottom: 10, width: 112,
+    position: 'absolute', right: 10, bottom: 10, width: 154,
     overflow: 'hidden', borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7,
     backgroundColor: 'rgba(79,92,67,0.45)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.24)',
@@ -1400,6 +1416,10 @@ const s = StyleSheet.create({
   virtualOrchardGlassValue: {
     marginTop: 1, color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold',
     fontSize: 8.5, lineHeight: 12,
+  },
+  virtualOrchardGlassSecondary: {
+    color: 'rgba(255,255,255,0.86)', fontFamily: 'Poppins_400Regular',
+    fontSize: 7.5, lineHeight: 11,
   },
   quickActionsTitle: {
     color: '#111118',

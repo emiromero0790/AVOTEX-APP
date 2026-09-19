@@ -13,6 +13,8 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Linking,
+  Animated,
+  Easing,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Mail, Lock, Eye, EyeOff, ChevronRight, X, UserX } from 'lucide-react-native';
@@ -64,6 +66,46 @@ export default function Login() {
   const [panelOpen, setPanelOpen] = useState(false);
 
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const eyebrowEntrance = useRef(new Animated.Value(0)).current;
+  const titleWordEntrances = useRef(
+    Array.from({ length: 10 }, () => new Animated.Value(0)),
+  ).current;
+  const subtitleEntrance = useRef(new Animated.Value(0)).current;
+  const coverTitle = t('coverTitle');
+  const coverTitleWords = coverTitle.split(/\s+/);
+
+  const playCoverEntrance = () => {
+    eyebrowEntrance.setValue(0);
+    titleWordEntrances.forEach((value) => value.setValue(0));
+    subtitleEntrance.setValue(0);
+
+    Animated.sequence([
+      Animated.delay(180),
+      Animated.timing(eyebrowEntrance, {
+        toValue: 1,
+        duration: 380,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+      Animated.stagger(
+        82,
+        titleWordEntrances.slice(0, coverTitleWords.length).map((value) =>
+          Animated.timing(value, {
+            toValue: 1,
+            duration: 520,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: Platform.OS !== 'web',
+          }),
+        ),
+      ),
+      Animated.timing(subtitleEntrance, {
+        toValue: 1,
+        duration: 520,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+    ]).start();
+  };
 
   useEffect(() => {
     if (error) {
@@ -73,7 +115,16 @@ export default function Login() {
     return () => { if (errorTimerRef.current) clearTimeout(errorTimerRef.current); };
   }, [error]);
 
-  const togglePanel = (open: boolean) => setPanelOpen(open);
+  useEffect(() => {
+    playCoverEntrance();
+  }, [coverTitle]);
+
+  const togglePanel = (open: boolean) => {
+    setPanelOpen(open);
+    if (!open) {
+      requestAnimationFrame(playCoverEntrance);
+    }
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -138,9 +189,76 @@ export default function Login() {
                 style={[s.brandLogo, isTablet && s.brandLogoTablet]}
                 resizeMode="contain"
               />
-              <Text style={s.coverEyebrow}>{t('eyebrow')}</Text>
-              <Text style={[s.coverTitle, isTablet && s.coverTitleTablet]}>{t('coverTitle')}</Text>
-              <Text style={s.coverSubtitle}>{t('coverSubtitle')}</Text>
+              <Animated.Text
+                style={[
+                  s.coverEyebrow,
+                  {
+                    opacity: eyebrowEntrance,
+                    transform: [{
+                      translateY: eyebrowEntrance.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [10, 0],
+                      }),
+                    }],
+                  },
+                ]}
+              >
+                {t('eyebrow')}
+              </Animated.Text>
+              <View
+                style={[s.coverTitleSequence, isTablet && s.coverTitleSequenceTablet]}
+                accessibilityRole="header"
+                accessibilityLabel={coverTitle}
+              >
+                {coverTitleWords.map((word, index) => {
+                  const entrance = titleWordEntrances[index];
+                  return (
+                    <Animated.Text
+                      key={`${word}-${index}`}
+                      accessible={false}
+                      style={[
+                        s.coverTitleWord,
+                        isTablet && s.coverTitleWordTablet,
+                        {
+                          opacity: entrance,
+                          transform: [
+                            {
+                              translateY: entrance.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [22, 0],
+                              }),
+                            },
+                            {
+                              scale: entrance.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0.96, 1],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      {word}
+                    </Animated.Text>
+                  );
+                })}
+              </View>
+              <Animated.Text
+                style={[
+                  s.coverSubtitle,
+                  {
+                    opacity: subtitleEntrance,
+                    transform: [{
+                      translateY: subtitleEntrance.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [14, 0],
+                      }),
+                    }],
+                  },
+                ]}
+              >
+                {t('coverSubtitle')}
+              </Animated.Text>
             </View>
             <View style={[s.coverActions, isTablet && s.coverActionsTablet]}>
               <TouchableOpacity style={s.coverLoginButton} onPress={() => togglePanel(true)} activeOpacity={0.86}>
@@ -266,11 +384,19 @@ const s = StyleSheet.create({
     color: '#9AD8CE', fontFamily: 'Poppins-SemiBold', fontSize: 11,
     letterSpacing: 1.5, marginBottom: 12,
   },
-  coverTitle: {
+  coverTitleSequence: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: 9,
+  },
+  coverTitleSequenceTablet: {
+    columnGap: 13,
+  },
+  coverTitleWord: {
     color: '#F5FBF8', fontFamily: 'Poppins-Regular', fontWeight: '400', fontSize: 36,
     lineHeight: 43, letterSpacing: -0.5,
   },
-  coverTitleTablet: { fontSize: 52, lineHeight: 60 },
+  coverTitleWordTablet: { fontSize: 52, lineHeight: 60 },
   coverSubtitle: {
     color: '#D4E9E4', fontFamily: 'Poppins-Regular', fontSize: 15,
     lineHeight: 23, marginTop: 12, maxWidth: 390,

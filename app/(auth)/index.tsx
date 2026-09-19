@@ -336,14 +336,19 @@ export default function Login() {
                 activeOpacity={0.88}
               >
                 <View style={[s.loginGradient, isTablet && s.loginGradientTablet]}>
+                  <View style={s.coverLoginArrowCircle}>
+                    <ChevronRight size={19} color="#0B3E3A" strokeWidth={2.4} />
+                  </View>
                   {loading ? (
-                    <ActivityIndicator color="#fff" size="small" />
+                    <ActivityIndicator color="#0F766E" size="small" />
                   ) : (
-                    <>
-                      <Text style={[s.loginText, isTablet && s.loginTextTablet]}>{t('startSession')}</Text>
-                      <ChevronRight color="#0F766E" size={22} />
-                    </>
+                    <Text style={[s.loginText, isTablet && s.loginTextTablet]}>{t('startSession')}</Text>
                   )}
+                  <View style={s.coverLoginChevrons} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                    <ChevronRight size={18} color="#2E504A" strokeWidth={1.65} />
+                    <ChevronRight size={18} color="#2E504A" strokeWidth={1.65} style={s.coverLoginChevronOverlap} />
+                    <ChevronRight size={18} color="#2E504A" strokeWidth={1.65} style={s.coverLoginChevronOverlap} />
+                  </View>
                 </View>
               </TouchableOpacity>
 
@@ -593,7 +598,7 @@ const s = StyleSheet.create({
   eyeBtn: { paddingLeft: 8, paddingRight: 2 },
 
   loginBtn: {
-    borderRadius: 14,
+    borderRadius: 29,
     overflow: 'hidden',
     marginBottom: 12,
     shadowColor: '#0F766E',
@@ -604,17 +609,18 @@ const s = StyleSheet.create({
   },
   loginGradient: {
     flexDirection: 'row',
-    paddingVertical: 14,
+    minHeight: 58,
+    paddingHorizontal: 60,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    borderRadius: 14,
+    borderRadius: 29,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#B8DCC7',
   },
   loginGradientTablet: {
-    paddingVertical: 18,
+    minHeight: 66,
+    borderRadius: 33,
   },
   loginText: {
     fontFamily: 'Poppins-SemiBold',

@@ -1359,7 +1359,7 @@ const s = StyleSheet.create({
     borderRadius: 20,
   },
   virtualOrchardLink: {
-    marginHorizontal: 18, marginBottom: 22,
+    marginHorizontal: 18, marginTop: -8, marginBottom: 22,
     shadowColor: '#435343', shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.16, shadowRadius: 12, elevation: 6,
   },

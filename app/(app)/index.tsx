@@ -15,7 +15,7 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-import { ArrowUpRight, Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, ChevronRight, X } from 'lucide-react-native';
+import { ArrowRight, ArrowUpRight, Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, X } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import Svg, { Polygon as SvgPolygon } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -318,7 +318,7 @@ function OrchardCard({
           <Text style={[s.orchardCardArea, isTablet && s.orchardCardAreaTablet]}>{area} ha</Text>
         </View>
         <View style={[s.orchardArrow, isTablet && s.orchardArrowTablet]}>
-          <ChevronRight size={isTablet ? 22 : 18} strokeWidth={2.1} color="#397913" />
+          <ArrowRight size={isTablet ? 22 : 18} strokeWidth={2.1} color="#397913" />
         </View>
       </View>
     </TouchableOpacity>
@@ -1272,7 +1272,7 @@ const s = StyleSheet.create({
     marginTop: 0,
   },
   orchardsRail: {
-    marginTop: -38,
+    marginTop: 8,
     zIndex: 5,
   },
   orchardsRailContent: {

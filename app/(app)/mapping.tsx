@@ -169,6 +169,7 @@ export default function Mapping() {
   const [orchardsError, setOrchardsError] = useState<string | null>(null);
   const [orchardsOpen, setOrchardsOpen] = useState(false);
   const [mapVersion, setMapVersion] = useState(0);
+  const [perspectiveReady, setPerspectiveReady] = useState(true);
   const [editingBoundary, setEditingBoundary] = useState(false);
   const [drawingNewBoundary, setDrawingNewBoundary] = useState(false);
   const [savePermissionVisible, setSavePermissionVisible] = useState(false);
@@ -309,8 +310,9 @@ export default function Mapping() {
     }, [t, locale]),
   );
 
-  const selectOrchard = useCallback((orchard: Orchard) => {
+  const selectOrchard = useCallback((orchard: Orchard, deferPerspective = false) => {
     selectedOrchardRef.current = orchard.id;
+    setPerspectiveReady(!deferPerspective);
     setSelectedOrchard(orchard);
     setOrchardName(orchard.nombre);
     setOrchardDetails(orchard.detalles ?? '');
@@ -326,6 +328,12 @@ export default function Mapping() {
     setMapVersion(value => value + 1);
   }, [t]);
 
+  useEffect(() => {
+    if (perspectiveReady || !selectedOrchard) return;
+    const timer = setTimeout(() => setPerspectiveReady(true), 300);
+    return () => clearTimeout(timer);
+  }, [perspectiveReady, selectedOrchard]);
+
   useFocusEffect(useCallback(() => {
     if (!requestedOrchardId) return;
     setOrchardsOpen(false);
@@ -336,6 +344,7 @@ export default function Mapping() {
   const createNewOrchard = () => {
     selectedOrchardRef.current = null;
     setSelectedOrchard(null);
+    setPerspectiveReady(true);
     setOrchardName('');
     setOrchardDetails('');
     setPolygon([]);
@@ -467,7 +476,7 @@ export default function Mapping() {
             ref={mapRef}
             location={orchardsOpen && !isWide ? (gpsLocation || location) : location}
             initialPolygon={orchardsOpen && !isWide ? [] : polygon}
-            perspective={orchardsOpen && !isWide ? false : Boolean(selectedOrchard) && !editingBoundary}
+            perspective={orchardsOpen && !isWide ? false : Boolean(selectedOrchard) && !editingBoundary && perspectiveReady}
             zoneCallout={orchardsOpen && !isWide ? undefined : zoneCallout}
             preview={orchardsOpen && !isWide}
             onPolygonChange={(points: PolygonPoint[]) => {
@@ -776,7 +785,7 @@ export default function Mapping() {
                       key={orchard.id}
                       accessibilityRole="button"
                       accessibilityLabel={orchard.nombre}
-                      onPress={() => selectOrchard(orchard)}
+                      onPress={() => selectOrchard(orchard, true)}
                       style={({ pressed }) => [styles.selectorOrchardRow, pressed && styles.actionPressed]}
                     >
                       <View style={styles.selectorOrchardDot}><Sprout size={13} color="#173E36" /></View>

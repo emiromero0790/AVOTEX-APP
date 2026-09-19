@@ -262,8 +262,15 @@ export default function Login() {
             </View>
             <View style={[s.coverActions, isTablet && s.coverActionsTablet]}>
               <TouchableOpacity style={s.coverLoginButton} onPress={() => togglePanel(true)} activeOpacity={0.86}>
+                <View style={s.coverLoginArrowCircle}>
+                  <ChevronRight size={19} color="#0B3E3A" strokeWidth={2.4} />
+                </View>
                 <Text style={s.coverLoginText}>{t('signIn')}</Text>
-                <ChevronRight size={20} color="#0B3E3A" />
+                <View style={s.coverLoginChevrons} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                  <ChevronRight size={18} color="#2E504A" strokeWidth={1.65} />
+                  <ChevronRight size={18} color="#2E504A" strokeWidth={1.65} style={s.coverLoginChevronOverlap} />
+                  <ChevronRight size={18} color="#2E504A" strokeWidth={1.65} style={s.coverLoginChevronOverlap} />
+                </View>
               </TouchableOpacity>
               <TouchableOpacity style={s.coverGuestButton} onPress={handleGuestAccess} activeOpacity={0.86}>
                 <UserX color="#E6F4F0" size={18} />
@@ -411,11 +418,21 @@ const s = StyleSheet.create({
   },
   coverGuestText: { color: '#E6F4F0', fontFamily: 'Poppins-SemiBold', fontSize: 15, flexShrink: 0 },
   coverLoginButton: {
-    minHeight: 54, borderRadius: 16, backgroundColor: '#9DDED2',
-    alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8,
-    paddingHorizontal: 22,
+    minHeight: 58, borderRadius: 29, backgroundColor: '#FFFFFF',
+    alignItems: 'center', justifyContent: 'center', flexDirection: 'row',
+    paddingHorizontal: 60,
+    shadowColor: '#061D1B', shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.16, shadowRadius: 12, elevation: 6,
   },
-  coverLoginText: { color: '#0B3E3A', fontFamily: 'Poppins-SemiBold', fontSize: 15, flexShrink: 0 },
+  coverLoginArrowCircle: {
+    position: 'absolute', left: 5, width: 48, height: 48, borderRadius: 24,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#9DDED2',
+  },
+  coverLoginChevrons: {
+    position: 'absolute', right: 10, flexDirection: 'row', alignItems: 'center',
+  },
+  coverLoginChevronOverlap: { marginLeft: -9 },
+  coverLoginText: { color: '#173E39', fontFamily: 'Poppins-SemiBold', fontSize: 15, flexShrink: 0 },
   formScreen: {
     flex: 1, paddingTop: Platform.OS === 'ios' ? 54 : 30,
     paddingHorizontal: 24,

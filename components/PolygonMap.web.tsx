@@ -16,6 +16,7 @@ export type PolygonMapProps = {
 
 export type PolygonMapHandle = {
   startDrawing: () => void;
+  startFreshDrawing: () => void;
   editDrawing: () => void;
   finishEditing: () => void;
   clearDrawing: () => void;
@@ -42,9 +43,11 @@ var drawn=new L.FeatureGroup();map.addLayer(drawn);
 var polygonOptions={allowIntersection:false,showArea:true,shapeOptions:{color:'#ecfff3',weight:3,fillColor:'#19a681',fillOpacity:.42}};
 var activeDrawer=null;
   var activeEditor=null;
+  function applyDottedFill(layer){setTimeout(function(){var path=layer&&layer._path;if(!path)return;var svg=path.ownerSVGElement;if(!svg)return;var patternId='avotex-orchard-dots';if(!svg.querySelector('#'+patternId)){var ns='http://www.w3.org/2000/svg';var defs=svg.querySelector('defs')||document.createElementNS(ns,'defs');if(!defs.parentNode)svg.insertBefore(defs,svg.firstChild);var pattern=document.createElementNS(ns,'pattern');pattern.setAttribute('id',patternId);pattern.setAttribute('width','9');pattern.setAttribute('height','9');pattern.setAttribute('patternUnits','userSpaceOnUse');var background=document.createElementNS(ns,'rect');background.setAttribute('width','9');background.setAttribute('height','9');background.setAttribute('fill','#A8D6A0');background.setAttribute('fill-opacity','.62');pattern.appendChild(background);[[2,2],[7,6]].forEach(function(position,index){var dot=document.createElementNS(ns,'circle');dot.setAttribute('cx',String(position[0]));dot.setAttribute('cy',String(position[1]));dot.setAttribute('r',index===0?'1.55':'1.25');dot.setAttribute('fill',index===0?'#294D46':'#FFFFFF');dot.setAttribute('fill-opacity',index===0?'.82':'.72');pattern.appendChild(dot);});defs.appendChild(pattern);}path.setAttribute('fill','url(#'+patternId+')');path.setAttribute('fill-opacity','1');},0);}
   function markFirstVertex(){setTimeout(function(){var vertices=document.querySelectorAll('.leaflet-marker-pane .leaflet-editing-icon');vertices.forEach(function(v){v.classList.remove('first-vertex');});if(vertices.length){vertices[0].classList.add('first-vertex');}},0);}
 function sendPoints(points){window.parent.postMessage({source:'avotex-polygon-map',type:'polygon',points:points},'*');}
   function startDrawing(){if(${preview ? 'true' : 'false'})return;if(activeEditor){activeEditor.disable();activeEditor=null;}if(activeDrawer){activeDrawer.disable();}activeDrawer=new L.Draw.Polygon(map,polygonOptions);activeDrawer.enable();}
+  function startFreshDrawing(){if(${preview ? 'true' : 'false'})return;if(activeEditor){activeEditor.disable();activeEditor=null;}if(activeDrawer){activeDrawer.disable();activeDrawer=null;}drawn.clearLayers();activeDrawer=new L.Draw.Polygon(map,polygonOptions);activeDrawer.enable();}
   function editDrawing(){if(${preview ? 'true' : 'false'})return;if(activeDrawer){activeDrawer.disable();activeDrawer=null;}if(activeEditor){activeEditor.disable();activeEditor=null;}if(drawn.getLayers().some(function(layer){return layer instanceof L.Polygon;})){activeEditor=new L.EditToolbar.Edit(map,{featureGroup:drawn});activeEditor.enable();}}
   function finishEditing(){if(activeEditor){activeEditor.disable();activeEditor=null;}var layer=drawn.getLayers().find(function(item){return item instanceof L.Polygon;});if(layer){var points=layer.getLatLngs()[0].map(function(point){return {latitude:point.lat,longitude:point.lng};});sendPoints(points);}}
   function clearDrawing(){if(activeDrawer){activeDrawer.disable();activeDrawer=null;}if(activeEditor){activeEditor.disable();activeEditor=null;}drawn.clearLayers();sendPoints([]);}
@@ -52,21 +55,24 @@ var initialPoints=${JSON.stringify(initialPolygon)};
 if(initialPoints.length>=3){
   var initialLayer=L.polygon(initialPoints.map(function(point){return [point.latitude,point.longitude];}),polygonOptions.shapeOptions);
   drawn.addLayer(initialLayer);
+  applyDottedFill(initialLayer);
   map.fitBounds(initialLayer.getBounds(),{padding:[28,28],maxZoom:19});
 }
 map.on(L.Draw.Event.DRAWVERTEX,markFirstVertex);
 map.on(L.Draw.Event.EDITSTART,markFirstVertex);
 map.on(L.Draw.Event.EDITVERTEX,markFirstVertex);
-  window.addEventListener('message',function(event){if(event.data?.source!=='avotex-mapping-controls')return;if(event.data.action==='draw')startDrawing();if(event.data.action==='edit')editDrawing();if(event.data.action==='finish-edit')finishEditing();if(event.data.action==='clear')clearDrawing();});
+  window.addEventListener('message',function(event){if(event.data?.source!=='avotex-mapping-controls')return;if(event.data.action==='draw')startDrawing();if(event.data.action==='draw-fresh')startFreshDrawing();if(event.data.action==='edit')editDrawing();if(event.data.action==='finish-edit')finishEditing();if(event.data.action==='clear')clearDrawing();});
 map.on(L.Draw.Event.CREATED,function(e){
   activeDrawer=null;
   drawn.clearLayers();drawn.addLayer(e.layer);
+  applyDottedFill(e.layer);
   var points=e.layer.getLatLngs()[0].map(function(point){return {latitude:point.lat,longitude:point.lng};});
   sendPoints(points);
 });
   map.on(L.Draw.Event.EDITED,function(e){
     e.layers.eachLayer(function(layer){
       if(layer instanceof L.Polygon){
+        applyDottedFill(layer);
         var points=layer.getLatLngs()[0].map(function(point){return {latitude:point.lat,longitude:point.lng};});
         sendPoints(points);
       }
@@ -82,6 +88,7 @@ const PolygonMap = forwardRef<PolygonMapHandle, PolygonMapProps>(({ location, on
 
   useImperativeHandle(ref, () => ({
     startDrawing: () => iframeRef.current?.contentWindow?.postMessage({ source: 'avotex-mapping-controls', action: 'draw' }, '*'),
+    startFreshDrawing: () => iframeRef.current?.contentWindow?.postMessage({ source: 'avotex-mapping-controls', action: 'draw-fresh' }, '*'),
     editDrawing: () => iframeRef.current?.contentWindow?.postMessage({ source: 'avotex-mapping-controls', action: 'edit' }, '*'),
     finishEditing: () => iframeRef.current?.contentWindow?.postMessage({ source: 'avotex-mapping-controls', action: 'finish-edit' }, '*'),
     clearDrawing: () => iframeRef.current?.contentWindow?.postMessage({ source: 'avotex-mapping-controls', action: 'clear' }, '*'),

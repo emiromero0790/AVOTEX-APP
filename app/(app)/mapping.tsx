@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Poppins_400Regular, useFonts } from '@expo-google-fonts/poppins';
@@ -83,6 +83,42 @@ const mappingTranslations: TranslationResource = {
   editComments: { es: 'Comentarios', en: 'Comments' },
   commentsTitle: { es: 'Comentarios de la huerta', en: 'Orchard comments' },
   commentsSaved: { es: 'Comentarios actualizados.', en: 'Comments updated.' },
+  zoneData: { es: 'DATOS DE LA ZONA', en: 'ZONE DATA' },
+  surface: { es: 'Superficie', en: 'Surface' },
+  perimeter: { es: 'Perímetro', en: 'Perimeter' },
+  vertices: { es: 'Vértices', en: 'Vertices' },
+  savedContour: { es: 'Huerta guardada', en: 'Saved orchard' },
+  newContour: { es: 'Contorno nuevo', en: 'New outline' },
+};
+
+const EARTH_RADIUS_METERS = 6371000;
+
+const polygonMetrics = (points: PolygonPoint[]) => {
+  if (points.length < 3) return { areaM2: 0, perimeterM: 0 };
+  const averageLatitude = points.reduce((sum, point) => sum + point.latitude, 0) / points.length;
+  const latitudeScale = Math.cos(averageLatitude * Math.PI / 180);
+  const projected = points.map(point => ({
+    x: EARTH_RADIUS_METERS * point.longitude * Math.PI / 180 * latitudeScale,
+    y: EARTH_RADIUS_METERS * point.latitude * Math.PI / 180,
+  }));
+
+  let signedArea = 0;
+  let perimeterM = 0;
+  for (let index = 0; index < points.length; index += 1) {
+    const nextIndex = (index + 1) % points.length;
+    signedArea += projected[index].x * projected[nextIndex].y - projected[nextIndex].x * projected[index].y;
+
+    const latitudeDelta = (points[nextIndex].latitude - points[index].latitude) * Math.PI / 180;
+    const longitudeDelta = (points[nextIndex].longitude - points[index].longitude) * Math.PI / 180;
+    const startLatitude = points[index].latitude * Math.PI / 180;
+    const endLatitude = points[nextIndex].latitude * Math.PI / 180;
+    const haversine =
+      Math.sin(latitudeDelta / 2) ** 2 +
+      Math.cos(startLatitude) * Math.cos(endLatitude) * Math.sin(longitudeDelta / 2) ** 2;
+    perimeterM += 2 * EARTH_RADIUS_METERS * Math.asin(Math.min(1, Math.sqrt(haversine)));
+  }
+
+  return { areaM2: Math.abs(signedArea) / 2, perimeterM };
 };
 
 const orchardLocation = (orchard: Orchard): Location.LocationObject => ({
@@ -128,8 +164,76 @@ export default function Mapping() {
   const [orchardsOpen, setOrchardsOpen] = useState(false);
   const [mapVersion, setMapVersion] = useState(0);
   const [editingBoundary, setEditingBoundary] = useState(false);
+  const [drawingNewBoundary, setDrawingNewBoundary] = useState(false);
   const [savePermissionVisible, setSavePermissionVisible] = useState(false);
   const [pendingSaveMode, setPendingSaveMode] = useState<'boundary' | 'edit'>('boundary');
+  const calculatedMetrics = useMemo(() => polygonMetrics(polygon), [polygon]);
+  const displayedAreaM2 = selectedOrchard && !editingBoundary
+    ? selectedOrchard.area_m2
+    : calculatedMetrics.areaM2;
+  const visiblePointCount = drawingNewBoundary ? 0 : polygon.length;
+  const areaDisplay = displayedAreaM2 >= 10000
+    ? `${(displayedAreaM2 / 10000).toFixed(2)} ha`
+    : `${Math.round(displayedAreaM2).toLocaleString(locale)} m²`;
+  const perimeterDisplay = calculatedMetrics.perimeterM >= 1000
+    ? `${(calculatedMetrics.perimeterM / 1000).toFixed(2)} km`
+    : `${Math.round(calculatedMetrics.perimeterM)} m`;
+
+  const renderZoneDataCards = (inPreview = false) => {
+    if (polygon.length < 3 || drawingNewBoundary) return null;
+    return (
+      <View
+        pointerEvents="none"
+        style={[
+          styles.zoneDataCards,
+          isWide && !inPreview && styles.zoneDataCardsWide,
+          inPreview && styles.zoneDataCardsPreview,
+        ]}
+      >
+        <BlurView
+          intensity={72}
+          tint="dark"
+          style={[styles.zoneDataCard, styles.zoneDataCardPrimary, inPreview && styles.zoneDataCardPrimaryPreview]}
+        >
+          <View style={styles.zoneDataHeading}>
+            <View style={styles.zoneDataIcon}>
+              <Sprout size={14} color="#E8FFF6" />
+            </View>
+            <View style={styles.zoneDataHeadingCopy}>
+              <Text style={styles.zoneDataEyebrow}>{t('zoneData')}</Text>
+              <Text style={styles.zoneDataTitle} numberOfLines={1}>
+                {selectedOrchard?.nombre || orchardName.trim() || t('zone')}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.zoneMetricRow}>
+            <Text style={styles.zoneMetricLabel}>{t('surface')}</Text>
+            <Text style={styles.zoneMetricValue}>{areaDisplay}</Text>
+          </View>
+          <View style={styles.zoneMetricDivider} />
+          <View style={styles.zoneMetricRow}>
+            <Text style={styles.zoneMetricLabel}>{t('perimeter')}</Text>
+            <Text style={styles.zoneMetricValue}>{perimeterDisplay}</Text>
+          </View>
+        </BlurView>
+
+        <BlurView
+          intensity={72}
+          tint="dark"
+          style={[styles.zoneDataCard, styles.zoneDataCardSecondary, inPreview && styles.zoneDataCardSecondaryPreview]}
+        >
+          <View style={styles.zoneStatusRow}>
+            <View style={styles.zoneStatusDot} />
+            <Text style={styles.zoneStatusText}>
+              {selectedOrchard ? t('savedContour') : t('newContour')}
+            </Text>
+          </View>
+          <Text style={styles.zoneVertexValue}>{polygon.length}</Text>
+          <Text style={styles.zoneVertexLabel}>{t('vertices')}</Text>
+        </BlurView>
+      </View>
+    );
+  };
 
   const loadUserOrchards = useCallback(async () => {
     const email = auth.currentUser?.email;
@@ -248,6 +352,7 @@ export default function Mapping() {
     setNotice(t('boundaryReady'));
     setPreviewVisible(false);
     setEditingBoundary(false);
+    setDrawingNewBoundary(false);
     setOrchardsOpen(false);
     setMapVersion(value => value + 1);
   };
@@ -266,8 +371,26 @@ export default function Mapping() {
     setNotice(t('tapCorners'));
     setPreviewVisible(false);
     setEditingBoundary(false);
+    setDrawingNewBoundary(false);
     setOrchardsOpen(false);
     setMapVersion(value => value + 1);
+  };
+
+  const startNewBoundary = () => {
+    if (selectedOrchardRef.current) {
+      selectedOrchardRef.current = null;
+      setSelectedOrchard(null);
+      setOrchardName('');
+      setOrchardDetails('');
+      setLocationTitle(t('current'));
+      if (location) {
+        setLocationDetail(`${location.coords.latitude.toFixed(5)}, ${location.coords.longitude.toFixed(5)}`);
+      }
+    }
+    setEditingBoundary(false);
+    setDrawingNewBoundary(true);
+    mapRef.current?.startFreshDrawing();
+    setNotice(t('drawInstruction'));
   };
 
   const persistOrchard = async (pointsToSave: PolygonPoint[] = polygon) => {
@@ -370,6 +493,7 @@ export default function Mapping() {
             initialPolygon={polygon}
             onPolygonChange={(points: PolygonPoint[]) => {
               setPolygon(points);
+              if (points.length >= 3 || points.length === 0) setDrawingNewBoundary(false);
               if (saveEditedPolygonRef.current) {
                 saveEditedPolygonRef.current = false;
                 void persistOrchard(points);
@@ -401,6 +525,8 @@ export default function Mapping() {
           </View>
         )}
       </View>
+
+      {renderZoneDataCards()}
 
       <View style={[styles.locationCard, isWide && styles.locationCardWide]}>
         <View style={styles.locationIcon}>
@@ -508,12 +634,13 @@ export default function Mapping() {
            <Text style={styles.title}>{t('title')}</Text>
           </View>
           <View style={styles.panelHeaderActions}>
-            {polygon.length > 0 && (
+            {visiblePointCount > 0 && (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t('eraseLabel')}
                 onPress={() => {
                   setEditingBoundary(false);
+                   setDrawingNewBoundary(false);
                   mapRef.current?.clearDrawing();
                   setPolygon([]);
                   setNotice(t('cleared'));
@@ -524,9 +651,9 @@ export default function Mapping() {
                 <Text style={styles.headerEraseLabel}>{t('erase')}</Text>
               </Pressable>
             )}
-            <View style={[styles.pointBadge, polygon.length >= 3 && styles.pointBadgeReady]}>
-              <Text style={[styles.pointBadgeText, polygon.length >= 3 && styles.pointBadgeTextReady]}>
-                {t('points', { count: polygon.length })}
+            <View style={[styles.pointBadge, visiblePointCount >= 3 && styles.pointBadgeReady]}>
+              <Text style={[styles.pointBadgeText, visiblePointCount >= 3 && styles.pointBadgeTextReady]}>
+                {t('points', { count: visiblePointCount })}
               </Text>
             </View>
           </View>
@@ -538,11 +665,7 @@ export default function Mapping() {
                  accessibilityLabel={t('drawLabel')}
             accessibilityState={{ disabled: !location }}
             disabled={!location}
-            onPress={() => {
-              setEditingBoundary(false);
-              mapRef.current?.startDrawing();
-               setNotice(t('drawInstruction'));
-            }}
+             onPress={startNewBoundary}
             style={({ pressed }) => [
               styles.actionButton,
               !location && styles.actionButtonDisabled,
@@ -553,7 +676,7 @@ export default function Mapping() {
              <Text style={styles.actionLabel}>{t('draw')}</Text>
           </Pressable>
 
-          {selectedOrchard && polygon.length >= 3 && (
+          {selectedOrchard && visiblePointCount >= 3 && (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('editBoundary')}
@@ -569,7 +692,7 @@ export default function Mapping() {
             </Pressable>
           )}
 
-          {!selectedOrchard && polygon.length >= 3 && !editingBoundary && (
+          {!selectedOrchard && visiblePointCount >= 3 && !editingBoundary && (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('saveLabel')}
@@ -677,6 +800,7 @@ export default function Mapping() {
                   preview
                 />
               )}
+              {renderZoneDataCards(true)}
             </View>
 
             <View style={styles.previewInfo}>
@@ -832,6 +956,86 @@ const styles = StyleSheet.create({
     elevation: 11,
   },
   locationCardWide: { right: 306 },
+  zoneDataCards: {
+    position: 'absolute',
+    top: 162,
+    left: 18,
+    right: 18,
+    zIndex: 8,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  zoneDataCardsWide: { right: 306 },
+  zoneDataCardsPreview: {
+    top: undefined,
+    bottom: 10,
+    left: 12,
+    right: 12,
+    zIndex: 5,
+    gap: 7,
+  },
+  zoneDataCard: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.34)',
+    backgroundColor: 'rgba(7,35,31,0.68)',
+    shadowColor: '#03110F',
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.24,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  zoneDataCardPrimary: {
+    flex: 1,
+    maxWidth: 230,
+    minHeight: 116,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    borderRadius: 20,
+  },
+  zoneDataCardSecondary: {
+    width: 106,
+    minHeight: 94,
+    paddingHorizontal: 11,
+    paddingVertical: 12,
+    borderRadius: 20,
+  },
+  zoneDataCardPrimaryPreview: {
+    maxWidth: 190,
+    minHeight: 91,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    borderRadius: 16,
+  },
+  zoneDataCardSecondaryPreview: {
+    width: 88,
+    minHeight: 74,
+    paddingHorizontal: 9,
+    paddingVertical: 9,
+    borderRadius: 16,
+  },
+  zoneDataHeading: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 9 },
+  zoneDataIcon: {
+    width: 27,
+    height: 27,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(129,224,190,0.3)',
+  },
+  zoneDataHeadingCopy: { flex: 1, minWidth: 0 },
+  zoneDataEyebrow: { color: '#9EE7D2', fontSize: 7, fontWeight: '800', letterSpacing: 1.2 },
+  zoneDataTitle: { color: '#FFFFFF', fontSize: 12, lineHeight: 16, fontWeight: '800', marginTop: 1 },
+  zoneMetricRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  zoneMetricLabel: { color: '#C7D8D3', fontSize: 9, lineHeight: 14 },
+  zoneMetricValue: { color: '#FFFFFF', fontSize: 10, lineHeight: 14, fontWeight: '800' },
+  zoneMetricDivider: { height: 1, marginVertical: 5, backgroundColor: 'rgba(255,255,255,0.14)' },
+  zoneStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  zoneStatusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#8FE7C8' },
+  zoneStatusText: { flex: 1, color: '#DDF9EF', fontSize: 8, lineHeight: 11, fontWeight: '700' },
+  zoneVertexValue: { color: '#FFFFFF', fontSize: 25, lineHeight: 30, fontWeight: '800', marginTop: 9 },
+  zoneVertexLabel: { color: '#B7CBC5', fontSize: 8, fontWeight: '700', letterSpacing: 0.7 },
   locationIcon: {
     width: 42,
     height: 42,

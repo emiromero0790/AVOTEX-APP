@@ -309,7 +309,7 @@ export default function Mapping() {
     }, [t, locale]),
   );
 
-  const selectOrchard = (orchard: Orchard) => {
+  const selectOrchard = useCallback((orchard: Orchard) => {
     selectedOrchardRef.current = orchard.id;
     setSelectedOrchard(orchard);
     setOrchardName(orchard.nombre);
@@ -324,13 +324,14 @@ export default function Mapping() {
     setDrawingNewBoundary(false);
     setOrchardsOpen(false);
     setMapVersion(value => value + 1);
-  };
+  }, [t]);
 
-  React.useEffect(() => {
-    if (!requestedOrchardId || selectedOrchardRef.current === requestedOrchardId) return;
+  useFocusEffect(useCallback(() => {
+    if (!requestedOrchardId) return;
+    setOrchardsOpen(false);
     const requestedOrchard = orchards.find(orchard => orchard.id === requestedOrchardId);
     if (requestedOrchard) selectOrchard(requestedOrchard);
-  }, [orchards, requestedOrchardId]);
+  }, [orchards, requestedOrchardId, selectOrchard]));
 
   const createNewOrchard = () => {
     selectedOrchardRef.current = null;
@@ -1424,7 +1425,7 @@ const styles = StyleSheet.create({
   },
   selectorExit: {
     position: 'absolute',
-    top: 20,
+    top: 36,
     right: 18,
     width: 30,
     height: 30,

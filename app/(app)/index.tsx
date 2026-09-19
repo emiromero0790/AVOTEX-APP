@@ -14,7 +14,7 @@ import {
   Pressable,
   Linking,
 } from 'react-native';
-import { Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, ChevronRight, X, ExternalLink } from 'lucide-react-native';
+import { ArrowUpRight, Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, ChevronRight, X } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import Svg, { Polygon as SvgPolygon } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -862,37 +862,32 @@ export default function Home() {
             onPress={() => Linking.openURL('https://vex-mx.com/dashboard.html')}
             activeOpacity={0.82}
             accessibilityRole="link"
+            accessibilityLabel={t('openVirtualPanel')}
           >
-            <LinearGradient
-              colors={['#0B655C', '#12977F', '#7AD7B5']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={s.virtualOrchardGradient}
-            >
-              <View style={s.virtualOrchardGlow} />
-              <View style={s.virtualOrchardPattern}>
-                <View style={[s.virtualOrchardPatternDot, { opacity: 0.28 }]} />
-                <View style={[s.virtualOrchardPatternDot, { opacity: 0.18 }]} />
-                <View style={[s.virtualOrchardPatternDot, { opacity: 0.1 }]} />
-              </View>
-              <View style={s.virtualOrchardArt}>
-                <View style={s.virtualOrchardArtInner}>
-                  <Leaf size={22} color="#FFFFFF" />
+            <View style={s.virtualOrchardSurface}>
+              <View style={s.virtualOrchardTop}>
+                <View style={s.virtualOrchardCopy}>
+                  <Text style={s.virtualOrchardText}>{t('virtualOrchard')}</Text>
+                  <Text style={s.virtualOrchardMeta}>{t('virtualOrchardMeta')}</Text>
+                </View>
+                <View style={s.virtualOrchardCta}>
+                  <ArrowUpRight size={23} color="#A8E83E" strokeWidth={1.9} />
                 </View>
               </View>
-              <View style={s.virtualOrchardCopy}>
-                <View style={s.virtualOrchardBadge}>
-                  <View style={s.virtualOrchardBadgeDot} />
-                  <Text style={s.virtualOrchardEyebrow}>AVOTEX DIGITAL</Text>
-                </View>
-                <Text style={s.virtualOrchardText}>{t('virtualOrchard')}</Text>
-                <Text style={s.virtualOrchardMeta}>{t('virtualOrchardMeta')}</Text>
+              <View style={s.virtualOrchardImageFrame}>
+                <Image
+                  source={require('../../attached_assets/thedigitalartist-countryside-2326787_1920_1789857836050.jpg')}
+                  style={s.virtualOrchardImage}
+                  resizeMode="cover"
+                />
+                <LinearGradient
+                  colors={['rgba(20,31,17,0.02)', 'rgba(20,31,17,0.34)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
               </View>
-              <View style={s.virtualOrchardCta}>
-                <Text style={s.virtualOrchardCtaText}>{t('openVirtualPanel')}</Text>
-                <ExternalLink size={14} color="#0D756B" />
-              </View>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
 
         </View>
@@ -1334,55 +1329,38 @@ const s = StyleSheet.create({
     borderRadius: 20,
   },
   virtualOrchardLink: {
-    marginHorizontal: 18, marginBottom: 22, height: 112, borderRadius: 27,
-    overflow: 'hidden', shadowColor: '#087064', shadowOffset: { width: 0, height: 7 },
-    shadowOpacity: 0.23, shadowRadius: 14, elevation: 7,
+    marginHorizontal: 18, marginBottom: 22, height: 230, borderRadius: 20,
+    overflow: 'hidden', backgroundColor: '#F7F8F2',
+    shadowColor: '#435343', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16, shadowRadius: 12, elevation: 6,
   },
-  virtualOrchardGradient: {
-    flex: 1, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 11,
+  virtualOrchardSurface: {
+    flex: 1, backgroundColor: '#F7F8F2',
   },
-  virtualOrchardGlow: {
-    position: 'absolute', width: 150, height: 150, borderRadius: 75, right: -52, top: -70,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  virtualOrchardTop: {
+    minHeight: 87, paddingHorizontal: 17, paddingVertical: 15,
+    flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between',
   },
-  virtualOrchardPattern: {
-    position: 'absolute', left: -34, bottom: -53, flexDirection: 'row', gap: -20,
-  },
-  virtualOrchardPatternDot: {
-    width: 76, height: 76, borderRadius: 38, borderWidth: 1.5, borderColor: '#FFFFFF',
-  },
-  virtualOrchardArt: {
-    width: 58, height: 68, borderRadius: 19, overflow: 'hidden',
-    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.24)',
-  },
-  virtualOrchardArtInner: {
-    width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: 'rgba(2,69,60,0.28)',
-  },
-  virtualOrchardCopy: { flex: 1 },
-  virtualOrchardBadge: {
-    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5,
-    marginBottom: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8,
-    backgroundColor: 'rgba(3,70,61,0.24)',
-  },
-  virtualOrchardBadgeDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#BDF6D3' },
-  virtualOrchardEyebrow: {
-    color: '#D9FFF2', fontFamily: 'Poppins_600SemiBold', fontSize: 7, letterSpacing: 1.15,
+  virtualOrchardCopy: {
+    flex: 1, paddingRight: 12,
   },
   virtualOrchardText: {
-    color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold', fontSize: 13, lineHeight: 17,
+    color: '#18221A', fontFamily: 'Poppins_600SemiBold', fontSize: 14,
+    lineHeight: 18, letterSpacing: 0.1,
   },
   virtualOrchardMeta: {
-    marginTop: 2, color: 'rgba(229,255,246,0.78)', fontFamily: 'Poppins_400Regular',
-    fontSize: 8.5,
+    marginTop: 5, color: '#596458', fontFamily: 'Poppins_400Regular',
+    fontSize: 9, lineHeight: 13,
   },
   virtualOrchardCta: {
-    position: 'absolute', right: 12, bottom: 10, minHeight: 27, paddingHorizontal: 10,
-    borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: '#FFFFFF',
+    width: 38, height: 38, borderRadius: 21, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#20271D',
   },
-  virtualOrchardCtaText: { color: '#0D756B', fontFamily: 'Poppins_600SemiBold', fontSize: 8 },
+  virtualOrchardImageFrame: {
+    height: 136, marginHorizontal: 7, marginBottom: 7, overflow: 'hidden',
+    borderRadius: 15, backgroundColor: '#7E9B54',
+  },
+  virtualOrchardImage: StyleSheet.absoluteFill,
   quickActionsTitle: {
     color: '#111118',
     fontFamily: 'Poppins_600SemiBold',

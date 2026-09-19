@@ -3,3 +3,4 @@
 - [Yarn para builds EAS](eas-npm-version.md) — EAS debe instalar con Yarn Classic; npm ci falla internamente en la imagen iOS aun después del hook.
 - [Xcode mínimo para Expo 57](expo57-xcode.md) — usar Xcode 26.4 o superior; Xcode 26.2 rompe la compilación de expo-modules-jsi.
 - [Dibujo Leaflet sin recarga](leaflet-drawing-state.md) — iniciar un contorno nuevo dentro del mapa; cambiar initialPolygon antes de dibujar recarga iframe/WebView y cancela Leaflet Draw.
+- [Motores del mapa de huertas](orchard-map-engines.md) — usar MapLibre para la cámara frontal de huertas guardadas y Leaflet plano para dibujar o editar.

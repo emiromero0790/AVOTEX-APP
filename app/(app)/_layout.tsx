@@ -72,6 +72,10 @@ export default function TabLayout() {
     pathname === '/chatbot' ||
     pathname === '/(app)/plans' ||
     pathname === '/plans';
+  const shouldHideChatbot =
+    shouldHideTabs ||
+    pathname === '/(app)/mapping' ||
+    pathname === '/mapping';
   const { isGuest } = useGuest();
   const t = useTranslations(translations);
   const [showLockModal, setShowLockModal] = useState(false);
@@ -213,7 +217,7 @@ export default function TabLayout() {
         <Tabs.Screen name="plans" options={{ href: null }} />
       </Tabs>
 
-      {!shouldHideTabs && !isGuest && (
+      {!shouldHideChatbot && !isGuest && (
         <TouchableOpacity
           style={[
             styles.fab,

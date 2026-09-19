@@ -625,7 +625,7 @@ export default function Mapping() {
            <Text style={styles.title}>{t('title')}</Text>
           </View>
           <View style={styles.panelHeaderActions}>
-            {visiblePointCount > 0 && (
+            {(drawingNewBoundary || visiblePointCount > 0) && (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t('eraseLabel')}

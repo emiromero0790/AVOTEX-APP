@@ -13,11 +13,13 @@ import {
   Modal,
   Pressable,
   Linking,
+  Platform,
 } from 'react-native';
 import { ArrowUpRight, Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, ChevronRight, X } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import Svg, { Polygon as SvgPolygon } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import * as Location from 'expo-location';
 import MapViewComponent from '../../components/MapViewComponent';
@@ -865,13 +867,11 @@ export default function Home() {
             accessibilityLabel={t('openVirtualPanel')}
           >
             <View style={s.virtualOrchardSurface}>
+              <View style={s.virtualOrchardNotch} />
               <View style={s.virtualOrchardTop}>
                 <View style={s.virtualOrchardCopy}>
                   <Text style={s.virtualOrchardText}>{t('virtualOrchard')}</Text>
                   <Text style={s.virtualOrchardMeta}>{t('virtualOrchardMeta')}</Text>
-                </View>
-                <View style={s.virtualOrchardCta}>
-                  <ArrowUpRight size={23} color="#A8E83E" strokeWidth={1.9} />
                 </View>
               </View>
               <View style={s.virtualOrchardImageFrame}>
@@ -886,7 +886,14 @@ export default function Home() {
                   end={{ x: 0, y: 1 }}
                   style={StyleSheet.absoluteFill}
                 />
+                <BlurView intensity={38} tint="dark" style={s.virtualOrchardGlass}>
+                  <Text style={s.virtualOrchardGlassLabel}>AVOTEX</Text>
+                  <Text numberOfLines={1} style={s.virtualOrchardGlassValue}>{t('virtualOrchardMeta')}</Text>
+                </BlurView>
               </View>
+            </View>
+            <View style={s.virtualOrchardCta}>
+              <ArrowUpRight size={30} color="#A8E83E" strokeWidth={1.75} />
             </View>
           </TouchableOpacity>
 
@@ -1329,38 +1336,62 @@ const s = StyleSheet.create({
     borderRadius: 20,
   },
   virtualOrchardLink: {
-    marginHorizontal: 18, marginBottom: 22, height: 230, borderRadius: 20,
-    overflow: 'hidden', backgroundColor: '#F7F8F2',
+    marginHorizontal: 18, marginBottom: 22, height: 244,
     shadowColor: '#435343', shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.16, shadowRadius: 12, elevation: 6,
   },
   virtualOrchardSurface: {
-    flex: 1, backgroundColor: '#F7F8F2',
+    flex: 1, marginTop: 14, overflow: 'hidden',
+    borderRadius: 22, backgroundColor: '#F7F8F2',
+  },
+  virtualOrchardNotch: {
+    position: 'absolute', top: 0, right: 0, width: 70, height: 63,
+    borderBottomLeftRadius: 40, backgroundColor: '#FFFFFF', zIndex: 1,
   },
   virtualOrchardTop: {
-    minHeight: 87, paddingHorizontal: 17, paddingVertical: 15,
+    minHeight: 93, paddingLeft: 17, paddingRight: 76, paddingTop: 14, paddingBottom: 10,
     flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between',
   },
   virtualOrchardCopy: {
     flex: 1, paddingRight: 12,
   },
   virtualOrchardText: {
-    color: '#18221A', fontFamily: 'Poppins_600SemiBold', fontSize: 14,
-    lineHeight: 18, letterSpacing: 0.1,
+    color: '#131713',
+    fontFamily: Platform.select({ ios: 'Helvetica Neue', android: 'sans-serif-condensed', default: 'Arial' }),
+    fontSize: 20, lineHeight: 21, fontWeight: '400', letterSpacing: -0.35,
+    textTransform: 'uppercase',
   },
   virtualOrchardMeta: {
-    marginTop: 5, color: '#596458', fontFamily: 'Poppins_400Regular',
-    fontSize: 9, lineHeight: 13,
+    marginTop: 6, color: '#2F372F', fontFamily: 'Poppins_400Regular',
+    fontSize: 9.5, lineHeight: 12.5,
   },
   virtualOrchardCta: {
-    width: 38, height: 38, borderRadius: 21, alignItems: 'center', justifyContent: 'center',
+    position: 'absolute', top: 0, right: 10, zIndex: 4,
+    width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#20271D',
+    borderWidth: 3, borderColor: '#FFFFFF',
+    shadowColor: '#111A0F', shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.26, shadowRadius: 8, elevation: 9,
   },
   virtualOrchardImageFrame: {
-    height: 136, marginHorizontal: 7, marginBottom: 7, overflow: 'hidden',
-    borderRadius: 15, backgroundColor: '#7E9B54',
+    flex: 1, marginHorizontal: 7, marginBottom: 7, overflow: 'hidden',
+    borderRadius: 17, backgroundColor: '#7E9B54',
   },
   virtualOrchardImage: StyleSheet.absoluteFill,
+  virtualOrchardGlass: {
+    position: 'absolute', right: 10, bottom: 10, width: 112,
+    overflow: 'hidden', borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7,
+    backgroundColor: 'rgba(79,92,67,0.45)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.24)',
+  },
+  virtualOrchardGlassLabel: {
+    color: 'rgba(255,255,255,0.78)', fontFamily: 'Poppins_400Regular',
+    fontSize: 8, lineHeight: 11,
+  },
+  virtualOrchardGlassValue: {
+    marginTop: 1, color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold',
+    fontSize: 8.5, lineHeight: 12,
+  },
   quickActionsTitle: {
     color: '#111118',
     fontFamily: 'Poppins_600SemiBold',

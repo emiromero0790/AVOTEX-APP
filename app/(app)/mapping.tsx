@@ -178,61 +178,25 @@ export default function Mapping() {
   const perimeterDisplay = calculatedMetrics.perimeterM >= 1000
     ? `${(calculatedMetrics.perimeterM / 1000).toFixed(2)} km`
     : `${Math.round(calculatedMetrics.perimeterM)} m`;
-
-  const renderZoneDataCards = (inPreview = false) => {
-    if (polygon.length < 3 || drawingNewBoundary) return null;
-    return (
-      <View
-        pointerEvents="none"
-        style={[
-          styles.zoneDataCards,
-          isWide && !inPreview && styles.zoneDataCardsWide,
-          inPreview && styles.zoneDataCardsPreview,
-        ]}
-      >
-        <BlurView
-          intensity={58}
-          tint="dark"
-          style={[styles.zoneDataCard, styles.zoneDataCardPrimary, inPreview && styles.zoneDataCardPrimaryPreview]}
-        >
-          <Text style={styles.zoneDataTitle} numberOfLines={1}>
-            {selectedOrchard?.nombre || orchardName.trim() || t('zone')}
-          </Text>
-          <View style={styles.zoneMetricRow}>
-            <Text style={styles.zoneMetricLabel}>{t('surface')}</Text>
-            <Text style={styles.zoneMetricValue}>{areaDisplay}</Text>
-          </View>
-          <View style={styles.zoneMetricRow}>
-            <Text style={styles.zoneMetricLabel}>{t('perimeter')}</Text>
-            <Text style={styles.zoneMetricValue}>{perimeterDisplay}</Text>
-          </View>
-          <View style={styles.zoneMetricRow}>
-            <Text style={styles.zoneMetricLabel}>{t('vertices')}</Text>
-            <Text style={styles.zoneMetricValue}>{polygon.length}</Text>
-          </View>
-        </BlurView>
-
-        <BlurView
-          intensity={58}
-          tint="dark"
-          style={[styles.zoneDataCard, styles.zoneDataCardSecondary, inPreview && styles.zoneDataCardSecondaryPreview]}
-        >
-          <View style={styles.zoneStatusRow}>
-            <Text style={styles.zoneStatusText}>
-              {selectedOrchard ? t('savedContour') : t('newContour')}
-            </Text>
-          </View>
-          <View style={styles.zoneSummaryRow}>
-            <View>
-              <Text style={styles.zoneSummaryValue}>{polygon.length}</Text>
-              <Text style={styles.zoneSummaryLabel}>{t('vertices')}</Text>
-            </View>
-            <Text style={styles.zoneSummaryArea}>{areaDisplay}</Text>
-          </View>
-        </BlurView>
-      </View>
-    );
-  };
+  const zoneCallout = useMemo(() => {
+    if (polygon.length < 3 || drawingNewBoundary) return undefined;
+    return {
+      title: selectedOrchard?.nombre || orchardName.trim() || t('zone'),
+      rows: [
+        { label: t('surface'), value: areaDisplay },
+        { label: t('perimeter'), value: perimeterDisplay },
+        { label: t('vertices'), value: String(polygon.length) },
+      ],
+    };
+  }, [
+    areaDisplay,
+    drawingNewBoundary,
+    orchardName,
+    perimeterDisplay,
+    polygon.length,
+    selectedOrchard?.nombre,
+    t,
+  ]);
 
   const loadUserOrchards = useCallback(async () => {
     const email = auth.currentUser?.email;
@@ -491,6 +455,7 @@ export default function Mapping() {
             location={location}
             initialPolygon={polygon}
             perspective={Boolean(selectedOrchard) && !editingBoundary}
+            zoneCallout={zoneCallout}
             onPolygonChange={(points: PolygonPoint[]) => {
               setPolygon(points);
               if (points.length >= 3 || points.length === 0) setDrawingNewBoundary(false);
@@ -525,8 +490,6 @@ export default function Mapping() {
           </View>
         )}
       </View>
-
-      {renderZoneDataCards()}
 
       <View style={[styles.locationCard, isWide && styles.locationCardWide]}>
         <View style={styles.locationIcon}>
@@ -797,10 +760,10 @@ export default function Mapping() {
                 <PolygonMap
                   location={location}
                   initialPolygon={polygon}
+                  zoneCallout={zoneCallout}
                   preview
                 />
               )}
-              {renderZoneDataCards(true)}
             </View>
 
             <View style={styles.previewInfo}>
@@ -956,81 +919,6 @@ const styles = StyleSheet.create({
     elevation: 11,
   },
   locationCardWide: { right: 306 },
-  zoneDataCards: {
-    position: 'absolute',
-    top: 142,
-    left: 18,
-    right: 18,
-    height: 230,
-    zIndex: 8,
-  },
-  zoneDataCardsWide: { right: 306 },
-  zoneDataCardsPreview: {
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: undefined,
-    zIndex: 5,
-  },
-  zoneDataCard: {
-    position: 'absolute',
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(225,238,216,0.22)',
-    backgroundColor: 'rgba(34,57,35,0.78)',
-    shadowColor: '#101B10',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.28,
-    shadowRadius: 10,
-    elevation: 10,
-  },
-  zoneDataCardPrimary: {
-    left: 0,
-    bottom: 0,
-    width: 176,
-    minHeight: 130,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    borderRadius: 14,
-  },
-  zoneDataCardSecondary: {
-    top: 0,
-    right: 0,
-    width: 140,
-    minHeight: 78,
-    paddingHorizontal: 13,
-    paddingVertical: 11,
-    borderRadius: 14,
-  },
-  zoneDataCardPrimaryPreview: {
-    left: 10,
-    bottom: 10,
-    width: 150,
-    minHeight: 105,
-    paddingHorizontal: 11,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  zoneDataCardSecondaryPreview: {
-    top: 10,
-    right: 10,
-    width: 125,
-    minHeight: 68,
-    paddingHorizontal: 11,
-    paddingVertical: 9,
-    borderRadius: 12,
-  },
-  zoneDataTitle: { color: '#F4F7F0', fontSize: 12, lineHeight: 17, fontWeight: '600', marginBottom: 9 },
-  zoneMetricRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 20 },
-  zoneMetricLabel: { color: 'rgba(238,244,232,0.73)', fontSize: 10, lineHeight: 16 },
-  zoneMetricValue: { color: '#FFFFFF', fontSize: 10, lineHeight: 16, fontWeight: '500' },
-  zoneStatusRow: { flexDirection: 'row', alignItems: 'center' },
-  zoneStatusText: { color: 'rgba(239,245,234,0.74)', fontSize: 10, lineHeight: 15, fontWeight: '500' },
-  zoneSummaryRow: { marginTop: 5, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 },
-  zoneSummaryValue: { color: '#FFFFFF', fontSize: 13, lineHeight: 16, fontWeight: '600' },
-  zoneSummaryLabel: { color: 'rgba(239,245,234,0.7)', fontSize: 8, lineHeight: 11 },
-  zoneSummaryArea: { color: '#FFFFFF', fontSize: 10, lineHeight: 15, fontWeight: '500' },
   locationIcon: {
     width: 42,
     height: 42,

@@ -882,7 +882,7 @@ export default function Home() {
                 <Image
                   source={require('../../attached_assets/StockCake-Campos_agrícolas_verdes-1294813-standard_1789858772957.jpg')}
                   style={s.virtualOrchardImage}
-                  resizeMode="cover"
+                  resizeMode="contain"
                 />
                 <LinearGradient
                   colors={['rgba(20,31,17,0.02)', 'rgba(20,31,17,0.34)']}

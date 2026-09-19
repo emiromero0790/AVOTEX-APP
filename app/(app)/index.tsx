@@ -1343,12 +1343,12 @@ const s = StyleSheet.create({
     borderRadius: 20,
   },
   virtualOrchardLink: {
-    marginHorizontal: 18, marginBottom: 22, height: 244,
+    marginHorizontal: 18, marginBottom: 22,
     shadowColor: '#435343', shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.16, shadowRadius: 12, elevation: 6,
   },
   virtualOrchardSurface: {
-    flex: 1, marginTop: 14, overflow: 'hidden',
+    marginTop: 14, overflow: 'hidden',
     borderRadius: 22, backgroundColor: '#FFFFFF',
   },
   virtualOrchardNotch: {
@@ -1381,10 +1381,12 @@ const s = StyleSheet.create({
     shadowOpacity: 0.26, shadowRadius: 8, elevation: 9,
   },
   virtualOrchardImageFrame: {
-    flex: 1, marginHorizontal: 7, marginBottom: 7, overflow: 'hidden',
+    aspectRatio: 1024 / 574, marginHorizontal: 7, marginBottom: 7, overflow: 'hidden',
     borderRadius: 17, backgroundColor: '#7E9B54',
   },
-  virtualOrchardImage: StyleSheet.absoluteFill,
+  virtualOrchardImage: {
+    width: '100%', height: '100%', resizeMode: 'contain',
+  },
   virtualOrchardGlass: {
     position: 'absolute', right: 10, bottom: 10, width: 112,
     overflow: 'hidden', borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7,

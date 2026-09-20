@@ -77,7 +77,9 @@ export default function TabLayout() {
   const shouldHideChatbot =
     shouldHideTabs ||
     pathname === '/(app)/mapping' ||
-    pathname === '/mapping';
+    pathname === '/mapping' ||
+    pathname === '/(app)/scan' ||
+    pathname === '/scan';
   const { isGuest } = useGuest();
   const t = useTranslations(translations);
   const [showLockModal, setShowLockModal] = useState(false);

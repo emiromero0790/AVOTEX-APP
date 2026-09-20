@@ -940,7 +940,7 @@ export default function Home() {
               </View>
               <View style={s.virtualOrchardImageFrame}>
                 <Image
-                  source={require('../../attached_assets/StockCake-Campos_agrícolas_verdes-1294813-standard_1789858772957.jpg')}
+                  source={require('../../assets/images/orchard-fields.jpg')}
                   style={s.virtualOrchardImage}
                   resizeMode="contain"
                 />

@@ -223,7 +223,7 @@ export default function NotificationsScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
-      <ImageBackground source={require('../../attached_assets/StockCake-Mosaico_agrícola_aéreo-1123280-standard_1789866363248.jpg')} style={StyleSheet.absoluteFill} resizeMode="cover">
+      <ImageBackground source={require('../../assets/images/satellite-fields.jpg')} style={StyleSheet.absoluteFill} resizeMode="cover">
         <View style={styles.mapTint} />
         <LinearGradient colors={['rgba(8,31,24,0.84)', 'rgba(11,43,30,0.46)', 'rgba(8,30,24,0.92)']} style={StyleSheet.absoluteFill} />
       </ImageBackground>

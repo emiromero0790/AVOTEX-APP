@@ -1431,7 +1431,7 @@ const s = StyleSheet.create({
   virtualOrchardText: {
     color: '#131713',
     fontFamily: Platform.select({ ios: 'Helvetica Neue', android: 'sans-serif-condensed', default: 'Arial' }),
-    fontSize: 20, lineHeight: 21, fontWeight: '500', letterSpacing: -0.35,
+    fontSize: 20, lineHeight: 21, fontWeight: '700', letterSpacing: -0.35,
     textTransform: 'uppercase',
   },
   virtualOrchardMeta: {

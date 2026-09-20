@@ -44,29 +44,47 @@ const translations: TranslationResource = {
   errorTitle: { es: 'No pudimos cargar los reportes', en: 'We could not load the reports' },
   retry: { es: 'Intentar de nuevo', en: 'Try again' },
   back: { es: 'Volver', en: 'Back' },
-  ndvi: { es: 'Vigor vegetal', en: 'Plant vigor' },
-  ndre: { es: 'Clorofila', en: 'Chlorophyll' },
-  msavi: { es: 'Cobertura', en: 'Vegetation cover' },
-  reci: { es: 'Fotosíntesis', en: 'Photosynthetic activity' },
-  ndmi: { es: 'Humedad vegetal', en: 'Vegetation moisture' },
+  ndvi: { es: 'NDVI', en: 'NDVI' },
+  ndre: { es: 'NDRE', en: 'NDRE' },
+  msavi: { es: 'MSAVI', en: 'MSAVI' },
+  reci: { es: 'RECI', en: 'RECI' },
+  ndmi: { es: 'NDMI', en: 'NDMI' },
   precipitation: { es: 'Precipitación', en: 'Precipitation' },
   humidity: { es: 'Humedad', en: 'Humidity' },
-  clouds: { es: 'Nubes', en: 'Cloud cover' },
+  clouds: { es: 'Cobertura de nubes', en: 'Cloud cover' },
   wind: { es: 'Viento', en: 'Wind' },
-  temperature: { es: 'Temperatura', en: 'Temperature' },
+  tempMax: { es: 'Temp. máxima', en: 'Max. temperature' },
+  tempMin: { es: 'Temp. mínima', en: 'Min. temperature' },
   dashboard: { es: 'DATOS SATELITALES', en: 'SATELLITE DATA' },
   active: { es: 'ACTIVO', en: 'LIVE' },
 };
 
-type Metric = { label: string; value: string };
+type Metric = { label: string; raw: number | null; value: string; min: number; max: number };
 const formatNumber = (value: number | null, digits = 2) =>
   value === null || !Number.isFinite(value) ? '—' : value.toFixed(digits);
+
+function RangeGauge({ value, min, max }: { value: number | null; min: number; max: number }) {
+  const progress = value === null || !Number.isFinite(value) ? null : Math.max(0, Math.min(1, (value - min) / (max - min)));
+  return (
+    <View style={styles.gaugeWrap}>
+      <View style={styles.gaugeTrack}>
+        <View style={[styles.gaugeSegment, styles.gaugeGreen]} />
+        <View style={[styles.gaugeSegment, styles.gaugeYellow]} />
+        <View style={[styles.gaugeSegment, styles.gaugeOrange]} />
+        <View style={[styles.gaugeSegment, styles.gaugeRed]} />
+        {progress !== null && <View style={[styles.gaugeMarker, { left: `${progress * 100}%` }]} />}
+      </View>
+      <View style={styles.gaugeBounds}><Text style={styles.gaugeBoundText}>{min}</Text><Text style={styles.gaugeBoundText}>{max}</Text></View>
+    </View>
+  );
+}
 
 function MetricCell({ metric, index }: { metric: Metric; index: number }) {
   return (
     <View style={[styles.metricCell, index === 0 && styles.metricCellFeatured]}>
       <Text style={styles.metricLabel}>{metric.label}</Text>
       <Text style={styles.metricValue}>{metric.value}</Text>
+      <RangeGauge value={metric.raw} min={metric.min} max={metric.max} />
     </View>
   );
 }
@@ -75,20 +93,21 @@ function ReportCard({
   report, locale, index, t,
 }: { report: SatelliteReport; locale: string; index: number; t: ReturnType<typeof useTranslations> }) {
   const vegetation: Metric[] = [
-    { label: t('ndvi'), value: formatNumber(report.ndvi) },
-    { label: t('ndre'), value: formatNumber(report.ndre) },
-    { label: t('msavi'), value: formatNumber(report.msavi) },
-    { label: t('reci'), value: formatNumber(report.reci) },
-    { label: t('ndmi'), value: formatNumber(report.ndmi) },
+    { label: t('ndvi'), raw: report.ndvi, value: formatNumber(report.ndvi), min: 0, max: 1 },
+    { label: t('ndre'), raw: report.ndre, value: formatNumber(report.ndre), min: 0, max: 1 },
+    { label: t('msavi'), raw: report.msavi, value: formatNumber(report.msavi), min: 0, max: 1 },
+    { label: t('reci'), raw: report.reci, value: formatNumber(report.reci), min: 0, max: 10 },
+    { label: t('ndmi'), raw: report.ndmi, value: formatNumber(report.ndmi), min: -1, max: 1 },
   ];
   const climate: Metric[] = [
-    { label: t('precipitation'), value: report.precipitacion === null ? '—' : `${formatNumber(report.precipitacion, 1)} mm` },
-    { label: t('humidity'), value: report.humedad === null ? '—' : `${report.humedad}%` },
-    { label: t('clouds'), value: report.cobertura_nubes === null ? '—' : `${report.cobertura_nubes}%` },
-    { label: t('wind'), value: report.viento === null ? '—' : `${formatNumber(report.viento, 1)} m/s` },
-    { label: t('temperature'), value: report.temp_min === null && report.temp_max === null ? '—' : `${report.temp_min === null ? '—' : formatNumber(report.temp_min, 1)}° / ${report.temp_max === null ? '—' : formatNumber(report.temp_max, 1)}°` },
+    { label: t('precipitation'), raw: report.precipitacion, value: report.precipitacion === null ? '—' : `${formatNumber(report.precipitacion, 1)} mm`, min: 0, max: 100 },
+    { label: t('humidity'), raw: report.humedad, value: report.humedad === null ? '—' : `${report.humedad}%`, min: 0, max: 100 },
+    { label: t('clouds'), raw: report.cobertura_nubes, value: report.cobertura_nubes === null ? '—' : `${report.cobertura_nubes}%`, min: 0, max: 100 },
+    { label: t('wind'), raw: report.viento, value: report.viento === null ? '—' : `${formatNumber(report.viento, 1)} m/s`, min: 0, max: 20 },
+    { label: t('tempMax'), raw: report.temp_max, value: report.temp_max === null ? '—' : `${formatNumber(report.temp_max, 1)}°`, min: -10, max: 45 },
+    { label: t('tempMin'), raw: report.temp_min, value: report.temp_min === null ? '—' : `${formatNumber(report.temp_min, 1)}°`, min: -10, max: 45 },
   ];
-  const climateIcons = [CloudRain, Droplets, Gauge, Wind, ThermometerSun];
+  const climateIcons = [CloudRain, Droplets, Gauge, Wind, ThermometerSun, ThermometerSun];
   return (
     <View style={styles.reportCard}>
       <View style={styles.reportHeader}>
@@ -106,7 +125,7 @@ function ReportCard({
       <View style={styles.climateGrid}>
         {climate.map((metric, i) => {
           const Icon = climateIcons[i];
-          return <View key={metric.label} style={styles.climateItem}><View style={styles.climateIcon}><Icon size={14} color="#D8F36B" /></View><View style={styles.climateCopy}><Text style={styles.climateLabel}>{metric.label}</Text><Text style={styles.climateValue}>{metric.value}</Text></View></View>;
+          return <View key={metric.label} style={styles.climateItem}><View style={styles.climateIcon}><Icon size={14} color="#D8F36B" /></View><View style={styles.climateCopy}><Text style={styles.climateLabel}>{metric.label}</Text><Text style={styles.climateValue}>{metric.value}</Text><RangeGauge value={metric.raw} min={metric.min} max={metric.max} /></View></View>;
         })}
       </View>
     </View>
@@ -205,6 +224,16 @@ const styles = StyleSheet.create({
   metricCellFeatured: { backgroundColor: 'rgba(216,243,107,0.28)', borderColor: 'rgba(216,243,107,0.4)' },
   metricLabel: { color: '#AFC3AB', fontFamily: 'Poppins_400Regular', fontSize: 8, lineHeight: 11 },
   metricValue: { marginTop: 4, color: '#F1F6DC', fontFamily: 'Poppins_700Bold', fontSize: 17, lineHeight: 20 },
+  gaugeWrap: { marginTop: 8 },
+  gaugeTrack: { height: 5, borderRadius: 4, overflow: 'visible', flexDirection: 'row', position: 'relative', backgroundColor: '#506B47' },
+  gaugeSegment: { flex: 1, height: 5 },
+  gaugeGreen: { backgroundColor: '#29C56A', borderTopLeftRadius: 4, borderBottomLeftRadius: 4 },
+  gaugeYellow: { backgroundColor: '#D7D547' },
+  gaugeOrange: { backgroundColor: '#F08A32' },
+  gaugeRed: { backgroundColor: '#D84A3E', borderTopRightRadius: 4, borderBottomRightRadius: 4 },
+  gaugeMarker: { position: 'absolute', top: -3, width: 2, height: 11, marginLeft: -1, borderRadius: 2, backgroundColor: '#F8FFE4', shadowColor: '#F8FFE4', shadowOpacity: 0.8, shadowRadius: 3 },
+  gaugeBounds: { marginTop: 3, flexDirection: 'row', justifyContent: 'space-between' },
+  gaugeBoundText: { color: '#8EA48F', fontFamily: 'Poppins_400Regular', fontSize: 7 },
   divider: { height: 1, marginTop: 17, backgroundColor: 'rgba(194,224,169,0.18)' },
   climateGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   climateItem: { width: '47%', flexGrow: 1, minHeight: 55, padding: 9, borderRadius: 11, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(43,82,67,0.64)', borderWidth: 1, borderColor: 'rgba(194,224,169,0.13)' },

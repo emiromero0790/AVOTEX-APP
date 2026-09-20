@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Line, Path } from 'react-native-svg';
 import {
   Activity,
   CloudRain,
@@ -52,11 +53,14 @@ const translations: TranslationResource = {
   precipitation: { es: 'Precipitación', en: 'Precipitation' },
   humidity: { es: 'Humedad', en: 'Humidity' },
   clouds: { es: 'Cobertura de nubes', en: 'Cloud cover' },
+  cloudsShort: { es: 'Nubes', en: 'Clouds' },
+  clearSky: { es: 'Cielo despejado', en: 'Clear sky' },
   wind: { es: 'Viento', en: 'Wind' },
   tempMax: { es: 'Temp. máxima', en: 'Max. temperature' },
   tempMin: { es: 'Temp. mínima', en: 'Min. temperature' },
   dashboard: { es: 'DATOS SATELITALES', en: 'SATELLITE DATA' },
   active: { es: 'ACTIVO', en: 'LIVE' },
+  currentNdvi: { es: 'NDVI actual', en: 'Current NDVI' },
 };
 
 type Metric = { label: string; raw: number | null; value: string; min: number; max: number };
@@ -79,9 +83,67 @@ function RangeGauge({ value, min, max }: { value: number | null; min: number; ma
   );
 }
 
+const polar = (cx: number, cy: number, radius: number, angle: number) => ({
+  x: cx + radius * Math.cos((Math.PI * angle) / 180),
+  y: cy + radius * Math.sin((Math.PI * angle) / 180),
+});
+
+function arcPath(startAngle: number, endAngle: number, radius = 74) {
+  const start = polar(90, 84, radius, startAngle);
+  const end = polar(90, 84, radius, endAngle);
+  const largeArc = endAngle - startAngle <= 180 ? 0 : 1;
+  return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 1 ${end.x} ${end.y}`;
+}
+
+function NdviDial({ value, caption }: { value: number | null; caption: string }) {
+  const bounded = value === null || !Number.isFinite(value) ? null : Math.max(0, Math.min(1, value));
+  const needleAngle = bounded === null ? -180 : 180 + bounded * 180;
+  const tip = polar(90, 84, 58, needleAngle);
+  return (
+    <View style={styles.ndviPanel}>
+      <View style={styles.panelKicker}><Leaf size={14} color="#D8F36B" /><Text style={styles.panelKickerText}>NDVI</Text><Text style={styles.panelHint}>0 — 1</Text></View>
+      <Svg width="100%" height={116} viewBox="0 0 180 116">
+        <Path d={arcPath(180, 225)} stroke="#D84A3E" strokeWidth="13" fill="none" strokeLinecap="round" />
+        <Path d={arcPath(230, 270)} stroke="#F08A32" strokeWidth="13" fill="none" strokeLinecap="round" />
+        <Path d={arcPath(275, 315)} stroke="#D7D547" strokeWidth="13" fill="none" strokeLinecap="round" />
+        <Path d={arcPath(320, 360)} stroke="#29C56A" strokeWidth="13" fill="none" strokeLinecap="round" />
+        <Line x1="90" y1="84" x2={tip.x} y2={tip.y} stroke="#F5F8E7" strokeWidth="3" strokeLinecap="round" />
+        <Circle cx="90" cy="84" r="7" fill="#F5F8E7" />
+        <Circle cx="90" cy="84" r="3" fill="#173525" />
+      </Svg>
+      <View style={styles.dialReading}><Text style={styles.dialValue}>{formatNumber(value)}</Text><Text style={styles.dialCaption}>{caption}</Text></View>
+      <View style={styles.dialScale}><Text style={styles.dialScaleText}>0.0</Text><Text style={styles.dialScaleText}>0.5</Text><Text style={styles.dialScaleText}>1.0</Text></View>
+    </View>
+  );
+}
+
+function CloudDonut({ value, label, cloudsLabel, clearLabel }: { value: number | null; label: string; cloudsLabel: string; clearLabel: string }) {
+  const clouds = value === null || !Number.isFinite(value) ? null : Math.max(0, Math.min(100, value));
+  const clear = clouds === null ? 0 : 100 - clouds;
+  const circumference = 2 * Math.PI * 31;
+  return (
+    <View style={styles.cloudPanel}>
+      <View style={styles.panelKicker}><CloudRain size={14} color="#D8F36B" /><Text style={styles.panelKickerText}>{label}</Text></View>
+      <View style={styles.donutRow}>
+        <View style={styles.donutWrap}>
+          <Svg width={88} height={88} viewBox="0 0 88 88">
+            <Circle cx="44" cy="44" r="31" stroke="rgba(190,215,176,0.25)" strokeWidth="10" fill="none" />
+            {clouds !== null && <Circle cx="44" cy="44" r="31" stroke="#F08A32" strokeWidth="10" fill="none" strokeDasharray={`${(clouds / 100) * circumference} ${circumference}`} strokeLinecap="butt" rotation="-90" origin="44, 44" />}
+          </Svg>
+          <View style={styles.donutCenter}><Text style={styles.donutValue}>{clouds === null ? '—' : `${Math.round(clouds)}%`}</Text></View>
+        </View>
+        <View style={styles.donutLegend}>
+          <View style={styles.legendRow}><View style={[styles.legendDot, { backgroundColor: '#F08A32' }]} /><Text style={styles.legendLabel}>{cloudsLabel}</Text><Text style={styles.legendValue}>{clouds === null ? '—' : `${Math.round(clouds)}%`}</Text></View>
+          <View style={styles.legendRow}><View style={[styles.legendDot, { backgroundColor: '#BFD9AC' }]} /><Text style={styles.legendLabel}>{clearLabel}</Text><Text style={styles.legendValue}>{clouds === null ? '—' : `${Math.round(clear)}%`}</Text></View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function MetricCell({ metric, index }: { metric: Metric; index: number }) {
   return (
-    <View style={[styles.metricCell, index === 0 && styles.metricCellFeatured]}>
+    <View style={[styles.metricCell, index === 1 && styles.metricCellFeatured, index === 4 && styles.metricCellCompact]}>
       <Text style={styles.metricLabel}>{metric.label}</Text>
       <Text style={styles.metricValue}>{metric.value}</Text>
       <RangeGauge value={metric.raw} min={metric.min} max={metric.max} />
@@ -102,12 +164,11 @@ function ReportCard({
   const climate: Metric[] = [
     { label: t('precipitation'), raw: report.precipitacion, value: report.precipitacion === null ? '—' : `${formatNumber(report.precipitacion, 1)} mm`, min: 0, max: 100 },
     { label: t('humidity'), raw: report.humedad, value: report.humedad === null ? '—' : `${report.humedad}%`, min: 0, max: 100 },
-    { label: t('clouds'), raw: report.cobertura_nubes, value: report.cobertura_nubes === null ? '—' : `${report.cobertura_nubes}%`, min: 0, max: 100 },
     { label: t('wind'), raw: report.viento, value: report.viento === null ? '—' : `${formatNumber(report.viento, 1)} m/s`, min: 0, max: 20 },
     { label: t('tempMax'), raw: report.temp_max, value: report.temp_max === null ? '—' : `${formatNumber(report.temp_max, 1)}°`, min: -10, max: 45 },
     { label: t('tempMin'), raw: report.temp_min, value: report.temp_min === null ? '—' : `${formatNumber(report.temp_min, 1)}°`, min: -10, max: 45 },
   ];
-  const climateIcons = [CloudRain, Droplets, Gauge, Wind, ThermometerSun, ThermometerSun];
+  const climateIcons = [CloudRain, Droplets, Wind, ThermometerSun, ThermometerSun];
   return (
     <View style={styles.reportCard}>
       <View style={styles.reportHeader}>
@@ -119,9 +180,11 @@ function ReportCard({
         {index === 0 && <View style={styles.liveBadge}><Activity size={11} color="#D8F36B" /><Text style={styles.liveText}>{t('active')}</Text></View>}
       </View>
       <View style={styles.sectionTitleRow}><Leaf size={14} color="#D8F36B" /><Text style={styles.sectionTitle}>{t('vegetation')}</Text><View style={styles.sectionLine} /></View>
-      <View style={styles.metricsGrid}>{vegetation.map((metric, i) => <MetricCell key={metric.label} metric={metric} index={i} />)}</View>
+      <NdviDial value={report.ndvi} caption={t('currentNdvi')} />
+      <View style={styles.metricsGrid}>{vegetation.slice(1).map((metric, i) => <MetricCell key={metric.label} metric={metric} index={i + 1} />)}</View>
       <View style={styles.divider} />
       <View style={styles.sectionTitleRow}><Gauge size={14} color="#B8D1C5" /><Text style={styles.sectionTitle}>{t('climate')}</Text><View style={styles.sectionLine} /></View>
+      <CloudDonut value={report.cobertura_nubes} label={t('clouds')} cloudsLabel={t('cloudsShort')} clearLabel={t('clearSky')} />
       <View style={styles.climateGrid}>
         {climate.map((metric, i) => {
           const Icon = climateIcons[i];
@@ -222,6 +285,7 @@ const styles = StyleSheet.create({
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   metricCell: { width: '31%', flexGrow: 1, minWidth: 86, padding: 10, borderRadius: 11, backgroundColor: 'rgba(159,197,109,0.16)', borderWidth: 1, borderColor: 'rgba(210,237,156,0.12)' },
   metricCellFeatured: { backgroundColor: 'rgba(216,243,107,0.28)', borderColor: 'rgba(216,243,107,0.4)' },
+  metricCellCompact: { minWidth: 72, paddingHorizontal: 8 },
   metricLabel: { color: '#AFC3AB', fontFamily: 'Poppins_400Regular', fontSize: 8, lineHeight: 11 },
   metricValue: { marginTop: 4, color: '#F1F6DC', fontFamily: 'Poppins_700Bold', fontSize: 17, lineHeight: 20 },
   gaugeWrap: { marginTop: 8 },
@@ -234,6 +298,25 @@ const styles = StyleSheet.create({
   gaugeMarker: { position: 'absolute', top: -3, width: 2, height: 11, marginLeft: -1, borderRadius: 2, backgroundColor: '#F8FFE4', shadowColor: '#F8FFE4', shadowOpacity: 0.8, shadowRadius: 3 },
   gaugeBounds: { marginTop: 3, flexDirection: 'row', justifyContent: 'space-between' },
   gaugeBoundText: { color: '#8EA48F', fontFamily: 'Poppins_400Regular', fontSize: 7 },
+  ndviPanel: { minHeight: 174, padding: 12, borderRadius: 15, backgroundColor: 'rgba(8,31,25,0.72)', borderWidth: 1, borderColor: 'rgba(216,243,107,0.26)' },
+  panelKicker: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  panelKickerText: { color: '#EAF4D6', fontFamily: 'Poppins_700Bold', fontSize: 11, letterSpacing: .3 },
+  panelHint: { marginLeft: 'auto', color: '#9FB4A8', fontFamily: 'Poppins_400Regular', fontSize: 9 },
+  dialReading: { position: 'absolute', left: 0, right: 0, top: 72, alignItems: 'center' },
+  dialValue: { color: '#F4F8E5', fontFamily: 'Poppins_700Bold', fontSize: 24, lineHeight: 27 },
+  dialCaption: { color: '#AFC3AB', fontFamily: 'Poppins_400Regular', fontSize: 8 },
+  dialScale: { marginTop: -8, paddingHorizontal: 18, flexDirection: 'row', justifyContent: 'space-between' },
+  dialScaleText: { color: '#8EA48F', fontFamily: 'Poppins_400Regular', fontSize: 8 },
+  cloudPanel: { padding: 12, borderRadius: 15, backgroundColor: 'rgba(43,82,67,0.68)', borderWidth: 1, borderColor: 'rgba(194,224,169,0.2)' },
+  donutRow: { marginTop: 8, flexDirection: 'row', alignItems: 'center' },
+  donutWrap: { width: 92, height: 92, alignItems: 'center', justifyContent: 'center' },
+  donutCenter: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  donutValue: { color: '#F3F7E5', fontFamily: 'Poppins_700Bold', fontSize: 15 },
+  donutLegend: { flex: 1, marginLeft: 10, gap: 12 },
+  legendRow: { flexDirection: 'row', alignItems: 'center', minWidth: 0 },
+  legendDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+  legendLabel: { flex: 1, color: '#B9CBB9', fontFamily: 'Poppins_400Regular', fontSize: 9 },
+  legendValue: { color: '#F3F7E5', fontFamily: 'Poppins_700Bold', fontSize: 10 },
   divider: { height: 1, marginTop: 17, backgroundColor: 'rgba(194,224,169,0.18)' },
   climateGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   climateItem: { width: '47%', flexGrow: 1, minHeight: 55, padding: 9, borderRadius: 11, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(43,82,67,0.64)', borderWidth: 1, borderColor: 'rgba(194,224,169,0.13)' },

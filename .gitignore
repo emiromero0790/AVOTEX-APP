@@ -3,7 +3,9 @@
 .env.local
 .env.*
 .replit
-attached_assets/
+attached_assets/*
+!attached_assets/StockCake-Campos_agrícolas_verdes-1294813-standard_1789858772957.jpg
+!attached_assets/StockCake-Mosaico_agrícola_aéreo-1123280-standard_1789866363248.jpg
 
 # Expo and React Native
 .expo/

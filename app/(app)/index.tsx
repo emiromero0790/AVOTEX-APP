@@ -15,7 +15,7 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-import { ArrowRight, ArrowUpRight, Bell, Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, X } from 'lucide-react-native';
+import { ArrowRight, ArrowUpRight, Satellite, Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, X } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import Svg, { Polygon as SvgPolygon } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -563,7 +563,7 @@ export default function Home() {
           onPress={() => router.push('/(app)/notifications')}
           activeOpacity={0.8}
         >
-          <Bell color="#17241C" size={isTablet ? 20 : 17} fill="#17241C" />
+          <Satellite color="#17241C" size={isTablet ? 20 : 17} />
         </TouchableOpacity>
       )}
 

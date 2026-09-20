@@ -30,7 +30,6 @@ import { listSatelliteReports, SatelliteReport } from '../../services/reports';
 
 const translations: TranslationResource = {
   title: { es: 'Reportes satelitales', en: 'Satellite reports' },
-  eyebrow: { es: 'MONITOREO ORBITAL', en: 'ORBITAL MONITORING' },
   hero: { es: 'La salud de tu cultivo, vista desde el espacio', en: 'Your crop health, seen from space' },
   heroBody: { es: 'Consulta los indicadores más recientes detectados para tus cultivos.', en: 'Review the latest indicators detected for your crops.' },
   latest: { es: 'Último análisis', en: 'Latest analysis' },
@@ -202,9 +201,22 @@ export default function NotificationsScreen() {
               resizeMode="cover"
             />
             <LinearGradient
-              colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.18)', '#FFFFFF']}
-              locations={[0, 0.52, 1]}
+              colors={[
+                'rgba(255,255,255,0)',
+                'rgba(255,255,255,0.08)',
+                'rgba(255,255,255,0.32)',
+                'rgba(255,255,255,0.72)',
+                '#FFFFFF',
+              ]}
+              locations={[0, 0.24, 0.5, 0.76, 1]}
               style={styles.heroFade}
+            />
+            <LinearGradient
+              colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.38)', 'rgba(255,255,255,0.92)']}
+              locations={[0, 0.58, 1]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroSoftFade}
             />
             <TouchableOpacity
               accessibilityRole="button"
@@ -215,10 +227,6 @@ export default function NotificationsScreen() {
               <ChevronLeft size={23} color="#173E36" />
             </TouchableOpacity>
             <View style={styles.heroCopy}>
-              <View style={styles.heroEyebrowRow}>
-                <Satellite size={15} color="#176B55" />
-                <Text style={styles.heroEyebrow}>{t('eyebrow')}</Text>
-              </View>
               <Text style={styles.heroTitle}>{t('hero')}</Text>
               <Text style={styles.heroBody}>{t('heroBody')}</Text>
               <View style={styles.reportCount}>
@@ -268,17 +276,16 @@ const styles = StyleSheet.create({
   contentTablet: { maxWidth: 920 },
   hero: { height: 430, overflow: 'hidden', backgroundColor: '#FFFFFF' },
   heroTablet: { height: 500, marginTop: 18, borderRadius: 34 },
-  heroImage: { position: 'absolute', top: 0, left: 0, right: 0, width: '100%', height: 330 },
-  heroFade: { position: 'absolute', left: 0, right: 0, top: 145, height: 220 },
+  heroImage: { position: 'absolute', top: 0, left: 0, right: 0, width: '100%', height: 430 },
+  heroFade: { position: 'absolute', left: 0, right: 0, top: 140, height: 290 },
+  heroSoftFade: { position: 'absolute', left: 0, right: 0, top: 235, height: 195 },
   backButton: {
     position: 'absolute', top: 52, left: 18, width: 42, height: 42, borderRadius: 21,
     alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.9)',
     shadowColor: '#0B2C24', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.16, shadowRadius: 10, elevation: 6,
   },
   heroCopy: { position: 'absolute', left: 24, right: 24, bottom: 4 },
-  heroEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  heroEyebrow: { color: '#176B55', fontFamily: 'Poppins_700Bold', fontSize: 10, letterSpacing: 1.5 },
-  heroTitle: { maxWidth: 590, marginTop: 8, color: '#11251F', fontFamily: 'Poppins_700Bold', fontSize: 29, lineHeight: 35, letterSpacing: -0.8 },
+  heroTitle: { maxWidth: 590, color: '#11251F', fontFamily: 'Poppins_700Bold', fontSize: 29, lineHeight: 35, letterSpacing: -0.8 },
   heroBody: { maxWidth: 540, marginTop: 8, color: '#65766F', fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 19 },
   reportCount: { alignSelf: 'flex-start', marginTop: 13, paddingHorizontal: 11, minHeight: 30, borderRadius: 15, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#E7F4ED' },
   reportCountText: { color: '#176B55', fontFamily: 'Poppins_600SemiBold', fontSize: 10 },

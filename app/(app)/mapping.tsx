@@ -329,11 +329,7 @@ export default function Mapping() {
   }, [t]);
 
   const closeOrchardsSelector = useCallback(() => {
-    if (selectedOrchardRef.current) {
-      setPerspectiveReady(false);
-    }
     setOrchardsOpen(false);
-    setMapVersion(version => version + 1);
   }, []);
 
   useEffect(() => {
@@ -482,11 +478,11 @@ export default function Mapping() {
           <PolygonMap
             key={`map-${mapVersion}`}
             ref={mapRef}
-            location={orchardsOpen && !isWide ? (gpsLocation || location) : location}
-            initialPolygon={orchardsOpen && !isWide ? [] : polygon}
-            perspective={orchardsOpen && !isWide ? false : Boolean(selectedOrchard) && !editingBoundary && perspectiveReady}
-            zoneCallout={orchardsOpen && !isWide ? undefined : zoneCallout}
-            preview={orchardsOpen && !isWide}
+            location={location}
+            initialPolygon={polygon}
+            perspective={Boolean(selectedOrchard) && !editingBoundary && perspectiveReady}
+            zoneCallout={zoneCallout}
+            preview={false}
             onPolygonChange={(points: PolygonPoint[]) => {
               if (orchardsOpen && !isWide) return;
               setPolygon(points);
@@ -539,11 +535,7 @@ export default function Mapping() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('openOrchards')}
-          onPress={() => setOrchardsOpen(value => {
-            const nextValue = !value;
-            if (nextValue) setMapVersion(version => version + 1);
-            return nextValue;
-          })}
+          onPress={() => setOrchardsOpen(true)}
           style={({ pressed }) => [styles.mobileOrchardsButton, pressed && styles.actionPressed]}
         >
           <Sprout size={17} color="#FFFFFF" />

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Avotex",
     "slug": "avotex",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
@@ -74,7 +74,7 @@
     },
     "android": {
       "package": "com.vex.avotex",
-      "versionCode": 2,
+      "versionCode": 3,
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "android.permission.INTERNET",

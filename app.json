@@ -33,10 +33,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFFFFF",
-          "image": "./assets/images/AvotexNuevoLogo.png",
-          "imageWidth": 320,
-          "resizeMode": "contain"
+          "backgroundColor": "#FFFFFF"
         }
       ],
       [

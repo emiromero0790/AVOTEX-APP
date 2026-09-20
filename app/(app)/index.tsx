@@ -15,7 +15,7 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-import { ArrowRight, ArrowUpRight, Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, X } from 'lucide-react-native';
+import { ArrowRight, ArrowUpRight, Bell, Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, X } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import Svg, { Polygon as SvgPolygon } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -65,6 +65,7 @@ const translations: TranslationResource = {
     es: 'Precipitación · Temperatura',
     en: 'Precipitation · Temperature',
   },
+  satelliteReports: { es: 'Abrir reportes satelitales', en: 'Open satellite reports' },
   openVirtualPanel: { es: 'Abrir panel', en: 'Open dashboard' },
   openOrchard: { es: 'Abrir huerta {name}', en: 'Open {name} orchard' },
 };
@@ -554,6 +555,18 @@ export default function Home() {
         </Text>
       </TouchableOpacity>
 
+      {!isGuest && (
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={t('satelliteReports')}
+          style={[s.notificationsBtn, isTablet && s.notificationsBtnTablet]}
+          onPress={() => router.push('/(app)/notifications')}
+          activeOpacity={0.8}
+        >
+          <Bell color="#17241C" size={isTablet ? 20 : 17} fill="#17241C" />
+        </TouchableOpacity>
+      )}
+
       <TouchableOpacity
         style={[s.tokenWidgetContainer, isTablet && s.tokenWidgetContainerTablet]}
         onPress={() => router.push('/(app)/plans')}
@@ -1024,6 +1037,15 @@ const s = StyleSheet.create({
   },
   logoutText: { color: '#ef4444', fontSize: 12, fontFamily: 'Poppins_600SemiBold', marginLeft: 4 },
   logoutTextTablet: { fontSize: 14 },
+  notificationsBtn: {
+    position: 'absolute', top: 40, right: 93, zIndex: 20,
+    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 5, elevation: 4,
+    borderWidth: 1, borderColor: 'rgba(23,36,28,0.1)',
+  },
+  notificationsBtnTablet: { top: 50, right: 126, width: 44, height: 44, borderRadius: 22 },
 
   scroll: { paddingBottom: 112, zIndex: 2 },
   scrollTablet: { paddingBottom: 132, alignItems: 'center' },

@@ -71,7 +71,9 @@ export default function TabLayout() {
     pathname === '/(app)/chatbot' ||
     pathname === '/chatbot' ||
     pathname === '/(app)/plans' ||
-    pathname === '/plans';
+    pathname === '/plans' ||
+    pathname === '/(app)/notifications' ||
+    pathname === '/notifications';
   const shouldHideChatbot =
     shouldHideTabs ||
     pathname === '/(app)/mapping' ||
@@ -215,6 +217,7 @@ export default function TabLayout() {
         <Tabs.Screen name="privacy" options={{ href: null }} />
         <Tabs.Screen name="profile" options={{ href: null }} />
         <Tabs.Screen name="plans" options={{ href: null }} />
+        <Tabs.Screen name="notifications" options={{ href: null }} />
       </Tabs>
 
       {!shouldHideChatbot && !isGuest && (

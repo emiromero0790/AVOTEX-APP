@@ -328,6 +328,14 @@ export default function Mapping() {
     setMapVersion(value => value + 1);
   }, [t]);
 
+  const closeOrchardsSelector = useCallback(() => {
+    if (selectedOrchardRef.current) {
+      setPerspectiveReady(false);
+    }
+    setOrchardsOpen(false);
+    setMapVersion(version => version + 1);
+  }, []);
+
   useEffect(() => {
     if (perspectiveReady || !selectedOrchard) return;
     const timer = setTimeout(() => setPerspectiveReady(true), 300);
@@ -730,23 +738,17 @@ export default function Mapping() {
         transparent
         animationType="fade"
         statusBarTranslucent
-        onRequestClose={() => {
-          setOrchardsOpen(false);
-          setMapVersion(version => version + 1);
-        }}
+        onRequestClose={closeOrchardsSelector}
       >
         <View style={styles.orchardSelector} accessibilityViewIsModal>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('closeOrchards')}
-            onPress={() => {
-              setOrchardsOpen(false);
-              setMapVersion(version => version + 1);
-            }}
+            onPress={closeOrchardsSelector}
             hitSlop={12}
             style={({ pressed }) => [styles.selectorExit, pressed && styles.actionPressed]}
           >
-            <X size={16} color="#FFFFFF" />
+            <X size={21} color="#FFFFFF" />
           </Pressable>
           <View style={styles.selectorIntro}>
             <Text style={styles.selectorEyebrow}>AVOTEX</Text>
@@ -764,7 +766,7 @@ export default function Mapping() {
               <Text style={styles.newOrchardTileTitle}>{t('newOrchard')}</Text>
               <Text style={styles.newOrchardTileHint}>{t('selectorNewHint')}</Text>
             </Pressable>
-            <BlurView intensity={38} tint="light" style={styles.savedOrchardsTile}>
+            <View style={styles.savedOrchardsTile}>
               <View style={styles.savedOrchardsHeader}>
                 <View>
                   <Text style={styles.savedOrchardsLabel}>{t('savedOrchards')}</Text>
@@ -798,7 +800,7 @@ export default function Mapping() {
                   ))}
                 </ScrollView>
               )}
-            </BlurView>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1434,14 +1436,14 @@ const styles = StyleSheet.create({
   },
   selectorExit: {
     position: 'absolute',
-    top: 36,
+    top: 50,
     right: 18,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(8,22,18,0.48)',
+    backgroundColor: 'rgba(8,22,18,0.68)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.34)',
   },
@@ -1486,7 +1488,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.4)',
-    backgroundColor: 'rgba(55,91,64,0.48)',
+    backgroundColor: '#176B55',
     shadowColor: '#173E36',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18,

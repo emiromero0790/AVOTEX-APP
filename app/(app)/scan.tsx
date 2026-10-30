@@ -117,6 +117,7 @@ export default function Scan() {
   // Al entrar a "Escanear" primero se elige el modo: foto individual o recorrido con IA.
   const [mode, setMode] = useState<"choose" | "photo">("choose");
   const [pendingWalks, setPendingWalks] = useState(0);
+  const [pendingPhotos, setPendingPhotos] = useState(0);
   // El aviso de uso de la cámara se muestra al elegir la foto individual.
   const [scanModalVisible, setScanModalVisible] = useState(false);
   const [scanAccepted, setScanAccepted] = useState(false);
@@ -194,9 +195,15 @@ export default function Scan() {
       setMode("choose");
       setPrediction(null);
       if (user?.email && !isGuest) {
-        listLocal(user.email).then(list => setPendingWalks(list.length)).catch(() => setPendingWalks(0));
+        listLocal(user.email)
+          .then(list => {
+            setPendingWalks(list.length);
+            setPendingPhotos(list.reduce((sum, r) => sum + r.fotos.length, 0));
+          })
+          .catch(() => { setPendingWalks(0); setPendingPhotos(0); });
       } else {
         setPendingWalks(0);
+        setPendingPhotos(0);
       }
     }, [user?.email, isGuest])
   );
@@ -367,16 +374,18 @@ export default function Scan() {
   };
 
   if (mode === "choose") {
-    const tokensLabel = isGuest
-      ? t("guestTokens", { tokens: (guestScansLeft * 100).toLocaleString(locale) })
+    // Mismo cálculo que ya muestra la cámara (tokens × 100).
+    const tokensValue = isGuest
+      ? (guestScansLeft * 100).toLocaleString(locale)
       : userTokens !== null
-        ? t("tokensAvailable", { tokens: (userTokens * 100).toLocaleString(locale) })
+        ? (userTokens * 100).toLocaleString(locale)
         : null;
     return (
       <ScanModeChooser
         isGuest={isGuest}
-        tokensLabel={tokensLabel}
+        tokensValue={tokensValue}
         pendingWalks={pendingWalks}
+        pendingPhotos={pendingPhotos}
         onPhoto={choosePhoto}
         onWalk={() => router.push("/(app)/recorrido")}
       />

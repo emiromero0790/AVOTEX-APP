@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -37,6 +37,12 @@ import {
   Sparkles,
   Bell,
   Route,
+  Camera as CameraIcon,
+  CheckCircle2,
+  AlertTriangle,
+  Info,
+  HardDrive,
+  Wifi,
 } from 'lucide-react-native';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
@@ -70,11 +76,12 @@ import {
 } from '../../services/recorridos';
 import { registerForPush } from '../../services/push';
 import RecorridoMap from '../../components/RecorridoMap';
+import { ChestMountIllustration } from '../../components/scan/ScanIllustrations';
 
 const auth = firebaseAuth as Auth;
 
 const translations: TranslationResource = {
-  title: { es: 'Recorrido con IA', en: 'AI field walk' },
+  title: { es: 'Recorrido inteligente', en: 'Smart field walk' },
   back: { es: 'Volver', en: 'Back' },
   heroKicker: { es: 'Nuevo · Funciona sin internet', en: 'New · Works offline' },
   heroTitle: { es: 'Graba tu recorrido y la IA revisa cada fruto', en: 'Record your walk and AI checks every fruit' },
@@ -122,6 +129,36 @@ const translations: TranslationResource = {
   statusError: { es: 'Con error', en: 'Error' },
   findings: { es: '{count} hallazgos', en: '{count} findings' },
   queuedHint: { es: 'El análisis empieza en unos minutos y te avisaremos al terminar.', en: 'Analysis starts within minutes and we will notify you when done.' },
+  // preparación
+  prepTitle: { es: 'Antes de empezar', en: 'Before you start' },
+  prepIntro: { es: 'Revisa estos puntos para que el recorrido salga bien.', en: 'Check these points so your walk goes well.' },
+  prepChecked: { es: 'Lo que revisamos en tu celular', en: 'What we checked on your phone' },
+  prepRecommend: { es: 'Recomendaciones', en: 'Recommendations' },
+  prepRecommendHint: { es: 'No podemos comprobarlas automáticamente; revísalas tú.', en: 'We cannot check these automatically; please check them yourself.' },
+  prepOrchard: { es: 'Huerta', en: 'Orchard' },
+  prepOrchardAuto: { es: 'Se detectará por GPS', en: 'Will be detected by GPS' },
+  prepChange: { es: 'Cambiar', en: 'Change' },
+  prepCamera: { es: 'Cámara', en: 'Camera' },
+  prepLocation: { es: 'Ubicación (GPS)', en: 'Location (GPS)' },
+  prepGranted: { es: 'Permiso concedido', en: 'Permission granted' },
+  prepWillAsk: { es: 'Te pediremos permiso al comenzar', en: 'We will ask for permission when you start' },
+  prepDenied: { es: 'Permiso negado: actívalo en Ajustes del teléfono', en: 'Permission denied: enable it in phone Settings' },
+  prepLocationDenied: { es: 'Sin GPS no se podrá ubicar cada hallazgo', en: 'Without GPS findings cannot be located' },
+  prepStorage: { es: 'Almacenamiento', en: 'Storage' },
+  prepStorageOk: { es: '{gb} GB libres', en: '{gb} GB free' },
+  prepStorageLow: { es: 'Poco espacio ({gb} GB). Libera espacio antes de grabar.', en: 'Low space ({gb} GB). Free up space before recording.' },
+  prepConnection: { es: 'Conexión', en: 'Connection' },
+  prepOffline: { es: 'Sin internet: puedes grabar igual. Se subirá cuando tengas conexión.', en: 'Offline: you can still record. It will upload when you are online.' },
+  prepWifi: { es: 'WiFi: se subirá al terminar el recorrido.', en: 'WiFi: it will upload when the walk ends.' },
+  prepMobileOn: { es: 'Datos móviles: se subirá al terminar el recorrido.', en: 'Mobile data: it will upload when the walk ends.' },
+  prepCellular: { es: 'Datos móviles: se subirá cuando tengas WiFi (o activa “Subir también con datos móviles”).', en: 'Mobile data: it will upload on WiFi (or enable “Also upload on mobile data”).' },
+  prepChecking: { es: 'Revisando…', en: 'Checking…' },
+  rec1: { es: 'Sujeta bien el teléfono al pecho o casco, con la cámara hacia los árboles.', en: 'Attach the phone firmly to your chest or helmet, camera facing the trees.' },
+  rec2: { es: 'Que ninguna correa, ropa o rama tape la cámara.', en: 'Make sure no strap, clothing or branch covers the camera.' },
+  rec3: { es: 'Limpia la lente con un paño suave.', en: 'Clean the lens with a soft cloth.' },
+  rec4: { es: 'Lleva batería suficiente: la cámara y el GPS gastan más de lo normal.', en: 'Bring enough battery: camera and GPS use more power than usual.' },
+  prepStart: { es: 'Comenzar recorrido', en: 'Start walk' },
+  prepBack: { es: 'Regresar', en: 'Go back' },
   // grabación
   recording: { es: 'Grabando recorrido', en: 'Recording walk' },
   paused: { es: 'En pausa', en: 'Paused' },
@@ -155,12 +192,13 @@ const translations: TranslationResource = {
   stillProcessing: { es: 'Este recorrido todavía se está analizando.', en: 'This walk is still being analyzed.' },
   errorProcessing: { es: 'Hubo un problema al analizar este recorrido. Lo reintentaremos automáticamente.', en: 'There was a problem analyzing this walk. We will retry automatically.' },
   loadError: { es: 'No pudimos cargar la información. Revisa tu conexión.', en: 'We could not load the information. Check your connection.' },
-  locked: { es: 'Crea una cuenta para usar el recorrido con IA.', en: 'Create an account to use the AI field walk.' },
+  locked: { es: 'Crea una cuenta para usar el recorrido inteligente.', en: 'Create an account to use the smart field walk.' },
   signIn: { es: 'Crear cuenta / Iniciar sesión', en: 'Create account / Sign in' },
   notifyOff: { es: 'Activa las notificaciones para saber cuándo está listo tu análisis.', en: 'Turn on notifications to know when your analysis is ready.' },
 };
 
-type Mode = 'home' | 'record' | 'detail';
+type Mode = 'home' | 'prepare' | 'record' | 'detail';
+type PermState = 'granted' | 'ask' | 'denied' | null;
 
 function formatDuration(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -361,6 +399,30 @@ export default function RecorridoScreen() {
       setDetailLoading(false);
     }
   }, [email, orchards.length]);
+
+  // ───────────────────────── preparación ─────────────────────────
+
+  const [prep, setPrep] = useState<{ camera: PermState; location: PermState; freeBytes: number | null }>({ camera: null, location: null, freeBytes: null });
+
+  // Revisa de verdad lo que el teléfono permite comprobar (permisos, espacio y conexión).
+  useEffect(() => {
+    if (mode !== 'prepare') return;
+    let alive = true;
+    (async () => {
+      const toState = (p: { granted: boolean; canAskAgain?: boolean } | null | undefined): PermState =>
+        !p ? 'ask' : p.granted ? 'granted' : p.canAskAgain === false ? 'denied' : 'ask';
+      const camera = toState(cameraPermission);
+      let location: PermState = 'ask';
+      try { location = toState(await Location.getForegroundPermissionsAsync()); } catch { /* sin dato */ }
+      let freeBytes: number | null = null;
+      if (Platform.OS !== 'web') {
+        try { freeBytes = await FileSystem.getFreeDiskStorageAsync(); } catch { /* sin dato */ }
+      }
+      await refreshNetwork();
+      if (alive) setPrep({ camera, location, freeBytes });
+    })();
+    return () => { alive = false; };
+  }, [mode, cameraPermission, refreshNetwork]);
 
   // ───────────────────────── grabación ─────────────────────────
 
@@ -596,6 +658,114 @@ export default function RecorridoScreen() {
     );
   }
 
+  if (mode === 'prepare') {
+    const gb = prep.freeBytes != null ? (prep.freeBytes / 1024 ** 3).toFixed(1) : null;
+    const lowSpace = prep.freeBytes != null && prep.freeBytes < 300 * 1024 * 1024;
+    const permText = (p: PermState, deniedText: string) => p === 'granted' ? t('prepGranted') : p === 'denied' ? deniedText : t('prepWillAsk');
+    const netText = network === 'offline' ? t('prepOffline')
+      : network === 'wifi' ? t('prepWifi')
+      : network === 'cellular' ? (mobileData ? t('prepMobileOn') : t('prepCellular'))
+      : t('prepChecking');
+    type Status = 'ok' | 'warn' | 'info' | 'pending';
+    const checks: Array<{ key: string; icon: ReactNode; label: string; value: string; status: Status; action?: ReactNode }> = [
+      {
+        key: 'orchard', icon: <MapPin size={18} color="#0f766e" />, label: t('prepOrchard'),
+        value: orchardName(huertaId) ?? t('prepOrchardAuto'), status: 'ok',
+        action: (
+          <TouchableOpacity onPress={() => setMode('home')} style={st.prepChange} accessibilityRole="button">
+            <Text style={st.prepChangeText}>{t('prepChange')}</Text>
+          </TouchableOpacity>
+        ),
+      },
+      {
+        key: 'camera', icon: <CameraIcon size={18} color="#0f766e" />, label: t('prepCamera'),
+        value: prep.camera ? permText(prep.camera, t('prepDenied')) : t('prepChecking'),
+        status: !prep.camera ? 'pending' : prep.camera === 'granted' ? 'ok' : prep.camera === 'denied' ? 'warn' : 'info',
+      },
+      {
+        key: 'location', icon: <MapPin size={18} color="#0f766e" />, label: t('prepLocation'),
+        value: prep.location ? permText(prep.location, t('prepLocationDenied')) : t('prepChecking'),
+        status: !prep.location ? 'pending' : prep.location === 'granted' ? 'ok' : prep.location === 'denied' ? 'warn' : 'info',
+      },
+      ...(Platform.OS !== 'web' ? [{
+        key: 'storage', icon: <HardDrive size={18} color="#0f766e" />, label: t('prepStorage'),
+        value: gb == null ? t('prepChecking') : lowSpace ? t('prepStorageLow', { gb }) : t('prepStorageOk', { gb }),
+        status: (gb == null ? 'pending' : lowSpace ? 'warn' : 'ok') as Status,
+      }] : []),
+      {
+        key: 'net', icon: network === 'offline' ? <WifiOff size={18} color="#0f766e" /> : <Wifi size={18} color="#0f766e" />,
+        label: t('prepConnection'), value: netText, status: network === 'unknown' ? 'pending' : 'info',
+      },
+    ];
+    const statusIcon = (status: Status) =>
+      status === 'ok' ? <CheckCircle2 size={18} color="#16a34a" /> :
+      status === 'warn' ? <AlertTriangle size={18} color="#d97706" /> :
+      status === 'pending' ? <ActivityIndicator size="small" color="#94a3b8" /> :
+      <Info size={18} color="#0369a1" />;
+    return (
+      <View style={[st.screen, { paddingTop: insets.top }]}>
+        <StatusBar style="dark" />
+        <View style={st.header}>
+          <TouchableOpacity style={st.backBtn} onPress={() => setMode('home')} accessibilityLabel={t('prepBack')}>
+            <ChevronLeft size={24} color="#0f172a" />
+          </TouchableOpacity>
+          <Text style={st.headerTitle}>{t('prepTitle')}</Text>
+        </View>
+        <ScrollView contentContainerStyle={[st.scroll, isTablet && st.scrollTablet, { paddingBottom: insets.bottom + 110 }]}>
+          <LinearGradient colors={['#ecfdf5', '#f0fdfa']} style={st.prepHero}>
+            <ChestMountIllustration size={isTablet ? 120 : 92} />
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={st.prepHeroTitle}>{t('title')}</Text>
+              <Text style={st.prepHeroBody}>{t('prepIntro')}</Text>
+            </View>
+          </LinearGradient>
+
+          <Text style={st.sectionTitle}>{t('prepChecked')}</Text>
+          <View style={st.card}>
+            {checks.map((c, i) => (
+              <View key={c.key} style={[st.prepRow, i > 0 && st.prepRowBorder]}>
+                <View style={st.prepIcon}>{c.icon}</View>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.prepLabel}>{c.label}</Text>
+                  <Text style={[st.prepValue, c.status === 'warn' && { color: '#b45309' }]}>{c.value}</Text>
+                </View>
+                {c.action ?? statusIcon(c.status)}
+              </View>
+            ))}
+          </View>
+
+          <Text style={st.sectionTitle}>{t('prepRecommend')}</Text>
+          <View style={st.card}>
+            <Text style={st.prepHint}>{t('prepRecommendHint')}</Text>
+            {[t('rec1'), t('rec2'), t('rec3'), t('rec4')].map((r, i) => (
+              <View key={i} style={st.recRowItem}>
+                <View style={st.recBullet}><Text style={st.recBulletText}>{i + 1}</Text></View>
+                <Text style={st.recText}>{r}</Text>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+        <View style={[st.prepFooter, { paddingBottom: insets.bottom + 14 }]}>
+          <TouchableOpacity style={st.prepBackBtn} onPress={() => setMode('home')} accessibilityRole="button">
+            <Text style={st.prepBackText}>{t('prepBack')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[st.prepStartBtn, lowSpace && { opacity: 0.5 }]}
+            onPress={startRecording}
+            disabled={lowSpace}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: lowSpace }}
+          >
+            <LinearGradient colors={['#34d399', '#0f766e']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={st.startGrad}>
+              <Route size={20} color="#fff" />
+              <Text style={st.startText}>{t('prepStart')}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   if (mode === 'record') {
     const gpsText = stats.gps === 'ok' ? t('gpsOk', { m: Math.max(1, Math.round(stats.accuracy ?? 0)) }) : stats.gps === 'searching' ? t('gpsSearching') : t('gpsLost');
     return (
@@ -777,7 +947,7 @@ export default function RecorridoScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
-          <TouchableOpacity style={st.startBtn} onPress={startRecording} activeOpacity={0.88} accessibilityRole="button">
+          <TouchableOpacity style={st.startBtn} onPress={() => { setPrep({ camera: null, location: null, freeBytes: null }); setMode('prepare'); }} activeOpacity={0.88} accessibilityRole="button">
             <LinearGradient colors={['#34d399', '#0f766e']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={st.startGrad}>
               <Route size={22} color="#fff" />
               <Text style={st.startText}>{t('start')}</Text>
@@ -941,6 +1111,29 @@ const st = StyleSheet.create({
   lockText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#0f172a', textAlign: 'center' },
   primaryBtn: { backgroundColor: '#0f766e', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14 },
   primaryBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#fff' },
+  // preparación
+  prepHero: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 22, padding: 16, borderWidth: 1, borderColor: '#d1fae5' },
+  prepHeroTitle: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: '#0f172a' },
+  prepHeroBody: { fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 19, color: '#475569' },
+  prepRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  prepRowBorder: { borderTopWidth: 1, borderTopColor: '#f1f5f9' },
+  prepIcon: { width: 36, height: 36, borderRadius: 11, backgroundColor: '#ecfdf5', alignItems: 'center', justifyContent: 'center' },
+  prepLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: '#0f172a' },
+  prepValue: { fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 17, color: '#64748b' },
+  prepChange: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: '#ecfdf5' },
+  prepChangeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#0f766e' },
+  prepHint: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#64748b' },
+  recRowItem: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  recBullet: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#ccfbf1', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  recBulletText: { fontFamily: 'Poppins_700Bold', fontSize: 11, color: '#0f766e' },
+  recText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 19, color: '#334155' },
+  prepFooter: {
+    position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 10,
+    paddingHorizontal: 16, paddingTop: 12, backgroundColor: 'rgba(240,253,244,0.97)', borderTopWidth: 1, borderTopColor: '#d1fae5',
+  },
+  prepBackBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#d1fae5' },
+  prepBackText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#0f766e' },
+  prepStartBtn: { flex: 2, borderRadius: 18, overflow: 'hidden' },
   // grabación
   recordScreen: { flex: 1, backgroundColor: '#000' },
   recordTop: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 18, paddingBottom: 28, gap: 10 },

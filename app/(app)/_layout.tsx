@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -22,6 +22,9 @@ import { useFonts, Poppins_600SemiBold, Poppins_400Regular } from '@expo-google-
 import { useGuest } from '../../context/GuestContext';
 import { useState } from 'react';
 import { TranslationResource, useTranslations } from '../../context/LanguageContext';
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
+import { configureNotifications, recorridoIdFrom } from '../../services/push';
 
 const translations: TranslationResource = {
   locked: { es: 'Función bloqueada', en: 'Feature locked' },
@@ -73,7 +76,9 @@ export default function TabLayout() {
     pathname === '/(app)/plans' ||
     pathname === '/plans' ||
     pathname === '/(app)/notifications' ||
-    pathname === '/notifications';
+    pathname === '/notifications' ||
+    pathname === '/(app)/recorrido' ||
+    pathname === '/recorrido';
   const shouldHideChatbot =
     shouldHideTabs ||
     pathname === '/(app)/mapping' ||
@@ -87,6 +92,19 @@ export default function TabLayout() {
   const isTablet = width >= 768;
 
   const [fontsLoaded] = useFonts({ Poppins_600SemiBold, Poppins_400Regular });
+
+  // Notificación "Tu recorrido está listo": al tocarla se abren sus resultados.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    configureNotifications();
+    const open = (response: Notifications.NotificationResponse | null) => {
+      const id = recorridoIdFrom(response);
+      if (id) router.push({ pathname: '/(app)/recorrido', params: { id } });
+    };
+    Notifications.getLastNotificationResponseAsync().then(open).catch(() => {});
+    const sub = Notifications.addNotificationResponseReceivedListener(open);
+    return () => sub.remove();
+  }, []);
 
   if (!fontsLoaded) return null;
 
@@ -220,6 +238,7 @@ export default function TabLayout() {
         <Tabs.Screen name="profile" options={{ href: null }} />
         <Tabs.Screen name="plans" options={{ href: null }} />
         <Tabs.Screen name="notifications" options={{ href: null }} />
+        <Tabs.Screen name="recorrido" options={{ href: null }} />
       </Tabs>
 
       {!shouldHideChatbot && !isGuest && (

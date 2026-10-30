@@ -15,7 +15,7 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-import { ArrowRight, ArrowUpRight, Satellite, Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, X } from 'lucide-react-native';
+import { ArrowRight, ArrowUpRight, Satellite, Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, X, Route, WifiOff, Sparkles } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import Svg, { Polygon as SvgPolygon } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -34,6 +34,7 @@ import { useGuest, GUEST_MAX_SCANS } from '../../context/GuestContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 import { listOrchards, Orchard } from '../../services/orchards';
+import { listLocal } from '../../services/recorridos';
 
 const OPENWEATHER_API_KEY = process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY!;
 
@@ -51,6 +52,15 @@ const translations: TranslationResource = {
   strongWind: { es: 'Viento fuerte', en: 'Strong wind' }, guestMode: { es: 'MODO INVITADO', en: 'GUEST MODE' }, welcome: { es: 'BIENVENIDO', en: 'WELCOME' },
   guest: { es: 'Invitado', en: 'Guest' }, user: { es: 'Usuario', en: 'User' }, quickActions: { es: 'Acciones rápidas', en: 'Quick actions' },
   scan: { es: 'Escanear', en: 'Scan' }, remaining: { es: '{count} restantes', en: '{count} remaining' },
+  aiWalkTitle: { es: 'Recorrido con IA', en: 'AI field walk' },
+  aiWalkBody: {
+    es: 'Obtén el análisis de la inteligencia artificial a partir de un recorrido grabado con tu celular, aunque no tengas internet.',
+    en: 'Get the AI analysis from a walk recorded with your phone, even without internet.',
+  },
+  aiWalkBadge: { es: 'Sin internet', en: 'Offline' },
+  aiWalkCta: { es: 'Grabar recorrido', en: 'Record a walk' },
+  aiWalkPending: { es: '{count} por subir', en: '{count} to upload' },
+  aiWalkLocked: { es: 'Disponible con una cuenta', en: 'Available with an account' },
   enlargeMap: { es: 'Ampliar mapa', en: 'Enlarge map' }, map: { es: 'Mapa', en: 'Map' }, mapping: { es: 'Mapeo', en: 'Mapping' }, activity: { es: 'Actividad', en: 'Activity' },
   virtualOrchard: { es: 'Encuentra más detalles de tu huerta virtual', en: 'Find more details about your virtual orchard' },
   virtualOrchardMeta: {
@@ -338,6 +348,8 @@ export default function Home() {
 
   const [userTokens, setUserTokens] = useState<number | null>(null);
 
+  const [pendingWalks, setPendingWalks] = useState(0);
+
   const [location, setLocation]       = useState<Location.LocationObject | null>(null);
   const [temperature, setTemperature] = useState<number | null>(null);
   const [humidity, setHumidity]       = useState<number | null>(null);
@@ -482,6 +494,14 @@ export default function Home() {
         setUserTokens(data?.tokens ?? 0);
       });
   }, [user?.email, isGuest]);
+
+  // Recorridos con IA guardados en el celular que faltan por subir.
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.email || isGuest) { setPendingWalks(0); return; }
+      listLocal(user.email).then(list => setPendingWalks(list.length)).catch(() => setPendingWalks(0));
+    }, [user?.email, isGuest])
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -923,6 +943,46 @@ export default function Home() {
             </View>
           </Reanimated.View>
 
+          <Reanimated.View entering={FadeInUp.delay(560).duration(700)}>
+            <TouchableOpacity
+              style={s.aiWalkCard}
+              onPress={() => isGuest ? null : router.push('/(app)/recorrido')}
+              disabled={isGuest}
+              activeOpacity={0.88}
+              accessibilityRole="button"
+              accessibilityLabel={`${t('aiWalkTitle')}. ${t('aiWalkBody')}`}
+            >
+              <LinearGradient
+                colors={['#0f766e', '#115e59', '#134e4a']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[s.aiWalkGradient, isTablet && s.aiWalkGradientTablet]}
+              >
+                <View style={s.aiWalkTop}>
+                  <View style={s.aiWalkIcon}>
+                    {isGuest ? <Lock color="#0f766e" size={22} /> : <Route color="#0f766e" size={24} />}
+                  </View>
+                  <View style={s.aiWalkBadge}>
+                    <WifiOff color="#a7f3d0" size={12} />
+                    <Text style={s.aiWalkBadgeText}>{t('aiWalkBadge')}</Text>
+                  </View>
+                  {pendingWalks > 0 && (
+                    <View style={[s.aiWalkBadge, s.aiWalkPending]}>
+                      <Text style={[s.aiWalkBadgeText, s.aiWalkPendingText]}>{t('aiWalkPending', { count: pendingWalks })}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[s.aiWalkTitle, isTablet && s.aiWalkTitleTablet]}>{t('aiWalkTitle')}</Text>
+                <Text style={[s.aiWalkBody, isTablet && s.aiWalkBodyTablet]}>{t('aiWalkBody')}</Text>
+                <View style={s.aiWalkCta}>
+                  <Sparkles color="#0f766e" size={16} />
+                  <Text style={s.aiWalkCtaText}>{isGuest ? t('aiWalkLocked') : t('aiWalkCta')}</Text>
+                  {!isGuest && <ArrowRight color="#0f766e" size={16} />}
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Reanimated.View>
+
           <TouchableOpacity
             style={s.virtualOrchardLink}
             onPress={() => Linking.openURL('https://vex-mx.com/dashboard.html')}
@@ -973,6 +1033,38 @@ export default function Home() {
 }
 
 const s = StyleSheet.create({
+  aiWalkCard: {
+    marginTop: 18,
+    borderRadius: 26,
+    shadowColor: '#0f766e',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 6,
+  },
+  aiWalkGradient: { borderRadius: 26, padding: 20, gap: 8 },
+  aiWalkGradientTablet: { padding: 26 },
+  aiWalkTop: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  aiWalkIcon: {
+    width: 44, height: 44, borderRadius: 14, backgroundColor: '#d1fae5',
+    alignItems: 'center', justifyContent: 'center', marginRight: 4,
+  },
+  aiWalkBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  aiWalkBadgeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#d1fae5' },
+  aiWalkPending: { backgroundColor: '#fde68a' },
+  aiWalkPendingText: { color: '#713f12' },
+  aiWalkTitle: { fontFamily: 'Poppins_700Bold', fontSize: 20, color: '#ffffff', marginTop: 4 },
+  aiWalkTitleTablet: { fontSize: 24 },
+  aiWalkBody: { fontFamily: 'Poppins_400Regular', fontSize: 13.5, lineHeight: 20, color: 'rgba(236,253,245,0.9)' },
+  aiWalkBodyTablet: { fontSize: 15, lineHeight: 23 },
+  aiWalkCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', marginTop: 6,
+    backgroundColor: '#ffffff', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999,
+  },
+  aiWalkCtaText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#0f766e' },
   bgLayer: {
     position: 'absolute', width: '100%', height: '100%', overflow: 'hidden', zIndex: 0,
   },

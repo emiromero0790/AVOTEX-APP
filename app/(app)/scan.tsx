@@ -12,7 +12,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
-import { RotateCw as RotateCwIcon, Camera as CameraIcon, Shield, Lock } from "lucide-react-native";
+import { RotateCw as RotateCwIcon, Camera as CameraIcon, Shield, Lock, ChevronLeft } from "lucide-react-native";
 import Toast from "react-native-toast-message";
 import { useFocusEffect } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
@@ -24,6 +24,8 @@ import { User, onAuthStateChanged } from "firebase/auth";
 import { supabase } from "../../supabaseConfig";
 import { useGuest, GUEST_MAX_SCANS } from "../../context/GuestContext";
 import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations } from "../../context/LanguageContext";
+import ScanModeChooser from "../../components/ScanModeChooser";
+import { listLocal } from "../../services/recorridos";
 
 const scanTranslations: TranslationResource = {
   cameraAccess: { es: "Necesitamos acceso a la cámara", en: "Camera access is required" },
@@ -67,6 +69,8 @@ const scanTranslations: TranslationResource = {
   savingDetail: { es: "Tu diagnóstico se está guardando...", en: "Your diagnosis is being saved..." },
   flipCamera: { es: "Cambiar cámara", en: "Switch camera" },
   takePhoto: { es: "Tomar foto", en: "Take photo" },
+  modes: { es: "Modos", en: "Modes" },
+  backToModes: { es: "Volver a elegir el modo de escaneo", en: "Back to scan modes" },
 };
 
 const IA_ROW_ID = '7293688b-1ee9-469c-9679-d69d9a1089a5';
@@ -110,7 +114,11 @@ export default function Scan() {
   const isBusyRef = useRef(false);
   const spinValue = useRef(new Animated.Value(0)).current;
 
-  const [scanModalVisible, setScanModalVisible] = useState(true);
+  // Al entrar a "Escanear" primero se elige el modo: foto individual o recorrido con IA.
+  const [mode, setMode] = useState<"choose" | "photo">("choose");
+  const [pendingWalks, setPendingWalks] = useState(0);
+  // El aviso de uso de la cámara se muestra al elegir la foto individual.
+  const [scanModalVisible, setScanModalVisible] = useState(false);
   const [scanAccepted, setScanAccepted] = useState(false);
 
   const [predictUrl, setPredictUrl] = useState<string | null>(null);
@@ -179,6 +187,31 @@ export default function Scan() {
         });
     }, [user?.email, isGuest])
   );
+
+  // Cada vez que se vuelve a la pestaña se muestra el selector de modo.
+  useFocusEffect(
+    useCallback(() => {
+      setMode("choose");
+      setPrediction(null);
+      if (user?.email && !isGuest) {
+        listLocal(user.email).then(list => setPendingWalks(list.length)).catch(() => setPendingWalks(0));
+      } else {
+        setPendingWalks(0);
+      }
+    }, [user?.email, isGuest])
+  );
+
+  const choosePhoto = async () => {
+    if (!permission?.granted) {
+      const res = await requestPermission();
+      if (!res.granted) {
+        Toast.show({ type: "error", text1: t("cameraAccess") });
+        return;
+      }
+    }
+    setMode("photo");
+    if (!scanAccepted) setScanModalVisible(true);
+  };
 
   const normalizeServerResponse = (data: any): NormalizedPrediction | null => {
     try {
@@ -332,6 +365,23 @@ export default function Scan() {
       isBusyRef.current = false;
     }
   };
+
+  if (mode === "choose") {
+    const tokensLabel = isGuest
+      ? t("guestTokens", { tokens: (guestScansLeft * 100).toLocaleString(locale) })
+      : userTokens !== null
+        ? t("tokensAvailable", { tokens: (userTokens * 100).toLocaleString(locale) })
+        : null;
+    return (
+      <ScanModeChooser
+        isGuest={isGuest}
+        tokensLabel={tokensLabel}
+        pendingWalks={pendingWalks}
+        onPhoto={choosePhoto}
+        onWalk={() => router.push("/(app)/recorrido")}
+      />
+    );
+  }
 
   if (!permission) return <View />;
 
@@ -527,6 +577,15 @@ export default function Scan() {
       ) : (
         <CameraView style={styles.camera} type={type} ref={cameraRef} facing={type}>
           <View style={styles.overlay}>
+            <TouchableOpacity
+              style={[styles.modesButton, isTablet && styles.modesButtonTablet]}
+              onPress={() => { setPrediction(null); setMode("choose"); }}
+              accessibilityRole="button"
+              accessibilityLabel={t("backToModes")}
+            >
+              <ChevronLeft size={18} color="#ffffff" />
+              <Text style={styles.modesButtonText}>{t("modes")}</Text>
+            </TouchableOpacity>
             <View style={[styles.header, isTablet && styles.headerTablet]}>
                <Text style={[styles.headerText, isTablet && styles.headerTextTablet]}>{t("scan")}</Text>
                <Text style={[styles.headerSubtext, isTablet && styles.headerSubtextTablet]}>{t("aim")}</Text>
@@ -622,6 +681,14 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.25)", padding: 20 },
 
   header: { paddingTop: 50, alignItems: "center", marginBottom: 20 },
+  modesButton: {
+    position: "absolute", top: 50, left: 16, zIndex: 5,
+    flexDirection: "row", alignItems: "center", gap: 2,
+    paddingLeft: 8, paddingRight: 12, paddingVertical: 8, borderRadius: 999,
+    backgroundColor: "rgba(15,23,42,0.45)", borderWidth: 1, borderColor: "rgba(255,255,255,0.25)",
+  },
+  modesButtonTablet: { top: 60, left: 32 },
+  modesButtonText: { color: "#ffffff", fontSize: 13, fontFamily: "Poppins_600SemiBold" },
   headerTablet: { paddingTop: 60, marginBottom: 28 },
   headerText: { color: "#ffffff", fontSize: 22, fontFamily: "Poppins-SemiBold", letterSpacing: 0.5 },
   headerTextTablet: { fontSize: 28 },

@@ -21,3 +21,7 @@ expo-env.d.ts
 node_modules
 # Local tool caches
 .cache/
+
+# Python
+__pycache__/
+*.pyc

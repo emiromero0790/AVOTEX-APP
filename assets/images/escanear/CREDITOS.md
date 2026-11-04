@@ -5,8 +5,8 @@ uso gratuito, también comercial, sin atribución obligatoria. Se recortaron y c
 
 | Archivo | Foto original |
 |---|---|
-| `foto-aguacate-arbol.jpg` | [Aguacates colgando del árbol — Pexels 3687927](https://www.pexels.com/photo/avocado-fruits-hanging-on-tree-3687927/) |
-| `recorrido-huerta.jpg` | [Hombre caminando por una huerta — Pexels 33365129](https://www.pexels.com/photo/elderly-man-strolling-in-lush-orchard-pathway-33365129/) |
+| `recorrido-aereo.jpg` | [Vista aérea de hileras de árboles — Pexels 33790879](https://www.pexels.com/photo/aerial-view-of-lush-green-vineyard-rows-33790879/) |
+| `foto-aguacate.jpg` | [Árbol de aguacate contra el cielo — Pexels 37113091](https://www.pexels.com/photo/lush-avocado-tree-against-clear-blue-sky-37113091/) |
 
-Las ilustraciones (teléfono en el pecho, ruta y análisis) son vectores propios en
-`components/scan/ScanIllustrations.tsx`.
+Los encuadres de detección, rutas e ilustraciones (teléfono en el pecho, ruta y análisis) son
+vectores propios en `components/scan/`.

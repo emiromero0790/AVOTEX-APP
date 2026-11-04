@@ -18,7 +18,7 @@ import {
   Lock,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFonts, Poppins_600SemiBold, Poppins_400Regular } from '@expo-google-fonts/poppins';
+import { useFonts, Poppins_600SemiBold, Poppins_400Regular, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import { useGuest } from '../../context/GuestContext';
 import { useState } from 'react';
 import { TranslationResource, useTranslations } from '../../context/LanguageContext';
@@ -68,6 +68,15 @@ function GuestLockedModal({ visible, onClose }: { visible: boolean; onClose: () 
   );
 }
 
+// Pantallas que viven dentro de las pestañas pero sin botón propio en la barra.
+// Desde expo-router 58 `href: null` marca la pantalla como oculta y el router redirige a Inicio
+// cuando se intenta abrir (así fallaban Recorrido, Notificaciones, Planes, Perfil, etc.).
+// Ocultar solo el botón mantiene la pantalla navegable.
+const HIDDEN_TAB = {
+  tabBarButton: () => null,
+  tabBarItemStyle: { display: 'none' as const },
+};
+
 export default function TabLayout() {
   const pathname = usePathname();
   const shouldHideTabs =
@@ -91,7 +100,7 @@ export default function TabLayout() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
 
-  const [fontsLoaded] = useFonts({ Poppins_600SemiBold, Poppins_400Regular });
+  const [fontsLoaded] = useFonts({ Poppins_600SemiBold, Poppins_400Regular, Poppins_700Bold });
 
   // Notificación "Tu recorrido está listo": al tocarla se abren sus resultados.
   useEffect(() => {
@@ -127,6 +136,8 @@ export default function TabLayout() {
       <GuestLockedModal visible={showLockModal} onClose={() => setShowLockModal(false)} />
 
       <Tabs
+        // "Volver" regresa a la pantalla anterior (p. ej. de Recorrido a Escanear) en lugar de ir siempre a Inicio.
+        backBehavior="history"
         screenOptions={{
           headerShown: false,
           tabBarStyle: shouldHideTabs ? { display: 'none' } : [
@@ -218,10 +229,7 @@ export default function TabLayout() {
             ) : undefined,
           }}
         />
-        <Tabs.Screen
-          name="agenda"
-          options={{ href: null }}
-        />
+        <Tabs.Screen name="agenda" options={HIDDEN_TAB} />
         <Tabs.Screen
           name="settings"
           options={{
@@ -233,12 +241,12 @@ export default function TabLayout() {
             ),
           }}
         />
-        <Tabs.Screen name="chatbot" options={{ href: null }} />
-        <Tabs.Screen name="privacy" options={{ href: null }} />
-        <Tabs.Screen name="profile" options={{ href: null }} />
-        <Tabs.Screen name="plans" options={{ href: null }} />
-        <Tabs.Screen name="notifications" options={{ href: null }} />
-        <Tabs.Screen name="recorrido" options={{ href: null }} />
+        <Tabs.Screen name="chatbot" options={HIDDEN_TAB} />
+        <Tabs.Screen name="privacy" options={HIDDEN_TAB} />
+        <Tabs.Screen name="profile" options={HIDDEN_TAB} />
+        <Tabs.Screen name="plans" options={HIDDEN_TAB} />
+        <Tabs.Screen name="notifications" options={HIDDEN_TAB} />
+        <Tabs.Screen name="recorrido" options={HIDDEN_TAB} />
       </Tabs>
 
       {!shouldHideChatbot && !isGuest && (

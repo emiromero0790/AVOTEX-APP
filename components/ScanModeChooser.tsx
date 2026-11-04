@@ -38,12 +38,18 @@ import { CSS_EASE_OUT, EASE_OUT, PressableScale, PulseRing } from './scan/motion
 // Fotos de Pexels (licencia Pexels: uso comercial libre). Ver assets/images/escanear/CREDITOS.md
 const IMG_AERIAL = require('../assets/images/escanear/recorrido-aereo.jpg');
 const IMG_AVOCADO = require('../assets/images/escanear/foto-aguacate.jpg');
+// Fotos reales de montaje (Flickr, CC BY 2.0 y CC BY-SA 2.0). Ver CREDITOS.md
+const IMG_MOUNT_CHEST = require('../assets/images/escanear/montaje-pecho.jpg');
+const IMG_MOUNT_HELMET = require('../assets/images/escanear/montaje-casco.jpg');
 
-// Paleta del visor (identidad AVOTEX en versión oscura)
-const BG = '#04140F';
-const INK = '#ECFDF5';
-const MUTED = 'rgba(209,250,229,0.62)';
-const LINE = 'rgba(209,250,229,0.12)';
+// Paleta: pantalla blanca; los acentos claros (GREEN/PURPLE) solo se usan sobre las fotos del visor.
+const BG = '#FFFFFF';
+const INK = '#0A0A0A';
+const MUTED = '#5B6B73';
+const LINE = '#E5E7EB';
+const SURFACE = '#F8FAFC';
+const G_TXT = '#047857';
+const P_TXT = '#6D28D9';
 const GREEN = '#34D399';
 const GREEN_DEEP = '#0f766e';
 const PURPLE = '#A78BFA';
@@ -84,6 +90,12 @@ const translations: TranslationResource = {
   walkCta: { es: 'Iniciar recorrido', en: 'Start walk' },
   walkLocked: { es: 'Crea una cuenta para usarlo', en: 'Create an account to use it' },
   myWalks: { es: 'Mis recorridos y resultados', en: 'My walks and results' },
+  mountTitle: { es: '¿Dónde llevar el celular?', en: 'Where to wear the phone?' },
+  mountChest: { es: 'En el pecho', en: 'On your chest' },
+  mountChestBody: { es: 'Arnés de pecho, cámara al frente. Las manos quedan libres.', en: 'Chest harness, camera facing forward. Hands stay free.' },
+  mountHelmet: { es: 'En el casco', en: 'On a helmet' },
+  mountHelmetBody: { es: 'Soporte en el casco: ve lo que tú ves, a la altura de los frutos.', en: 'Helmet mount: it sees what you see, at fruit height.' },
+  mountBest: { es: 'Recomendado', en: 'Recommended' },
   detectFruit: { es: 'Fruto', en: 'Fruit' },
   detectLeaf: { es: 'Hoja', en: 'Leaf' },
   detectReview: { es: 'Revisar', en: 'Check' },
@@ -264,6 +276,20 @@ function Steps({ items, color }: { items: string[]; color: string }) {
   );
 }
 
+/** Foto real de cómo llevar el celular durante el recorrido. */
+function MountCard({ image, title, body, badge }: { image: number; title: string; body: string; badge?: string }) {
+  return (
+    <View style={s.mountCard} accessible accessibilityLabel={`${title}. ${body}`}>
+      <View style={s.mountMedia}>
+        <Image source={image} style={v.img} resizeMode="cover" accessibilityIgnoresInvertColors />
+        {badge ? <View style={s.mountBadge}><Text style={s.mountBadgeText}>{badge}</Text></View> : null}
+      </View>
+      <Text style={s.mountName}>{title}</Text>
+      <Text style={s.mountBody}>{body}</Text>
+    </View>
+  );
+}
+
 // ───────────────────────── pantalla ─────────────────────────
 
 export default function ScanModeChooser({ isGuest, tokensValue, pendingWalks, pendingPhotos, onPhoto, onWalk, onOpenWalks }: Props) {
@@ -320,13 +346,13 @@ export default function ScanModeChooser({ isGuest, tokensValue, pendingWalks, pe
     const p = heroW > 0 ? Math.min(Math.max(scrollX.get() / heroW, 0), 1) : 0;
     return {
       transform: [{ translateX: p * segW }],
-      backgroundColor: interpolateColor(p, [0, 1], ['rgba(52,211,153,0.22)', 'rgba(167,139,250,0.24)']),
-      borderColor: interpolateColor(p, [0, 1], ['rgba(52,211,153,0.55)', 'rgba(167,139,250,0.6)']),
+      backgroundColor: interpolateColor(p, [0, 1], ['#ECFDF5', '#F5F3FF']),
+      borderColor: interpolateColor(p, [0, 1], ['#6EE7B7', '#C4B5FD']),
     };
   });
 
   const isWalk = mode === 'walk';
-  const accent = isWalk ? GREEN : PURPLE;
+  const accent = isWalk ? G_TXT : P_TXT;
   const walkSteps = useMemo(() => [t('walkStep1'), t('walkStep2'), t('walkStep3')], [t]);
   const photoSteps = useMemo(() => [t('photoStep1'), t('photoStep2'), t('photoStep3')], [t]);
   const sceneSize = useMemo(() => ({ w: heroW, h: heroH }), [heroW, heroH]);
@@ -352,7 +378,7 @@ export default function ScanModeChooser({ isGuest, tokensValue, pendingWalks, pe
           <Text style={s.subtitle}>{t('subtitle')}</Text>
           {tokensValue ? (
             <View style={s.tokens} accessible accessibilityLabel={t('tokensA11y', { value: tokensValue })}>
-              <Coins size={13} color="#FCD34D" />
+              <Coins size={13} color="#D97706" />
               <Text style={s.tokensValue}>{tokensValue}</Text>
               <Text style={s.tokensLabel}>{t('tokens')}</Text>
             </View>
@@ -376,10 +402,10 @@ export default function ScanModeChooser({ isGuest, tokensValue, pendingWalks, pe
               accessibilityLabel={walk ? t('walkTitle') : t('photoTitle')}
               style={[s.segment, { width: segW }]}
             >
-              <Icon size={18} color={on ? (walk ? GREEN : PURPLE) : MUTED} />
+              <Icon size={18} color={on ? (walk ? G_TXT : P_TXT) : '#94A3B8'} />
               <View>
                 <Text style={[s.segLabel, on && s.segLabelOn]}>{walk ? t('walkTab') : t('photoTab')}</Text>
-                <Text style={[s.segSub, on && { color: walk ? '#A7F3D0' : '#DDD6FE' }]}>{walk ? t('walkTabSub') : t('photoTabSub')}</Text>
+                <Text style={[s.segSub, on && { color: walk ? G_TXT : P_TXT }]}>{walk ? t('walkTabSub') : t('photoTabSub')}</Text>
               </View>
             </PressableScale>
           );
@@ -410,7 +436,7 @@ export default function ScanModeChooser({ isGuest, tokensValue, pendingWalks, pe
             <Text style={s.badgeText}>{isWalk ? t('walkBadge') : t('photoBadge')}</Text>
           </View>
           {isWalk ? (
-            <View style={s.badge}><WifiOff size={13} color={INK} /><Text style={s.badgeText}>{t('walkOffline')}</Text></View>
+            <View style={s.badge}><WifiOff size={13} color="#ffffff" /><Text style={s.badgeText}>{t('walkOffline')}</Text></View>
           ) : null}
         </View>
         {/* Texto del visor: cambia con la modalidad con un fundido corto, sin desplazamiento. */}
@@ -425,7 +451,7 @@ export default function ScanModeChooser({ isGuest, tokensValue, pendingWalks, pe
               style={[
                 s.dot,
                 {
-                  backgroundColor: m === mode ? accent : 'rgba(255,255,255,0.35)',
+                  backgroundColor: m === mode ? (isWalk ? GREEN : PURPLE) : 'rgba(255,255,255,0.45)',
                   transform: [{ scaleX: m === mode ? 2.4 : 1 }],
                   transitionProperty: ['transform', 'backgroundColor'],
                   transitionDuration: 200,
@@ -445,6 +471,16 @@ export default function ScanModeChooser({ isGuest, tokensValue, pendingWalks, pe
       <Reanimated.View key={`info-${mode}`} entering={reduced ? undefined : STEPS_FADE} style={s.below}>
         <Steps items={isWalk ? walkSteps : photoSteps} color={accent} />
 
+        {isWalk && (
+          <View style={s.mount}>
+            <Text style={s.mountTitle}>{t('mountTitle')}</Text>
+            <View style={s.mountRow}>
+              <MountCard image={IMG_MOUNT_CHEST} title={t('mountChest')} body={t('mountChestBody')} badge={t('mountBest')} />
+              <MountCard image={IMG_MOUNT_HELMET} title={t('mountHelmet')} body={t('mountHelmetBody')} />
+            </View>
+          </View>
+        )}
+
         {isWalk ? (
           !isGuest && pendingWalks > 0 ? (
             <PressableScale onPress={onOpenWalks} style={s.pending} accessibilityRole="button" accessibilityLabel={`${pendingLabel}. ${t('pendingOpen')}`}>
@@ -454,15 +490,15 @@ export default function ScanModeChooser({ isGuest, tokensValue, pendingWalks, pe
                 {pendingPhotos > 0 && <Text style={s.pendingSub}>{t('pendingPhotos', { count: pendingPhotos.toLocaleString() })}</Text>}
               </View>
               <Text style={s.pendingOpen}>{t('pendingOpen')}</Text>
-              <ChevronRight size={16} color="#FCD34D" />
+              <ChevronRight size={16} color="#B45309" />
             </PressableScale>
           ) : (
-            <View style={s.info}><WifiOff size={15} color={GREEN} /><Text style={s.infoText}>{t('walkInfo')}</Text></View>
+            <View style={s.info}><WifiOff size={15} color={G_TXT} /><Text style={s.infoText}>{t('walkInfo')}</Text></View>
           )
         ) : offline ? (
-          <View style={[s.info, s.infoWarn]}><WifiOff size={15} color="#FCA5A5" /><Text style={[s.infoText, { color: '#FECACA' }]}>{t('photoOffline')}</Text></View>
+          <View style={[s.info, s.infoWarn]}><WifiOff size={15} color="#DC2626" /><Text style={[s.infoText, { color: '#991B1B' }]}>{t('photoOffline')}</Text></View>
         ) : (
-          <View style={s.info}><Wifi size={15} color={PURPLE} /><Text style={s.infoText}>{t('photoInfo')}</Text></View>
+          <View style={s.info}><Wifi size={15} color={P_TXT} /><Text style={s.infoText}>{t('photoInfo')}</Text></View>
         )}
 
         <PressableScale
@@ -478,15 +514,15 @@ export default function ScanModeChooser({ isGuest, tokensValue, pendingWalks, pe
           style={s.ctaWrap}
         >
           <LinearGradient
-            colors={isWalk ? (isGuest ? ['#1f3b33', '#1f3b33'] : ['#34D399', '#0f766e']) : ['#8B5CF6', '#44227C']}
+            colors={isWalk ? (isGuest ? ['#E2E8F0', '#E2E8F0'] : ['#34D399', '#0f766e']) : ['#8B5CF6', '#44227C']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={s.cta}
           >
             <View style={s.ctaIcon}>
-              {isWalk ? (isGuest ? <Lock size={18} color="#A7F3D0" /> : <Footprints size={19} color="#ffffff" />) : <Camera size={19} color="#ffffff" />}
+              {isWalk ? (isGuest ? <Lock size={18} color="#475569" /> : <Footprints size={19} color="#ffffff" />) : <Camera size={19} color="#ffffff" />}
             </View>
-            <Text style={s.ctaText}>{isWalk ? (isGuest ? t('walkLocked') : t('walkCta')) : t('photoCta')}</Text>
+            <Text style={[s.ctaText, walkLocked && { color: '#475569' }]}>{isWalk ? (isGuest ? t('walkLocked') : t('walkCta')) : t('photoCta')}</Text>
             {!walkLocked && <ArrowRight size={20} color="#ffffff" />}
           </LinearGradient>
         </PressableScale>
@@ -494,7 +530,7 @@ export default function ScanModeChooser({ isGuest, tokensValue, pendingWalks, pe
         {isWalk && !isGuest && (
           <PressableScale onPress={onOpenWalks} style={s.link} accessibilityRole="button" accessibilityLabel={t('myWalks')}>
             <Text style={s.linkText}>{t('myWalks')}</Text>
-            <ChevronRight size={16} color={MUTED} />
+            <ChevronRight size={16} color="#334155" />
           </PressableScale>
         )}
       </Reanimated.View>
@@ -525,33 +561,33 @@ const s = StyleSheet.create({
   header: { gap: 2 },
   kickerRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   kickerDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN },
-  kicker: { fontFamily: 'Poppins_600SemiBold', fontSize: 11.5, letterSpacing: 1.6, color: '#6EE7B7', textTransform: 'uppercase' },
+  kicker: { fontFamily: 'Poppins_600SemiBold', fontSize: 11.5, letterSpacing: 1.6, color: '#0f766e', textTransform: 'uppercase' },
   title: { fontFamily: 'Poppins_700Bold', fontSize: 40, lineHeight: 46, letterSpacing: -1.4, color: INK, marginTop: 2 },
   titleTablet: { fontSize: 52, lineHeight: 58 },
   subRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, rowGap: 8 },
   subtitle: { fontFamily: 'Poppins_400Regular', fontSize: 14.5, color: MUTED, flexShrink: 1 },
   tokens: {
     flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
-    backgroundColor: 'rgba(252,211,77,0.1)', borderWidth: 1, borderColor: 'rgba(252,211,77,0.32)',
+    backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A',
   },
-  tokensValue: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#FDE68A' },
-  tokensLabel: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(253,230,138,0.75)' },
+  tokensValue: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#92400E' },
+  tokensLabel: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#B45309' },
   // selector
-  switch: { flexDirection: 'row', padding: 4, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: LINE },
-  switchPill: { position: 'absolute', left: 4, top: 4, bottom: 4, borderRadius: 16, borderWidth: 1 },
+  switch: { flexDirection: 'row', padding: 4, borderRadius: 20, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: LINE },
+  switchPill: { position: 'absolute', left: 4, top: 4, bottom: 4, borderRadius: 16, borderWidth: 1, shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
   segment: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 56, paddingVertical: 8 },
-  segLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 14.5, color: MUTED },
+  segLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 14.5, color: '#64748B' },
   segLabelOn: { color: INK },
-  segSub: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: 'rgba(209,250,229,0.4)', marginTop: -2 },
+  segSub: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: '#94A3B8', marginTop: -2 },
   // visor
   hero: { borderRadius: 30, overflow: 'hidden', backgroundColor: '#0b2a22' },
-  heroBorder: { ...StyleSheet.absoluteFill, borderRadius: 30, borderWidth: 1, borderColor: LINE },
+  heroBorder: { ...StyleSheet.absoluteFill, borderRadius: 30, borderWidth: 1, borderColor: 'rgba(15,23,42,0.06)' },
   heroTop: { position: 'absolute', top: 14, left: 14, right: 14, flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   badge: {
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
     backgroundColor: 'rgba(4,20,15,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)',
   },
-  badgeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: INK },
+  badgeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#ffffff' },
   heroText: { position: 'absolute', left: 18, right: 18, bottom: 34, gap: 4 },
   heroTitle: { fontFamily: 'Poppins_700Bold', fontSize: 28, lineHeight: 33, letterSpacing: -0.8, color: '#ffffff' },
   heroTitleTablet: { fontSize: 36, lineHeight: 42 },
@@ -563,21 +599,31 @@ const s = StyleSheet.create({
   // debajo del visor
   below: { gap: 12 },
   steps: { flexDirection: 'row', gap: 8 },
-  step: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: LINE, gap: 2 },
+  step: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 16, backgroundColor: SURFACE, borderWidth: 1, borderColor: LINE, gap: 2 },
   stepNum: { fontFamily: 'Poppins_700Bold', fontSize: 12, letterSpacing: 1 },
   stepText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, lineHeight: 17, color: INK },
-  info: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: LINE },
-  infoWarn: { backgroundColor: 'rgba(127,29,29,0.35)', borderColor: 'rgba(252,165,165,0.35)' },
-  infoText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: MUTED },
-  pending: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 16, backgroundColor: 'rgba(252,211,77,0.1)', borderWidth: 1, borderColor: 'rgba(252,211,77,0.35)' },
+  info: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 16, backgroundColor: SURFACE, borderWidth: 1, borderColor: LINE },
+  infoWarn: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
+  infoText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: '#475569' },
+  pending: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 16, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A' },
   pendingIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#FCD34D', alignItems: 'center', justifyContent: 'center' },
-  pendingTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#FEF3C7' },
-  pendingSub: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: 'rgba(254,243,199,0.7)' },
-  pendingOpen: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: '#FCD34D' },
-  ctaWrap: { borderRadius: 22 },
+  pendingTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#78350F' },
+  pendingSub: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: '#92400E' },
+  pendingOpen: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: '#B45309' },
+  ctaWrap: { borderRadius: 22, shadowColor: '#0f766e', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
   cta: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 10, paddingRight: 20, minHeight: 64, borderRadius: 22 },
   ctaIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
   ctaText: { flex: 1, fontFamily: 'Poppins_700Bold', fontSize: 16.5, color: '#ffffff' },
   link: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 44 },
-  linkText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: MUTED },
+  linkText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: '#334155' },
+  // montaje del celular
+  mount: { gap: 10 },
+  mountTitle: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK, letterSpacing: -0.2 },
+  mountRow: { flexDirection: 'row', gap: 10 },
+  mountCard: { flex: 1, gap: 4 },
+  mountMedia: { aspectRatio: 1.25, borderRadius: 18, overflow: 'hidden', backgroundColor: '#E2E8F0' },
+  mountBadge: { position: 'absolute', left: 8, top: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: '#ffffff' },
+  mountBadgeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 10.5, color: G_TXT },
+  mountName: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: INK, marginTop: 4 },
+  mountBody: { fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 17, color: MUTED },
 });

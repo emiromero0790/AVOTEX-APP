@@ -24,7 +24,7 @@ import { StatusBar } from 'expo-status-bar';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import Reanimated, { FadeIn, FadeInDown, FadeOut, useReducedMotion } from 'react-native-reanimated';
+import Reanimated, { FadeIn, FadeInDown, FadeOut, LinearTransition, useReducedMotion } from 'react-native-reanimated';
 import {
   ChevronLeft,
   CloudOff,
@@ -81,8 +81,10 @@ import {
 } from '../../services/recorridos';
 import { registerForPush } from '../../services/push';
 import RecorridoMap from '../../components/RecorridoMap';
-import { ChestMountIllustration } from '../../components/scan/ScanIllustrations';
-import { CSS_EASE_OUT, EASE_OUT, PressableScale, PulseRing } from '../../components/scan/motion';
+// Fotos reales de montaje (Flickr, CC BY 2.0 y CC BY-SA 2.0). Ver assets/images/escanear/CREDITOS.md
+const IMG_MOUNT_CHEST = require('../../assets/images/escanear/montaje-pecho.jpg');
+const IMG_MOUNT_HELMET = require('../../assets/images/escanear/montaje-casco.jpg');
+import { CSS_EASE_OUT, EASE_IN_OUT, EASE_OUT, PressableScale, PulseRing } from '../../components/scan/motion';
 
 // Duración de "mantén presionado para terminar": evita cortar un recorrido por un toque accidental.
 const HOLD_TO_FINISH_MS = 900;
@@ -90,6 +92,10 @@ const HUD_FADE_IN = FadeIn.duration(250).easing(EASE_OUT);
 const PAUSE_IN = FadeIn.duration(200).easing(EASE_OUT);
 const PAUSE_OUT = FadeOut.duration(160);
 const START_IN = FadeInDown.duration(260).easing(EASE_OUT);
+// Lista "Mis recorridos": al subirse un recorrido sale con un fundido y el resto se acomoda (no se ve un salto).
+const ITEM_OUT = FadeOut.duration(200);
+const ITEM_IN = FadeIn.duration(220).easing(EASE_OUT);
+const LIST_REFLOW = LinearTransition.duration(260).easing(EASE_IN_OUT);
 // El número de fotos "late" una vez cada vez que se guarda una imagen nueva.
 const COUNT_POP = { from: { transform: [{ scale: 1.18 }] }, to: { transform: [{ scale: 1 }] } };
 
@@ -180,6 +186,8 @@ const translations: TranslationResource = {
   rec4: { es: 'Lleva batería suficiente: la cámara y el GPS gastan más de lo normal.', en: 'Bring enough battery: camera and GPS use more power than usual.' },
   prepStart: { es: 'Comenzar recorrido', en: 'Start walk' },
   prepReady: { es: 'Todo listo para grabar', en: 'Ready to record' },
+  mountTag: { es: 'Celular en el pecho, cámara al frente', en: 'Phone on your chest, camera forward' },
+  mountHelmetShort: { es: 'o en el casco', en: 'or on a helmet' },
   prepWarnings: { es: '{count} punto(s) por revisar', en: '{count} item(s) to check' },
   prepBack: { es: 'Regresar', en: 'Go back' },
   // grabación
@@ -778,48 +786,57 @@ export default function RecorridoScreen() {
     type Status = 'ok' | 'warn' | 'info' | 'pending';
     const checks: Array<{ key: string; icon: ReactNode; label: string; value: string; status: Status }> = [
       {
-        key: 'camera', icon: <CameraIcon size={18} color="#6EE7B7" />, label: t('prepCamera'),
+        key: 'camera', icon: <CameraIcon size={18} color="#0f766e" />, label: t('prepCamera'),
         value: prep.camera ? permText(prep.camera, t('prepDenied')) : t('prepChecking'),
         status: !prep.camera ? 'pending' : prep.camera === 'granted' ? 'ok' : prep.camera === 'denied' ? 'warn' : 'info',
       },
       {
-        key: 'location', icon: <MapPin size={18} color="#6EE7B7" />, label: t('prepLocation'),
+        key: 'location', icon: <MapPin size={18} color="#0f766e" />, label: t('prepLocation'),
         value: prep.location ? permText(prep.location, t('prepLocationDenied')) : t('prepChecking'),
         status: !prep.location ? 'pending' : prep.location === 'granted' ? 'ok' : prep.location === 'denied' ? 'warn' : 'info',
       },
       ...(Platform.OS !== 'web' ? [{
-        key: 'storage', icon: <HardDrive size={18} color="#6EE7B7" />, label: t('prepStorage'),
+        key: 'storage', icon: <HardDrive size={18} color="#0f766e" />, label: t('prepStorage'),
         value: gb == null ? t('prepChecking') : lowSpace ? t('prepStorageLow', { gb }) : t('prepStorageOk', { gb }),
         status: (gb == null ? 'pending' : lowSpace ? 'warn' : 'ok') as Status,
       }] : []),
       {
-        key: 'net', icon: network === 'offline' ? <WifiOff size={18} color="#6EE7B7" /> : <Wifi size={18} color="#6EE7B7" />,
+        key: 'net', icon: network === 'offline' ? <WifiOff size={18} color="#0f766e" /> : <Wifi size={18} color="#0f766e" />,
         label: t('prepConnection'), value: netText, status: network === 'unknown' ? 'pending' : 'info',
       },
     ];
     const checking = checks.some(c => c.status === 'pending');
     const warnings = checks.filter(c => c.status === 'warn').length;
     const statusIcon = (status: Status) =>
-      status === 'ok' ? <CheckCircle2 size={18} color="#34D399" /> :
-      status === 'warn' ? <AlertTriangle size={18} color="#FBBF24" /> :
-      status === 'pending' ? <ActivityIndicator size="small" color="#6EE7B7" /> :
-      <Info size={18} color="#93C5FD" />;
+      status === 'ok' ? <CheckCircle2 size={18} color="#16a34a" /> :
+      status === 'warn' ? <AlertTriangle size={18} color="#d97706" /> :
+      status === 'pending' ? <ActivityIndicator size="small" color="#0f766e" /> :
+      <Info size={18} color="#0369a1" />;
     const goBack = () => { if (fromScan && router.canGoBack()) router.back(); else setMode('home'); };
     const orchardOptions = [{ id: null as string | null, nombre: t('orchardAuto') }, ...orchards.map(o => ({ id: o.id as string | null, nombre: o.nombre }))];
     return (
       <Reanimated.View entering={reducedMotion ? undefined : HUD_FADE_IN} style={[pp.screen, { paddingTop: insets.top }]}>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <View style={pp.header}>
           <PressableScale style={pp.backBtn} onPress={goBack} accessibilityRole="button" accessibilityLabel={t('prepBack')}>
-            <ChevronLeft size={24} color="#ECFDF5" />
+            <ChevronLeft size={24} color="#0f172a" />
           </PressableScale>
           <Text style={pp.headerKicker}>{t('title')}</Text>
         </View>
         <ScrollView contentContainerStyle={[pp.scroll, isTablet && st.scrollTablet, { paddingBottom: insets.bottom + 120 }]} showsVerticalScrollIndicator={false}>
           {/* Encabezado: qué va a pasar y estado general del teléfono */}
           <View style={pp.hero}>
-            <View style={pp.heroArt}><ChestMountIllustration size={isTablet ? 120 : 96} /></View>
-            <View style={{ flex: 1, gap: 6 }}>
+            {/* Foto real del montaje: el celular va en el pecho con un arnés, o en el casco. */}
+            <View style={[pp.heroMedia, isTablet && { aspectRatio: 2.4 }]}>
+              <Image source={IMG_MOUNT_CHEST} style={pp.heroImg} resizeMode="cover" accessibilityIgnoresInvertColors />
+              <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)']} style={StyleSheet.absoluteFill} />
+              <View style={pp.heroTag}><Smartphone size={13} color="#0f766e" /><Text style={pp.heroTagText}>{t('mountTag')}</Text></View>
+              <View style={pp.heroThumb}>
+                <Image source={IMG_MOUNT_HELMET} style={pp.heroImg} resizeMode="cover" accessibilityIgnoresInvertColors />
+                <View style={pp.heroThumbLabel}><Text style={pp.heroThumbText}>{t('mountHelmetShort')}</Text></View>
+              </View>
+            </View>
+            <View style={{ gap: 6, paddingHorizontal: 2 }}>
               <Text style={pp.heroTitle}>{t('prepTitle')}</Text>
               <Text style={pp.heroBody}>{t('prepIntro')}</Text>
               <Reanimated.View
@@ -827,7 +844,7 @@ export default function RecorridoScreen() {
                 entering={reducedMotion ? undefined : PAUSE_IN}
                 style={[pp.ready, checking ? pp.readyChecking : warnings ? pp.readyWarn : pp.readyOk]}
               >
-                {checking ? <ActivityIndicator size="small" color="#6EE7B7" /> : warnings ? <AlertTriangle size={14} color="#FBBF24" /> : <CheckCircle2 size={14} color="#34D399" />}
+                {checking ? <ActivityIndicator size="small" color="#0f766e" /> : warnings ? <AlertTriangle size={14} color="#d97706" /> : <CheckCircle2 size={14} color="#16a34a" />}
                 <Text style={pp.readyText}>{checking ? t('prepChecking') : warnings ? t('prepWarnings', { count: warnings }) : t('prepReady')}</Text>
               </Reanimated.View>
             </View>
@@ -846,7 +863,7 @@ export default function RecorridoScreen() {
                   accessibilityRole="radio"
                   accessibilityState={{ selected: on }}
                 >
-                  {o.id === null && <MapPin size={14} color={on ? '#04140F' : '#A7F3D0'} />}
+                  {o.id === null && <MapPin size={14} color={on ? '#ffffff' : '#0f766e'} />}
                   <Text style={[pp.chipText, on && pp.chipTextOn]}>{o.nombre}</Text>
                 </PressableScale>
               );
@@ -861,7 +878,7 @@ export default function RecorridoScreen() {
                 <View style={pp.rowIcon}>{c.icon}</View>
                 <View style={{ flex: 1 }}>
                   <Text style={pp.rowLabel}>{c.label}</Text>
-                  <Text style={[pp.rowValue, c.status === 'warn' && { color: '#FCD34D' }]}>{c.value}</Text>
+                  <Text style={[pp.rowValue, c.status === 'warn' && { color: '#b45309' }]}>{c.value}</Text>
                 </View>
                 {/* el icono cambia con un fundido cuando termina la revisión */}
                 <Reanimated.View key={c.status} entering={reducedMotion ? undefined : PAUSE_IN}>{statusIcon(c.status)}</Reanimated.View>
@@ -881,7 +898,7 @@ export default function RecorridoScreen() {
             ))}
           </View>
         </ScrollView>
-        <LinearGradient colors={['rgba(4,20,15,0)', 'rgba(4,20,15,0.96)', '#04140F']} locations={[0, 0.35, 1]} style={[pp.footer, { paddingBottom: insets.bottom + 14 }]}>
+        <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.96)', '#FFFFFF']} locations={[0, 0.35, 1]} style={[pp.footer, { paddingBottom: insets.bottom + 14 }]}>
           <PressableScale style={pp.footBack} onPress={goBack} accessibilityRole="button" accessibilityLabel={t('prepBack')}>
             <Text style={pp.footBackText}>{t('prepBack')}</Text>
           </PressableScale>
@@ -1140,28 +1157,32 @@ export default function RecorridoScreen() {
   const pendingPhotos = locals.reduce((n, r) => n + r.fotos.length, 0);
   return (
     <View style={[hm.screen, { paddingTop: insets.top }]}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <View style={pp.header}>
         <PressableScale style={pp.backBtn} onPress={() => (router.canGoBack() ? router.back() : router.navigate('/(app)/scan'))} accessibilityRole="button" accessibilityLabel={t('back')}>
-          <ChevronLeft size={24} color="#ECFDF5" />
+          <ChevronLeft size={24} color="#0f172a" />
         </PressableScale>
         <Text style={pp.headerKicker}>{t('title')}</Text>
       </View>
       <ScrollView
         contentContainerStyle={[pp.scroll, isTablet && st.scrollTablet, { paddingBottom: insets.bottom + 40 }]}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => loadHome().then(() => uploadAll())} tintColor="#34D399" />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => loadHome().then(() => uploadAll())} tintColor="#0f766e" />}
         showsVerticalScrollIndicator={false}
       >
         <Text style={hm.title}>{t('homeTitle')}</Text>
 
         {/* Estado de sincronización: conexión + lo pendiente en el celular */}
-        <View style={[hm.sync, syncState === 'clear' ? hm.syncClear : syncState === 'uploading' || syncState === 'ready' ? hm.syncActive : hm.syncWait]}>
+        <Reanimated.View
+          key={`sync-${syncState}`}
+          entering={reducedMotion ? undefined : ITEM_IN}
+          style={[hm.sync, syncState === 'clear' ? hm.syncClear : syncState === 'uploading' || syncState === 'ready' ? hm.syncActive : hm.syncWait]}
+        >
           <View style={hm.syncIcon}>
-            {syncState === 'uploading' ? <ActivityIndicator size="small" color="#34D399" />
-              : syncState === 'clear' ? <CheckCircle2 size={20} color="#34D399" />
-              : syncState === 'offline' ? <WifiOff size={20} color="#FCD34D" />
-              : syncState === 'wifi' ? <Wifi size={20} color="#FCD34D" />
-              : <CloudUpload size={20} color="#34D399" />}
+            {syncState === 'uploading' ? <ActivityIndicator size="small" color="#16a34a" />
+              : syncState === 'clear' ? <CheckCircle2 size={20} color="#16a34a" />
+              : syncState === 'offline' ? <WifiOff size={20} color="#b45309" />
+              : syncState === 'wifi' ? <Wifi size={20} color="#b45309" />
+              : <CloudUpload size={20} color="#16a34a" />}
           </View>
           <View style={{ flex: 1 }}>
             <Text style={hm.syncTitle}>
@@ -1169,7 +1190,7 @@ export default function RecorridoScreen() {
             </Text>
             <Text style={hm.syncText}>{syncText}</Text>
           </View>
-        </View>
+        </Reanimated.View>
 
         {/* Por subir */}
         {locals.length > 0 && (
@@ -1178,8 +1199,13 @@ export default function RecorridoScreen() {
               const p = progress[r.localId];
               const pctDone = p && p.total ? (p.done / p.total) * 100 : 0;
               return (
-                <View key={r.localId} style={[hm.item, i > 0 && pp.rowBorder]}>
-                  <View style={hm.itemIcon}><Footprints size={18} color="#6EE7B7" /></View>
+                <Reanimated.View
+                  key={r.localId}
+                  exiting={reducedMotion ? undefined : ITEM_OUT}
+                  layout={reducedMotion ? undefined : LIST_REFLOW}
+                  style={[hm.item, i > 0 && pp.rowBorder]}
+                >
+                  <View style={hm.itemIcon}><Footprints size={18} color="#0f766e" /></View>
                   <View style={{ flex: 1 }}>
                     <Text style={hm.itemTitle}>{fmtDate(r.iniciadoAt)}</Text>
                     <Text style={hm.itemMeta}>
@@ -1198,15 +1224,15 @@ export default function RecorridoScreen() {
                   {!p ? (
                     <View style={st.listActions}>
                       <PressableScale style={[hm.smallBtn, network === 'offline' && { opacity: 0.45 }]} onPress={() => uploadAll({ force: true })} disabled={network === 'offline'} accessibilityRole="button" accessibilityLabel={t('upload')}>
-                        <CloudUpload size={16} color="#04140F" />
+                        <CloudUpload size={16} color="#ffffff" />
                         <Text style={hm.smallBtnText}>{t('upload')}</Text>
                       </PressableScale>
                       <PressableScale style={hm.iconBtn} onPress={() => confirmDelete(r)} accessibilityRole="button" accessibilityLabel={t('delete')}>
-                        <Trash2 size={16} color="#FCA5A5" />
+                        <Trash2 size={16} color="#b91c1c" />
                       </PressableScale>
                     </View>
                   ) : null}
-                </View>
+                </Reanimated.View>
               );
             })}
           </View>
@@ -1220,7 +1246,7 @@ export default function RecorridoScreen() {
           <Switch
             value={mobileData}
             onValueChange={async v => { setMobileData(v); await setMobileDataAllowed(v); if (v) uploadAll(); }}
-            trackColor={{ true: '#34d399', false: 'rgba(255,255,255,0.18)' }}
+            trackColor={{ true: '#34d399', false: '#cbd5e1' }}
             thumbColor="#fff"
           />
         </View>
@@ -1229,14 +1255,15 @@ export default function RecorridoScreen() {
         <Text style={pp.section}>{t('resultsTitle')}</Text>
         <View style={pp.card}>
           {pushState === 'denied' && (
-            <View style={hm.note}><Bell size={14} color="#FCD34D" /><Text style={hm.noteText}>{t('notifyOff')}</Text></View>
+            <View style={hm.note}><Bell size={14} color="#b45309" /><Text style={hm.noteText}>{t('notifyOff')}</Text></View>
           )}
           {loadError && <Text style={hm.error}>{t('loadError')}</Text>}
           {!loadError && !remotes.length && <Text style={hm.empty}>{t('resultsEmpty')}</Text>}
           {remotes.map((r, i) => {
             const info = statusInfo(r.estado);
             return (
-              <PressableScale key={r.id} style={[hm.item, i > 0 && pp.rowBorder]} onPress={() => openDetail(r.id)} accessibilityRole="button">
+              <Reanimated.View key={r.id} entering={reducedMotion ? undefined : ITEM_IN} layout={reducedMotion ? undefined : LIST_REFLOW}>
+              <PressableScale style={[hm.item, i > 0 && pp.rowBorder]} onPress={() => openDetail(r.id)} accessibilityRole="button">
                 <View style={[hm.itemIcon, { backgroundColor: info.bg }]}><Sparkles size={18} color={info.color} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={hm.itemTitle}>{orchardName(r.huerta_id) ?? fmtDate(r.iniciado_at)}</Text>
@@ -1247,6 +1274,7 @@ export default function RecorridoScreen() {
                 </View>
                 <View style={[st.chip, { backgroundColor: info.bg }]}><Text style={[st.chipText, { color: info.color }]}>{info.label}</Text></View>
               </PressableScale>
+              </Reanimated.View>
             );
           })}
         </View>
@@ -1268,7 +1296,7 @@ export default function RecorridoScreen() {
 }
 
 const st = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#f0fdf4' },
+  screen: { flex: 1, backgroundColor: '#FFFFFF' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
   backBtn: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#d1fae5' },
@@ -1413,73 +1441,80 @@ const st = StyleSheet.create({
   summaryBad: { backgroundColor: '#fef2f2' },
 });
 
-// Preparación: mismo lenguaje oscuro que el selector de Escanear, para que el paso se sienta continuo.
+// Preparación: fondo blanco, como el selector de Escanear, para que el paso se sienta continuo.
 const pp = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#04140F' },
+  screen: { flex: 1, backgroundColor: '#FFFFFF' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 8 },
-  backBtn: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(209,250,229,0.14)' },
-  headerKicker: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, letterSpacing: 1.4, textTransform: 'uppercase', color: '#6EE7B7' },
+  backBtn: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0' },
+  headerKicker: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, letterSpacing: 1.4, textTransform: 'uppercase', color: '#0f766e' },
   scroll: { paddingHorizontal: 16, paddingTop: 4, gap: 12 },
-  hero: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 26, backgroundColor: 'rgba(52,211,153,0.08)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.25)' },
+  hero: { gap: 12 },
+  heroMedia: { aspectRatio: 1.7, borderRadius: 24, overflow: 'hidden', backgroundColor: '#E2E8F0' },
+  heroImg: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
+  heroTag: { position: 'absolute', left: 12, bottom: 12, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#FFFFFF' },
+  heroTagText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#0f172a' },
+  heroThumb: { position: 'absolute', right: 12, top: 12, width: 96, height: 72, borderRadius: 14, overflow: 'hidden', borderWidth: 2, borderColor: '#FFFFFF', backgroundColor: '#E2E8F0' },
+  heroThumbLabel: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingVertical: 2, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.55)' },
+  heroThumbText: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: '#FFFFFF' },
   heroArt: { borderRadius: 999, overflow: 'hidden' },
-  heroTitle: { fontFamily: 'Poppins_700Bold', fontSize: 24, lineHeight: 29, letterSpacing: -0.6, color: '#ECFDF5' },
-  heroBody: { fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 19, color: 'rgba(209,250,229,0.7)' },
+  heroTitle: { fontFamily: 'Poppins_700Bold', fontSize: 26, lineHeight: 31, letterSpacing: -0.7, color: '#0A0A0A' },
+  heroBody: { fontFamily: 'Poppins_400Regular', fontSize: 13.5, lineHeight: 20, color: '#52606D' },
   ready: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1, marginTop: 2 },
-  readyChecking: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(209,250,229,0.18)' },
-  readyOk: { backgroundColor: 'rgba(52,211,153,0.14)', borderColor: 'rgba(52,211,153,0.4)' },
-  readyWarn: { backgroundColor: 'rgba(251,191,36,0.12)', borderColor: 'rgba(251,191,36,0.4)' },
-  readyText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#ECFDF5' },
-  section: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(209,250,229,0.55)', marginTop: 8, marginLeft: 4 },
+  readyChecking: { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' },
+  readyOk: { backgroundColor: '#F0FDF4', borderColor: '#86EFAC' },
+  readyWarn: { backgroundColor: '#FFFBEB', borderColor: '#FCD34D' },
+  readyText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#0f172a' },
+  section: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, letterSpacing: 1.2, textTransform: 'uppercase', color: '#64748B', marginTop: 8, marginLeft: 4 },
   chips: { gap: 8, paddingRight: 8 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 16, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(209,250,229,0.16)' },
-  chipOn: { backgroundColor: '#34D399', borderColor: '#34D399' },
-  chipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: '#D1FAE5' },
-  chipTextOn: { color: '#04140F' },
-  card: { borderRadius: 22, padding: 14, gap: 10, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(209,250,229,0.12)' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 16, borderRadius: 999, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0' },
+  chipOn: { backgroundColor: '#0f766e', borderColor: '#0f766e' },
+  chipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: '#334155' },
+  chipTextOn: { color: '#FFFFFF' },
+  card: { borderRadius: 22, padding: 14, gap: 10, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', shadowColor: '#0f172a', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
-  rowBorder: { borderTopWidth: 1, borderTopColor: 'rgba(209,250,229,0.08)', paddingTop: 12 },
-  rowIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(52,211,153,0.12)' },
-  rowLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#ECFDF5' },
-  rowValue: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: 'rgba(209,250,229,0.65)' },
-  hint: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(209,250,229,0.55)' },
+  rowBorder: { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 12 },
+  rowIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ECFDF5' },
+  rowLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#0f172a' },
+  rowValue: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: '#64748B' },
+  hint: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#64748B' },
   recRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  recBullet: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(52,211,153,0.16)', marginTop: 1 },
-  recBulletText: { fontFamily: 'Poppins_700Bold', fontSize: 11.5, color: '#6EE7B7' },
-  recText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 13.5, lineHeight: 20, color: '#D1FAE5' },
+  recBullet: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#CCFBF1', marginTop: 1 },
+  recBulletText: { fontFamily: 'Poppins_700Bold', fontSize: 11.5, color: '#0f766e' },
+  recText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 13.5, lineHeight: 20, color: '#334155' },
   footer: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 36 },
-  footBack: { flex: 1, minHeight: 60, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(209,250,229,0.16)' },
-  footBackText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#D1FAE5' },
-  footStart: { flex: 2, borderRadius: 20, overflow: 'hidden' },
+  footBack: { flex: 1, minHeight: 60, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' },
+  footBackText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#0f766e' },
+  footStart: { flex: 2, borderRadius: 20, overflow: 'hidden', shadowColor: '#0f766e', shadowOpacity: 0.2, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
   footStartGrad: { flex: 1, minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
 });
 
-// Inicio del recorrido (lista y sincronización), mismo lenguaje oscuro.
+// Mis recorridos (lista y sincronización), mismo fondo blanco.
 const hm = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#04140F' },
-  title: { fontFamily: 'Poppins_700Bold', fontSize: 30, lineHeight: 36, letterSpacing: -0.8, color: '#ECFDF5', marginBottom: 2 },
+  screen: { flex: 1, backgroundColor: '#FFFFFF' },
+  title: { fontFamily: 'Poppins_700Bold', fontSize: 30, lineHeight: 36, letterSpacing: -0.8, color: '#0A0A0A', marginBottom: 2 },
   sync: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 22, borderWidth: 1 },
-  syncClear: { backgroundColor: 'rgba(52,211,153,0.08)', borderColor: 'rgba(52,211,153,0.3)' },
-  syncActive: { backgroundColor: 'rgba(52,211,153,0.12)', borderColor: 'rgba(52,211,153,0.45)' },
-  syncWait: { backgroundColor: 'rgba(252,211,77,0.08)', borderColor: 'rgba(252,211,77,0.35)' },
-  syncIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)' },
-  syncTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 14.5, color: '#ECFDF5' },
-  syncText: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: 'rgba(209,250,229,0.7)' },
+  syncClear: { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
+  syncActive: { backgroundColor: '#ECFDF5', borderColor: '#6EE7B7' },
+  syncWait: { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
+  syncIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF' },
+  syncTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 14.5, color: '#0f172a' },
+  syncText: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: '#475569' },
   item: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
-  itemIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(52,211,153,0.12)' },
-  itemTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#ECFDF5' },
-  itemMeta: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(209,250,229,0.6)' },
-  itemHint: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: '#93C5FD', marginTop: 2 },
-  itemProgress: { fontFamily: 'Poppins_600SemiBold', fontSize: 11.5, color: '#6EE7B7', marginTop: 3 },
-  track: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 5, overflow: 'hidden' },
-  fill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3, backgroundColor: '#34D399' },
-  error: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#FCA5A5' },
-  smallBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 40, paddingHorizontal: 12, borderRadius: 12, backgroundColor: '#34D399' },
-  smallBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: '#04140F' },
-  iconBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(248,113,113,0.12)' },
-  note: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 12, backgroundColor: 'rgba(252,211,77,0.08)' },
-  noteText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#FDE68A' },
+  itemIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ECFDF5' },
+  itemTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#0f172a' },
+  itemMeta: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#64748B' },
+  itemHint: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: '#0369a1', marginTop: 2 },
+  itemProgress: { fontFamily: 'Poppins_600SemiBold', fontSize: 11.5, color: '#0f766e', marginTop: 3 },
+  track: { height: 6, borderRadius: 3, backgroundColor: '#E2E8F0', marginTop: 5, overflow: 'hidden' },
+  fill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3, backgroundColor: '#14b8a6' },
+  error: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#b91c1c' },
+  smallBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 40, paddingHorizontal: 12, borderRadius: 12, backgroundColor: '#0f766e' },
+  smallBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: '#FFFFFF' },
+  iconBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FEF2F2' },
+  note: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 12, backgroundColor: '#FFFBEB' },
+  noteText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#92400E' },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  empty: { fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 19, color: 'rgba(209,250,229,0.6)', textAlign: 'center', paddingVertical: 6 },
+  empty: { fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 19, color: '#64748B', textAlign: 'center', paddingVertical: 6 },
   newBtn: { borderRadius: 20, overflow: 'hidden', marginTop: 6 },
-  privacy: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, lineHeight: 17, color: 'rgba(209,250,229,0.45)', paddingHorizontal: 4 },
+  privacy: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, lineHeight: 17, color: '#94A3B8', paddingHorizontal: 4 },
 });

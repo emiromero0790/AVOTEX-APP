@@ -20,7 +20,8 @@
         "NSCameraUsageDescription": "Necesitamos acceso a la cámara para escanear y analizar tus cultivos con Inteligencia Artificial.",
         "NSPhotoLibraryUsageDescription": "Permite seleccionar imágenes de tus cultivos para su análisis.",
         "NSPhotoLibraryAddUsageDescription": "Permite guardar capturas del análisis de tus cultivos.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CADisableMinimumFrameDurationOnPhone": true
       }
     },
     "web": {
@@ -64,7 +65,13 @@
       "expo-asset",
       "expo-font",
       "expo-web-browser",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "color": "#0f766e"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

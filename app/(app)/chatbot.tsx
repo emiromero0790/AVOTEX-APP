@@ -82,7 +82,7 @@ export default function ChatbotScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold });
 
   const [waitingForEmail, setWaitingForEmail] = useState(false);

@@ -55,7 +55,7 @@ export default function PrivacyScreen() {
 
   return (
     <View style={s.root}>
-      <View style={StyleSheet.absoluteFillObject} />
+      <View style={StyleSheet.absoluteFill} />
 
       <View style={s.topBar}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>

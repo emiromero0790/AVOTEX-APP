@@ -32,6 +32,7 @@ app/
     results.tsx        — Scan history + charts
     agenda.tsx         — Recommendations & tasks
     chatbot.tsx        — Gemini AI chatbot
+    recorrido.tsx      — Recorrido con IA: fotos automáticas con GPS, sin internet; sube con WiFi
     privacy.tsx        — Privacy notice
     profile.tsx        — User profile
 context/
@@ -79,3 +80,17 @@ Supabase tables:
 - Expo docs: https://docs.expo.dev
 - Firebase Web SDK v9 modular API
 - Supabase JS client v2
+
+## Recorrido con IA (modo recorrido)
+- Pantalla `app/(app)/recorrido.tsx` (tarjeta "Recorrido con IA" en Inicio). Toma una foto cada 2.5 m con GPS
+  mientras el agricultor camina; todo se guarda en el celular (`services/recorridos.ts`) y funciona sin internet.
+- Con WiFi (o datos móviles si el usuario lo permite) sube las fotos a Supabase Storage (bucket `recorridos`)
+  y marca el recorrido `pendiente`. El procesador `processor/` (GitHub Actions cada 10 min) llama al modelo,
+  guarda `hallazgos` y envía la notificación push (`services/push.ts`, Expo).
+- Tablas: `supabase/migrations/20261030_recorridos.sql`.
+- Dependencias nativas nuevas: expo-notifications, expo-network, expo-keep-awake, expo-device → requiere
+  nueva compilación con EAS (no basta una actualización OTA).
+- Push en Android requiere FCM: `google-services.json` del proyecto Firebase (paquete com.vex.avotex),
+  regenerar `android/` (`npx expo prebuild --platform android --clean` con `"googleServicesFile"` en app.json)
+  y subir la clave FCM v1 en EAS (`eas credentials`). En iOS EAS configura APNs. Sin esto todo funciona
+  salvo la notificación.

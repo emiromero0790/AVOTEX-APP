@@ -976,7 +976,7 @@ const s = StyleSheet.create({
   bgLayer: {
     position: 'absolute', width: '100%', height: '100%', overflow: 'hidden', zIndex: 0,
   },
-  pageBackground: { ...StyleSheet.absoluteFillObject, backgroundColor: '#FFFFFF', zIndex: 0 },
+  pageBackground: { ...StyleSheet.absoluteFill, backgroundColor: '#FFFFFF', zIndex: 0 },
   centerVignette: {
     position: 'absolute',
     top: '15%', left: '8%',

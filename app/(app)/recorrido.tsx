@@ -22,6 +22,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import Reanimated, { FadeIn, FadeOut, useReducedMotion } from 'react-native-reanimated';
 import {
   ChevronLeft,
   CloudOff,
@@ -43,6 +45,8 @@ import {
   Info,
   HardDrive,
   Wifi,
+  Signal,
+  Smartphone,
 } from 'lucide-react-native';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
@@ -77,6 +81,15 @@ import {
 import { registerForPush } from '../../services/push';
 import RecorridoMap from '../../components/RecorridoMap';
 import { ChestMountIllustration } from '../../components/scan/ScanIllustrations';
+import { CSS_EASE_OUT, EASE_OUT, PressableScale, PulseRing } from '../../components/scan/motion';
+
+// Duración de "mantén presionado para terminar": evita cortar un recorrido por un toque accidental.
+const HOLD_TO_FINISH_MS = 900;
+const HUD_FADE_IN = FadeIn.duration(250).easing(EASE_OUT);
+const PAUSE_IN = FadeIn.duration(200).easing(EASE_OUT);
+const PAUSE_OUT = FadeOut.duration(160);
+// El número de fotos "late" una vez cada vez que se guarda una imagen nueva.
+const COUNT_POP = { from: { transform: [{ scale: 1.18 }] }, to: { transform: [{ scale: 1 }] } };
 
 const auth = firebaseAuth as Auth;
 
@@ -171,6 +184,14 @@ const translations: TranslationResource = {
   pause: { es: 'Pausar', en: 'Pause' },
   resume: { es: 'Seguir', en: 'Resume' },
   finish: { es: 'Terminar', en: 'Finish' },
+  holdToFinish: { es: 'Mantén presionado para terminar', en: 'Press and hold to finish' },
+  pausedHint: { es: 'La captura está detenida. Toca “Seguir” para continuar.', en: 'Capture is stopped. Tap “Resume” to continue.' },
+  savedOnPhone: { es: 'Se guarda en el celular', en: 'Saving on this phone' },
+  netOffline: { es: 'Sin señal · se sube después', en: 'No signal · uploads later' },
+  netWifi: { es: 'WiFi · se sube al terminar', en: 'WiFi · uploads when done' },
+  netCellular: { es: 'Datos · se sube con WiFi', en: 'Mobile data · uploads on WiFi' },
+  netCellularOn: { es: 'Datos · se sube al terminar', en: 'Mobile data · uploads when done' },
+  autoCapture: { es: 'Captura automática', en: 'Automatic capture' },
   limitReached: { es: 'Llegaste al máximo de imágenes de un recorrido. Termina y empieza otro.', en: 'You reached the image limit for one walk. Finish and start another.' },
   noSpace: { es: 'Tu celular tiene poco espacio libre. Libera espacio antes de grabar.', en: 'Your phone is low on storage. Free some space before recording.' },
   permCamera: { es: 'Necesitamos la cámara para grabar el recorrido.', en: 'We need the camera to record the walk.' },
@@ -182,6 +203,10 @@ const translations: TranslationResource = {
   // detalle
   detailTitle: { es: 'Recorrido del {date}', en: 'Walk of {date}' },
   analyzed: { es: 'imágenes analizadas', en: 'images analyzed' },
+  capturedLabel: { es: 'capturadas', en: 'captured' },
+  analyzedShort: { es: 'analizadas', en: 'analyzed' },
+  discardedLabel: { es: 'descartadas', en: 'discarded' },
+  discardedHint: { es: 'Las descartadas son fotos movidas o borrosas que no se enviaron al modelo.', en: 'Discarded photos were blurry or shaky and were not sent to the model.' },
   findingsLabel: { es: 'hallazgos', en: 'findings' },
   healthyLabel: { es: 'sanos', en: 'healthy' },
   issuesLabel: { es: 'con problema', en: 'with issues' },
@@ -279,6 +304,10 @@ export default function RecorridoScreen() {
   const startedAtRef = useRef(0);
   const pausedMsRef = useRef(0);
   const pauseStartRef = useRef<number | null>(null);
+  const reducedMotion = useReducedMotion();
+  const [holding, setHolding] = useState(false);
+  const [holdHint, setHoldHint] = useState(false);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── detalle ──
   const [detail, setDetail] = useState<RecorridoRemoto | null>(null);
@@ -363,6 +392,23 @@ export default function RecorridoScreen() {
       uploadingRef.current = false;
     }
   }, [email, pushState, refreshNetwork]);
+
+  // Conexión en vivo (inicio y grabación). En el inicio, al recuperar la señal se intenta subir lo pendiente
+  // con la misma regla de siempre (WiFi, o datos móviles si el usuario lo permitió).
+  const networkRef = useRef(network);
+  useEffect(() => {
+    if ((mode !== 'home' && mode !== 'record') || !email || isGuest) return;
+    const sub = Network.addNetworkStateListener(st => {
+      const kind = !st.isConnected || st.isInternetReachable === false ? 'offline'
+        : st.type === Network.NetworkStateType.WIFI || st.type === Network.NetworkStateType.ETHERNET ? 'wifi' : 'cellular';
+      const was = networkRef.current;
+      networkRef.current = kind;
+      setNetwork(kind);
+      if (mode === 'home' && was === 'offline' && kind !== 'offline') uploadAll();
+    });
+    return () => sub.remove();
+  }, [mode, email, isGuest, uploadAll]);
+  useEffect(() => { networkRef.current = network; }, [network]);
 
   useFocusEffect(
     useCallback(() => {
@@ -500,6 +546,7 @@ export default function RecorridoScreen() {
       pausedRef.current = false;
       setPaused(false);
       setLimitHit(false);
+      setHoldHint(false);
       setCameraReady(false);
       cameraReadyRef.current = false;
       setStats({ elapsed: 0, distance: 0, photos: 0, accuracy: null, gps: withGps ? 'searching' : 'lost' });
@@ -507,6 +554,8 @@ export default function RecorridoScreen() {
       pausedMsRef.current = 0;
       pauseStartRef.current = null;
       setMode('record');
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      refreshNetwork();
       activateKeepAwakeAsync('recorrido').catch(() => {});
       if (withGps) {
         watchRef.current = await Location.watchPositionAsync(
@@ -540,12 +589,13 @@ export default function RecorridoScreen() {
       return;
     }
     await begin(true);
-  }, [email, huertaId, cameraPermission, requestCameraPermission, onPosition, shoot, t]);
+  }, [email, huertaId, cameraPermission, requestCameraPermission, onPosition, shoot, refreshNetwork, t]);
 
   const togglePause = useCallback(() => {
     const next = !pausedRef.current;
     pausedRef.current = next;
     setPaused(next);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     if (next) pauseStartRef.current = Date.now();
     else if (pauseStartRef.current) {
       pausedMsRef.current += Date.now() - pauseStartRef.current;
@@ -573,6 +623,25 @@ export default function RecorridoScreen() {
     await loadHome();
     uploadAll();
   }, [stopSensors, loadHome, uploadAll, t]);
+
+  // Terminar: se mantiene presionado; soltar antes cancela. Lectores de pantalla usan la acción directa.
+  const cancelHold = useCallback(() => {
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = null;
+    setHolding(false);
+  }, []);
+  const startHold = useCallback(() => {
+    setHoldHint(false);
+    setHolding(true);
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = setTimeout(() => {
+      holdTimerRef.current = null;
+      setHolding(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      finishRecording();
+    }, HOLD_TO_FINISH_MS);
+  }, [finishRecording]);
+  useEffect(() => () => { if (holdTimerRef.current) clearTimeout(holdTimerRef.current); }, []);
 
   // Si se sale de la pantalla a medio recorrido, se guarda lo grabado.
   useEffect(() => () => {
@@ -768,6 +837,11 @@ export default function RecorridoScreen() {
 
   if (mode === 'record') {
     const gpsText = stats.gps === 'ok' ? t('gpsOk', { m: Math.max(1, Math.round(stats.accuracy ?? 0)) }) : stats.gps === 'searching' ? t('gpsSearching') : t('gpsLost');
+    const netText = network === 'offline' ? t('netOffline')
+      : network === 'wifi' ? t('netWifi')
+      : network === 'cellular' ? (mobileData ? t('netCellularOn') : t('netCellular'))
+      : t('savedOnPhone');
+    const NetIcon = network === 'offline' ? WifiOff : network === 'wifi' ? Wifi : network === 'cellular' ? Signal : Smartphone;
     return (
       <View style={st.recordScreen}>
         <StatusBar style="light" />
@@ -779,38 +853,107 @@ export default function RecorridoScreen() {
           pictureSize={pictureSize}
           onCameraReady={onCameraReady}
         />
-        <LinearGradient colors={['rgba(0,0,0,0.65)', 'transparent']} style={[st.recordTop, { paddingTop: insets.top + 10 }]}>
-          <View style={st.recRow}>
-            <View style={[st.recDot, paused && st.recDotPaused]} />
-            <Text style={st.recTitle}>{paused ? t('paused') : t('recording')}</Text>
-          </View>
-          <View style={[st.gpsPill, stats.gps === 'ok' ? st.gpsOk : stats.gps === 'lost' ? st.gpsLost : st.gpsSearch]}>
-            <MapPin size={14} color="#fff" />
-            <Text style={st.gpsText}>{gpsText}</Text>
-          </View>
+        <LinearGradient colors={['rgba(0,0,0,0.7)', 'transparent']} style={[st.recordTop, { paddingTop: insets.top + 10 }]}>
+          <Reanimated.View entering={HUD_FADE_IN} style={st.recTopRow}>
+            <View style={[st.recBadge, paused && st.recBadgePaused]}>
+              <View style={st.recDotWrap}>
+                {/* Único bucle de la pantalla: late mientras se graba y se detiene en pausa. */}
+                <PulseRing size={20} color={paused ? '#facc15' : '#f87171'} paused={paused} />
+                <View style={[st.recDot, paused && st.recDotPaused]} />
+              </View>
+              <Text style={st.recTitle}>{paused ? t('paused') : t('recording')}</Text>
+            </View>
+            <View style={st.recTimer} accessibilityLabel={`${t('time')} ${formatDuration(stats.elapsed)}`}>
+              <Text style={st.recTimerText}>{formatDuration(stats.elapsed)}</Text>
+            </View>
+          </Reanimated.View>
+          <Reanimated.View entering={HUD_FADE_IN} style={st.pillsRow}>
+            <View style={[st.gpsPill, stats.gps === 'ok' ? st.gpsOk : stats.gps === 'lost' ? st.gpsLost : st.gpsSearch]}>
+              <MapPin size={13} color="#fff" />
+              <Text style={st.gpsText}>{gpsText}</Text>
+            </View>
+            <View style={[st.gpsPill, st.netPill]}>
+              <NetIcon size={13} color="#fff" />
+              <Text style={st.gpsText}>{netText}</Text>
+            </View>
+          </Reanimated.View>
         </LinearGradient>
 
         {!cameraReady && (
           <View style={st.cameraLoading}><ActivityIndicator color="#fff" size="large" /></View>
         )}
 
-        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)']} style={[st.recordBottom, { paddingBottom: insets.bottom + 18 }]}>
+        {paused && (
+          <Reanimated.View entering={PAUSE_IN} exiting={PAUSE_OUT} style={st.pauseOverlay} pointerEvents="none">
+            <View style={st.pauseIcon}><Pause size={30} color="#0f172a" fill="#0f172a" /></View>
+            <Text style={st.pauseTitle}>{t('paused')}</Text>
+            <Text style={st.pauseBody}>{t('pausedHint')}</Text>
+          </Reanimated.View>
+        )}
+
+        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={[st.recordBottom, { paddingBottom: insets.bottom + 18 }]}>
           {limitHit && <Text style={st.limitText}>{t('limitReached')}</Text>}
           <View style={st.statsRow}>
-            <View style={st.statBox}><Text style={st.statValue}>{formatDuration(stats.elapsed)}</Text><Text style={st.statLabel}>{t('time')}</Text></View>
-            <View style={st.statBox}><Text style={st.statValue}>{formatDistance(stats.distance)}</Text><Text style={st.statLabel}>{t('distance')}</Text></View>
-            <View style={st.statBox}><Text style={st.statValue}>{stats.photos}</Text><Text style={st.statLabel}>{t('images')}</Text></View>
+            <View style={[st.statBox, st.statMain]}>
+              <View style={st.statHead}>
+                <CameraIcon size={13} color="#6ee7b7" />
+                <Text style={st.statLabel}>{t('images')}</Text>
+              </View>
+              <Reanimated.Text
+                key={stats.photos}
+                style={[
+                  st.statValueBig,
+                  stats.photos > 0 && !reducedMotion
+                    ? { animationName: COUNT_POP, animationDuration: 180, animationTimingFunction: CSS_EASE_OUT }
+                    : null,
+                ]}
+              >
+                {stats.photos}
+              </Reanimated.Text>
+              <Text style={st.statFoot}>{t('autoCapture')}</Text>
+            </View>
+            <View style={st.statBox}>
+              <View style={st.statHead}>
+                <Footprints size={13} color="#6ee7b7" />
+                <Text style={st.statLabel}>{t('distance')}</Text>
+              </View>
+              <Text style={st.statValue}>{formatDistance(stats.distance)}</Text>
+              <Text style={st.statFoot}>{t('savedOnPhone')}</Text>
+            </View>
           </View>
-          <Text style={st.recordTip}>{t('tips')}</Text>
+          <Text style={st.recordTip}>{holdHint ? t('holdToFinish') : t('tips')}</Text>
           <View style={st.recordActions}>
-            <TouchableOpacity style={st.recSecondary} onPress={togglePause} accessibilityRole="button">
-              {paused ? <Play size={22} color="#fff" /> : <Pause size={22} color="#fff" />}
+            <PressableScale style={st.recSecondary} onPress={togglePause} accessibilityRole="button" accessibilityLabel={paused ? t('resume') : t('pause')}>
+              {paused ? <Play size={22} color="#fff" fill="#fff" /> : <Pause size={22} color="#fff" fill="#fff" />}
               <Text style={st.recSecondaryText}>{paused ? t('resume') : t('pause')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={st.recStop} onPress={finishRecording} accessibilityRole="button">
-              <Square size={20} color="#fff" fill="#fff" />
+            </PressableScale>
+            <PressableScale
+              style={st.recStop}
+              onPressIn={startHold}
+              onPressOut={cancelHold}
+              onPress={() => { if (!holdTimerRef.current) setHoldHint(true); }}
+              accessibilityRole="button"
+              accessibilityLabel={t('finish')}
+              accessibilityHint={t('holdToFinish')}
+              accessibilityActions={[{ name: 'activate' }]}
+              onAccessibilityAction={e => { if (e.nativeEvent.actionName === 'activate') finishRecording(); }}
+            >
+              {/* Relleno que avanza mientras se mantiene presionado; al soltar antes, regresa rápido. */}
+              <Reanimated.View
+                pointerEvents="none"
+                style={[
+                  st.holdFill,
+                  {
+                    transform: [{ scaleX: holding ? 1 : 0 }],
+                    transitionProperty: 'transform',
+                    transitionDuration: holding ? HOLD_TO_FINISH_MS : 200,
+                    transitionTimingFunction: holding ? 'linear' : CSS_EASE_OUT,
+                  },
+                ]}
+              />
+              <Square size={18} color="#fff" fill="#fff" />
               <Text style={st.recStopText}>{t('finish')}</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         </LinearGradient>
       </View>
@@ -847,11 +990,18 @@ export default function RecorridoScreen() {
                 {info && <View style={[st.chip, { backgroundColor: info.bg }]}><Text style={[st.chipText, { color: info.color }]}>{info.label}</Text></View>}
               </View>
               {detail.estado === 'listo' ? (
-                <View style={st.summaryRow}>
-                  <View style={st.summaryBox}><Text style={st.summaryValue}>{detail.fotos_analizadas}</Text><Text style={st.summaryLabel}>{t('analyzed')}</Text></View>
-                  <View style={st.summaryBox}><Text style={[st.summaryValue, { color: '#15803d' }]}>{healthy}</Text><Text style={st.summaryLabel}>{t('healthyLabel')}</Text></View>
-                  <View style={st.summaryBox}><Text style={[st.summaryValue, { color: '#b91c1c' }]}>{hallazgos.length - healthy}</Text><Text style={st.summaryLabel}>{t('issuesLabel')}</Text></View>
-                </View>
+                <>
+                  <View style={st.summaryRow}>
+                    <View style={st.summaryBox}><Text style={st.summaryValue}>{detail.fotos_total}</Text><Text style={st.summaryLabel}>{t('capturedLabel')}</Text></View>
+                    <View style={st.summaryBox}><Text style={[st.summaryValue, { color: '#0f766e' }]}>{detail.fotos_analizadas}</Text><Text style={st.summaryLabel}>{t('analyzedShort')}</Text></View>
+                    <View style={st.summaryBox}><Text style={[st.summaryValue, { color: '#64748b' }]}>{Math.max(0, detail.fotos_total - detail.fotos_analizadas)}</Text><Text style={st.summaryLabel}>{t('discardedLabel')}</Text></View>
+                  </View>
+                  {detail.fotos_total > detail.fotos_analizadas && <Text style={st.summaryHint}>{t('discardedHint')}</Text>}
+                  <View style={st.summaryRow}>
+                    <View style={[st.summaryBox, st.summaryOk]}><Text style={[st.summaryValue, { color: '#15803d' }]}>{healthy}</Text><Text style={st.summaryLabel}>{t('healthyLabel')}</Text></View>
+                    <View style={[st.summaryBox, st.summaryBad]}><Text style={[st.summaryValue, { color: '#b91c1c' }]}>{hallazgos.length - healthy}</Text><Text style={st.summaryLabel}>{t('issuesLabel')}</Text></View>
+                  </View>
+                </>
               ) : (
                 <Text style={st.muted}>{detail.estado === 'error' ? t('errorProcessing') : t('stillProcessing')}</Text>
               )}
@@ -978,7 +1128,16 @@ export default function RecorridoScreen() {
                     {orchardName(r.huertaId) ? ` · ${orchardName(r.huertaId)}` : ''}
                   </Text>
                   {p && <Text style={st.listProgress}>{t('uploading', { done: p.done, total: p.total })}</Text>}
-                  {p && <View style={st.progressTrack}><View style={[st.progressFill, { width: `${p.total ? (p.done / p.total) * 100 : 0}%` }]} /></View>}
+                  {p && (
+                    <View style={st.progressTrack}>
+                      <Reanimated.View
+                        style={[
+                          st.progressFill,
+                          { width: `${p.total ? (p.done / p.total) * 100 : 0}%`, transitionProperty: 'width', transitionDuration: 300, transitionTimingFunction: CSS_EASE_OUT },
+                        ]}
+                      />
+                    </View>
+                  )}
                   {uploadErrors[r.localId] && !p && <Text style={st.errorText}>{t('uploadError')}</Text>}
                 </View>
                 {!p && (
@@ -1082,7 +1241,8 @@ const st = StyleSheet.create({
   listHint: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: '#0369a1', marginTop: 2 },
   listProgress: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#0f766e', marginTop: 2 },
   progressTrack: { height: 5, borderRadius: 3, backgroundColor: '#e2e8f0', marginTop: 4, overflow: 'hidden' },
-  progressFill: { height: 5, backgroundColor: '#14b8a6' },
+  // Relleno absoluto y sin hijos: puede animar su ancho sin recalcular el resto del layout.
+  progressFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#14b8a6', borderRadius: 3 },
   listActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   smallBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: '#ecfdf5' },
   smallBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#0f766e' },
@@ -1136,27 +1296,46 @@ const st = StyleSheet.create({
   prepStartBtn: { flex: 2, borderRadius: 18, overflow: 'hidden' },
   // grabación
   recordScreen: { flex: 1, backgroundColor: '#000' },
-  recordTop: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 18, paddingBottom: 28, gap: 10 },
-  recRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  recordTop: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 16, paddingBottom: 32, gap: 10 },
+  recTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  recBadge: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 12, paddingRight: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: 'rgba(127,29,29,0.55)', borderWidth: 1, borderColor: 'rgba(248,113,113,0.45)' },
+  recBadgePaused: { backgroundColor: 'rgba(113,63,18,0.6)', borderColor: 'rgba(250,204,21,0.5)' },
+  recDotWrap: { width: 12, height: 12 },
   recDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#ef4444' },
   recDotPaused: { backgroundColor: '#facc15' },
-  recTitle: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: '#fff' },
-  gpsPill: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+  recTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#fff' },
+  recTimer: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14, backgroundColor: 'rgba(15,23,42,0.6)' },
+  recTimerText: { fontFamily: 'Poppins_700Bold', fontSize: 20, color: '#fff', fontVariant: ['tabular-nums'] },
+  pillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  gpsPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
   gpsOk: { backgroundColor: 'rgba(22,163,74,0.85)' },
   gpsSearch: { backgroundColor: 'rgba(100,116,139,0.85)' },
   gpsLost: { backgroundColor: 'rgba(202,138,4,0.9)' },
+  netPill: { backgroundColor: 'rgba(15,23,42,0.65)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
   gpsText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#fff' },
   cameraLoading: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  recordBottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 18, paddingTop: 40, gap: 12 },
+  pauseOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(2,6,23,0.55)', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 40 },
+  pauseIcon: { width: 68, height: 68, borderRadius: 34, backgroundColor: '#facc15', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  pauseTitle: { fontFamily: 'Poppins_700Bold', fontSize: 22, color: '#fff' },
+  pauseBody: { fontFamily: 'Poppins_400Regular', fontSize: 13.5, lineHeight: 20, color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
+  recordBottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 48, gap: 12 },
   limitText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#fde68a', textAlign: 'center' },
   statsRow: { flexDirection: 'row', gap: 8 },
-  statBox: { flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', borderRadius: 16, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
-  statValue: { fontFamily: 'Poppins_700Bold', fontSize: 20, color: '#fff' },
-  statLabel: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: 'rgba(255,255,255,0.75)' },
+  statBox: { flex: 1, backgroundColor: 'rgba(15,23,42,0.62)', borderRadius: 18, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', gap: 2 },
+  statMain: { flex: 1.15, borderColor: 'rgba(110,231,183,0.35)' },
+  statHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statValue: { fontFamily: 'Poppins_700Bold', fontSize: 24, color: '#fff' },
+  statValueBig: { fontFamily: 'Poppins_700Bold', fontSize: 30, lineHeight: 36, color: '#fff', alignSelf: 'flex-start', fontVariant: ['tabular-nums'] },
+  statLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: 0.6 },
+  statFoot: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: 'rgba(255,255,255,0.6)' },
   recordTip: { fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 17, color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
   recordActions: { flexDirection: 'row', gap: 10 },
-  recSecondary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  recSecondary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 17, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
   recSecondaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#fff' },
-  recStop: { flex: 1.3, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: 18, backgroundColor: '#dc2626' },
+  recStop: { flex: 1.3, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 17, borderRadius: 20, backgroundColor: '#b91c1c', overflow: 'hidden' },
+  holdFill: { position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, backgroundColor: '#ef4444', transformOrigin: 'left' },
   recStopText: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' },
+  summaryHint: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, lineHeight: 16, color: '#64748b' },
+  summaryOk: { backgroundColor: '#f0fdf4' },
+  summaryBad: { backgroundColor: '#fef2f2' },
 });

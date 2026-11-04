@@ -5,14 +5,16 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Animated,
   Modal,
   Platform,
   ScrollView,
   useWindowDimensions,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
-import { RotateCw as RotateCwIcon, Camera as CameraIcon, Shield, Lock, ChevronLeft } from "lucide-react-native";
+import { RotateCw as RotateCwIcon, Shield, Lock, ChevronLeft, Coins, Focus, CheckCircle2, AlertTriangle } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
+import Reanimated, { FadeIn, FadeInDown, FadeOut, useReducedMotion } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { useFocusEffect } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
@@ -26,6 +28,18 @@ import { useGuest, GUEST_MAX_SCANS } from "../../context/GuestContext";
 import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations } from "../../context/LanguageContext";
 import ScanModeChooser from "../../components/ScanModeChooser";
 import { listLocal } from "../../services/recorridos";
+import { CSS_EASE_OUT, EASE_OUT, PressableScale } from "../../components/scan/motion";
+
+// Entradas y salidas de una sola vez (resultado, estado de análisis). Constantes de módulo, ver skill animate-expo.
+const RESULT_ENTER = FadeInDown.duration(260).easing(EASE_OUT);
+const RESULT_ENTER_REDUCED = FadeIn.duration(200);
+const RESULT_EXIT = FadeOut.duration(180);
+const STATE_FADE_IN = FadeIn.duration(200).easing(EASE_OUT);
+const STATE_FADE_OUT = FadeOut.duration(160);
+
+// Destello breve al capturar: confirma que la foto se tomó.
+const FLASH_KEYFRAMES = { from: { opacity: 0.75 }, to: { opacity: 0 } };
+
 
 const scanTranslations: TranslationResource = {
   cameraAccess: { es: "Necesitamos acceso a la cámara", en: "Camera access is required" },
@@ -71,6 +85,15 @@ const scanTranslations: TranslationResource = {
   takePhoto: { es: "Tomar foto", en: "Take photo" },
   modes: { es: "Modos", en: "Modes" },
   backToModes: { es: "Volver a elegir el modo de escaneo", en: "Back to scan modes" },
+  photoMode: { es: "Foto individual", en: "Single photo" },
+  tip1: { es: "Centra un solo fruto en el recuadro", en: "Center one fruit in the frame" },
+  tip2: { es: "Buena luz, sin contraluz", en: "Good light, no backlight" },
+  tip3: { es: "A unos 30 cm del fruto", en: "About 30 cm from the fruit" },
+  resultHealthy: { es: "Fruto sano", en: "Healthy fruit" },
+  resultIssue: { es: "Posible problema detectado", en: "Possible issue detected" },
+  fruitLabel: { es: "Fruto", en: "Fruit" },
+  stateLabel: { es: "Estado", en: "Condition" },
+  scanAgain: { es: "Escanear otro", en: "Scan another" },
 };
 
 const IA_ROW_ID = '7293688b-1ee9-469c-9679-d69d9a1089a5';
@@ -112,7 +135,10 @@ export default function Scan() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const isBusyRef = useRef(false);
-  const spinValue = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
+  // Cada captura cambia la llave y vuelve a montar el destello (una sola reproducción por foto).
+  const [flashKey, setFlashKey] = useState(0);
 
   // Al entrar a "Escanear" primero se elige el modo: foto individual o recorrido con IA.
   const [mode, setMode] = useState<"choose" | "photo">("choose");
@@ -130,25 +156,6 @@ export default function Scan() {
   const isTablet = width >= 768;
 
   const scanFrameSize = isTablet ? 320 : 240;
-
-  useEffect(() => {
-    if (isProcessing || isSaving) {
-      Animated.loop(
-        Animated.timing(spinValue, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        })
-      ).start();
-    } else {
-      spinValue.setValue(0);
-    }
-  }, [isProcessing, isSaving]);
-
-  const spin = spinValue.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
 
   useEffect(() => {
     (async () => {
@@ -344,6 +351,10 @@ export default function Scan() {
     setIsProcessing(true);
     setPrediction(null);
 
+    // Mismo instante que el destello: una vibración media confirma el disparo.
+    setFlashKey(k => k + 1);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+
     try {
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.7,
@@ -357,6 +368,11 @@ export default function Scan() {
 
       if (pred) {
         setPrediction(pred);
+        Haptics.notificationAsync(
+          isHealthyLabel(pred.state.class_name)
+            ? Haptics.NotificationFeedbackType.Success
+            : Haptics.NotificationFeedbackType.Warning,
+        ).catch(() => {});
         if (!isGuest) {
           await saveScanResult(pred);
         }
@@ -409,57 +425,63 @@ export default function Scan() {
     setType((current) => (current === "back" ? "front" : "back"));
   };
 
-  // ── Result card — sin "otras posibles frutas", con botón Aceptar ──
+  // ── Tarjeta de resultado: diagnóstico primero, confianza como dato secundario ──
   const renderPredictionContent = () => {
     if (!prediction) return null;
     const healthy = isHealthyLabel(prediction.state.class_name);
     const fruitPct = (prediction.fruit.confidence * 100).toFixed(1);
     const statePct = (prediction.state.confidence * 100).toFixed(1);
+    const accent = healthy ? "#86efac" : "#fca5a5";
 
     return (
       <View style={[styles.predictionCard, isTablet && styles.predictionCardTablet]}>
-        {/* Fruit row */}
-        <View style={styles.predictionRow}>
-           <View style={styles.predictionMarker} />
-          <View style={styles.predictionInfo}>
-            <Text style={[styles.predictionLabel, isTablet && styles.predictionLabelTablet]}>
-              {localizeDomainLabel(prediction.fruit.class_name, language)}
-            </Text>
-            <Text style={[styles.predictionSub, isTablet && styles.predictionSubTablet]}>
-               {t("confidence", { percent: fruitPct })}
-            </Text>
+        <View style={styles.resultHead}>
+          <View style={[styles.resultIcon, { backgroundColor: healthy ? "rgba(134,239,172,0.18)" : "rgba(252,165,165,0.18)" }]}>
+            {healthy ? <CheckCircle2 size={22} color={accent} /> : <AlertTriangle size={22} color={accent} />}
+          </View>
+          <Text style={[styles.resultTitle, isTablet && styles.resultTitleTablet]}>
+            {healthy ? t("resultHealthy") : t("resultIssue")}
+          </Text>
+        </View>
+
+        <View style={styles.resultRows}>
+          <View style={styles.predictionRow}>
+            <Text style={styles.resultKey}>{t("fruitLabel")}</Text>
+            <View style={styles.predictionInfo}>
+              <Text style={[styles.predictionLabel, isTablet && styles.predictionLabelTablet]}>
+                {localizeDomainLabel(prediction.fruit.class_name, language)}
+              </Text>
+              <Text style={[styles.predictionSub, isTablet && styles.predictionSubTablet]}>
+                {t("confidence", { percent: fruitPct })}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.predictionDivider} />
+
+          <View style={styles.predictionRow}>
+            <Text style={styles.resultKey}>{t("stateLabel")}</Text>
+            <View style={styles.predictionInfo}>
+              <Text style={[styles.predictionLabel, isTablet && styles.predictionLabelTablet, { color: accent }]}>
+                {localizeDomainLabel(prediction.state.class_name, language)}
+              </Text>
+              <Text style={[styles.predictionSub, isTablet && styles.predictionSubTablet]}>
+                {t("confidence", { percent: statePct })}
+              </Text>
+            </View>
           </View>
         </View>
 
-        <View style={styles.predictionDivider} />
-
-        {/* State / disease row */}
-        <View style={styles.predictionRow}>
-          <View style={[styles.predictionMarker, { backgroundColor: healthy ? '#6FB98F' : '#C7746E' }]} />
-          <View style={styles.predictionInfo}>
-            <Text style={[
-              styles.predictionLabel,
-              isTablet && styles.predictionLabelTablet,
-              { color: healthy ? "#86efac" : "#fca5a5" },
-            ]}>
-              {localizeDomainLabel(prediction.state.class_name, language)}
-            </Text>
-            <Text style={[styles.predictionSub, isTablet && styles.predictionSubTablet]}>
-               {t("confidence", { percent: statePct })}
-            </Text>
-          </View>
-        </View>
-
-        {/* ── Botón Aceptar ── */}
-        <TouchableOpacity
+        <PressableScale
           style={[styles.acceptButton, isTablet && styles.acceptButtonTablet]}
           onPress={() => setPrediction(null)}
-          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={t("scanAgain")}
         >
           <Text style={[styles.acceptButtonText, isTablet && styles.acceptButtonTextTablet]}>
-             {t("accept")}
+            {t("scanAgain")}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     );
   };
@@ -586,52 +608,74 @@ export default function Scan() {
       ) : (
         <CameraView style={styles.camera} type={type} ref={cameraRef} facing={type}>
           <View style={styles.overlay}>
-            <TouchableOpacity
-              style={[styles.modesButton, isTablet && styles.modesButtonTablet]}
-              onPress={() => { setPrediction(null); setMode("choose"); }}
-              accessibilityRole="button"
-              accessibilityLabel={t("backToModes")}
+            <LinearGradient
+              colors={["rgba(10,6,24,0.72)", "rgba(10,6,24,0)"]}
+              style={[styles.topShade, { paddingTop: insets.top + 8 }]}
+              pointerEvents="box-none"
             >
-              <ChevronLeft size={18} color="#ffffff" />
-              <Text style={styles.modesButtonText}>{t("modes")}</Text>
-            </TouchableOpacity>
-            <View style={[styles.header, isTablet && styles.headerTablet]}>
-               <Text style={[styles.headerText, isTablet && styles.headerTextTablet]}>{t("scan")}</Text>
-               <Text style={[styles.headerSubtext, isTablet && styles.headerSubtextTablet]}>{t("aim")}</Text>
-              {isGuest ? (
-                <View style={[styles.guestCounter, isTablet && styles.guestCounterTablet]}>
-                  <Text style={[styles.guestCounterText, isTablet && styles.guestCounterTextTablet]}>
-                     {t("remaining", { tokens: (guestScansLeft * 100).toLocaleString(locale) })}
-                  </Text>
+              <View style={styles.topBar}>
+                <PressableScale
+                  style={styles.modesButton}
+                  onPress={() => { setPrediction(null); setMode("choose"); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("backToModes")}
+                >
+                  <ChevronLeft size={18} color="#ffffff" />
+                  <Text style={styles.modesButtonText}>{t("modes")}</Text>
+                </PressableScale>
+                {(isGuest || userTokens !== null) && (
+                  <View
+                    style={styles.tokenPill}
+                    accessibilityLabel={isGuest
+                    ? t("remaining", { tokens: (guestScansLeft * 100).toLocaleString(locale) })
+                    : t("tokensAvailable", { tokens: ((userTokens ?? 0) * 100).toLocaleString(locale) })}
+                  >
+                    <Coins size={13} color="#fbbf24" />
+                    <Text style={styles.tokenPillText}>
+                      {((isGuest ? guestScansLeft : userTokens ?? 0) * 100).toLocaleString(locale)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <View style={[styles.header, isTablet && styles.headerTablet]}>
+                <View style={styles.modeTag}>
+                  <View style={styles.modeTagDot} />
+                  <Text style={styles.modeTagText}>{t("photoMode")}</Text>
                 </View>
-              ) : userTokens !== null ? (
-                <View style={[styles.guestCounter, isTablet && styles.guestCounterTablet]}>
-                  <Text style={[styles.guestCounterText, isTablet && styles.guestCounterTextTablet]}>
-                     {t("tokensAvailable", { tokens: (userTokens * 100).toLocaleString(locale) })}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
+                <Text style={[styles.headerText, isTablet && styles.headerTextTablet]}>{t("aim")}</Text>
+              </View>
+            </LinearGradient>
 
             <View style={[styles.scanFrame, { width: scanFrameSize, height: scanFrameSize }]}>
               <View style={[styles.corner, styles.cornerTL]} />
               <View style={[styles.corner, styles.cornerTR]} />
               <View style={[styles.corner, styles.cornerBL]} />
               <View style={[styles.corner, styles.cornerBR]} />
+              <View style={styles.frameCenter}><Focus size={22} color="rgba(255,255,255,0.55)" /></View>
             </View>
 
+            {/* Guía de encuadre: tres consejos cortos, visibles antes de disparar */}
+            {!prediction && !isProcessing && !isSaving && (
+              <View style={styles.tips} pointerEvents="none">
+                {[t("tip1"), t("tip2"), t("tip3")].map((tip) => (
+                  <View key={tip} style={styles.tipChip}><Text style={styles.tipText}>{tip}</Text></View>
+                ))}
+              </View>
+            )}
+
             <View style={[styles.controls, isTablet && styles.controlsTablet]}>
-              <TouchableOpacity
+              <PressableScale
                 style={[styles.flipButton, isTablet && styles.flipButtonTablet]}
                 accessibilityRole="button"
                 accessibilityLabel={t("flipCamera")}
                 onPress={toggleCameraType}
                 disabled={isProcessing}
               >
-                <RotateCwIcon color="#eee" size={isTablet ? 34 : 28} />
-              </TouchableOpacity>
+                <RotateCwIcon color="#eee" size={isTablet ? 30 : 24} />
+              </PressableScale>
 
-              <TouchableOpacity
+              <PressableScale
+                pressedScale={0.92}
                 style={[
                   styles.captureButton,
                   isTablet && styles.captureButtonTablet,
@@ -642,43 +686,95 @@ export default function Scan() {
                 accessibilityLabel={t("takePhoto")}
                 disabled={isProcessing || isSaving}
               >
-                <View style={[styles.captureButtonInner, isTablet && styles.captureButtonInnerTablet]}>
-                  <CameraIcon color="#fff" size={isTablet ? 38 : 32} />
-                </View>
-              </TouchableOpacity>
+                <View style={[styles.captureButtonInner, isTablet && styles.captureButtonInnerTablet]} />
+              </PressableScale>
 
-              <View style={{ width: isTablet ? 72 : 56 }} />
+              <View style={{ width: isTablet ? 62 : 48 }} />
             </View>
           </View>
         </CameraView>
       )}
 
-      {/* Spinner overlay */}
-      {(isSaving || isProcessing) && (
-        <View style={styles.savingOverlay}>
-          <View style={[styles.loadingContainer, isTablet && styles.loadingContainerTablet]}>
-            <View style={[styles.fruitSpinner, isTablet && styles.fruitSpinnerTablet]}>
-              <ActivityIndicator size="large" color="#79D7C1" />
-            </View>
-            <Text style={[styles.savingTitle, isTablet && styles.savingTitleTablet]}>
-               {isSaving ? t("saving") : t("analyzing")}
-            </Text>
-            <Text style={[styles.savingSubtitle, isTablet && styles.savingSubtitleTablet]}>
-               {isSaving ? t("savingDetail") : t("analyzingDetail")}
-            </Text>
-          </View>
-        </View>
+      {/* Destello de captura: 180 ms, solo opacidad (se mantiene con "Reducir movimiento", es un cambio de estado) */}
+      {flashKey > 0 && (
+        <Reanimated.View
+          key={flashKey}
+          pointerEvents="none"
+          style={[
+            styles.flash,
+            {
+              opacity: 0,
+              animationName: FLASH_KEYFRAMES,
+              animationDuration: reducedMotion ? 120 : 180,
+              animationTimingFunction: CSS_EASE_OUT,
+            },
+          ]}
+        />
       )}
 
-      {/* ── Result card — centrado, sin alternativas, con Aceptar ── */}
+      {/* Análisis: la imagen congelada sigue visible y una línea recorre el encuadre */}
+      {(isSaving || isProcessing) && (
+        <Reanimated.View entering={STATE_FADE_IN} exiting={STATE_FADE_OUT} style={styles.savingOverlay}>
+          <View style={[styles.analyzeFrame, { width: scanFrameSize, height: scanFrameSize }]}>
+            <View style={[styles.corner, styles.cornerTL, styles.cornerActive]} />
+            <View style={[styles.corner, styles.cornerTR, styles.cornerActive]} />
+            <View style={[styles.corner, styles.cornerBL, styles.cornerActive]} />
+            <View style={[styles.corner, styles.cornerBR, styles.cornerActive]} />
+            {reducedMotion ? (
+              <View style={styles.frameCenter}><ActivityIndicator size="large" color="#c4b5fd" /></View>
+            ) : (
+              <View style={[StyleSheet.absoluteFill, { overflow: "hidden" }]}>
+                <Reanimated.View
+                  style={[
+                    styles.analyzeLine,
+                    {
+                      // La línea va de arriba a abajo del recuadro y regresa.
+                      animationName: {
+                        from: { transform: [{ translateY: 8 }] },
+                        to: { transform: [{ translateY: scanFrameSize - 12 }] },
+                      },
+                      animationDuration: 1400,
+                      animationIterationCount: "infinite",
+                      animationDirection: "alternate",
+                      animationTimingFunction: "ease-in-out",
+                    },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={["rgba(196,181,253,0)", "rgba(196,181,253,0.95)", "rgba(196,181,253,0)"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                </Reanimated.View>
+              </View>
+            )}
+          </View>
+          <View style={[styles.loadingContainer, isTablet && styles.loadingContainerTablet]}>
+            <Text style={[styles.savingTitle, isTablet && styles.savingTitleTablet]}>
+              {isSaving ? t("saving") : t("analyzing")}
+            </Text>
+            <Text style={[styles.savingSubtitle, isTablet && styles.savingSubtitleTablet]}>
+              {isSaving ? t("savingDetail") : t("analyzingDetail")}
+            </Text>
+          </View>
+        </Reanimated.View>
+      )}
+
+      {/* Resultado: entra desde abajo en 260 ms con curva de salida fuerte */}
       {prediction && !isSaving && !isProcessing && !limitReached && (
-        <View style={[
-          styles.predictionWrapper,
-          isHealthy ? styles.predictionWrapperHealthy : styles.predictionWrapperSick,
-          isTablet && styles.predictionWrapperTablet,
-        ]}>
+        <Reanimated.View
+          entering={reducedMotion ? RESULT_ENTER_REDUCED : RESULT_ENTER}
+          exiting={RESULT_EXIT}
+          style={[
+            styles.predictionWrapper,
+            isHealthy ? styles.predictionWrapperHealthy : styles.predictionWrapperSick,
+            isTablet && styles.predictionWrapperTablet,
+            { bottom: (isTablet ? 120 : 100) + insets.bottom },
+          ]}
+        >
           {renderPredictionContent()}
-        </View>
+        </Reanimated.View>
       )}
     </View>
   );
@@ -687,42 +783,43 @@ export default function Scan() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000000" },
   camera: { flex: 1 },
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.25)", padding: 20 },
-
-  header: { paddingTop: 50, alignItems: "center", marginBottom: 20 },
+  overlay: { flex: 1 },
+  topShade: { position: "absolute", top: 0, left: 0, right: 0, paddingHorizontal: 16, paddingBottom: 36, zIndex: 5 },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   modesButton: {
-    position: "absolute", top: 50, left: 16, zIndex: 5,
-    flexDirection: "row", alignItems: "center", gap: 2,
+    flexDirection: "row", alignItems: "center", gap: 2, minHeight: 40,
     paddingLeft: 8, paddingRight: 12, paddingVertical: 8, borderRadius: 999,
     backgroundColor: "rgba(15,23,42,0.45)", borderWidth: 1, borderColor: "rgba(255,255,255,0.25)",
   },
-  modesButtonTablet: { top: 60, left: 32 },
   modesButtonText: { color: "#ffffff", fontSize: 13, fontFamily: "Poppins_600SemiBold" },
-  headerTablet: { paddingTop: 60, marginBottom: 28 },
-  headerText: { color: "#ffffff", fontSize: 22, fontFamily: "Poppins-SemiBold", letterSpacing: 0.5 },
-  headerTextTablet: { fontSize: 28 },
-  headerSubtext: { color: "rgba(255,255,255,0.75)", fontSize: 13, fontFamily: "Poppins-Regular", marginTop: 4 },
-  headerSubtextTablet: { fontSize: 16, marginTop: 6 },
-
-  guestCounter: {
-    marginTop: 10,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.6)',
+  tokenPill: {
+    flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.45)", borderWidth: 1, borderColor: "rgba(245,158,11,0.55)",
   },
-  guestCounterTablet: { marginTop: 14, paddingHorizontal: 22, paddingVertical: 8 },
-  guestCounterText: { color: '#fbbf24', fontFamily: 'Poppins-SemiBold', fontSize: 13 },
-  guestCounterTextTablet: { fontSize: 16 },
+  tokenPillText: { color: "#fbbf24", fontFamily: "Poppins_600SemiBold", fontSize: 13 },
+  header: { alignItems: "center", marginTop: 14, gap: 8 },
+  headerTablet: { marginTop: 22 },
+  modeTag: {
+    flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,
+    backgroundColor: "rgba(109,40,217,0.55)", borderWidth: 1, borderColor: "rgba(196,181,253,0.5)",
+  },
+  modeTagDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#c4b5fd" },
+  modeTagText: { color: "#ede9fe", fontSize: 11.5, fontFamily: "Poppins_600SemiBold", letterSpacing: 0.3 },
+  headerText: { color: "#ffffff", fontSize: 19, fontFamily: "Poppins_600SemiBold", textAlign: "center" },
+  headerTextTablet: { fontSize: 26 },
 
-  scanFrame: { alignSelf: 'center', marginTop: 20 },
-  corner: { position: 'absolute', width: 30, height: 30, borderColor: '#3aaa5c', borderWidth: 3 },
-  cornerTL: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 6 },
-  cornerTR: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 6 },
-  cornerBL: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 6 },
-  cornerBR: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 6 },
+  scanFrame: { position: "absolute", alignSelf: "center", top: "30%" },
+  frameCenter: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center" },
+  corner: { position: 'absolute', width: 34, height: 34, borderColor: '#ffffff', borderWidth: 3.5 },
+  cornerActive: { borderColor: '#c4b5fd' },
+  cornerTL: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 12 },
+  cornerTR: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 12 },
+  cornerBL: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 12 },
+  cornerBR: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 12 },
+
+  tips: { position: "absolute", left: 16, right: 16, bottom: 300, flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 6 },
+  tipChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: "rgba(10,6,24,0.55)" },
+  tipText: { color: "rgba(255,255,255,0.9)", fontSize: 11.5, fontFamily: "Poppins_400Regular" },
 
   controls: {
     position: 'absolute',
@@ -736,11 +833,11 @@ const styles = StyleSheet.create({
     gap: 40,
   },
   controlsTablet: { bottom: 260, gap: 60 },
-  flipButton: { backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 30, padding: 12 },
-  flipButtonTablet: { padding: 16, borderRadius: 36 },
+  flipButton: { width: 48, height: 48, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 24, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
+  flipButtonTablet: { width: 62, height: 62, borderRadius: 31 },
   captureButton: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: "rgba(255,255,255,0.3)",
+    width: 82, height: 82, borderRadius: 41,
+    backgroundColor: "rgba(255,255,255,0.18)",
     justifyContent: "center", alignItems: "center",
     borderWidth: 4, borderColor: "#ffffff",
   },
@@ -748,18 +845,27 @@ const styles = StyleSheet.create({
   captureButtonDisabled: { opacity: 0.5 },
   captureButtonInner: {
     width: 64, height: 64, borderRadius: 32,
-    backgroundColor: "#3aaa5c",
-    justifyContent: "center", alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderWidth: 3, borderColor: "#6D28D9",
   },
   captureButtonInnerTablet: { width: 80, height: 80, borderRadius: 40 },
+
+  flash: { ...StyleSheet.absoluteFill, backgroundColor: "#ffffff" },
+  analyzeFrame: { marginBottom: 28 },
+  analyzeLine: { position: "absolute", top: 0, left: 10, right: 10, height: 3, borderRadius: 2, overflow: "hidden" },
+  resultHead: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
+  resultIcon: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  resultTitle: { flex: 1, color: "#ffffff", fontFamily: "Poppins_700Bold", fontSize: 18 },
+  resultTitleTablet: { fontSize: 22 },
+  resultRows: { backgroundColor: "rgba(0,0,0,0.18)", borderRadius: 14, padding: 12 },
+  resultKey: { width: 64, color: "rgba(255,255,255,0.6)", fontFamily: "Poppins_400Regular", fontSize: 12 },
 
   // ── Result card — centrado en pantalla ──────────────────
   predictionWrapper: {
     position: "absolute",
-    top: '35%',              // ~centro visual de la pantalla
-    left: 24,
-    right: 24,
-    borderRadius: 20,
+    left: 16,
+    right: 16,
+    borderRadius: 24,
     overflow: 'hidden',
     elevation: 8,
     shadowColor: '#000',
@@ -767,8 +873,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 10,
   },
-  predictionWrapperTablet: { top: '38%', left: 60, right: 60, borderRadius: 26 },
-  predictionWrapperHealthy: { backgroundColor: 'rgba(20,83,45,0.95)' },
+  predictionWrapperTablet: { left: 60, right: 60, borderRadius: 26 },
+  predictionWrapperHealthy: { backgroundColor: 'rgba(20,83,45,0.96)' },
   predictionWrapperSick:    { backgroundColor: 'rgba(127,29,29,0.95)' },
 
   predictionCard: { padding: 20 },
@@ -816,16 +922,14 @@ const styles = StyleSheet.create({
 
   savingOverlay: {
     position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: 'rgba(10,6,24,0.62)',
     justifyContent: 'center', alignItems: 'center',
   },
   loadingContainer: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 28, padding: 36,
-    borderWidth: 1, borderColor: 'rgba(58,170,92,0.4)',
+    paddingHorizontal: 24,
   },
-  loadingContainerTablet: { padding: 48, borderRadius: 36 },
+  loadingContainerTablet: { paddingHorizontal: 36 },
   fruitSpinner: {
     width: 100, height: 100,
     justifyContent: 'center', alignItems: 'center',

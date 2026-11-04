@@ -24,7 +24,7 @@ import { StatusBar } from 'expo-status-bar';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import Reanimated, { FadeIn, FadeOut, useReducedMotion } from 'react-native-reanimated';
+import Reanimated, { FadeIn, FadeInDown, FadeOut, useReducedMotion } from 'react-native-reanimated';
 import {
   ChevronLeft,
   CloudOff,
@@ -89,6 +89,7 @@ const HOLD_TO_FINISH_MS = 900;
 const HUD_FADE_IN = FadeIn.duration(250).easing(EASE_OUT);
 const PAUSE_IN = FadeIn.duration(200).easing(EASE_OUT);
 const PAUSE_OUT = FadeOut.duration(160);
+const START_IN = FadeInDown.duration(260).easing(EASE_OUT);
 // El número de fotos "late" una vez cada vez que se guarda una imagen nueva.
 const COUNT_POP = { from: { transform: [{ scale: 1.18 }] }, to: { transform: [{ scale: 1 }] } };
 
@@ -122,6 +123,12 @@ const translations: TranslationResource = {
     en: 'Privacy: after the analysis we delete the images from the cloud and the phone; we only keep a thumbnail of each finding and its location.',
   },
   pendingTitle: { es: 'Por subir', en: 'Waiting to upload' },
+  homeTitle: { es: 'Mis recorridos', en: 'My walks' },
+  syncPending: { es: '{walks} por subir · {photos} fotos', en: '{walks} to upload · {photos} photos' },
+  syncUploading: { es: 'Subiendo al servidor…', en: 'Uploading to the server…' },
+  syncReady: { es: 'Con conexión: se suben solos al abrir esta pantalla.', en: 'Online: they upload automatically when you open this screen.' },
+  syncClear: { es: 'Todo está subido.', en: 'Everything is uploaded.' },
+  newWalk: { es: 'Nuevo recorrido', en: 'New walk' },
   pendingEmpty: { es: 'No tienes recorridos guardados en el celular.', en: 'No walks saved on this phone.' },
   photos: { es: '{count} imágenes', en: '{count} images' },
   upload: { es: 'Subir', en: 'Upload' },
@@ -172,6 +179,8 @@ const translations: TranslationResource = {
   rec3: { es: 'Limpia la lente con un paño suave.', en: 'Clean the lens with a soft cloth.' },
   rec4: { es: 'Lleva batería suficiente: la cámara y el GPS gastan más de lo normal.', en: 'Bring enough battery: camera and GPS use more power than usual.' },
   prepStart: { es: 'Comenzar recorrido', en: 'Start walk' },
+  prepReady: { es: 'Todo listo para grabar', en: 'Ready to record' },
+  prepWarnings: { es: '{count} punto(s) por revisar', en: '{count} item(s) to check' },
   prepBack: { es: 'Regresar', en: 'Go back' },
   // grabación
   recording: { es: 'Grabando recorrido', en: 'Recording walk' },
@@ -193,6 +202,8 @@ const translations: TranslationResource = {
   netCellular: { es: 'Datos · se sube con WiFi', en: 'Mobile data · uploads on WiFi' },
   netCellularOn: { es: 'Datos · se sube al terminar', en: 'Mobile data · uploads when done' },
   autoCapture: { es: 'Captura automática', en: 'Automatic capture' },
+  captureStarted: { es: 'Captura iniciada', en: 'Capture started' },
+  captureStartedBody: { es: 'Camina normal: las fotos se toman solas.', en: 'Walk normally: photos are taken automatically.' },
   limitReached: { es: 'Llegaste al máximo de imágenes de un recorrido. Termina y empieza otro.', en: 'You reached the image limit for one walk. Finish and start another.' },
   noSpace: { es: 'Tu celular tiene poco espacio libre. Libera espacio antes de grabar.', en: 'Your phone is low on storage. Free some space before recording.' },
   permCamera: { es: 'Necesitamos la cámara para grabar el recorrido.', en: 'We need the camera to record the walk.' },
@@ -264,12 +275,16 @@ export default function RecorridoScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; open?: 'prepare' | 'home'; n?: string }>();
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
 
   const [user, setUser] = useState<User | null>(auth.currentUser);
   const email = user?.email ?? '';
-  const [mode, setMode] = useState<Mode>(params.id ? 'detail' : 'home');
+  const [mode, setMode] = useState<Mode>(params.id ? 'detail' : params.open === 'prepare' ? 'prepare' : 'home');
+  const modeRef = useRef(mode);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  // Se llegó desde el botón «Iniciar recorrido» de Escanear: «Regresar» vuelve allí.
+  const fromScan = params.open === 'prepare';
 
   // ── inicio ──
   const [orchards, setOrchards] = useState<Orchard[]>([]);
@@ -308,6 +323,7 @@ export default function RecorridoScreen() {
   const reducedMotion = useReducedMotion();
   const [holding, setHolding] = useState(false);
   const [holdHint, setHoldHint] = useState(false);
+  const [startBanner, setStartBanner] = useState(false);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── detalle ──
@@ -328,6 +344,20 @@ export default function RecorridoScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id, email]);
+
+  // La pantalla sigue montada entre visitas (vive dentro de las pestañas): cada pulsación de
+  // «Iniciar recorrido» o «Mis recorridos» en Escanear trae un `n` nuevo y abre la vista pedida.
+  // Nunca interrumpe una grabación en curso.
+  useEffect(() => {
+    if (!params.n || params.id || modeRef.current === 'record') return;
+    if (params.open === 'prepare') {
+      setPrep({ camera: null, location: null, freeBytes: null });
+      setMode('prepare');
+    } else if (params.open === 'home') {
+      setMode('home');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.open, params.n]);
 
   // ───────────────────────── datos ─────────────────────────
 
@@ -466,10 +496,16 @@ export default function RecorridoScreen() {
         try { freeBytes = await FileSystem.getFreeDiskStorageAsync(); } catch { /* sin dato */ }
       }
       await refreshNetwork();
+      // Si se entró directo a la preparación (desde Escanear), aún no se cargaron las huertas.
+      if (email) {
+        getMobileDataAllowed().then(v => { if (alive) setMobileData(v); }).catch(() => {});
+        if (!orchards.length) listOrchards(email).then(o => { if (alive) setOrchards(o); }).catch(() => {});
+      }
       if (alive) setPrep({ camera, location, freeBytes });
     })();
     return () => { alive = false; };
-  }, [mode, cameraPermission, refreshNetwork]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- las huertas solo se cargan una vez al entrar
+  }, [mode, cameraPermission, refreshNetwork, email]);
 
   // ───────────────────────── grabación ─────────────────────────
 
@@ -478,7 +514,7 @@ export default function RecorridoScreen() {
     watchRef.current = null;
     if (tickRef.current) clearInterval(tickRef.current);
     tickRef.current = null;
-    deactivateKeepAwake('recorrido');
+    Promise.resolve(deactivateKeepAwake('recorrido')).catch(() => {});
   }, []);
 
   const shoot = useCallback(async (coords: { lat: number; lng: number; precision: number | null } | null) => {
@@ -556,6 +592,9 @@ export default function RecorridoScreen() {
       pauseStartRef.current = null;
       setMode('record');
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      // Aviso breve de que la captura automática ya empezó (el teléfono suele ir ya montado).
+      setStartBanner(true);
+      setTimeout(() => setStartBanner(false), 2600);
       refreshNetwork();
       activateKeepAwakeAsync('recorrido').catch(() => {});
       if (withGps) {
@@ -737,102 +776,129 @@ export default function RecorridoScreen() {
       : network === 'cellular' ? (mobileData ? t('prepMobileOn') : t('prepCellular'))
       : t('prepChecking');
     type Status = 'ok' | 'warn' | 'info' | 'pending';
-    const checks: Array<{ key: string; icon: ReactNode; label: string; value: string; status: Status; action?: ReactNode }> = [
+    const checks: Array<{ key: string; icon: ReactNode; label: string; value: string; status: Status }> = [
       {
-        key: 'orchard', icon: <MapPin size={18} color="#0f766e" />, label: t('prepOrchard'),
-        value: orchardName(huertaId) ?? t('prepOrchardAuto'), status: 'ok',
-        action: (
-          <TouchableOpacity onPress={() => setMode('home')} style={st.prepChange} accessibilityRole="button">
-            <Text style={st.prepChangeText}>{t('prepChange')}</Text>
-          </TouchableOpacity>
-        ),
-      },
-      {
-        key: 'camera', icon: <CameraIcon size={18} color="#0f766e" />, label: t('prepCamera'),
+        key: 'camera', icon: <CameraIcon size={18} color="#6EE7B7" />, label: t('prepCamera'),
         value: prep.camera ? permText(prep.camera, t('prepDenied')) : t('prepChecking'),
         status: !prep.camera ? 'pending' : prep.camera === 'granted' ? 'ok' : prep.camera === 'denied' ? 'warn' : 'info',
       },
       {
-        key: 'location', icon: <MapPin size={18} color="#0f766e" />, label: t('prepLocation'),
+        key: 'location', icon: <MapPin size={18} color="#6EE7B7" />, label: t('prepLocation'),
         value: prep.location ? permText(prep.location, t('prepLocationDenied')) : t('prepChecking'),
         status: !prep.location ? 'pending' : prep.location === 'granted' ? 'ok' : prep.location === 'denied' ? 'warn' : 'info',
       },
       ...(Platform.OS !== 'web' ? [{
-        key: 'storage', icon: <HardDrive size={18} color="#0f766e" />, label: t('prepStorage'),
+        key: 'storage', icon: <HardDrive size={18} color="#6EE7B7" />, label: t('prepStorage'),
         value: gb == null ? t('prepChecking') : lowSpace ? t('prepStorageLow', { gb }) : t('prepStorageOk', { gb }),
         status: (gb == null ? 'pending' : lowSpace ? 'warn' : 'ok') as Status,
       }] : []),
       {
-        key: 'net', icon: network === 'offline' ? <WifiOff size={18} color="#0f766e" /> : <Wifi size={18} color="#0f766e" />,
+        key: 'net', icon: network === 'offline' ? <WifiOff size={18} color="#6EE7B7" /> : <Wifi size={18} color="#6EE7B7" />,
         label: t('prepConnection'), value: netText, status: network === 'unknown' ? 'pending' : 'info',
       },
     ];
+    const checking = checks.some(c => c.status === 'pending');
+    const warnings = checks.filter(c => c.status === 'warn').length;
     const statusIcon = (status: Status) =>
-      status === 'ok' ? <CheckCircle2 size={18} color="#16a34a" /> :
-      status === 'warn' ? <AlertTriangle size={18} color="#d97706" /> :
-      status === 'pending' ? <ActivityIndicator size="small" color="#94a3b8" /> :
-      <Info size={18} color="#0369a1" />;
+      status === 'ok' ? <CheckCircle2 size={18} color="#34D399" /> :
+      status === 'warn' ? <AlertTriangle size={18} color="#FBBF24" /> :
+      status === 'pending' ? <ActivityIndicator size="small" color="#6EE7B7" /> :
+      <Info size={18} color="#93C5FD" />;
+    const goBack = () => { if (fromScan && router.canGoBack()) router.back(); else setMode('home'); };
+    const orchardOptions = [{ id: null as string | null, nombre: t('orchardAuto') }, ...orchards.map(o => ({ id: o.id as string | null, nombre: o.nombre }))];
     return (
-      <View style={[st.screen, { paddingTop: insets.top }]}>
-        <StatusBar style="dark" />
-        <View style={st.header}>
-          <TouchableOpacity style={st.backBtn} onPress={() => setMode('home')} accessibilityLabel={t('prepBack')}>
-            <ChevronLeft size={24} color="#0f172a" />
-          </TouchableOpacity>
-          <Text style={st.headerTitle}>{t('prepTitle')}</Text>
+      <Reanimated.View entering={reducedMotion ? undefined : HUD_FADE_IN} style={[pp.screen, { paddingTop: insets.top }]}>
+        <StatusBar style="light" />
+        <View style={pp.header}>
+          <PressableScale style={pp.backBtn} onPress={goBack} accessibilityRole="button" accessibilityLabel={t('prepBack')}>
+            <ChevronLeft size={24} color="#ECFDF5" />
+          </PressableScale>
+          <Text style={pp.headerKicker}>{t('title')}</Text>
         </View>
-        <ScrollView contentContainerStyle={[st.scroll, isTablet && st.scrollTablet, { paddingBottom: insets.bottom + 110 }]}>
-          <LinearGradient colors={['#ecfdf5', '#f0fdfa']} style={st.prepHero}>
-            <ChestMountIllustration size={isTablet ? 120 : 92} />
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={st.prepHeroTitle}>{t('title')}</Text>
-              <Text style={st.prepHeroBody}>{t('prepIntro')}</Text>
+        <ScrollView contentContainerStyle={[pp.scroll, isTablet && st.scrollTablet, { paddingBottom: insets.bottom + 120 }]} showsVerticalScrollIndicator={false}>
+          {/* Encabezado: qué va a pasar y estado general del teléfono */}
+          <View style={pp.hero}>
+            <View style={pp.heroArt}><ChestMountIllustration size={isTablet ? 120 : 96} /></View>
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={pp.heroTitle}>{t('prepTitle')}</Text>
+              <Text style={pp.heroBody}>{t('prepIntro')}</Text>
+              <Reanimated.View
+                key={checking ? 'checking' : warnings ? 'warn' : 'ready'}
+                entering={reducedMotion ? undefined : PAUSE_IN}
+                style={[pp.ready, checking ? pp.readyChecking : warnings ? pp.readyWarn : pp.readyOk]}
+              >
+                {checking ? <ActivityIndicator size="small" color="#6EE7B7" /> : warnings ? <AlertTriangle size={14} color="#FBBF24" /> : <CheckCircle2 size={14} color="#34D399" />}
+                <Text style={pp.readyText}>{checking ? t('prepChecking') : warnings ? t('prepWarnings', { count: warnings }) : t('prepReady')}</Text>
+              </Reanimated.View>
             </View>
-          </LinearGradient>
+          </View>
 
-          <Text style={st.sectionTitle}>{t('prepChecked')}</Text>
-          <View style={st.card}>
+          {/* Huerta del recorrido */}
+          <Text style={pp.section}>{t('prepOrchard')}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={pp.chips}>
+            {orchardOptions.map(o => {
+              const on = huertaId === o.id;
+              return (
+                <PressableScale
+                  key={o.id ?? 'auto'}
+                  onPress={() => { if (!on) Haptics.selectionAsync().catch(() => {}); setHuertaId(o.id); }}
+                  style={[pp.chip, on && pp.chipOn]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                >
+                  {o.id === null && <MapPin size={14} color={on ? '#04140F' : '#A7F3D0'} />}
+                  <Text style={[pp.chipText, on && pp.chipTextOn]}>{o.nombre}</Text>
+                </PressableScale>
+              );
+            })}
+          </ScrollView>
+
+          {/* Lo que el teléfono permite comprobar de verdad */}
+          <Text style={pp.section}>{t('prepChecked')}</Text>
+          <View style={pp.card}>
             {checks.map((c, i) => (
-              <View key={c.key} style={[st.prepRow, i > 0 && st.prepRowBorder]}>
-                <View style={st.prepIcon}>{c.icon}</View>
+              <View key={c.key} style={[pp.row, i > 0 && pp.rowBorder]}>
+                <View style={pp.rowIcon}>{c.icon}</View>
                 <View style={{ flex: 1 }}>
-                  <Text style={st.prepLabel}>{c.label}</Text>
-                  <Text style={[st.prepValue, c.status === 'warn' && { color: '#b45309' }]}>{c.value}</Text>
+                  <Text style={pp.rowLabel}>{c.label}</Text>
+                  <Text style={[pp.rowValue, c.status === 'warn' && { color: '#FCD34D' }]}>{c.value}</Text>
                 </View>
-                {c.action ?? statusIcon(c.status)}
+                {/* el icono cambia con un fundido cuando termina la revisión */}
+                <Reanimated.View key={c.status} entering={reducedMotion ? undefined : PAUSE_IN}>{statusIcon(c.status)}</Reanimated.View>
               </View>
             ))}
           </View>
 
-          <Text style={st.sectionTitle}>{t('prepRecommend')}</Text>
-          <View style={st.card}>
-            <Text style={st.prepHint}>{t('prepRecommendHint')}</Text>
+          {/* Lo que el usuario debe revisar */}
+          <Text style={pp.section}>{t('prepRecommend')}</Text>
+          <View style={pp.card}>
+            <Text style={pp.hint}>{t('prepRecommendHint')}</Text>
             {[t('rec1'), t('rec2'), t('rec3'), t('rec4')].map((r, i) => (
-              <View key={i} style={st.recRowItem}>
-                <View style={st.recBullet}><Text style={st.recBulletText}>{i + 1}</Text></View>
-                <Text style={st.recText}>{r}</Text>
+              <View key={i} style={pp.recRow}>
+                <View style={pp.recBullet}><Text style={pp.recBulletText}>{i + 1}</Text></View>
+                <Text style={pp.recText}>{r}</Text>
               </View>
             ))}
           </View>
         </ScrollView>
-        <View style={[st.prepFooter, { paddingBottom: insets.bottom + 14 }]}>
-          <TouchableOpacity style={st.prepBackBtn} onPress={() => setMode('home')} accessibilityRole="button">
-            <Text style={st.prepBackText}>{t('prepBack')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[st.prepStartBtn, lowSpace && { opacity: 0.5 }]}
+        <LinearGradient colors={['rgba(4,20,15,0)', 'rgba(4,20,15,0.96)', '#04140F']} locations={[0, 0.35, 1]} style={[pp.footer, { paddingBottom: insets.bottom + 14 }]}>
+          <PressableScale style={pp.footBack} onPress={goBack} accessibilityRole="button" accessibilityLabel={t('prepBack')}>
+            <Text style={pp.footBackText}>{t('prepBack')}</Text>
+          </PressableScale>
+          <PressableScale
+            style={[pp.footStart, lowSpace && { opacity: 0.5 }]}
             onPress={startRecording}
             disabled={lowSpace}
             accessibilityRole="button"
             accessibilityState={{ disabled: lowSpace }}
           >
-            <LinearGradient colors={['#34d399', '#0f766e']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={st.startGrad}>
+            <LinearGradient colors={['#34d399', '#0f766e']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={pp.footStartGrad}>
               <Route size={20} color="#fff" />
               <Text style={st.startText}>{t('prepStart')}</Text>
             </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </View>
+          </PressableScale>
+        </LinearGradient>
+      </Reanimated.View>
     );
   }
 
@@ -882,6 +948,16 @@ export default function RecorridoScreen() {
 
         {!cameraReady && (
           <View style={st.cameraLoading}><ActivityIndicator color="#fff" size="large" /></View>
+        )}
+
+        {startBanner && !paused && (
+          <Reanimated.View entering={reducedMotion ? undefined : START_IN} exiting={PAUSE_OUT} style={[st.startBanner, { top: insets.top + 110 }]} pointerEvents="none">
+            <View style={st.startBannerIcon}><CameraIcon size={16} color="#04140F" /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={st.startBannerTitle}>{t('captureStarted')}</Text>
+              <Text style={st.startBannerBody}>{t('captureStartedBody')}</Text>
+            </View>
+          </Reanimated.View>
         )}
 
         {paused && (
@@ -1051,149 +1127,141 @@ export default function RecorridoScreen() {
     );
   }
 
-  // Inicio
-  const networkNote = network === 'offline' ? t('offline') : network === 'cellular' && !mobileData ? t('waitingWifi') : null;
+  // Inicio: lo que está guardado en el celular, su sincronización y los resultados.
+  const uploading = Object.keys(progress).length > 0;
+  const syncState = uploading ? 'uploading' : !locals.length ? 'clear' : network === 'offline' ? 'offline' : network === 'cellular' && !mobileData ? 'wifi' : 'ready';
+  const syncText = {
+    uploading: t('syncUploading'),
+    clear: t('syncClear'),
+    offline: t('offline'),
+    wifi: t('waitingWifi'),
+    ready: t('syncReady'),
+  }[syncState];
+  const pendingPhotos = locals.reduce((n, r) => n + r.fotos.length, 0);
   return (
-    <View style={[st.screen, { paddingTop: insets.top }]}>
-      <StatusBar style="dark" />
-      <View style={st.header}>
-        <TouchableOpacity style={st.backBtn} onPress={() => router.back()} accessibilityLabel={t('back')}>
-          <ChevronLeft size={24} color="#0f172a" />
-        </TouchableOpacity>
-        <Text style={st.headerTitle}>{t('title')}</Text>
+    <View style={[hm.screen, { paddingTop: insets.top }]}>
+      <StatusBar style="light" />
+      <View style={pp.header}>
+        <PressableScale style={pp.backBtn} onPress={() => (router.canGoBack() ? router.back() : router.navigate('/(app)/scan'))} accessibilityRole="button" accessibilityLabel={t('back')}>
+          <ChevronLeft size={24} color="#ECFDF5" />
+        </PressableScale>
+        <Text style={pp.headerKicker}>{t('title')}</Text>
       </View>
       <ScrollView
-        contentContainerStyle={[st.scroll, isTablet && st.scrollTablet, { paddingBottom: insets.bottom + 40 }]}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => loadHome().then(() => uploadAll())} tintColor="#0f766e" />}
+        contentContainerStyle={[pp.scroll, isTablet && st.scrollTablet, { paddingBottom: insets.bottom + 40 }]}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => loadHome().then(() => uploadAll())} tintColor="#34D399" />}
+        showsVerticalScrollIndicator={false}
       >
-        <LinearGradient colors={['#0f766e', '#115e59', '#134e4a']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.hero}>
-          <View style={st.heroBadge}><WifiOff size={13} color="#a7f3d0" /><Text style={st.heroBadgeText}>{t('heroKicker')}</Text></View>
-          <Text style={st.heroTitle}>{t('heroTitle')}</Text>
-          <Text style={st.heroBody}>{t('heroBody')}</Text>
-          <View style={st.steps}>
-            {[
-              { icon: <Footprints size={18} color="#0f766e" />, title: t('step1'), body: t('step1Body') },
-              { icon: <CloudUpload size={18} color="#0f766e" />, title: t('step2'), body: t('step2Body') },
-              { icon: <Bell size={18} color="#0f766e" />, title: t('step3'), body: t('step3Body') },
-            ].map((s, i) => (
-              <View key={i} style={st.step}>
-                <View style={st.stepIcon}>{s.icon}</View>
-                <Text style={st.stepTitle}>{s.title}</Text>
-                <Text style={st.stepBody}>{s.body}</Text>
-              </View>
-            ))}
-          </View>
-        </LinearGradient>
+        <Text style={hm.title}>{t('homeTitle')}</Text>
 
-        <View style={st.card}>
-          <Text style={st.sectionLabel}>{t('orchard')}</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.chipsRow}>
-            {[{ id: null as string | null, nombre: t('orchardAuto') }, ...orchards.map(o => ({ id: o.id as string | null, nombre: o.nombre }))].map(o => (
-              <TouchableOpacity
-                key={o.id ?? 'auto'}
-                onPress={() => setHuertaId(o.id)}
-                style={[st.selChip, huertaId === o.id && st.selChipOn]}
-              >
-                <Text style={[st.selChipText, huertaId === o.id && st.selChipTextOn]}>{o.nombre}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          <TouchableOpacity style={st.startBtn} onPress={() => { setPrep({ camera: null, location: null, freeBytes: null }); setMode('prepare'); }} activeOpacity={0.88} accessibilityRole="button">
-            <LinearGradient colors={['#34d399', '#0f766e']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={st.startGrad}>
-              <Route size={22} color="#fff" />
-              <Text style={st.startText}>{t('start')}</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-          <View style={st.tipBox}>
-            <Text style={st.tipTitle}>{t('tipsTitle')}</Text>
-            <Text style={st.tipText}>{t('tips')}</Text>
+        {/* Estado de sincronización: conexión + lo pendiente en el celular */}
+        <View style={[hm.sync, syncState === 'clear' ? hm.syncClear : syncState === 'uploading' || syncState === 'ready' ? hm.syncActive : hm.syncWait]}>
+          <View style={hm.syncIcon}>
+            {syncState === 'uploading' ? <ActivityIndicator size="small" color="#34D399" />
+              : syncState === 'clear' ? <CheckCircle2 size={20} color="#34D399" />
+              : syncState === 'offline' ? <WifiOff size={20} color="#FCD34D" />
+              : syncState === 'wifi' ? <Wifi size={20} color="#FCD34D" />
+              : <CloudUpload size={20} color="#34D399" />}
           </View>
-          <Text style={st.privacyText}>{t('privacyNote')}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={hm.syncTitle}>
+              {locals.length ? t('syncPending', { walks: locals.length, photos: pendingPhotos.toLocaleString(locale) }) : t('pendingEmpty')}
+            </Text>
+            <Text style={hm.syncText}>{syncText}</Text>
+          </View>
         </View>
 
-        <Text style={st.sectionTitle}>{t('pendingTitle')}</Text>
-        <View style={st.card}>
-          {networkNote && locals.length > 0 && (
-            <View style={st.netNote}><WifiOff size={14} color="#a16207" /><Text style={st.netNoteText}>{networkNote}</Text></View>
-          )}
-          {!locals.length && <Text style={st.muted}>{t('pendingEmpty')}</Text>}
-          {locals.map(r => {
-            const p = progress[r.localId];
-            return (
-              <View key={r.localId} style={st.listRow}>
-                <View style={st.listIcon}><Footprints size={18} color="#0f766e" /></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={st.listTitle}>{fmtDate(r.iniciadoAt)}</Text>
-                  <Text style={st.listMeta}>
-                    {t('photos', { count: r.fotos.length })} · {formatDistance(routeDistanceMeters(r.ruta))}
-                    {orchardName(r.huertaId) ? ` · ${orchardName(r.huertaId)}` : ''}
-                  </Text>
-                  {p && <Text style={st.listProgress}>{t('uploading', { done: p.done, total: p.total })}</Text>}
-                  {p && (
-                    <View style={st.progressTrack}>
-                      <Reanimated.View
-                        style={[
-                          st.progressFill,
-                          { width: `${p.total ? (p.done / p.total) * 100 : 0}%`, transitionProperty: 'width', transitionDuration: 300, transitionTimingFunction: CSS_EASE_OUT },
-                        ]}
-                      />
-                    </View>
-                  )}
-                  {uploadErrors[r.localId] && !p && <Text style={st.errorText}>{t('uploadError')}</Text>}
-                </View>
-                {!p && (
-                  <View style={st.listActions}>
-                    <TouchableOpacity style={st.smallBtn} onPress={() => uploadAll({ force: true })} disabled={network === 'offline'}>
-                      <CloudUpload size={16} color={network === 'offline' ? '#94a3b8' : '#0f766e'} />
-                      <Text style={[st.smallBtnText, network === 'offline' && { color: '#94a3b8' }]}>{t('upload')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={st.iconBtn} onPress={() => confirmDelete(r)} accessibilityLabel={t('delete')}>
-                      <Trash2 size={16} color="#b91c1c" />
-                    </TouchableOpacity>
+        {/* Por subir */}
+        {locals.length > 0 && (
+          <View style={pp.card}>
+            {locals.map((r, i) => {
+              const p = progress[r.localId];
+              const pctDone = p && p.total ? (p.done / p.total) * 100 : 0;
+              return (
+                <View key={r.localId} style={[hm.item, i > 0 && pp.rowBorder]}>
+                  <View style={hm.itemIcon}><Footprints size={18} color="#6EE7B7" /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={hm.itemTitle}>{fmtDate(r.iniciadoAt)}</Text>
+                    <Text style={hm.itemMeta}>
+                      {t('photos', { count: r.fotos.length })} · {formatDistance(routeDistanceMeters(r.ruta))}
+                      {orchardName(r.huertaId) ? ` · ${orchardName(r.huertaId)}` : ''}
+                    </Text>
+                    {p && <Text style={hm.itemProgress}>{t('uploading', { done: p.done, total: p.total })}</Text>}
+                    {p && (
+                      <View style={hm.track}>
+                        {/* relleno absoluto sin hijos: puede animar su ancho sin recalcular el resto */}
+                        <Reanimated.View style={[hm.fill, { width: `${pctDone}%`, transitionProperty: 'width', transitionDuration: 300, transitionTimingFunction: CSS_EASE_OUT }]} />
+                      </View>
+                    )}
+                    {uploadErrors[r.localId] && !p && <Text style={hm.error}>{t('uploadError')}</Text>}
                   </View>
-                )}
-                {p && <ActivityIndicator color="#0f766e" />}
-              </View>
-            );
-          })}
-          <View style={st.toggleRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={st.toggleLabel}>{t('mobileData')}</Text>
-              <Text style={st.toggleHint}>{t('mobileDataHint')}</Text>
-            </View>
-            <Switch
-              value={mobileData}
-              onValueChange={async v => { setMobileData(v); await setMobileDataAllowed(v); if (v) uploadAll(); }}
-              trackColor={{ true: '#34d399', false: '#cbd5e1' }}
-              thumbColor="#fff"
-            />
+                  {!p ? (
+                    <View style={st.listActions}>
+                      <PressableScale style={[hm.smallBtn, network === 'offline' && { opacity: 0.45 }]} onPress={() => uploadAll({ force: true })} disabled={network === 'offline'} accessibilityRole="button" accessibilityLabel={t('upload')}>
+                        <CloudUpload size={16} color="#04140F" />
+                        <Text style={hm.smallBtnText}>{t('upload')}</Text>
+                      </PressableScale>
+                      <PressableScale style={hm.iconBtn} onPress={() => confirmDelete(r)} accessibilityRole="button" accessibilityLabel={t('delete')}>
+                        <Trash2 size={16} color="#FCA5A5" />
+                      </PressableScale>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
           </View>
+        )}
+
+        <View style={[pp.card, hm.toggle]}>
+          <View style={{ flex: 1 }}>
+            <Text style={pp.rowLabel}>{t('mobileData')}</Text>
+            <Text style={pp.rowValue}>{t('mobileDataHint')}</Text>
+          </View>
+          <Switch
+            value={mobileData}
+            onValueChange={async v => { setMobileData(v); await setMobileDataAllowed(v); if (v) uploadAll(); }}
+            trackColor={{ true: '#34d399', false: 'rgba(255,255,255,0.18)' }}
+            thumbColor="#fff"
+          />
         </View>
 
-        <Text style={st.sectionTitle}>{t('resultsTitle')}</Text>
-        <View style={st.card}>
+        {/* Resultados del análisis */}
+        <Text style={pp.section}>{t('resultsTitle')}</Text>
+        <View style={pp.card}>
           {pushState === 'denied' && (
-            <View style={st.netNote}><Bell size={14} color="#a16207" /><Text style={st.netNoteText}>{t('notifyOff')}</Text></View>
+            <View style={hm.note}><Bell size={14} color="#FCD34D" /><Text style={hm.noteText}>{t('notifyOff')}</Text></View>
           )}
-          {loadError && <Text style={st.errorText}>{t('loadError')}</Text>}
-          {!loadError && !remotes.length && <Text style={st.muted}>{t('resultsEmpty')}</Text>}
-          {remotes.map(r => {
+          {loadError && <Text style={hm.error}>{t('loadError')}</Text>}
+          {!loadError && !remotes.length && <Text style={hm.empty}>{t('resultsEmpty')}</Text>}
+          {remotes.map((r, i) => {
             const info = statusInfo(r.estado);
             return (
-              <TouchableOpacity key={r.id} style={st.listRow} onPress={() => openDetail(r.id)} activeOpacity={0.8}>
-                <View style={[st.listIcon, { backgroundColor: info.bg }]}><Sparkles size={18} color={info.color} /></View>
+              <PressableScale key={r.id} style={[hm.item, i > 0 && pp.rowBorder]} onPress={() => openDetail(r.id)} accessibilityRole="button">
+                <View style={[hm.itemIcon, { backgroundColor: info.bg }]}><Sparkles size={18} color={info.color} /></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={st.listTitle}>{orchardName(r.huerta_id) ?? fmtDate(r.iniciado_at)}</Text>
-                  <Text style={st.listMeta}>
+                  <Text style={hm.itemTitle}>{orchardName(r.huerta_id) ?? fmtDate(r.iniciado_at)}</Text>
+                  <Text style={hm.itemMeta}>
                     {fmtDate(r.iniciado_at)} · {r.estado === 'listo' ? t('findings', { count: r.hallazgos_total }) : t('photos', { count: r.fotos_total })}
                   </Text>
-                  {(r.estado === 'pendiente' || r.estado === 'procesando') && <Text style={st.listHint}>{t('queuedHint')}</Text>}
+                  {(r.estado === 'pendiente' || r.estado === 'procesando') && <Text style={hm.itemHint}>{t('queuedHint')}</Text>}
                 </View>
                 <View style={[st.chip, { backgroundColor: info.bg }]}><Text style={[st.chipText, { color: info.color }]}>{info.label}</Text></View>
-              </TouchableOpacity>
+              </PressableScale>
             );
           })}
         </View>
+
+        <PressableScale
+          style={hm.newBtn}
+          onPress={() => { setPrep({ camera: null, location: null, freeBytes: null }); setMode('prepare'); }}
+          accessibilityRole="button"
+        >
+          <LinearGradient colors={['#34d399', '#0f766e']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={pp.footStartGrad}>
+            <Route size={20} color="#fff" />
+            <Text style={st.startText}>{t('newWalk')}</Text>
+          </LinearGradient>
+        </PressableScale>
+        <Text style={hm.privacy}>{t('privacyNote')}</Text>
       </ScrollView>
     </View>
   );
@@ -1331,12 +1399,87 @@ const st = StyleSheet.create({
   statFoot: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: 'rgba(255,255,255,0.6)' },
   recordTip: { fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 17, color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
   recordActions: { flexDirection: 'row', gap: 10 },
-  recSecondary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 17, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  recSecondary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 68, paddingVertical: 17, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
   recSecondaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#fff' },
-  recStop: { flex: 1.3, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 17, borderRadius: 20, backgroundColor: '#b91c1c', overflow: 'hidden' },
+  recStop: { flex: 1.3, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 68, paddingVertical: 17, borderRadius: 20, backgroundColor: '#b91c1c', overflow: 'hidden' },
+  startBanner: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 18, backgroundColor: 'rgba(4,20,15,0.82)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.45)' },
+  startBannerIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#34D399', alignItems: 'center', justifyContent: 'center' },
+  startBannerTitle: { fontFamily: 'Poppins_700Bold', fontSize: 14.5, color: '#ECFDF5' },
+  startBannerBody: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, color: 'rgba(209,250,229,0.75)' },
   holdFill: { position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, backgroundColor: '#ef4444', transformOrigin: 'left' },
   recStopText: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' },
   summaryHint: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, lineHeight: 16, color: '#64748b' },
   summaryOk: { backgroundColor: '#f0fdf4' },
   summaryBad: { backgroundColor: '#fef2f2' },
+});
+
+// Preparación: mismo lenguaje oscuro que el selector de Escanear, para que el paso se sienta continuo.
+const pp = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#04140F' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  backBtn: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(209,250,229,0.14)' },
+  headerKicker: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, letterSpacing: 1.4, textTransform: 'uppercase', color: '#6EE7B7' },
+  scroll: { paddingHorizontal: 16, paddingTop: 4, gap: 12 },
+  hero: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 26, backgroundColor: 'rgba(52,211,153,0.08)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.25)' },
+  heroArt: { borderRadius: 999, overflow: 'hidden' },
+  heroTitle: { fontFamily: 'Poppins_700Bold', fontSize: 24, lineHeight: 29, letterSpacing: -0.6, color: '#ECFDF5' },
+  heroBody: { fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 19, color: 'rgba(209,250,229,0.7)' },
+  ready: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1, marginTop: 2 },
+  readyChecking: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(209,250,229,0.18)' },
+  readyOk: { backgroundColor: 'rgba(52,211,153,0.14)', borderColor: 'rgba(52,211,153,0.4)' },
+  readyWarn: { backgroundColor: 'rgba(251,191,36,0.12)', borderColor: 'rgba(251,191,36,0.4)' },
+  readyText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#ECFDF5' },
+  section: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(209,250,229,0.55)', marginTop: 8, marginLeft: 4 },
+  chips: { gap: 8, paddingRight: 8 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 16, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(209,250,229,0.16)' },
+  chipOn: { backgroundColor: '#34D399', borderColor: '#34D399' },
+  chipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: '#D1FAE5' },
+  chipTextOn: { color: '#04140F' },
+  card: { borderRadius: 22, padding: 14, gap: 10, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(209,250,229,0.12)' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
+  rowBorder: { borderTopWidth: 1, borderTopColor: 'rgba(209,250,229,0.08)', paddingTop: 12 },
+  rowIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(52,211,153,0.12)' },
+  rowLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#ECFDF5' },
+  rowValue: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: 'rgba(209,250,229,0.65)' },
+  hint: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(209,250,229,0.55)' },
+  recRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  recBullet: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(52,211,153,0.16)', marginTop: 1 },
+  recBulletText: { fontFamily: 'Poppins_700Bold', fontSize: 11.5, color: '#6EE7B7' },
+  recText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 13.5, lineHeight: 20, color: '#D1FAE5' },
+  footer: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 36 },
+  footBack: { flex: 1, minHeight: 60, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(209,250,229,0.16)' },
+  footBackText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#D1FAE5' },
+  footStart: { flex: 2, borderRadius: 20, overflow: 'hidden' },
+  footStartGrad: { flex: 1, minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+});
+
+// Inicio del recorrido (lista y sincronización), mismo lenguaje oscuro.
+const hm = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#04140F' },
+  title: { fontFamily: 'Poppins_700Bold', fontSize: 30, lineHeight: 36, letterSpacing: -0.8, color: '#ECFDF5', marginBottom: 2 },
+  sync: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 22, borderWidth: 1 },
+  syncClear: { backgroundColor: 'rgba(52,211,153,0.08)', borderColor: 'rgba(52,211,153,0.3)' },
+  syncActive: { backgroundColor: 'rgba(52,211,153,0.12)', borderColor: 'rgba(52,211,153,0.45)' },
+  syncWait: { backgroundColor: 'rgba(252,211,77,0.08)', borderColor: 'rgba(252,211,77,0.35)' },
+  syncIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)' },
+  syncTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 14.5, color: '#ECFDF5' },
+  syncText: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: 'rgba(209,250,229,0.7)' },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
+  itemIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(52,211,153,0.12)' },
+  itemTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#ECFDF5' },
+  itemMeta: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(209,250,229,0.6)' },
+  itemHint: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: '#93C5FD', marginTop: 2 },
+  itemProgress: { fontFamily: 'Poppins_600SemiBold', fontSize: 11.5, color: '#6EE7B7', marginTop: 3 },
+  track: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 5, overflow: 'hidden' },
+  fill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3, backgroundColor: '#34D399' },
+  error: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#FCA5A5' },
+  smallBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 40, paddingHorizontal: 12, borderRadius: 12, backgroundColor: '#34D399' },
+  smallBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: '#04140F' },
+  iconBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(248,113,113,0.12)' },
+  note: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 12, backgroundColor: 'rgba(252,211,77,0.08)' },
+  noteText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#FDE68A' },
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  empty: { fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 19, color: 'rgba(209,250,229,0.6)', textAlign: 'center', paddingVertical: 6 },
+  newBtn: { borderRadius: 20, overflow: 'hidden', marginTop: 6 },
+  privacy: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, lineHeight: 17, color: 'rgba(209,250,229,0.45)', paddingHorizontal: 4 },
 });

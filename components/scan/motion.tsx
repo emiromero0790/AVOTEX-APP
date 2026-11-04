@@ -8,7 +8,12 @@
  */
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+
 import Reanimated, { Easing, cubicBezier, useReducedMotion } from 'react-native-reanimated';
+
+// Propiedades que definen el lugar del botón dentro de su contenedor: van en el Pressable exterior
+// (si se quedaran en la vista interior, `flex: 1` en una fila no repartiría el ancho).
+const OUTER_KEYS = ['flex', 'flexGrow', 'flexShrink', 'flexBasis', 'alignSelf', 'width', 'minWidth', 'maxWidth', 'margin', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'marginHorizontal', 'marginVertical', 'position', 'top', 'left', 'right', 'bottom', 'zIndex'] as const;
 
 export const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 export const EASE_IN_OUT = Easing.bezier(0.77, 0, 0.175, 1);
@@ -30,9 +35,18 @@ export function PressableScale({ style, children, pressedScale = 0.97, disabled,
   const [pressed, setPressed] = useState(false);
   const reduced = useReducedMotion();
   const scale = pressed && !disabled && !reduced ? pressedScale : 1;
+  const flat = (StyleSheet.flatten(style) ?? {}) as Record<string, unknown>;
+  const outer: Record<string, unknown> = {};
+  const inner: Record<string, unknown> = { ...flat };
+  for (const k of OUTER_KEYS) {
+    if (k in flat) { outer[k] = flat[k]; delete inner[k]; }
+  }
+  // La vista interior llena al Pressable cuando este recibe el tamaño.
+  if ('flex' in outer || 'width' in outer || 'flexGrow' in outer) inner.flexGrow = 1;
   return (
     <Pressable
       {...rest}
+      style={outer as ViewStyle}
       disabled={disabled}
       hitSlop={rest.hitSlop ?? 8}
       pressRetentionOffset={rest.pressRetentionOffset ?? 16}
@@ -41,7 +55,7 @@ export function PressableScale({ style, children, pressedScale = 0.97, disabled,
     >
       <Reanimated.View
         style={[
-          style,
+          inner as ViewStyle,
           {
             transform: [{ scale }],
             // Con "Reducir movimiento" el feedback es un leve cambio de opacidad en lugar de escala.

@@ -17,6 +17,7 @@ import Reanimated, { FadeIn, FadeInDown, FadeOut, useReducedMotion } from "react
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { useFocusEffect } from "expo-router";
+import { setStatusBarStyle } from "expo-status-bar";
 import * as FileSystem from "expo-file-system/legacy";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -36,6 +37,7 @@ const RESULT_ENTER_REDUCED = FadeIn.duration(200);
 const RESULT_EXIT = FadeOut.duration(180);
 const STATE_FADE_IN = FadeIn.duration(200).easing(EASE_OUT);
 const STATE_FADE_OUT = FadeOut.duration(160);
+const CAMERA_ENTER = FadeIn.duration(240).easing(EASE_OUT);
 
 // Destello breve al capturar: confirma que la foto se tomó.
 const FLASH_KEYFRAMES = { from: { opacity: 0.75 }, to: { opacity: 0 } };
@@ -194,6 +196,14 @@ export default function Scan() {
           setUserTokens(data?.tokens ?? 0);
         });
     }, [user?.email, isGuest])
+  );
+
+  // Escanear es oscuro (selector y cámara): texto claro en la barra de estado mientras está enfocada.
+  useFocusEffect(
+    useCallback(() => {
+      setStatusBarStyle("light");
+      return () => setStatusBarStyle("dark");
+    }, [])
   );
 
   // Cada vez que se vuelve a la pestaña se muestra el selector de modo.
@@ -403,7 +413,10 @@ export default function Scan() {
         pendingWalks={pendingWalks}
         pendingPhotos={pendingPhotos}
         onPhoto={choosePhoto}
-        onWalk={() => router.push("/(app)/recorrido")}
+        // `open` y `n` hacen que la pantalla del recorrido (que sigue montada entre visitas)
+        // vaya directo a la preparación cada vez que se pulsa el botón.
+        onWalk={() => router.push({ pathname: "/(app)/recorrido", params: { open: "prepare", n: String(Date.now()) } })}
+        onOpenWalks={() => router.push({ pathname: "/(app)/recorrido", params: { open: "home", n: String(Date.now()) } })}
       />
     );
   }
@@ -493,7 +506,8 @@ export default function Scan() {
   const limitReached = guestLimitReached || userLimitReached;
 
   return (
-    <View style={styles.container}>
+    // Al abrir la cámara desde el selector, la vista entra con un fundido corto (continuidad entre pasos).
+    <Reanimated.View entering={reducedMotion ? undefined : CAMERA_ENTER} style={styles.container}>
       {/* Scan privacy modal */}
       <Modal
         visible={scanModalVisible}
@@ -581,6 +595,16 @@ export default function Scan() {
       {limitReached ? (
         <View style={styles.limitContainer}>
              <View style={StyleSheet.absoluteFill} />
+          {/* Sin saldo: se puede volver al selector (el recorrido no usa tokens). */}
+          <PressableScale
+            style={[styles.modesButton, styles.limitModes, { top: insets.top + 8 }]}
+            onPress={() => setMode("choose")}
+            accessibilityRole="button"
+            accessibilityLabel={t("backToModes")}
+          >
+            <ChevronLeft size={18} color="#ffffff" />
+            <Text style={styles.modesButtonText}>{t("modes")}</Text>
+          </PressableScale>
           <View style={[styles.limitCard, isTablet && styles.limitCardTablet]}>
             <View style={styles.limitIconCircle}>
               <Lock size={36} color="#0f766e" />
@@ -776,7 +800,7 @@ export default function Scan() {
           {renderPredictionContent()}
         </Reanimated.View>
       )}
-    </View>
+    </Reanimated.View>
   );
 }
 
@@ -792,6 +816,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15,23,42,0.45)", borderWidth: 1, borderColor: "rgba(255,255,255,0.25)",
   },
   modesButtonText: { color: "#ffffff", fontSize: 13, fontFamily: "Poppins_600SemiBold" },
+  limitModes: { position: "absolute", left: 16, zIndex: 5 },
   tokenPill: {
     flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
     backgroundColor: "rgba(0,0,0,0.45)", borderWidth: 1, borderColor: "rgba(245,158,11,0.55)",

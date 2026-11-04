@@ -1,65 +1,110 @@
-import React from 'react';
-import { Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+/**
+ * Escanear — selector de modalidad.
+ *
+ * Dos modalidades con el mismo peso visual dentro de un "visor" oscuro:
+ * - Recorrido inteligente (verde): vista aérea con la ruta, puntos de captura y detecciones.
+ * - Foto individual (morado): fruto encuadrado por la retícula de la cámara.
+ *
+ * Movimiento (skill animate-expo):
+ * - El cambio de modalidad se hace con el dedo (paginado nativo) o tocando el selector; el indicador
+ *   sigue el desplazamiento en el hilo de UI (useAnimatedScrollHandler), sin renders por fotograma.
+ * - El cambio de modalidad se confirma con Haptics.selectionAsync, una vez por cambio.
+ * - Solo la modalidad visible tiene una animación continua (pulso o línea de escaneo); la otra queda en pausa.
+ * - Sin animaciones de entrada al visitar la pestaña: se abre decenas de veces al día.
+ * - "Reducir movimiento": no hay bucles y el cambio de página es instantáneo.
+ */
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Image, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Path } from 'react-native-svg';
-import { ArrowRight, Camera, CloudUpload, Coins, Lock, ScanLine, Sparkles, WifiOff, Wifi, Zap } from 'lucide-react-native';
+import { useNetworkState } from 'expo-network';
+import * as Haptics from 'expo-haptics';
+import Reanimated, {
+  FadeIn,
+  interpolateColor,
+  useAnimatedReaction,
+  useAnimatedRef,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+} from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { ArrowRight, Camera, ChevronRight, CloudUpload, Coins, Footprints, Lock, ScanLine, Sparkles, WifiOff, Wifi, Aperture, Smartphone } from 'lucide-react-native';
 import { TranslationResource, useTranslations } from '../context/LanguageContext';
-import { AiAnalyzeIllustration, ChestMountIllustration, WalkPathIllustration } from './scan/ScanIllustrations';
-import { PressableScale, PulseRing } from './scan/motion';
+import { CSS_EASE_OUT, EASE_OUT, PressableScale, PulseRing } from './scan/motion';
 
 // Fotos de Pexels (licencia Pexels: uso comercial libre). Ver assets/images/escanear/CREDITOS.md
-const IMG_AVOCADO_TREE = require('../assets/images/escanear/foto-aguacate-arbol.jpg');
-const IMG_ORCHARD_WALK = require('../assets/images/escanear/recorrido-huerta.jpg');
+const IMG_AERIAL = require('../assets/images/escanear/recorrido-aereo.jpg');
+const IMG_AVOCADO = require('../assets/images/escanear/foto-aguacate.jpg');
 
-const PURPLE = '#44227C';
-const PURPLE_SOFT = '#6D28D9';
-const GREEN = '#0f766e';
+// Paleta del visor (identidad AVOTEX en versión oscura)
+const BG = '#04140F';
+const INK = '#ECFDF5';
+const MUTED = 'rgba(209,250,229,0.62)';
+const LINE = 'rgba(209,250,229,0.12)';
+const GREEN = '#34D399';
+const GREEN_DEEP = '#0f766e';
+const PURPLE = '#A78BFA';
+
+const STEPS_FADE = FadeIn.duration(200).easing(EASE_OUT);
 
 const translations: TranslationResource = {
+  kicker: { es: 'AVOTEX · Visión IA', en: 'AVOTEX · AI Vision' },
   title: { es: 'Escanear', en: 'Scan' },
-  subtitle: { es: '¿Cómo quieres analizar tu cultivo?', en: 'How do you want to analyze your crop?' },
-  tokens: { es: 'Tokens disponibles', en: 'Available tokens' },
-  // Foto individual
+  subtitle: { es: 'Elige cómo quieres revisar tu cultivo.', en: 'Choose how to check your crop.' },
+  tokens: { es: 'tokens', en: 'tokens' },
+  tokensA11y: { es: '{value} tokens disponibles', en: '{value} tokens available' },
+  // selector
+  walkTab: { es: 'Recorrido', en: 'Field walk' },
+  walkTabSub: { es: 'Automático', en: 'Automatic' },
+  photoTab: { es: 'Foto', en: 'Photo' },
+  photoTabSub: { es: 'Manual', en: 'Manual' },
+  swipeHint: { es: 'Desliza para cambiar de modalidad', en: 'Swipe to switch mode' },
+  // recorrido
+  walkTitle: { es: 'Recorrido inteligente', en: 'Smart field walk' },
+  walkBody: {
+    es: 'Lleva el celular en el pecho o casco y camina tu huerta. AVOTEX toma las fotos solo y elige las mejores para la IA.',
+    en: 'Wear the phone on your chest or helmet and walk your orchard. AVOTEX takes the photos and picks the best ones for the AI.',
+  },
+  walkBadge: { es: 'Captura automática', en: 'Auto capture' },
+  walkOffline: { es: 'Sin internet', en: 'Offline' },
+  walkStep1: { es: 'Coloca el celular', en: 'Mount the phone' },
+  walkStep2: { es: 'Camina tu huerta', en: 'Walk the orchard' },
+  walkStep3: { es: 'Recibe el análisis', en: 'Get the analysis' },
+  walkInfo: {
+    es: 'Funciona sin señal: las fotos se guardan en el celular y se suben cuando tengas WiFi.',
+    en: 'Works without signal: photos are saved on the phone and upload when you are on WiFi.',
+  },
+  pendingOne: { es: '1 recorrido por subir', en: '1 walk to upload' },
+  pendingMany: { es: '{count} recorridos por subir', en: '{count} walks to upload' },
+  pendingPhotos: { es: '{count} fotos en tu celular', en: '{count} photos on your phone' },
+  pendingOpen: { es: 'Ver', en: 'View' },
+  walkCta: { es: 'Iniciar recorrido', en: 'Start walk' },
+  walkLocked: { es: 'Crea una cuenta para usarlo', en: 'Create an account to use it' },
+  myWalks: { es: 'Mis recorridos y resultados', en: 'My walks and results' },
+  detectFruit: { es: 'Fruto', en: 'Fruit' },
+  detectLeaf: { es: 'Hoja', en: 'Leaf' },
+  detectReview: { es: 'Revisar', en: 'Check' },
+  // foto
   photoTitle: { es: 'Foto individual', en: 'Single photo' },
   photoBody: {
-    es: 'Apunta a un fruto, toma una fotografía y recibe un diagnóstico en segundos.',
-    en: 'Point at a fruit, take a photo and get a diagnosis in seconds.',
+    es: 'Apunta a un fruto, hoja o árbol y toma la foto. La IA te da el diagnóstico en segundos.',
+    en: 'Point at a fruit, leaf or tree and take the photo. The AI gives you a diagnosis in seconds.',
   },
-  photoFeat1: { es: 'Resultado al instante', en: 'Instant result' },
-  photoFeat2: { es: 'Requiere internet', en: 'Needs internet' },
+  photoBadge: { es: 'Diagnóstico al instante', en: 'Instant diagnosis' },
+  photoStep1: { es: 'Encuadra', en: 'Frame it' },
+  photoStep2: { es: 'Captura', en: 'Capture' },
+  photoStep3: { es: 'Diagnóstico', en: 'Diagnosis' },
+  photoInfo: { es: 'Necesita internet. Cada foto usa tokens de tu saldo.', en: 'Needs internet. Each photo uses tokens from your balance.' },
+  photoOffline: { es: 'Sin conexión: la foto individual necesita internet. Prueba el recorrido, que funciona sin señal.', en: 'Offline: single photo needs internet. Try the field walk, it works without signal.' },
   photoCta: { es: 'Abrir cámara', en: 'Open camera' },
-  photoIdeal: { es: 'Para revisar un fruto o árbol en particular.', en: 'To check one particular fruit or tree.' },
-  // Recorrido inteligente
-  walkTitle: { es: 'Recorrido inteligente', en: 'Smart field walk' },
-  walkBadge: { es: 'Captura automática', en: 'Automatic capture' },
-  walkBody: {
-    es: 'Recorre tu huerta mientras AVOTEX captura y analiza automáticamente imágenes de tus árboles.',
-    en: 'Walk your orchard while AVOTEX automatically captures and analyzes images of your trees.',
-  },
-  walkFeat1: { es: 'Captura automática', en: 'Automatic capture' },
-  walkFeat2: { es: 'Selección inteligente de fotografías', en: 'Smart photo selection' },
-  walkFeat3: { es: 'Sin internet durante la captura', en: 'No internet needed while capturing' },
-  walkFeat4: { es: 'Se analiza al recuperar la conexión', en: 'Analyzed once you are back online' },
-  walkCta: { es: 'Iniciar recorrido', en: 'Start walk' },
-  walkIdeal: { es: 'Ideal para revisar muchos árboles', en: 'Best for checking many trees' },
-  walkChip1: { es: 'Sin internet', en: 'Offline' },
-  walkChip2: { es: 'Selección automática', en: 'Auto selection' },
-  walkChip3: { es: 'Análisis con IA', en: 'AI analysis' },
-  pendingHint: { es: 'Se suben al abrir el recorrido con conexión.', en: 'They upload when you open the walk online.' },
-  walkLocked: { es: 'Crea una cuenta para usarlo', en: 'Create an account to use it' },
-  pendingOne: { es: '1 recorrido pendiente de subir', en: '1 walk waiting to upload' },
-  pendingMany: { es: '{count} recorridos pendientes de subir', en: '{count} walks waiting to upload' },
-  pendingPhotos: { es: '{count} fotografías guardadas en tu celular', en: '{count} photos saved on your phone' },
-  // ¿Cómo funciona?
-  howTitle: { es: '¿Cómo funciona el recorrido?', en: 'How does the walk work?' },
-  how1Title: { es: 'Coloca tu teléfono', en: 'Mount your phone' },
-  how1Body: { es: 'Fija tu teléfono al pecho o casco con la cámara orientada hacia los árboles.', en: 'Attach your phone to your chest or helmet with the camera facing the trees.' },
-  how2Title: { es: 'Recorre tu huerta', en: 'Walk your orchard' },
-  how2Body: { es: 'Camina normalmente mientras AVOTEX captura fotografías automáticamente.', en: 'Walk normally while AVOTEX captures photos automatically.' },
-  how3Title: { es: 'Analiza con IA', en: 'Analyze with AI' },
-  how3Body: { es: 'Las imágenes seleccionadas se procesan para detectar posibles enfermedades.', en: 'Selected images are processed to detect possible diseases.' },
 };
+
+type Mode = 'walk' | 'photo';
+const MODES: Mode[] = ['walk', 'photo'];
+type T = (key: string, vars?: Record<string, string | number>) => string;
 
 type Props = {
   isGuest: boolean;
@@ -69,297 +114,470 @@ type Props = {
   pendingPhotos: number;
   onPhoto: () => void;
   onWalk: () => void;
+  /** Abre la lista de recorridos guardados y sus resultados. */
+  onOpenWalks: () => void;
 };
 
+// ───────────────────────── capas de visión ─────────────────────────
 
-// ───────────────────────── piezas visuales ─────────────────────────
+/** Esquinas de un encuadre de detección (coordenadas en el viewBox 0–900 de la foto). */
+function Brackets({ x, y, w, h, color, len = 16, sw = 4 }: { x: number; y: number; w: number; h: number; color: string; len?: number; sw?: number }) {
+  const d = [
+    `M${x} ${y + len} V${y} H${x + len}`,
+    `M${x + w - len} ${y} H${x + w} V${y + len}`,
+    `M${x + w} ${y + h - len} V${y + h} H${x + w - len}`,
+    `M${x + len} ${y + h} H${x} V${y + h - len}`,
+  ].join(' ');
+  return <Path d={d} stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" fill="none" />;
+}
 
-/** Agricultor recorriendo su huerta: ruta con puntos de captura y un pulso sobre el teléfono al pecho. */
-function WalkVisual({ height, locked }: { height: number; locked: boolean }) {
+type Pct = `${number}%`;
+const pct = (n: number): Pct => `${Number(n.toFixed(2))}%`;
+
+/**
+ * Coloca una vista sobre la foto en coordenadas del viewBox 0–900.
+ * La foto es cuadrada y se recorta centrada ("cover"), igual que el SVG con "xMidYMid slice":
+ * se calcula el mismo recorte para que etiquetas y encuadres coincidan.
+ */
+function useScenePoint(size: { w: number; h: number }) {
+  return useCallback((x: number, y: number) => {
+    const side = Math.max(size.w, size.h);
+    const offX = (side - size.w) / 2;
+    const offY = (side - size.h) / 2;
+    return { left: (x / 900) * side - offX, top: (y / 900) * side - offY, scale: side / 900 };
+  }, [size.w, size.h]);
+}
+
+/** Etiqueta pegada a una detección. */
+function DetectTag({ left, top, label, color }: { left: number; top: number; label: string; color: string }) {
   return (
-    <View style={[v.media, { height }]}>
-      <Image source={IMG_ORCHARD_WALK} style={v.mediaImg} resizeMode="cover" accessibilityIgnoresInvertColors />
-      <LinearGradient
-        colors={['rgba(4,47,46,0.35)', 'rgba(15,118,110,0.05)', 'rgba(4,47,46,0.55)']}
-        locations={[0, 0.45, 1]}
-        style={StyleSheet.absoluteFill}
-      />
-      {/* Ruta y puntos de captura sobre el surco */}
-      <Svg style={StyleSheet.absoluteFill} viewBox="0 0 320 187" preserveAspectRatio="xMidYMid slice">
-        <Path d="M120 187 C 140 168, 150 158, 160 146 S 172 128, 168 118" stroke="#ffffff" strokeOpacity={0.95} strokeWidth={3.2} strokeLinecap="round" strokeDasharray="1.5 8" fill="none" />
-        {[[126, 182], [146, 160], [162, 140]].map(([x, y], i) => (
-          <Circle key={i} cx={x} cy={y} r={4.4} fill="#34d399" stroke="#ffffff" strokeWidth={1.8} />
+    <View pointerEvents="none" style={[v.tag, { left, top: top - 22, backgroundColor: color }]}>
+      <Text style={v.tagText}>{label}</Text>
+    </View>
+  );
+}
+
+/** Vista aérea de la huerta con la ruta del recorrido, fotos tomadas y detecciones. */
+function WalkScene({ size, active, locked, t }: { size: { w: number; h: number }; active: boolean; locked: boolean; t: T }) {
+  const at = useScenePoint(size);
+  // Carril entre hileras: x = 120 + 0.28·y (viewBox 0–900). La ruta ocupa la mitad superior:
+  // el título del visor va sobre la parte baja.
+  const lane = (y: number) => 120 + 0.28 * y;
+  const shots = [455, 400, 345, 290];
+  const head = { x: lane(235), y: 235 };
+  const fruitBox = { x: lane(420) - 116, y: 392 };
+  const reviewBox = { x: lane(290) + 44, y: 268 };
+  const headPt = at(head.x, head.y);
+  const fruitPt = at(fruitBox.x, fruitBox.y);
+  const reviewPt = at(reviewBox.x, reviewBox.y);
+  return (
+    <View style={[v.scene, { width: size.w, height: size.h }]}>
+      <Image source={IMG_AERIAL} style={v.img} resizeMode="cover" accessibilityIgnoresInvertColors />
+      <LinearGradient colors={['rgba(4,20,15,0.55)', 'rgba(4,20,15,0)', 'rgba(4,20,15,0.25)', 'rgba(4,20,15,0.96)']} locations={[0, 0.28, 0.55, 1]} style={StyleSheet.absoluteFill} />
+      <Svg style={StyleSheet.absoluteFill} viewBox="0 0 900 900" preserveAspectRatio="xMidYMid slice">
+        {/* zona que la cámara del pecho tiene enfrente */}
+        <Path d={`M${head.x} ${head.y} L${head.x - 80} ${head.y - 95} A 120 120 0 0 1 ${head.x + 65} ${head.y - 105} Z`} fill={GREEN} fillOpacity={0.18} />
+        {/* ruta recorrida */}
+        <Path d={`M${lane(480)} 480 L${head.x} ${head.y}`} stroke="#ffffff" strokeOpacity={0.9} strokeWidth={5} strokeLinecap="round" strokeDasharray="2 16" />
+        {shots.map(y => (
+          <Circle key={y} cx={lane(y)} cy={y} r={9} fill={GREEN} stroke="#04140F" strokeWidth={3} />
         ))}
+        {/* detecciones sobre las copas vecinas */}
+        <Brackets x={fruitBox.x} y={fruitBox.y} w={72} h={72} color={GREEN} />
+        <Brackets x={lane(330) - 110} y={305} w={62} h={62} color={GREEN} />
+        <Brackets x={reviewBox.x} y={reviewBox.y} w={72} h={72} color="#FBBF24" />
       </Svg>
-      {/* Única animación continua de la pantalla: indica que la cámara del pecho captura sola. */}
+      <DetectTag left={fruitPt.left} top={fruitPt.top} label={t('detectFruit')} color={GREEN} />
+      <DetectTag left={reviewPt.left} top={reviewPt.top} label={t('detectReview')} color="#FBBF24" />
       {!locked && (
-        <View pointerEvents="none" style={v.pulseAnchor}>
-          <PulseRing size={34} color="#ffffff" />
-          <View style={v.pulseDot}><Camera size={11} color={GREEN} /></View>
+        <View pointerEvents="none" style={[v.anchor, { left: headPt.left, top: headPt.top }]}>
+          <PulseRing size={42} color="#ffffff" paused={!active} />
+          <View style={v.walker}><Smartphone size={13} color={GREEN_DEEP} /></View>
         </View>
       )}
-      <View style={v.inset}>
-        <ChestMountIllustration size={58} />
-      </View>
     </View>
   );
 }
 
-/** Miniatura del modo manual: aguacate en el árbol con el encuadre de la cámara. */
-function PhotoThumb({ size }: { size: number }) {
+/** Fruto en el árbol encuadrado por la retícula de la cámara, con la línea de análisis. */
+function PhotoScene({ size, active, t }: { size: { w: number; h: number }; active: boolean; t: T }) {
+  const reduced = useReducedMotion();
+  const at = useScenePoint(size);
+  // Caja del fruto en el viewBox 0–900 (el fruto queda al centro de la foto).
+  const box = { x: 365, y: 360, w: 170, h: 175 };
+  const leaf = { x: 760, y: 222, w: 92, h: 78 };
+  const b = at(box.x, box.y);
+  const l = at(leaf.x, leaf.y);
+  const boxW = box.w * b.scale;
+  const boxH = box.h * b.scale;
   return (
-    <View style={[v.thumb, { width: size, height: size }]}>
-      <Image source={IMG_AVOCADO_TREE} style={v.mediaImg} resizeMode="cover" accessibilityIgnoresInvertColors />
-      <LinearGradient colors={['rgba(46,26,87,0)', 'rgba(46,26,87,0.45)']} style={StyleSheet.absoluteFill} />
-      <View style={v.reticle}>
-        <View style={[v.rc, v.rcTL]} /><View style={[v.rc, v.rcTR]} />
-        <View style={[v.rc, v.rcBL]} /><View style={[v.rc, v.rcBR]} />
-      </View>
-      <View style={v.thumbShutter}><Camera size={14} color={PURPLE} /></View>
+    <View style={[v.scene, { width: size.w, height: size.h }]}>
+      <Image source={IMG_AVOCADO} style={v.img} resizeMode="cover" accessibilityIgnoresInvertColors />
+      <LinearGradient colors={['rgba(20,8,45,0.55)', 'rgba(20,8,45,0)', 'rgba(20,8,45,0.3)', 'rgba(14,6,32,0.97)']} locations={[0, 0.28, 0.55, 1]} style={StyleSheet.absoluteFill} />
+      <Svg style={StyleSheet.absoluteFill} viewBox="0 0 900 900" preserveAspectRatio="xMidYMid slice">
+        {/* encuadre general de la cámara */}
+        <Brackets x={235} y={170} w={430} h={410} color="#ffffff" len={38} sw={5} />
+        {/* fruto detectado */}
+        <Rect x={box.x} y={box.y} width={box.w} height={box.h} rx={18} fill={PURPLE} fillOpacity={0.12} />
+        <Brackets x={box.x} y={box.y} w={box.w} h={box.h} color={PURPLE} len={30} sw={5} />
+        {/* hoja con manchas */}
+        <Brackets x={leaf.x} y={leaf.y} w={leaf.w} h={leaf.h} color="#FBBF24" len={18} />
+      </Svg>
+      {/* Línea de análisis dentro del fruto: única animación continua de esta modalidad. */}
+      {!reduced && (
+        <View pointerEvents="none" style={[v.scanBox, { left: b.left, top: b.top, width: boxW, height: boxH }]}>
+          <Reanimated.View
+            style={[
+              v.scanLine,
+              {
+                animationName: { from: { transform: [{ translateY: 4 }] }, to: { transform: [{ translateY: Math.max(8, boxH - 8) }] } },
+                animationDuration: 1500,
+                animationIterationCount: 'infinite',
+                animationDirection: 'alternate',
+                animationTimingFunction: 'ease-in-out',
+                animationPlayState: active ? 'running' : 'paused',
+              },
+            ]}
+          >
+            <LinearGradient colors={['rgba(196,181,253,0)', 'rgba(221,214,254,1)', 'rgba(196,181,253,0)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
+          </Reanimated.View>
+        </View>
+      )}
+      <DetectTag left={b.left} top={b.top} label={t('detectFruit')} color={PURPLE} />
+      <DetectTag left={l.left} top={l.top} label={t('detectLeaf')} color="#FBBF24" />
     </View>
   );
 }
 
-function Chip({ icon, label, dark }: { icon: React.ReactNode; label: string; dark?: boolean }) {
+// ───────────────────────── piezas de la pantalla ─────────────────────────
+
+function Steps({ items, color }: { items: string[]; color: string }) {
   return (
-    <View style={[s.chip, dark ? s.chipDark : s.chipLight]}>
-      {icon}
-      <Text style={[s.chipText, dark ? s.chipTextDark : s.chipTextLight]} numberOfLines={1}>{label}</Text>
+    <View style={s.steps}>
+      {items.map((label, i) => (
+        <View key={label} style={s.step}>
+          <Text style={[s.stepNum, { color }]}>{String(i + 1).padStart(2, '0')}</Text>
+          <Text style={s.stepText} numberOfLines={2}>{label}</Text>
+        </View>
+      ))}
     </View>
   );
 }
 
 // ───────────────────────── pantalla ─────────────────────────
 
-export default function ScanModeChooser({ isGuest, tokensValue, pendingWalks, pendingPhotos, onPhoto, onWalk }: Props) {
-  const t = useTranslations(translations);
+export default function ScanModeChooser({ isGuest, tokensValue, pendingWalks, pendingPhotos, onPhoto, onWalk, onOpenWalks }: Props) {
+  const t = useTranslations(translations) as T;
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
+  const { width, height } = useWindowDimensions();
+  const reduced = useReducedMotion();
+  const network = useNetworkState();
+  const offline = network.isConnected === false || network.isInternetReachable === false;
 
-  const how = [
-    { n: '01', title: t('how1Title'), body: t('how1Body'), art: <ChestMountIllustration size={isTablet ? 72 : 54} /> },
-    { n: '02', title: t('how2Title'), body: t('how2Body'), art: <WalkPathIllustration size={isTablet ? 72 : 54} /> },
-    { n: '03', title: t('how3Title'), body: t('how3Body'), art: <AiAnalyzeIllustration size={isTablet ? 72 : 54} /> },
-  ];
+  const isTablet = width >= 768;
+  const contentW = isTablet ? Math.min(width - 64, 760) : width - 32;
+  const heroW = contentW;
+  const heroH = Math.round(isTablet ? Math.min(contentW * 0.72, 540) : Math.min(contentW * (height < 720 ? 0.86 : 1.02), 440));
+  const segW = (contentW - 8) / 2;
+
+  const [mode, setMode] = useState<Mode>('walk');
+  const modeRef = useRef<Mode>('walk');
+  const tapTargetRef = useRef<Mode | null>(null);
+
+  // Paginado nativo: el dedo mueve el visor y el indicador lo sigue en el hilo de UI.
+  const pagerRef = useAnimatedRef<Reanimated.ScrollView>();
+  const scrollX = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler({ onScroll: e => { scrollX.set(e.contentOffset.x); } });
+
+  const commitMode = useCallback((next: Mode) => {
+    if (next === modeRef.current) return;
+    modeRef.current = next;
+    setMode(next);
+    // El toque ya vibró al presionar; solo el deslizamiento vibra al cruzar la mitad.
+    if (tapTargetRef.current !== next) Haptics.selectionAsync().catch(() => {});
+    tapTargetRef.current = null;
+  }, []);
+
+  // Se cambia de modalidad una sola vez al cruzar la mitad de la página (no en cada fotograma).
+  useAnimatedReaction(
+    () => (heroW > 0 ? Math.round(scrollX.get() / heroW) : 0),
+    (idx, prev) => {
+      if (prev !== null && idx !== prev) scheduleOnRN(commitMode, idx >= 1 ? 'photo' : 'walk');
+    },
+    [heroW],
+  );
+
+  const selectMode = useCallback((next: Mode) => {
+    if (next === modeRef.current) return;
+    tapTargetRef.current = next;
+    Haptics.selectionAsync().catch(() => {});
+    pagerRef.current?.scrollTo({ x: MODES.indexOf(next) * heroW, animated: !reduced });
+    // Con "Reducir movimiento" el salto es inmediato; se confirma sin esperar al desplazamiento.
+    if (reduced) commitMode(next);
+  }, [heroW, reduced, pagerRef, commitMode]);
+
+  const indicatorStyle = useAnimatedStyle(() => {
+    const p = heroW > 0 ? Math.min(Math.max(scrollX.get() / heroW, 0), 1) : 0;
+    return {
+      transform: [{ translateX: p * segW }],
+      backgroundColor: interpolateColor(p, [0, 1], ['rgba(52,211,153,0.22)', 'rgba(167,139,250,0.24)']),
+      borderColor: interpolateColor(p, [0, 1], ['rgba(52,211,153,0.55)', 'rgba(167,139,250,0.6)']),
+    };
+  });
+
+  const isWalk = mode === 'walk';
+  const accent = isWalk ? GREEN : PURPLE;
+  const walkSteps = useMemo(() => [t('walkStep1'), t('walkStep2'), t('walkStep3')], [t]);
+  const photoSteps = useMemo(() => [t('photoStep1'), t('photoStep2'), t('photoStep3')], [t]);
+  const sceneSize = useMemo(() => ({ w: heroW, h: heroH }), [heroW, heroH]);
+  // Barra de pestañas flotante (alto + separación) y el botón central que sobresale.
+  const bottomSpace = (isTablet ? 82 + 24 : 72 + 18) + 36 + insets.bottom;
+  const walkLocked = isWalk && isGuest;
+  const pendingLabel = pendingWalks === 1 ? t('pendingOne') : t('pendingMany', { count: pendingWalks });
 
   return (
-    <ScrollView
+    <Reanimated.ScrollView
       style={s.screen}
-      contentContainerStyle={[s.content, isTablet && s.contentTablet, { paddingTop: insets.top + (isTablet ? 36 : 20) }]}
+      contentContainerStyle={[s.content, { paddingTop: insets.top + (isTablet ? 28 : 14), paddingBottom: bottomSpace, width: contentW + 32, alignSelf: 'center' }]}
       showsVerticalScrollIndicator={false}
     >
-      {/* Encabezado: sin animación de entrada, es una pestaña que se visita muchas veces al día. */}
+      {/* ── Encabezado editorial: título y saldo en filas separadas, nada en la esquina ── */}
       <View style={s.header}>
-        <View style={s.headerRow}>
-          <Text style={[s.title, isTablet && s.titleTablet]}>{t('title')}</Text>
+        <View style={s.kickerRow}>
+          <View style={s.kickerDot} />
+          <Text style={s.kicker}>{t('kicker')}</Text>
+        </View>
+        <Text style={[s.title, isTablet && s.titleTablet]} accessibilityRole="header">{t('title')}</Text>
+        <View style={s.subRow}>
+          <Text style={s.subtitle}>{t('subtitle')}</Text>
           {tokensValue ? (
-            <View style={s.tokens} accessibilityLabel={`${tokensValue} ${t('tokens')}`}>
-              <Coins size={14} color="#b45309" />
+            <View style={s.tokens} accessible accessibilityLabel={t('tokensA11y', { value: tokensValue })}>
+              <Coins size={13} color="#FCD34D" />
               <Text style={s.tokensValue}>{tokensValue}</Text>
+              <Text style={s.tokensLabel}>{t('tokens')}</Text>
             </View>
           ) : null}
         </View>
-        <Text style={[s.subtitle, isTablet && s.subtitleTablet]}>{t('subtitle')}</Text>
       </View>
 
-      <View style={[s.cards, isTablet && s.cardsTablet]}>
-        {/* ── Recorrido inteligente: modo principal, verde ── */}
-        <PressableScale
-          onPress={isGuest ? undefined : onWalk}
-          disabled={isGuest}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: isGuest }}
-          accessibilityLabel={`${t('walkTitle')}. ${isGuest ? t('walkLocked') : t('walkBody')}`}
-          style={[s.walkShadow, isTablet && s.colWalk]}
-        >
-          <LinearGradient colors={['#0f766e', '#115e59', '#134e4a']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.walkCard}>
-            <View>
-              <WalkVisual height={isTablet ? 270 : 220} locked={isGuest} />
-              <View style={s.mediaBadge}>
-                <ScanLine size={13} color="#a7f3d0" />
-                <Text style={s.mediaBadgeText}>{t('walkBadge')}</Text>
-              </View>
-              {isGuest && (
-                <View style={s.lockOverlay}><View style={s.lockCircle}><Lock size={22} color={GREEN} /></View></View>
-              )}
-            </View>
-            <View style={s.walkBody}>
+      {/* ── Selector de modalidad ── */}
+      <View style={s.switch} accessibilityRole="tablist">
+        <Reanimated.View pointerEvents="none" style={[s.switchPill, { width: segW }, indicatorStyle]} />
+        {MODES.map(m => {
+          const on = m === mode;
+          const walk = m === 'walk';
+          const Icon = walk ? Footprints : Aperture;
+          return (
+            <PressableScale
+              key={m}
+              onPress={() => selectMode(m)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: on }}
+              accessibilityLabel={walk ? t('walkTitle') : t('photoTitle')}
+              style={[s.segment, { width: segW }]}
+            >
+              <Icon size={18} color={on ? (walk ? GREEN : PURPLE) : MUTED} />
               <View>
-                <Text style={s.walkIdeal}>{t('walkIdeal')}</Text>
-                <Text style={s.walkTitle}>{t('walkTitle')}</Text>
+                <Text style={[s.segLabel, on && s.segLabelOn]}>{walk ? t('walkTab') : t('photoTab')}</Text>
+                <Text style={[s.segSub, on && { color: walk ? '#A7F3D0' : '#DDD6FE' }]}>{walk ? t('walkTabSub') : t('photoTabSub')}</Text>
               </View>
-              <Text style={s.walkText}>{t('walkBody')}</Text>
-              <View style={s.chips}>
-                <Chip dark icon={<WifiOff size={12} color="#a7f3d0" />} label={t('walkChip1')} />
-                <Chip dark icon={<ScanLine size={12} color="#a7f3d0" />} label={t('walkChip2')} />
-                <Chip dark icon={<Sparkles size={12} color="#a7f3d0" />} label={t('walkChip3')} />
+            </PressableScale>
+          );
+        })}
+      </View>
+
+      {/* ── Visor: se desliza con el dedo entre las dos modalidades ── */}
+      <View style={[s.hero, { width: heroW, height: heroH }]}>
+        <Reanimated.ScrollView
+          ref={pagerRef}
+          horizontal
+          pagingEnabled
+          bounces={false}
+          overScrollMode="never"
+          showsHorizontalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          decelerationRate="fast"
+          accessibilityHint={t('swipeHint')}
+        >
+          <WalkScene size={sceneSize} active={isWalk} locked={isGuest} t={t} />
+          <PhotoScene size={sceneSize} active={!isWalk} t={t} />
+        </Reanimated.ScrollView>
+
+        <View pointerEvents="none" style={s.heroTop}>
+          <View style={[s.badge, { borderColor: isWalk ? 'rgba(52,211,153,0.45)' : 'rgba(167,139,250,0.5)' }]}>
+            {isWalk ? <ScanLine size={13} color={GREEN} /> : <Sparkles size={13} color={PURPLE} />}
+            <Text style={s.badgeText}>{isWalk ? t('walkBadge') : t('photoBadge')}</Text>
+          </View>
+          {isWalk ? (
+            <View style={s.badge}><WifiOff size={13} color={INK} /><Text style={s.badgeText}>{t('walkOffline')}</Text></View>
+          ) : null}
+        </View>
+        {/* Texto del visor: cambia con la modalidad con un fundido corto, sin desplazamiento. */}
+        <Reanimated.View key={`txt-${mode}`} entering={reduced ? undefined : STEPS_FADE} pointerEvents="none" style={s.heroText}>
+          <Text style={[s.heroTitle, isTablet && s.heroTitleTablet]}>{isWalk ? t('walkTitle') : t('photoTitle')}</Text>
+          <Text style={s.heroBody}>{isWalk ? t('walkBody') : t('photoBody')}</Text>
+        </Reanimated.View>
+        <View pointerEvents="none" style={s.dots}>
+          {MODES.map(m => (
+            <Reanimated.View
+              key={m}
+              style={[
+                s.dot,
+                {
+                  backgroundColor: m === mode ? accent : 'rgba(255,255,255,0.35)',
+                  transform: [{ scaleX: m === mode ? 2.4 : 1 }],
+                  transitionProperty: ['transform', 'backgroundColor'],
+                  transitionDuration: 200,
+                  transitionTimingFunction: CSS_EASE_OUT,
+                },
+              ]}
+            />
+          ))}
+        </View>
+        <View pointerEvents="none" style={s.heroBorder} />
+        {isGuest && isWalk && (
+          <View style={s.lockOverlay}><View style={s.lockCircle}><Lock size={22} color={GREEN_DEEP} /></View></View>
+        )}
+      </View>
+
+      {/* ── Cómo funciona + estado + acción ── */}
+      <Reanimated.View key={`info-${mode}`} entering={reduced ? undefined : STEPS_FADE} style={s.below}>
+        <Steps items={isWalk ? walkSteps : photoSteps} color={accent} />
+
+        {isWalk ? (
+          !isGuest && pendingWalks > 0 ? (
+            <PressableScale onPress={onOpenWalks} style={s.pending} accessibilityRole="button" accessibilityLabel={`${pendingLabel}. ${t('pendingOpen')}`}>
+              <View style={s.pendingIcon}><CloudUpload size={17} color="#78350F" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.pendingTitle}>{pendingLabel}</Text>
+                {pendingPhotos > 0 && <Text style={s.pendingSub}>{t('pendingPhotos', { count: pendingPhotos.toLocaleString() })}</Text>}
               </View>
-              {pendingWalks > 0 && !isGuest && (
-                <View style={s.pending}>
-                  <View style={s.pendingIcon}><CloudUpload size={16} color="#713f12" /></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.pendingTitle}>{pendingWalks === 1 ? t('pendingOne') : t('pendingMany', { count: pendingWalks })}</Text>
-                    <Text style={s.pendingSub}>
-                      {pendingPhotos > 0 ? `${t('pendingPhotos', { count: pendingPhotos.toLocaleString() })} · ` : ''}{t('pendingHint')}
-                    </Text>
-                  </View>
-                </View>
-              )}
-              <View style={[s.cta, isGuest ? s.ctaLocked : s.ctaWalk]}>
-                <Text style={[s.ctaText, { color: isGuest ? '#d1fae5' : GREEN }]}>{isGuest ? t('walkLocked') : t('walkCta')}</Text>
-                {!isGuest && <ArrowRight size={18} color={GREEN} />}
-              </View>
+              <Text style={s.pendingOpen}>{t('pendingOpen')}</Text>
+              <ChevronRight size={16} color="#FCD34D" />
+            </PressableScale>
+          ) : (
+            <View style={s.info}><WifiOff size={15} color={GREEN} /><Text style={s.infoText}>{t('walkInfo')}</Text></View>
+          )
+        ) : offline ? (
+          <View style={[s.info, s.infoWarn]}><WifiOff size={15} color="#FCA5A5" /><Text style={[s.infoText, { color: '#FECACA' }]}>{t('photoOffline')}</Text></View>
+        ) : (
+          <View style={s.info}><Wifi size={15} color={PURPLE} /><Text style={s.infoText}>{t('photoInfo')}</Text></View>
+        )}
+
+        <PressableScale
+          onPress={() => {
+            if (walkLocked) return;
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            if (isWalk) onWalk(); else onPhoto();
+          }}
+          disabled={walkLocked}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: walkLocked }}
+          accessibilityLabel={isWalk ? (isGuest ? t('walkLocked') : t('walkCta')) : t('photoCta')}
+          style={s.ctaWrap}
+        >
+          <LinearGradient
+            colors={isWalk ? (isGuest ? ['#1f3b33', '#1f3b33'] : ['#34D399', '#0f766e']) : ['#8B5CF6', '#44227C']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={s.cta}
+          >
+            <View style={s.ctaIcon}>
+              {isWalk ? (isGuest ? <Lock size={18} color="#A7F3D0" /> : <Footprints size={19} color="#ffffff" />) : <Camera size={19} color="#ffffff" />}
             </View>
+            <Text style={s.ctaText}>{isWalk ? (isGuest ? t('walkLocked') : t('walkCta')) : t('photoCta')}</Text>
+            {!walkLocked && <ArrowRight size={20} color="#ffffff" />}
           </LinearGradient>
         </PressableScale>
 
-        {/* ── Foto individual: modo manual, morado, compacto ── */}
-        <PressableScale
-          onPress={onPhoto}
-          accessibilityRole="button"
-          accessibilityLabel={`${t('photoTitle')}. ${t('photoBody')}`}
-          style={[s.photoShadow, isTablet && s.colPhoto]}
-        >
-          <View style={[s.photoCard, isTablet && s.photoCardTablet]}>
-            <PhotoThumb size={isTablet ? 180 : 108} />
-            <View style={s.photoBody}>
-              <View style={s.titleRow}>
-                <View style={s.titleIcon}><Camera size={16} color={PURPLE} /></View>
-                <Text style={s.photoTitle}>{t('photoTitle')}</Text>
-              </View>
-              <Text style={s.photoText}>{t('photoIdeal')}</Text>
-              <View style={s.chips}>
-                <Chip icon={<Zap size={12} color={PURPLE_SOFT} />} label={t('photoFeat1')} />
-                <Chip icon={<Wifi size={12} color={PURPLE_SOFT} />} label={t('photoFeat2')} />
-              </View>
-              <View style={s.photoCta}>
-                <Text style={s.photoCtaText}>{t('photoCta')}</Text>
-                <ArrowRight size={16} color="#ffffff" />
-              </View>
-            </View>
-          </View>
-        </PressableScale>
-      </View>
-
-      {/* ── ¿Cómo funciona el recorrido? ── */}
-      <View style={s.section}>
-        <Text style={s.sectionTitle}>{t('howTitle')}</Text>
-        <View style={[s.howList, isTablet && s.howListTablet]}>
-          {how.map((step, i) => (
-            <View key={step.n} style={[s.howItem, isTablet && s.howItemTablet]}>
-              <View style={s.howArt}>{step.art}</View>
-              <View style={[s.howText, isTablet && s.howTextTablet]}>
-                <Text style={s.howNum}>{step.n}</Text>
-                <Text style={s.howTitle}>{step.title}</Text>
-                <Text style={s.howBody}>{step.body}</Text>
-              </View>
-              {!isTablet && i < how.length - 1 && <View style={s.howLine} />}
-            </View>
-          ))}
-        </View>
-      </View>
-    </ScrollView>
+        {isWalk && !isGuest && (
+          <PressableScale onPress={onOpenWalks} style={s.link} accessibilityRole="button" accessibilityLabel={t('myWalks')}>
+            <Text style={s.linkText}>{t('myWalks')}</Text>
+            <ChevronRight size={16} color={MUTED} />
+          </PressableScale>
+        )}
+      </Reanimated.View>
+    </Reanimated.ScrollView>
   );
 }
 
 // ───────────────────────── estilos ─────────────────────────
 
 const v = StyleSheet.create({
-  media: { overflow: 'hidden', borderRadius: 22, backgroundColor: '#1f2937' },
+  scene: { overflow: 'hidden', backgroundColor: '#0b2a22' },
   // Ancho/alto explícitos: absoluteFill en <Image> amplía la foto en web.
-  mediaImg: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
-  // Sobre el pecho del agricultor de la foto: ahí va el teléfono que captura.
-  pulseAnchor: { position: 'absolute', left: '53.2%', top: '43%', width: 0, height: 0, alignItems: 'center', justifyContent: 'center' },
-  pulseDot: { position: 'absolute', width: 22, height: 22, borderRadius: 11, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
-  inset: {
-    position: 'absolute', right: 12, top: 12, width: 64, height: 64, borderRadius: 32,
-    backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
+  img: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
+  anchor: { position: 'absolute', width: 0, height: 0, alignItems: 'center', justifyContent: 'center' },
+  walker: {
+    position: 'absolute', width: 28, height: 28, borderRadius: 14,
+    backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: GREEN,
   },
-  thumb: { borderRadius: 20, overflow: 'hidden', backgroundColor: '#2E1A57' },
-  reticle: { position: 'absolute', top: '20%', left: '20%', right: '20%', bottom: '28%' },
-  rc: { position: 'absolute', width: 12, height: 12, borderColor: '#ffffff' },
-  rcTL: { top: 0, left: 0, borderTopWidth: 2.5, borderLeftWidth: 2.5, borderTopLeftRadius: 4 },
-  rcTR: { top: 0, right: 0, borderTopWidth: 2.5, borderRightWidth: 2.5, borderTopRightRadius: 4 },
-  rcBL: { bottom: 0, left: 0, borderBottomWidth: 2.5, borderLeftWidth: 2.5, borderBottomLeftRadius: 4 },
-  rcBR: { bottom: 0, right: 0, borderBottomWidth: 2.5, borderRightWidth: 2.5, borderBottomRightRadius: 4 },
-  thumbShutter: { position: 'absolute', bottom: 8, alignSelf: 'center', width: 26, height: 26, borderRadius: 13, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
+  tag: { position: 'absolute', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  tagText: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: '#052e16', letterSpacing: 0.3 },
+  scanBox: { position: 'absolute', overflow: 'hidden', borderRadius: 10 },
+  scanLine: { position: 'absolute', left: 4, right: 4, top: 0, height: 3, borderRadius: 2, overflow: 'hidden' },
 });
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#FFFFFF' },
-  content: { paddingHorizontal: 16, paddingBottom: 140, gap: 20 },
-  contentTablet: { maxWidth: 1080, width: '100%', alignSelf: 'center', paddingHorizontal: 32 },
+  screen: { flex: 1, backgroundColor: BG },
+  content: { paddingHorizontal: 16, gap: 16 },
   header: { gap: 2 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  title: { fontFamily: 'Poppins_700Bold', fontSize: 34, lineHeight: 40, letterSpacing: -1.1, color: '#0A0A0A' },
-  titleTablet: { fontSize: 46, lineHeight: 52 },
-  subtitle: { fontFamily: 'Poppins_400Regular', fontSize: 15, color: '#52606D' },
-  subtitleTablet: { fontSize: 18 },
+  kickerRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  kickerDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN },
+  kicker: { fontFamily: 'Poppins_600SemiBold', fontSize: 11.5, letterSpacing: 1.6, color: '#6EE7B7', textTransform: 'uppercase' },
+  title: { fontFamily: 'Poppins_700Bold', fontSize: 40, lineHeight: 46, letterSpacing: -1.4, color: INK, marginTop: 2 },
+  titleTablet: { fontSize: 52, lineHeight: 58 },
+  subRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, rowGap: 8 },
+  subtitle: { fontFamily: 'Poppins_400Regular', fontSize: 14.5, color: MUTED, flexShrink: 1 },
   tokens: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
-    backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A',
+    flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
+    backgroundColor: 'rgba(252,211,77,0.1)', borderWidth: 1, borderColor: 'rgba(252,211,77,0.32)',
   },
-  tokensValue: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#78350F' },
-  cards: { gap: 14 },
-  cardsTablet: { flexDirection: 'row', alignItems: 'stretch' },
-  colWalk: { flex: 1.35 },
-  colPhoto: { flex: 1 },
-  // Recorrido
-  walkShadow: { borderRadius: 28, shadowColor: '#0f766e', shadowOpacity: 0.24, shadowOffset: { width: 0, height: 14 }, shadowRadius: 24, elevation: 6 },
-  walkCard: { flex: 1, borderRadius: 28, padding: 8, overflow: 'hidden' },
-  mediaBadge: {
-    position: 'absolute', left: 12, top: 12, flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
-    backgroundColor: 'rgba(6,45,36,0.62)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+  tokensValue: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#FDE68A' },
+  tokensLabel: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(253,230,138,0.75)' },
+  // selector
+  switch: { flexDirection: 'row', padding: 4, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: LINE },
+  switchPill: { position: 'absolute', left: 4, top: 4, bottom: 4, borderRadius: 16, borderWidth: 1 },
+  segment: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 56, paddingVertical: 8 },
+  segLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 14.5, color: MUTED },
+  segLabelOn: { color: INK },
+  segSub: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: 'rgba(209,250,229,0.4)', marginTop: -2 },
+  // visor
+  hero: { borderRadius: 30, overflow: 'hidden', backgroundColor: '#0b2a22' },
+  heroBorder: { ...StyleSheet.absoluteFill, borderRadius: 30, borderWidth: 1, borderColor: LINE },
+  heroTop: { position: 'absolute', top: 14, left: 14, right: 14, flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  badge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
+    backgroundColor: 'rgba(4,20,15,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)',
   },
-  mediaBadgeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#ecfdf5' },
-  walkIdeal: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#a7f3d0', letterSpacing: 0.2 },
-  walkTitle: { fontFamily: 'Poppins_700Bold', fontSize: 26, lineHeight: 32, letterSpacing: -0.6, color: '#ffffff' },
-  walkBody: { flex: 1, paddingHorizontal: 10, paddingTop: 14, paddingBottom: 8, gap: 12 },
-  walkText: { fontFamily: 'Poppins_400Regular', fontSize: 14, lineHeight: 21, color: 'rgba(236,253,245,0.92)' },
-  lockOverlay: { ...StyleSheet.absoluteFill, borderRadius: 22, backgroundColor: 'rgba(6,45,36,0.45)', alignItems: 'center', justifyContent: 'center' },
-  lockCircle: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#d1fae5', alignItems: 'center', justifyContent: 'center' },
-  pending: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FEF3C7', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 9 },
-  pendingIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#FDE68A', alignItems: 'center', justifyContent: 'center' },
-  pendingTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: '#713f12' },
-  pendingSub: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, lineHeight: 16, color: '#92400e' },
-  cta: { marginTop: 'auto', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 15, borderRadius: 18 },
-  ctaWalk: { backgroundColor: '#ffffff' },
-  ctaLocked: { backgroundColor: 'rgba(255,255,255,0.16)' },
-  ctaText: { fontFamily: 'Poppins_700Bold', fontSize: 15.5 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999 },
-  chipDark: { backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
-  chipLight: { backgroundColor: '#EDE9FE' },
-  chipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11.5 },
-  chipTextDark: { color: '#ecfdf5' },
-  chipTextLight: { color: '#4B3A6B' },
-  // Foto individual
-  photoShadow: { borderRadius: 24, shadowColor: '#6D28D9', shadowOpacity: 0.12, shadowOffset: { width: 0, height: 10 }, shadowRadius: 18, elevation: 4 },
-  photoCard: { flex: 1, flexDirection: 'row', gap: 12, padding: 8, borderRadius: 24, backgroundColor: '#F7F3FF', borderWidth: 1, borderColor: '#EDE9FE' },
-  photoCardTablet: { flexDirection: 'column' },
-  photoBody: { flex: 1, gap: 7, paddingVertical: 4, paddingRight: 4 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  titleIcon: { width: 28, height: 28, borderRadius: 9, backgroundColor: '#EDE9FE', alignItems: 'center', justifyContent: 'center' },
-  photoTitle: { flex: 1, fontFamily: 'Poppins_700Bold', fontSize: 17, color: '#2E1A57', letterSpacing: -0.2 },
-  photoText: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: '#4B3A6B' },
-  photoCta: { marginTop: 'auto', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, alignSelf: 'stretch', paddingVertical: 10, borderRadius: 14, backgroundColor: PURPLE },
-  photoCtaText: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#ffffff' },
-  // ¿Cómo funciona?
-  section: { gap: 12 },
-  sectionTitle: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: '#0f172a', letterSpacing: -0.2 },
-  howList: { gap: 0 },
-  howListTablet: { flexDirection: 'row', gap: 12 },
-  howItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
-  howItemTablet: { flex: 1, flexDirection: 'column', alignItems: 'flex-start', padding: 14, borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0' },
-  howArt: { width: 54, alignItems: 'center' },
-  howLine: { position: 'absolute', left: 26, bottom: -8, width: 2, height: 16, borderRadius: 1, backgroundColor: '#ccfbf1' },
-  howText: { flex: 1, gap: 1 },
-  howTextTablet: { flex: 0 },
-  howNum: { fontFamily: 'Poppins_700Bold', fontSize: 11, color: '#14b8a6', letterSpacing: 1 },
-  howTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#0f172a' },
-  howBody: { fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 17, color: '#52606D' },
+  badgeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: INK },
+  heroText: { position: 'absolute', left: 18, right: 18, bottom: 34, gap: 4 },
+  heroTitle: { fontFamily: 'Poppins_700Bold', fontSize: 28, lineHeight: 33, letterSpacing: -0.8, color: '#ffffff' },
+  heroTitleTablet: { fontSize: 36, lineHeight: 42 },
+  heroBody: { fontFamily: 'Poppins_400Regular', fontSize: 13.5, lineHeight: 20, color: 'rgba(255,255,255,0.82)' },
+  dots: { position: 'absolute', bottom: 14, alignSelf: 'center', flexDirection: 'row', gap: 14 },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  lockOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(4,20,15,0.45)', alignItems: 'center', justifyContent: 'center' },
+  lockCircle: { width: 54, height: 54, borderRadius: 27, backgroundColor: '#d1fae5', alignItems: 'center', justifyContent: 'center' },
+  // debajo del visor
+  below: { gap: 12 },
+  steps: { flexDirection: 'row', gap: 8 },
+  step: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: LINE, gap: 2 },
+  stepNum: { fontFamily: 'Poppins_700Bold', fontSize: 12, letterSpacing: 1 },
+  stepText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, lineHeight: 17, color: INK },
+  info: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: LINE },
+  infoWarn: { backgroundColor: 'rgba(127,29,29,0.35)', borderColor: 'rgba(252,165,165,0.35)' },
+  infoText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: MUTED },
+  pending: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 16, backgroundColor: 'rgba(252,211,77,0.1)', borderWidth: 1, borderColor: 'rgba(252,211,77,0.35)' },
+  pendingIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#FCD34D', alignItems: 'center', justifyContent: 'center' },
+  pendingTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#FEF3C7' },
+  pendingSub: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: 'rgba(254,243,199,0.7)' },
+  pendingOpen: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: '#FCD34D' },
+  ctaWrap: { borderRadius: 22 },
+  cta: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 10, paddingRight: 20, minHeight: 64, borderRadius: 22 },
+  ctaIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+  ctaText: { flex: 1, fontFamily: 'Poppins_700Bold', fontSize: 16.5, color: '#ffffff' },
+  link: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 44 },
+  linkText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: MUTED },
 });

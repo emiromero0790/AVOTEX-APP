@@ -1004,7 +1004,7 @@ export default function Mapping() {
         transparent
         animationType="fade"
         statusBarTranslucent
-        onRequestClose={() => !deletingOrchard && setOrchardPendingDelete(null)}
+        onRequestClose={() => { if (!deletingOrchard) setOrchardPendingDelete(null); }}
       >
         <View style={styles.permissionBackdrop}>
           <View style={styles.permissionCard}>

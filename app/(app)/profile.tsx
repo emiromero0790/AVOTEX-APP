@@ -158,7 +158,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={StyleSheet.absoluteFillObject} />
+      <View style={StyleSheet.absoluteFill} />
 
       {/* Header */}
       <View style={styles.header}>

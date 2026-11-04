@@ -580,7 +580,7 @@ export default function Scan() {
       {/* Limit reached screen */}
       {limitReached ? (
         <View style={styles.limitContainer}>
-             <View style={StyleSheet.absoluteFillObject} />
+             <View style={StyleSheet.absoluteFill} />
           <View style={[styles.limitCard, isTablet && styles.limitCardTablet]}>
             <View style={styles.limitIconCircle}>
               <Lock size={36} color="#0f766e" />

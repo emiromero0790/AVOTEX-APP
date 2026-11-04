@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { WebView as RNWebView } from 'react-native-webview';
+
+// react-native-webview 14 declara la clase con P = undefined y sus props quedan como `never`;
+// se fija P a un objeto vacío (solo afecta a los tipos, no al comportamiento).
+const WebView = RNWebView<object>;
+type WebView = RNWebView<object>;
 import { buildRecorridoMapHtml, RecorridoMapProps } from './recorridoMapHtml';
 
 export type { RecorridoMapProps } from './recorridoMapHtml';

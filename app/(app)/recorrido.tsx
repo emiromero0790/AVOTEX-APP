@@ -1,3 +1,4 @@
+import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -315,7 +316,7 @@ export default function RecorridoScreen() {
   const [selected, setSelected] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState(false);
-  const detailScrollRef = useRef<ScrollView>(null);
+  const detailScrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const cardY = useRef<Record<string, number>>({});
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);

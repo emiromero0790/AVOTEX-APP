@@ -8,6 +8,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Network from 'expo-network';
 import { supabase } from '../supabaseConfig';
 
 const SUPABASE_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '');
@@ -37,6 +38,13 @@ export type PuntoRuta = { lat: number; lng: number; t: string };
 
 export type EstadoLocal = 'grabando' | 'guardado' | 'subiendo' | 'enviado';
 
+/**
+ * De dónde vienen las fotos de un escaneo:
+ * - celular: recorrido inteligente grabado con la cámara del teléfono.
+ * - dron / camara: fotos importadas desde la galería (dron o cámara de acción tipo GoPro).
+ */
+export type Fuente = 'celular' | 'dron' | 'camara';
+
 export type RecorridoLocal = {
   localId: string;
   userEmail: string;
@@ -48,6 +56,8 @@ export type RecorridoLocal = {
   remoteId: string | null;
   estado: EstadoLocal;
   error?: string | null;
+  /** Ausente en recorridos guardados antes de existir el campo: se toma como 'celular'. */
+  fuente?: Fuente;
 };
 
 export type EstadoRemoto = 'subiendo' | 'pendiente' | 'procesando' | 'listo' | 'error';
@@ -66,6 +76,8 @@ export type RecorridoRemoto = {
   procesado_at: string | null;
   error: string | null;
   created_at: string;
+  /** Null si la columna aún no existe en la base de datos (migración 20261105). */
+  fuente?: Fuente | null;
 };
 
 export type Hallazgo = {
@@ -150,7 +162,7 @@ export async function saveLocal(rec: RecorridoLocal): Promise<void> {
   await writeAll(all);
 }
 
-export async function createLocal(userEmail: string, huertaId: string | null): Promise<RecorridoLocal> {
+export async function createLocal(userEmail: string, huertaId: string | null, fuente: Fuente = 'celular'): Promise<RecorridoLocal> {
   const rec: RecorridoLocal = {
     localId: newId(),
     userEmail,
@@ -162,6 +174,7 @@ export async function createLocal(userEmail: string, huertaId: string | null): P
     remoteId: null,
     estado: 'grabando',
     error: null,
+    fuente,
   };
   await FileSystem.makeDirectoryAsync(dirFor(rec.localId), { intermediates: true });
   await saveLocal(rec);
@@ -173,6 +186,8 @@ export async function storePhoto(
   rec: RecorridoLocal,
   tempUri: string,
   coords: { lat: number; lng: number; precision: number | null } | null,
+  /** Para fotos importadas: la fecha real de la foto (EXIF), si se conoce. */
+  tomadaAt?: string,
 ): Promise<FotoLocal> {
   const id = String(rec.fotos.length + 1).padStart(4, '0');
   const uri = `${dirFor(rec.localId)}${id}.jpg`;
@@ -180,7 +195,7 @@ export async function storePhoto(
   return {
     id,
     uri,
-    tomadaAt: new Date().toISOString(),
+    tomadaAt: tomadaAt ?? new Date().toISOString(),
     lat: coords?.lat ?? null,
     lng: coords?.lng ?? null,
     precision: coords?.precision ?? null,
@@ -253,6 +268,33 @@ export async function uploadRecorrido(
   onProgress?: (done: number, total: number) => void,
 ): Promise<RecorridoLocal> {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('Falta la configuración de Supabase');
+  // Dos pantallas no deben subir el mismo recorrido a la vez (se crearían dos registros).
+  if (uploading.has(rec.localId)) throw new Error('Este recorrido ya se está subiendo');
+  uploading.add(rec.localId);
+  try {
+    return await uploadRecorridoInner(rec, onProgress);
+  } finally {
+    uploading.delete(rec.localId);
+  }
+}
+
+const uploading = new Set<string>();
+
+/** Si un recorrido local se está subiendo en este momento (desde cualquier pantalla). */
+export function isUploading(localId: string): boolean {
+  return uploading.has(localId);
+}
+
+function isMissingColumn(error: { code?: string; message?: string } | null, column: string): boolean {
+  if (!error) return false;
+  const msg = `${error.message ?? ''}`.toLowerCase();
+  return (error.code === 'PGRST204' || error.code === '42703' || msg.includes('column')) && msg.includes(column);
+}
+
+async function uploadRecorridoInner(
+  rec: RecorridoLocal,
+  onProgress?: (done: number, total: number) => void,
+): Promise<RecorridoLocal> {
   // Copia propia de las fotos: se marcan como subidas sin tocar el estado de la pantalla.
   let current: RecorridoLocal = { ...rec, fotos: rec.fotos.map(f => ({ ...f })), estado: 'subiendo', error: null };
   await saveLocal(current);
@@ -264,20 +306,25 @@ export async function uploadRecorrido(
         .from('users')
         .upsert({ user_email: current.userEmail, tokens: 0 }, { onConflict: 'user_email', ignoreDuplicates: true });
       if (userError) throw userError;
-      const { data, error } = await supabase
+      const row = {
+        user_email: current.userEmail,
+        huerta_id: current.huertaId,
+        estado: 'subiendo',
+        iniciado_at: current.iniciadoAt,
+        terminado_at: current.terminadoAt,
+        fotos_total: current.fotos.length,
+        ruta: simplifyRoute(current.ruta),
+      };
+      let { data, error } = await supabase
         .from('recorridos')
-        .insert({
-          user_email: current.userEmail,
-          huerta_id: current.huertaId,
-          estado: 'subiendo',
-          iniciado_at: current.iniciadoAt,
-          terminado_at: current.terminadoAt,
-          fotos_total: current.fotos.length,
-          ruta: simplifyRoute(current.ruta),
-        })
+        .insert({ ...row, fuente: current.fuente ?? 'celular' })
         .select('id')
         .single();
-      if (error) throw error;
+      // Si la base de datos aún no tiene la columna "fuente", se guarda sin ella (no se pierde el escaneo).
+      if (error && isMissingColumn(error, 'fuente')) {
+        ({ data, error } = await supabase.from('recorridos').insert(row).select('id').single());
+      }
+      if (error || !data) throw error ?? new Error('No se creó el recorrido');
       current = { ...current, remoteId: data.id as string };
       await saveLocal(current);
     }
@@ -339,27 +386,64 @@ export async function uploadRecorrido(
 
 // ───────────────────────── resultados ─────────────────────────
 
-export async function listRemote(userEmail: string): Promise<RecorridoRemoto[]> {
-  const { data, error } = await supabase
+const REMOTE_COLUMNS = 'id,user_email,huerta_id,estado,iniciado_at,terminado_at,fotos_total,fotos_analizadas,hallazgos_total,ruta,procesado_at,error,created_at';
+
+export async function listRemote(userEmail: string, limit = 30): Promise<RecorridoRemoto[]> {
+  const query = (columns: string) => supabase
     .from('recorridos')
-    .select('id,user_email,huerta_id,estado,iniciado_at,terminado_at,fotos_total,fotos_analizadas,hallazgos_total,ruta,procesado_at,error,created_at')
+    .select(columns)
     .eq('user_email', userEmail)
     .neq('estado', 'subiendo')
     .order('created_at', { ascending: false })
-    .limit(30);
+    .limit(limit);
+  let { data, error } = await query(`${REMOTE_COLUMNS},fuente`);
+  if (error && isMissingColumn(error, 'fuente')) ({ data, error } = await query(REMOTE_COLUMNS));
   if (error) throw error;
-  return (data ?? []) as RecorridoRemoto[];
+  return (data ?? []) as unknown as RecorridoRemoto[];
+}
+
+export type SyncResult = 'none' | 'offline' | 'wifi-required' | 'done' | 'partial';
+
+/**
+ * Sube los escaneos guardados en el celular, con la misma regla que la pantalla del recorrido:
+ * con WiFi, o con datos móviles si el usuario lo permitió (o si `force`).
+ */
+export async function uploadPending(
+  userEmail: string,
+  opts: { force?: boolean; onProgress?: (localId: string, done: number, total: number) => void } = {},
+): Promise<SyncResult> {
+  const pending = (await listLocal(userEmail)).filter(r => r.estado === 'guardado' && r.fotos.length > 0 && !uploading.has(r.localId));
+  if (!pending.length) return 'none';
+  let kind: 'wifi' | 'cellular' | 'offline' = 'offline';
+  try {
+    const st = await Network.getNetworkStateAsync();
+    kind = !st.isConnected || st.isInternetReachable === false ? 'offline'
+      : st.type === Network.NetworkStateType.WIFI || st.type === Network.NetworkStateType.ETHERNET ? 'wifi' : 'cellular';
+  } catch { /* sin dato: se intenta como celular */ kind = 'cellular'; }
+  if (kind === 'offline') return 'offline';
+  if (kind === 'cellular' && !opts.force && !(await getMobileDataAllowed())) return 'wifi-required';
+  let failed = 0;
+  for (const rec of pending) {
+    try {
+      await uploadRecorrido(rec, (done, total) => opts.onProgress?.(rec.localId, done, total));
+    } catch {
+      failed += 1;
+    }
+  }
+  return failed ? 'partial' : 'done';
 }
 
 export async function getRemote(id: string, userEmail: string): Promise<RecorridoRemoto | null> {
-  const { data, error } = await supabase
+  const query = (columns: string) => supabase
     .from('recorridos')
-    .select('id,user_email,huerta_id,estado,iniciado_at,terminado_at,fotos_total,fotos_analizadas,hallazgos_total,ruta,procesado_at,error,created_at')
+    .select(columns)
     .eq('id', id)
     .eq('user_email', userEmail)
     .maybeSingle();
+  let { data, error } = await query(`${REMOTE_COLUMNS},fuente`);
+  if (error && isMissingColumn(error, 'fuente')) ({ data, error } = await query(REMOTE_COLUMNS));
   if (error) throw error;
-  return (data as RecorridoRemoto) ?? null;
+  return (data as unknown as RecorridoRemoto) ?? null;
 }
 
 export async function listHallazgos(recorridoId: string, userEmail: string): Promise<Hallazgo[]> {

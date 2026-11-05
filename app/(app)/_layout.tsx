@@ -88,12 +88,15 @@ export default function TabLayout() {
     pathname === '/notifications' ||
     pathname === '/(app)/recorrido' ||
     pathname === '/recorrido';
+  // Escanear y Mis escaneos son oscuros (fotografía y mapa): la barra inferior toma la versión oscura.
+  const darkTabs = ['/scan', '/(app)/scan', '/escaneos', '/(app)/escaneos', '/importar', '/(app)/importar'].includes(pathname);
   const shouldHideChatbot =
     shouldHideTabs ||
     pathname === '/(app)/mapping' ||
     pathname === '/mapping' ||
     pathname === '/(app)/scan' ||
-    pathname === '/scan';
+    pathname === '/scan' ||
+    darkTabs;
   const { isGuest } = useGuest();
   const t = useTranslations(translations);
   const [showLockModal, setShowLockModal] = useState(false);
@@ -148,15 +151,15 @@ export default function TabLayout() {
             },
             isTablet && styles.tabBarTablet,
           ],
-          tabBarActiveTintColor: '#0f766e',
-          tabBarInactiveTintColor: '#94a3b8',
+          tabBarActiveTintColor: darkTabs ? '#A3E635' : '#0f766e',
+          tabBarInactiveTintColor: darkTabs ? 'rgba(236,252,203,0.55)' : '#94a3b8',
           tabBarShowLabel: true,
           tabBarLabelStyle: [styles.tabBarLabel, { fontSize: tabLabelSize }],
           tabBarItemStyle: styles.tabBarItem,
           tabBarBackground: () => (
             <LinearGradient
-              colors={['rgba(236,253,245,0.98)', 'rgba(240,253,250,0.98)']}
-              style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
+              colors={darkTabs ? ['rgba(10,26,16,0.97)', 'rgba(5,14,9,0.98)'] : ['rgba(236,253,245,0.98)', 'rgba(240,253,250,0.98)']}
+              style={[StyleSheet.absoluteFill, { borderRadius: 24 }, darkTabs && { borderWidth: 1, borderColor: 'rgba(190,242,100,0.16)' }]}
             />
           ),
         }}
@@ -179,14 +182,14 @@ export default function TabLayout() {
             tabBarIcon: () => (
               <View style={[styles.scanIconContainer, isTablet && styles.scanIconContainerTablet]}>
                 <LinearGradient
-                  colors={['#34d399', '#14b8a6']}
-                  style={[styles.scanGradient, isTablet && styles.scanGradientTablet]}
+                  colors={darkTabs ? ['#D9F99D', '#65A30D'] : ['#34d399', '#14b8a6']}
+                  style={[styles.scanGradient, isTablet && styles.scanGradientTablet, darkTabs && { borderColor: 'rgba(10,26,16,0.9)' }]}
                 >
-                  <Camera size={isTablet ? 28 : 24} color="#ffffff" />
+                  <Camera size={isTablet ? 28 : 24} color={darkTabs ? '#0B1A05' : '#ffffff'} />
                 </LinearGradient>
               </View>
             ),
-            tabBarLabelStyle: [styles.tabBarLabel, { color: '#0f766e', fontSize: tabLabelSize }],
+            tabBarLabelStyle: [styles.tabBarLabel, { color: darkTabs ? '#A3E635' : '#0f766e', fontSize: tabLabelSize }],
           }}
         />
         <Tabs.Screen
@@ -247,6 +250,8 @@ export default function TabLayout() {
         <Tabs.Screen name="plans" options={HIDDEN_TAB} />
         <Tabs.Screen name="notifications" options={HIDDEN_TAB} />
         <Tabs.Screen name="recorrido" options={HIDDEN_TAB} />
+        <Tabs.Screen name="escaneos" options={HIDDEN_TAB} />
+        <Tabs.Screen name="importar" options={HIDDEN_TAB} />
       </Tabs>
 
       {!shouldHideChatbot && !isGuest && (

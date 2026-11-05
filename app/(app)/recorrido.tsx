@@ -68,6 +68,7 @@ import {
   getMobileDataAllowed,
   getRemote,
   isHealthy,
+  isUploading,
   listHallazgos,
   listLocal,
   listRemote,
@@ -82,7 +83,7 @@ import {
 import { registerForPush } from '../../services/push';
 import RecorridoMap from '../../components/RecorridoMap';
 // Fotos reales de montaje (Flickr, CC BY 2.0 y CC BY-SA 2.0). Ver assets/images/escanear/CREDITOS.md
-const IMG_MOUNT_CHEST = require('../../assets/images/escanear/montaje-pecho.jpg');
+// (La foto del arnés de pecho se usa en la importación de GoPro; cada foto aparece en una sola pantalla.)
 const IMG_MOUNT_HELMET = require('../../assets/images/escanear/montaje-casco.jpg');
 import { CSS_EASE_OUT, EASE_IN_OUT, EASE_OUT, PressableScale, PulseRing } from '../../components/scan/motion';
 
@@ -186,7 +187,7 @@ const translations: TranslationResource = {
   rec4: { es: 'Lleva batería suficiente: la cámara y el GPS gastan más de lo normal.', en: 'Bring enough battery: camera and GPS use more power than usual.' },
   prepStart: { es: 'Comenzar recorrido', en: 'Start walk' },
   prepReady: { es: 'Todo listo para grabar', en: 'Ready to record' },
-  mountTag: { es: 'Celular en el pecho, cámara al frente', en: 'Phone on your chest, camera forward' },
+  mountTag: { es: 'En el pecho o en el casco, cámara al frente', en: 'On your chest or helmet, camera forward' },
   mountHelmetShort: { es: 'o en el casco', en: 'or on a helmet' },
   prepWarnings: { es: '{count} punto(s) por revisar', en: '{count} item(s) to check' },
   prepBack: { es: 'Regresar', en: 'Go back' },
@@ -283,7 +284,7 @@ export default function RecorridoScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
-  const params = useLocalSearchParams<{ id?: string; open?: 'prepare' | 'home'; n?: string }>();
+  const params = useLocalSearchParams<{ id?: string; open?: 'prepare' | 'home'; n?: string; from?: string }>();
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
 
   const [user, setUser] = useState<User | null>(auth.currentUser);
@@ -351,7 +352,7 @@ export default function RecorridoScreen() {
       openDetail(params.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.id, email]);
+  }, [params.id, params.n, email]);
 
   // La pantalla sigue montada entre visitas (vive dentro de las pestañas): cada pulsación de
   // «Iniciar recorrido» o «Mis recorridos» en Escanear trae un `n` nuevo y abre la vista pedida.
@@ -406,7 +407,8 @@ export default function RecorridoScreen() {
     const allowCellular = opts?.force || (await getMobileDataAllowed());
     if (net === 'offline') return;
     if (net === 'cellular' && !allowCellular) return;
-    const pending = (await listLocal(email)).filter(r => r.estado === 'guardado' && r.fotos.length > 0);
+    // Se omiten los que otra pantalla (Mis escaneos) ya está subiendo.
+    const pending = (await listLocal(email)).filter(r => r.estado === 'guardado' && r.fotos.length > 0 && !isUploading(r.localId));
     if (!pending.length) return;
     uploadingRef.current = true;
     if (pushState === null) setPushState(await registerForPush(email));
@@ -828,13 +830,9 @@ export default function RecorridoScreen() {
           <View style={pp.hero}>
             {/* Foto real del montaje: el celular va en el pecho con un arnés, o en el casco. */}
             <View style={[pp.heroMedia, isTablet && { aspectRatio: 2.4 }]}>
-              <Image source={IMG_MOUNT_CHEST} style={pp.heroImg} resizeMode="cover" accessibilityIgnoresInvertColors />
+              <Image source={IMG_MOUNT_HELMET} style={pp.heroImg} resizeMode="cover" accessibilityIgnoresInvertColors />
               <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)']} style={StyleSheet.absoluteFill} />
               <View style={pp.heroTag}><Smartphone size={13} color="#0f766e" /><Text style={pp.heroTagText}>{t('mountTag')}</Text></View>
-              <View style={pp.heroThumb}>
-                <Image source={IMG_MOUNT_HELMET} style={pp.heroImg} resizeMode="cover" accessibilityIgnoresInvertColors />
-                <View style={pp.heroThumbLabel}><Text style={pp.heroThumbText}>{t('mountHelmetShort')}</Text></View>
-              </View>
             </View>
             <View style={{ gap: 6, paddingHorizontal: 2 }}>
               <Text style={pp.heroTitle}>{t('prepTitle')}</Text>
@@ -1063,7 +1061,12 @@ export default function RecorridoScreen() {
         <View style={st.header}>
           <TouchableOpacity
             style={st.backBtn}
-            onPress={() => { if (params.id) router.setParams({ id: undefined }); setMode('home'); }}
+            onPress={() => {
+              // Abierto desde Mis escaneos: se regresa al mapa.
+              if (params.from === 'escaneos' && router.canGoBack()) { router.setParams({ id: undefined, from: undefined }); router.back(); return; }
+              if (params.id) router.setParams({ id: undefined });
+              setMode('home');
+            }}
             accessibilityLabel={t('back')}
           >
             <ChevronLeft size={24} color="#0f172a" />

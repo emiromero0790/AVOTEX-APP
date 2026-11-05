@@ -7,7 +7,10 @@ uso gratuito, también comercial, sin atribución obligatoria. Se recortaron y c
 | Archivo | Foto original |
 |---|---|
 | `recorrido-aereo.jpg` | [Vista aérea de hileras de árboles — Pexels 33790879](https://www.pexels.com/photo/aerial-view-of-lush-green-vineyard-rows-33790879/) |
-| `foto-aguacate.jpg` | [Árbol de aguacate contra el cielo — Pexels 37113091](https://www.pexels.com/photo/lush-avocado-tree-against-clear-blue-sky-37113091/) |
+| `hero-huerta.jpg` | [Cultivo en ladera al atardecer (título original: “Scenic Vineyard Landscape at Sunset”) — Pexels 33035529](https://www.pexels.com/photo/scenic-vineyard-landscape-at-sunset-33035529/) |
+| `fuente-dron.jpg` | [Dron volando sobre un campo — Pexels 9660112](https://www.pexels.com/photo/drone-flying-over-a-grass-field-9660112/) |
+| `fuente-gopro.jpg` | [Persona sosteniendo una cámara GoPro — Pexels 3718747](https://www.pexels.com/photo/a-person-holding-gopro-camera-3718747/) |
+| `fuente-celular.jpg` | [Persona con un celular entre plantas — Pexels 4526420](https://www.pexels.com/photo/crop-person-using-modern-smartphone-near-lush-plants-4526420/) |
 
 ## Creative Commons (requieren atribución)
 Fotos de Flickr encontradas con [Openverse](https://openverse.org/). Se ajustó el color/contraste y se comprimieron.
@@ -19,4 +22,8 @@ Fotos de Flickr encontradas con [Openverse](https://openverse.org/). Se ajustó 
 
 Si la app tiene una pantalla de créditos o "Acerca de", conviene listar ahí estas dos atribuciones.
 
-Los encuadres de detección y rutas del visor son vectores propios en `components/ScanModeChooser.tsx`.
+## Marca
+`avotex-wordmark.png` es un recorte del logotipo de AVOTEX (`assets/images/AvotexNuevoLogo.png`).
+
+Las retículas, recuadros de detección y rutas sobre las fotos son vectores propios (`components/ScanHome.tsx`).
+El mapa de Mis escaneos usa imágenes satelitales de Esri (atribución visible en el mapa).

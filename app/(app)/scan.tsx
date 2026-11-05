@@ -27,7 +27,7 @@ import { User, onAuthStateChanged } from "firebase/auth";
 import { supabase } from "../../supabaseConfig";
 import { useGuest, GUEST_MAX_SCANS } from "../../context/GuestContext";
 import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations } from "../../context/LanguageContext";
-import ScanModeChooser from "../../components/ScanModeChooser";
+import ScanHome from "../../components/ScanHome";
 import { listLocal } from "../../services/recorridos";
 import { CSS_EASE_OUT, EASE_OUT, PressableScale } from "../../components/scan/motion";
 
@@ -198,10 +198,10 @@ export default function Scan() {
     }, [user?.email, isGuest])
   );
 
-  // Selector blanco: texto oscuro en la barra de estado. Cámara: texto claro.
+  // Escanear (fotografía oscura) y cámara: texto claro en la barra de estado.
   useFocusEffect(
     useCallback(() => {
-      setStatusBarStyle(mode === "choose" ? "dark" : "light");
+      setStatusBarStyle("light");
       return () => setStatusBarStyle("dark");
     }, [mode])
   );
@@ -407,16 +407,16 @@ export default function Scan() {
         ? (userTokens * 100).toLocaleString(locale)
         : null;
     return (
-      <ScanModeChooser
+      <ScanHome
         isGuest={isGuest}
         tokensValue={tokensValue}
-        pendingWalks={pendingWalks}
-        pendingPhotos={pendingPhotos}
+        pendingCount={pendingWalks}
         onPhoto={choosePhoto}
-        // `open` y `n` hacen que la pantalla del recorrido (que sigue montada entre visitas)
-        // vaya directo a la preparación cada vez que se pulsa el botón.
+        // `open`/`fuente` y `n` hacen que la pantalla destino (que sigue montada entre visitas)
+        // abra el paso pedido cada vez que se pulsa el botón.
         onWalk={() => router.push({ pathname: "/(app)/recorrido", params: { open: "prepare", n: String(Date.now()) } })}
-        onOpenWalks={() => router.push({ pathname: "/(app)/recorrido", params: { open: "home", n: String(Date.now()) } })}
+        onImport={fuente => router.push({ pathname: "/(app)/importar", params: { fuente, n: String(Date.now()) } })}
+        onOpenScans={() => router.push({ pathname: "/(app)/escaneos", params: { n: String(Date.now()) } })}
       />
     );
   }

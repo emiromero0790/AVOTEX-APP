@@ -61,6 +61,6 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
 export default ScansMap;
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, overflow: 'hidden', backgroundColor: '#06120b' },
-  web: { flex: 1, backgroundColor: '#06120b' },
+  wrap: { flex: 1, overflow: 'hidden', backgroundColor: '#e5e7eb' },
+  web: { flex: 1, backgroundColor: '#e5e7eb' },
 });

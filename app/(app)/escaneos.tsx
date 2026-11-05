@@ -39,7 +39,7 @@ import ScansMap, { type ScansMapHandle } from '../../components/ScansMap';
 import { SCAN_STATUS_COLOR, type ScanStatus, type ScansMapData, type ScansMapLayer, type ScansMapPoint } from '../../components/scansMapHtml';
 import ScanHeader from '../../components/scan/ScanHeader';
 import { CSS_EASE_OUT, EASE_IN_OUT, EASE_OUT, PressableScale } from '../../components/scan/motion';
-import { SCAN } from '../../components/scan/theme';
+import { CARD_SHADOW, SCAN, STATUS_INK } from '../../components/scan/theme';
 
 const auth = firebaseAuth as Auth;
 
@@ -174,10 +174,7 @@ export default function MisEscaneos() {
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
 
-  useFocusEffect(useCallback(() => {
-    setStatusBarStyle('light');
-    return () => setStatusBarStyle('dark');
-  }, []));
+  useFocusEffect(useCallback(() => { setStatusBarStyle('dark'); }, []));
 
   // ───────── datos ─────────
   const load = useCallback(async () => {
@@ -287,8 +284,8 @@ export default function MisEscaneos() {
     })),
     markers: items.filter(it => it.loc).map(it => ({ id: it.id, lat: it.loc!.lat, lng: it.loc!.lng, status: it.status, n: numbers[it.id] })),
     // Con un escaneo elegido, el panel tapa la parte baja del mapa.
-    pad: { top: insets.top + 150, bottom: selectedId ? 170 : 40, right: 64 },
-  }), [orchards, items, numbers, insets.top, selectedId]);
+    pad: { top: 8, bottom: selectedId ? 170 : 24, right: 64 },
+  }), [orchards, items, numbers, selectedId]);
 
   const visible = useMemo(() => items.filter(it => filter === 'all' || it.status === filter || (filter === 'cola' && it.status === 'error')), [items, filter]);
   const selected = items.find(it => it.id === selectedId) ?? null;
@@ -367,7 +364,7 @@ export default function MisEscaneos() {
   if (isGuest) {
     return (
       <View style={[st.screen, st.center, { paddingTop: insets.top }]}>
-        <Lock size={36} color={SCAN.lime} />
+        <Lock size={36} color={SCAN.brand} />
         <Text style={st.lockText}>{t('locked')}</Text>
         <PressableScale style={st.lockBtn} onPress={() => router.replace('/(auth)')} accessibilityRole="button">
           <Text style={st.lockBtnText}>{t('signIn')}</Text>
@@ -376,7 +373,7 @@ export default function MisEscaneos() {
     );
   }
 
-  const mapH = Math.round(expanded ? height * 0.84 : Math.max(height * 0.64, 460));
+  const mapH = Math.round(expanded ? height * 0.7 : Math.max(height * 0.46, 360));
   const tabSpace = (isTablet ? 82 + 24 : 72 + 18) + 24 + insets.bottom;
   const tokensValue = tokens != null ? (tokens * 100).toLocaleString(locale) : null;
 
@@ -387,10 +384,23 @@ export default function MisEscaneos() {
         contentContainerStyle={{ paddingBottom: tabSpace }}
         showsVerticalScrollIndicator={false}
         scrollEnabled
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => load().then(() => sync(false))} tintColor={SCAN.lime} progressViewOffset={insets.top + 60} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => load().then(() => sync(false))} tintColor={SCAN.brand} progressViewOffset={insets.top + 20} />}
       >
-        {/* ── Mapa protagonista ── */}
-        <Reanimated.View layout={reduced ? undefined : MAP_RESIZE} style={[st.mapBox, { height: mapH }]}>
+        {/* ── Encabezado (sobre blanco, como el resto de la app) ── */}
+        <View style={[st.header, { paddingTop: insets.top + 8 }]}>
+          <View style={st.headerRow}>
+            <PressableScale style={st.back} onPress={() => (router.canGoBack() ? router.back() : router.navigate('/(app)/scan'))} accessibilityRole="button" accessibilityLabel={t('back')}>
+              <ChevronLeft size={22} color={SCAN.ink} />
+            </PressableScale>
+            <View style={{ flex: 1 }}><ScanHeader tokensValue={tokensValue} /></View>
+          </View>
+          <Text style={st.title} accessibilityRole="header">{t('title')}</Text>
+          <Text style={st.subtitle}>{t('subtitle')}</Text>
+        </View>
+
+        {/* ── Mapa protagonista (tarjeta) ── */}
+        <Reanimated.View layout={reduced ? undefined : MAP_RESIZE} style={[st.mapShadow, { height: mapH }]}>
+        <View style={st.mapBox}>
           <ScansMap
             ref={mapRef}
             data={mapData}
@@ -400,21 +410,8 @@ export default function MisEscaneos() {
             layer={layer}
             onSelect={id => select(id, 'map')}
           />
-          {/* encabezado sobre el mapa */}
-          <LinearGradient pointerEvents="none" colors={['rgba(3,10,6,0.92)', 'rgba(3,10,6,0.55)', 'rgba(3,10,6,0)']} locations={[0, 0.55, 1]} style={[st.topShade, { height: insets.top + 170 }]} />
-          <View style={[st.header, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
-            <View style={st.headerRow} pointerEvents="box-none">
-              <PressableScale style={st.back} onPress={() => (router.canGoBack() ? router.back() : router.navigate('/(app)/scan'))} accessibilityRole="button" accessibilityLabel={t('back')}>
-                <ChevronLeft size={22} color={SCAN.ink} />
-              </PressableScale>
-              <View style={{ flex: 1 }} pointerEvents="box-none"><ScanHeader tokensValue={tokensValue} /></View>
-            </View>
-            <Text style={st.title} accessibilityRole="header">{t('title')}</Text>
-            <Text style={st.subtitle}>{t('subtitle')}</Text>
-          </View>
-
           {/* controles del mapa */}
-          <View style={[st.controls, { top: insets.top + 150 }]}>
+          <View style={st.controls}>
             <MapButton label={t('locate')} onPress={locate}><Navigation size={18} color={SCAN.ink} /></MapButton>
             <MapButton label={`${t('layerSat')} / ${t('layerHybrid')} / ${t('layerMap')}`} onPress={cycleLayer}><Layers size={18} color={SCAN.ink} /></MapButton>
             <View style={st.zoom}>
@@ -435,7 +432,7 @@ export default function MisEscaneos() {
           )}
 
           {!mapData.markers.length && !loading && (
-            <View style={st.mapEmpty} pointerEvents="none"><MapPin size={14} color={SCAN.inkSoft} /><Text style={st.mapEmptyText}>{t('noMapScans')}</Text></View>
+            <View style={st.mapEmpty} pointerEvents="none"><MapPin size={14} color={SCAN.muted} /><Text style={st.mapEmptyText}>{t('noMapScans')}</Text></View>
           )}
 
           {/* panel del escaneo seleccionado */}
@@ -450,7 +447,7 @@ export default function MisEscaneos() {
                   </View>
                   <Text style={st.panelMeta}>{fmtDate(selected.date)}</Text>
                   <View style={st.panelSrc}>
-                    <SourceIcon fuente={selected.fuente} size={13} color={SCAN.inkSoft} />
+                    <SourceIcon fuente={selected.fuente} size={13} color={SCAN.muted} />
                     <Text style={st.panelMeta}>
                       {sourceText(selected.fuente)}
                       {selected.kind !== 'foto' && selected.photos != null ? ` · ${t('images', { count: selected.photos })}` : ''}
@@ -458,14 +455,14 @@ export default function MisEscaneos() {
                     </Text>
                   </View>
                   {selected.result && (
-                    <Text style={[st.panelMeta, { color: isHealthy(selected.result.label) ? SCAN.lime : SCAN.red }]}>
+                    <Text style={[st.panelMeta, { color: isHealthy(selected.result.label) ? STATUS_INK.listo : SCAN.red }]}>
                       {localizeDomainLabel(selected.result.label, language)} · {t('confidence', { pct: Math.round(selected.result.score * 100) })}
                     </Text>
                   )}
                   <StatusChip item={selected} text={statusText(selected)} />
                 </View>
                 <PressableScale style={st.close} onPress={() => select(null)} accessibilityRole="button" accessibilityLabel={t('close')} hitSlop={10}>
-                  <X size={16} color={SCAN.inkSoft} />
+                  <X size={16} color={SCAN.muted} />
                 </PressableScale>
               </View>
               <PressableScale
@@ -475,14 +472,15 @@ export default function MisEscaneos() {
                 disabled={selected.kind === 'local' && syncing}
               >
                 {selected.kind === 'local'
-                  ? (syncing ? <ActivityIndicator size="small" color={SCAN.ink} /> : <CloudUpload size={18} color={SCAN.ink} />)
-                  : <BarChart3 size={18} color={SCAN.ink} />}
+                  ? (syncing ? <ActivityIndicator size="small" color={SCAN.limeInk} /> : <CloudUpload size={18} color={SCAN.limeInk} />)
+                  : <BarChart3 size={18} color={SCAN.limeInk} />}
                 <Text style={st.panelBtnText}>
                   {selected.kind === 'local' ? t('uploadNow') : selected.kind === 'foto' ? t('viewActivity') : t('viewResults')}
                 </Text>
               </PressableScale>
             </Reanimated.View>
           )}
+        </View>
         </Reanimated.View>
 
         {/* ── Sincronización ── */}
@@ -517,7 +515,7 @@ export default function MisEscaneos() {
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
               >
-                {key !== 'all' && <View style={[st.dot, { backgroundColor: SCAN_STATUS_COLOR[key as ScanStatus] }]} />}
+                {key !== 'all' && <View style={[st.dot, { backgroundColor: STATUS_INK[key as ScanStatus] }]} />}
                 <Text style={[st.filterText, on && st.filterTextOn]}>{label}</Text>
               </PressableScale>
             );
@@ -525,7 +523,7 @@ export default function MisEscaneos() {
         </ScrollView>
 
         {loadError && <Text style={st.error}>{t('loadError')}</Text>}
-        {loading && !items.length ? <ActivityIndicator color={SCAN.lime} style={{ marginTop: 24 }} /> : null}
+        {loading && !items.length ? <ActivityIndicator color={SCAN.brand} style={{ marginTop: 24 }} /> : null}
         {!loading && !items.length && <Text style={st.empty}>{t('empty')}</Text>}
         {!!items.length && !visible.length && <Text style={st.empty}>{t('emptyFilter')}</Text>}
 
@@ -555,8 +553,8 @@ export default function MisEscaneos() {
                   <View style={st.cardBottom}>
                     <StatusChip item={it} text={statusText(it)} />
                     <View style={st.locRow}>
-                      <MapPin size={12} color={it.loc ? SCAN.lime : SCAN.muted} />
-                      <Text style={[st.locText, it.loc && { color: SCAN.lime }]}>{it.loc ? t('onMap') : t('noLocation')}</Text>
+                      <MapPin size={12} color={it.loc ? STATUS_INK.listo : SCAN.muted} />
+                      <Text style={[st.locText, it.loc && { color: STATUS_INK.listo }]}>{it.loc ? t('onMap') : t('noLocation')}</Text>
                     </View>
                   </View>
                   {it.localId && progress[it.localId] && (
@@ -590,7 +588,7 @@ function MapButton({ label, onPress, children, flat }: { label: string; onPress:
 }
 
 function StatusChip({ item, text }: { item: ScanItem; text: string }) {
-  const c = SCAN_STATUS_COLOR[item.status];
+  const c = STATUS_INK[item.status];
   return (
     <View style={[st.chip, { backgroundColor: `${c}22`, borderColor: `${c}66` }]}>
       {item.status === 'listo' ? <ScanLine size={11} color={c} /> : <View style={[st.dot, { backgroundColor: c }]} />}
@@ -608,8 +606,8 @@ function Thumb({ item, size, number }: { item: ScanItem; size: number; number?: 
       {item.thumb && !failed ? (
         <Image source={item.thumb} style={st.thumbImg} resizeMode="cover" onError={() => setFailed(true)} accessibilityIgnoresInvertColors />
       ) : (
-        <LinearGradient colors={['#123322', '#0A1F14']} style={[StyleSheet.absoluteFill, st.thumbEmpty]}>
-          <SourceIcon fuente={item.fuente} size={26} color={c} />
+        <LinearGradient colors={['#F0FDF4', '#E2E8F0']} style={[StyleSheet.absoluteFill, st.thumbEmpty]}>
+          <SourceIcon fuente={item.fuente} size={26} color={STATUS_INK[item.status]} />
         </LinearGradient>
       )}
       {number != null && <View style={[st.num, { backgroundColor: c }]}><Text style={st.numText}>{number}</Text></View>}
@@ -621,81 +619,80 @@ const st = StyleSheet.create({
   screen: { flex: 1, backgroundColor: SCAN.bg },
   center: { alignItems: 'center', justifyContent: 'center', gap: 14, padding: 28 },
   lockText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: SCAN.ink, textAlign: 'center' },
-  lockBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 16, backgroundColor: SCAN.lime },
-  lockBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#0B1A05' },
-  mapBox: { width: '100%', overflow: 'hidden', borderBottomLeftRadius: 30, borderBottomRightRadius: 30, backgroundColor: SCAN.bgDeep },
-  topShade: { position: 'absolute', top: 0, left: 0, right: 0 },
-  header: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 16 },
+  lockBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 16, backgroundColor: SCAN.limeBright },
+  lockBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: SCAN.limeInk },
+  header: { paddingHorizontal: 16, paddingBottom: 14 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  back: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: SCAN.glass, borderWidth: 1, borderColor: SCAN.line },
-  title: { fontFamily: 'Poppins_700Bold', fontSize: 34, lineHeight: 40, letterSpacing: -1, color: '#ffffff', marginTop: 12 },
-  subtitle: { fontFamily: 'Poppins_400Regular', fontSize: 15, color: SCAN.inkSoft },
-  controls: { position: 'absolute', right: 14, gap: 10, alignItems: 'center' },
+  back: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: SCAN.surface, borderWidth: 1, borderColor: SCAN.line },
+  title: { fontFamily: 'Poppins_700Bold', fontSize: 34, lineHeight: 42, letterSpacing: -1, color: SCAN.ink, marginTop: 10 },
+  subtitle: { fontFamily: 'Poppins_400Regular', fontSize: 15, color: '#52606D' },
+  // Tarjeta del mapa: sombra afuera, recorte adentro.
+  mapShadow: { marginHorizontal: 16, borderRadius: 28, backgroundColor: '#E2E8F0', ...CARD_SHADOW },
+  mapBox: { flex: 1, borderRadius: 28, overflow: 'hidden' },
+  controls: { position: 'absolute', top: 12, right: 12, gap: 8, alignItems: 'center' },
   mapBtn: {
-    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: SCAN.glassStrong, borderWidth: 1, borderColor: SCAN.line,
+    width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: SCAN.glass, borderWidth: 1, borderColor: SCAN.line,
+    shadowColor: '#0f172a', shadowOpacity: 0.12, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
-  mapBtnFlat: { backgroundColor: 'transparent', borderWidth: 0 },
-  zoom: { borderRadius: 22, backgroundColor: SCAN.glassStrong, borderWidth: 1, borderColor: SCAN.line, overflow: 'hidden' },
+  mapBtnFlat: { backgroundColor: 'transparent', borderWidth: 0, shadowOpacity: 0, elevation: 0 },
+  zoom: { borderRadius: 21, backgroundColor: SCAN.glass, borderWidth: 1, borderColor: SCAN.line, overflow: 'hidden' },
   zoomSep: { height: 1, backgroundColor: SCAN.line, marginHorizontal: 8 },
-  notice: { position: 'absolute', alignSelf: 'center', top: '46%', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: SCAN.glassStrong, borderWidth: 1, borderColor: SCAN.line },
+  notice: { position: 'absolute', alignSelf: 'center', top: '42%', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: SCAN.glass, borderWidth: 1, borderColor: SCAN.line },
   noticeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: SCAN.ink },
-  mapEmpty: { position: 'absolute', alignSelf: 'center', bottom: 22, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: SCAN.glassStrong },
+  mapEmpty: { position: 'absolute', alignSelf: 'center', bottom: 18, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: SCAN.glass },
   mapEmptyText: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: SCAN.inkSoft },
   panel: {
-    position: 'absolute', left: 12, right: 12, bottom: 14, padding: 10, gap: 10, borderRadius: 24,
-    backgroundColor: 'rgba(8,24,15,0.94)', borderWidth: 1, borderColor: 'rgba(190,242,100,0.24)',
-    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 10,
+    position: 'absolute', left: 10, right: 10, bottom: 10, padding: 10, gap: 10, borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.97)', borderWidth: 1, borderColor: SCAN.line,
+    shadowColor: '#0f172a', shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 8,
   },
   panelRow: { flexDirection: 'row', gap: 12 },
   panelTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingRight: 24 },
-  panelTitle: { flex: 1, fontFamily: 'Poppins_700Bold', fontSize: 16.5, color: '#ffffff' },
-  panelMeta: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, color: SCAN.inkSoft },
+  panelTitle: { flex: 1, fontFamily: 'Poppins_700Bold', fontSize: 16.5, color: SCAN.ink },
+  panelMeta: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, color: SCAN.muted },
   panelSrc: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  close: { position: 'absolute', right: -2, top: -2, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)' },
+  close: { position: 'absolute', right: -2, top: -2, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: SCAN.surface },
   panelBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 44, borderRadius: 16,
-    borderWidth: 1.5, borderColor: 'rgba(190,242,100,0.45)', backgroundColor: 'rgba(163,230,53,0.12)',
+    backgroundColor: SCAN.limeBright,
   },
-  panelBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: SCAN.ink },
+  panelBtnText: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: SCAN.limeInk },
   dot: { width: 8, height: 8, borderRadius: 4 },
   chip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 5, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, borderWidth: 1, maxWidth: '100%' },
   chipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11 },
   sync: {
     flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginTop: 16, padding: 12, borderRadius: 20,
-    backgroundColor: 'rgba(56,189,248,0.08)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.35)',
+    backgroundColor: '#F0F9FF', borderWidth: 1, borderColor: '#BAE6FD',
   },
-  syncIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(56,189,248,0.15)' },
+  syncIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E0F2FE' },
   syncTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: SCAN.ink },
   syncText: { fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 17, color: SCAN.muted },
   syncBtn: { paddingHorizontal: 12, minHeight: 38, justifyContent: 'center', borderRadius: 12, backgroundColor: SCAN.sky },
-  syncBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: '#04263A' },
+  syncBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: '#ffffff' },
   historyHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 18, marginTop: 22 },
-  historyTitle: { fontFamily: 'Poppins_700Bold', fontSize: 19, color: '#ffffff', letterSpacing: -0.3 },
+  historyTitle: { fontFamily: 'Poppins_700Bold', fontSize: 19, color: SCAN.ink, letterSpacing: -0.3 },
   historyCount: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: SCAN.muted },
   filters: { gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
-  filter: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: SCAN.line, backgroundColor: 'rgba(8,24,15,0.6)' },
-  filterOn: { backgroundColor: 'rgba(163,230,53,0.16)', borderColor: SCAN.lime },
+  filter: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: SCAN.line, backgroundColor: SCAN.surface },
+  filterOn: { backgroundColor: SCAN.limeSoft, borderColor: SCAN.lime },
   filterText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: SCAN.muted },
-  filterTextOn: { color: SCAN.ink },
+  filterTextOn: { color: SCAN.limeInk },
   error: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, color: SCAN.red, paddingHorizontal: 18, marginBottom: 8 },
   empty: { fontFamily: 'Poppins_400Regular', fontSize: 13.5, lineHeight: 20, color: SCAN.muted, textAlign: 'center', paddingHorizontal: 30, marginTop: 18 },
   list: { gap: 12, paddingHorizontal: 16 },
-  card: {
-    flexDirection: 'row', gap: 12, padding: 10, borderRadius: 24,
-    backgroundColor: 'rgba(12,32,20,0.85)', borderWidth: 1, borderColor: 'rgba(190,242,100,0.12)',
-  },
+  card: { flexDirection: 'row', gap: 12, padding: 10, borderRadius: 24, backgroundColor: SCAN.card, borderWidth: 1, borderColor: '#EEF2F7', ...CARD_SHADOW, shadowOpacity: 0.08 },
   cardOn: { borderColor: SCAN.lime },
   cardBody: { flex: 1, gap: 3, paddingVertical: 2 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  cardTitle: { flex: 1, fontFamily: 'Poppins_600SemiBold', fontSize: 15.5, color: '#ffffff' },
+  cardTitle: { flex: 1, fontFamily: 'Poppins_600SemiBold', fontSize: 15.5, color: SCAN.ink },
   cardMeta: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: SCAN.muted },
   cardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 4 },
   locRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   locText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: SCAN.muted },
-  track: { height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 6, overflow: 'hidden' },
+  track: { height: 5, borderRadius: 3, backgroundColor: '#E2E8F0', marginTop: 6, overflow: 'hidden' },
   fill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3, backgroundColor: SCAN.sky },
-  thumb: { borderRadius: 18, overflow: 'hidden', backgroundColor: '#0A1F14' },
+  thumb: { borderRadius: 18, overflow: 'hidden', backgroundColor: '#F1F5F9' },
   thumbImg: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   thumbEmpty: { alignItems: 'center', justifyContent: 'center' },
   num: { position: 'absolute', left: 6, top: 6, minWidth: 22, height: 22, paddingHorizontal: 5, borderRadius: 11, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#ffffff' },

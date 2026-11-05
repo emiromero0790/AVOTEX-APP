@@ -43,10 +43,10 @@ export function buildScansMapHtml(): string {
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
-html,body,#map{height:100%;width:100%;margin:0;background:#06120b}
-.leaflet-container{background:#06120b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-.leaflet-control-attribution{background:rgba(6,18,11,.55)!important;color:rgba(236,252,203,.7)!important;font-size:9px}
-.leaflet-control-attribution a{color:rgba(236,252,203,.85)!important}
+html,body,#map{height:100%;width:100%;margin:0;background:#e5e7eb}
+.leaflet-container{background:#e5e7eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+.leaflet-control-attribution{background:rgba(255,255,255,.75)!important;color:#475569!important;font-size:9px}
+.leaflet-control-attribution a{color:#334155!important}
 .pin{position:relative;width:38px;height:46px;transform-origin:50% 100%;transition:transform .2s cubic-bezier(.23,1,.32,1)}
 .pin .head{position:absolute;left:3px;top:0;width:32px;height:32px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);
   border:2px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,.45)}

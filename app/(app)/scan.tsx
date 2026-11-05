@@ -198,12 +198,12 @@ export default function Scan() {
     }, [user?.email, isGuest])
   );
 
-  // Escanear es oscuro (selector y cámara): texto claro en la barra de estado mientras está enfocada.
+  // Selector blanco: texto oscuro en la barra de estado. Cámara: texto claro.
   useFocusEffect(
     useCallback(() => {
-      setStatusBarStyle("light");
+      setStatusBarStyle(mode === "choose" ? "dark" : "light");
       return () => setStatusBarStyle("dark");
-    }, [])
+    }, [mode])
   );
 
   // Cada vez que se vuelve a la pestaña se muestra el selector de modo.

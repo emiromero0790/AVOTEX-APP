@@ -117,10 +117,11 @@ type ScanItem = {
   thumb: ImageSourcePropType | null;
   remoteId?: string;
   localId?: string;
-  result?: { fruto: string; label: string; score: number };
+  result?: { fruto: string | null; label: string | null; score: number | null };
 };
 
-type SingleScan = { id: string; fruto: string; label: string; score: number; created_at: string };
+// La tabla scans no tiene columna id: se identifica cada foto por su fecha y su posición.
+type SingleScan = { fruto: string | null; label: string | null; score: number | null; created_at: string };
 
 function centroid(points: ScansMapPoint[]): ScansMapPoint | null {
   const valid = points.filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng) && !(p.lat === 0 && p.lng === 0));
@@ -189,7 +190,7 @@ export default function MisEscaneos() {
       listRemote(email, 50).catch(() => { failed = true; return [] as RecorridoRemoto[]; }),
       listLocal(email).catch(() => [] as RecorridoLocal[]),
       // Igual que Inicio y Actividad: las fotos individuales se guardan con el uid de Firebase (user_id).
-      Promise.resolve(supabase.from('scans').select('id,fruto,label,score,created_at').eq('user_id', uid).order('created_at', { ascending: false }).limit(30))
+      Promise.resolve(supabase.from('scans').select('fruto,label,score,created_at').eq('user_id', uid).order('created_at', { ascending: false }).limit(30))
         .then(({ data, error }) => { if (error) { failed = true; return [] as SingleScan[]; } return (data ?? []) as SingleScan[]; })
         .catch(() => { failed = true; return [] as SingleScan[]; }),
       Promise.resolve(supabase.from('users').select('tokens').eq('user_email', email).maybeSingle())
@@ -263,9 +264,9 @@ export default function MisEscaneos() {
         loc: centroid(route), route, thumb: thumbPath ? thumbnailSource(thumbPath) : null, remoteId: r.id,
       });
     }
-    for (const sc of singles) {
+    for (const [i, sc] of singles.entries()) {
       out.push({
-        id: `foto:${sc.id}`, kind: 'foto', status: 'listo', date: sc.created_at, fuente: 'foto', photos: 1, findings: null,
+        id: `foto:${sc.created_at}:${i}`, kind: 'foto', status: 'listo', date: sc.created_at, fuente: 'foto', photos: 1, findings: null,
         orchardId: null, loc: null, route: [], thumb: null, result: { fruto: sc.fruto, label: sc.label, score: sc.score },
       });
     }
@@ -457,8 +458,8 @@ export default function MisEscaneos() {
                     </Text>
                   </View>
                   {selected.result && (
-                    <Text style={[st.panelMeta, { color: isHealthy(selected.result.label) ? STATUS_INK.listo : SCAN.red }]}>
-                      {localizeDomainLabel(selected.result.label, language)} · {t('confidence', { pct: Math.round(selected.result.score * 100) })}
+                    <Text style={[st.panelMeta, { color: isHealthy(selected.result.label ?? '') ? STATUS_INK.listo : SCAN.red }]}>
+                      {localizeDomainLabel(selected.result.label, language)}{selected.result.score !== null ? ` · ${t('confidence', { pct: Math.round(selected.result.score * 100) })}` : ''}
                     </Text>
                   )}
                   <StatusChip item={selected} text={statusText(selected)} />

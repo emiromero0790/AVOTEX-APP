@@ -2,14 +2,14 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo
 import { StyleSheet, View } from 'react-native';
 import { WebView as RNWebView } from 'react-native-webview';
 import { buildScansMapHtml, safeJson } from './scansMapHtml';
-import type { ScansMapHandle, ScansMapProps } from './ScansMap.types';
+import { parseMapEvent, type ScansMapHandle, type ScansMapProps } from './ScansMap.types';
 
 // react-native-webview 14 declara la clase con P = undefined; se fija P para los tipos.
 const WebView = RNWebView<object>;
 type WebView = RNWebView<object>;
 
 const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
-  { data, selectedId, detail, user, layer, onSelect, onError },
+  { data, selectedId, detail, point, user, layer, onEvent, onError },
   ref,
 ) {
   const web = useRef<WebView>(null);
@@ -21,16 +21,16 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
 
   useImperativeHandle(ref, () => ({
     zoom: d => run(`avx.zoom(${d})`),
-    flyToSelected: () => { if (selectedId) run(`avx.select(${safeJson(selectedId)},true)`); },
+    fit: () => run('avx.fit()'),
     flyToUser: () => { if (user) run(`avx.showUser(${user.lat},${user.lng},true)`); },
-    fitAll: () => run('avx.fitAll()'),
-  }), [run, selectedId, user]);
+  }), [run, user]);
 
-  useEffect(() => { if (ready) run(`avx.setData(${safeJson(data)});avx.select(${safeJson(selectedId)},false)`); }, [ready, data, run]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (ready) run(`avx.select(${safeJson(selectedId)},true)`); }, [ready, selectedId, run]);
-  useEffect(() => { if (ready) run(`avx.setDetail(${safeJson(detail?.route ?? [])},${safeJson(detail?.findings ?? [])})`); }, [ready, detail, run]);
-  useEffect(() => { if (ready && user) run(`avx.showUser(${user.lat},${user.lng},false)`); }, [ready, user, run]);
   useEffect(() => { if (ready) run(`avx.setLayer(${safeJson(layer)})`); }, [ready, layer, run]);
+  useEffect(() => { if (ready) run(`avx.setData(${safeJson(data)})`); }, [ready, data, run]);
+  useEffect(() => { if (ready) run(`avx.select(${safeJson(selectedId)})`); }, [ready, selectedId, run]);
+  useEffect(() => { if (ready) run(`avx.setDetail(${safeJson(detail)},true)`); }, [ready, detail, run]);
+  useEffect(() => { if (ready) run(`avx.point(${safeJson(point?.kind ?? null)},${safeJson(point?.id ?? null)})`); }, [ready, point, run]);
+  useEffect(() => { if (ready && user) run(`avx.showUser(${user.lat},${user.lng},false)`); }, [ready, user, run]);
 
   return (
     <View style={styles.wrap}>
@@ -48,9 +48,8 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
           try {
             const msg = JSON.parse(event.nativeEvent.data);
             if (msg?.type === 'ready') setReady(true);
-            else if (msg?.type === 'select' && typeof msg.id === 'string') onSelect(msg.id);
-            else if (msg?.type === 'clear') onSelect(null);
             else if (msg?.type === 'error') onError?.();
+            else { const e = parseMapEvent(msg); if (e) onEvent(e); }
           } catch { /* mensaje ajeno */ }
         }}
       />
@@ -61,6 +60,6 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
 export default ScansMap;
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, overflow: 'hidden', backgroundColor: '#e5e7eb' },
-  web: { flex: 1, backgroundColor: '#e5e7eb' },
+  wrap: { flex: 1, overflow: 'hidden', backgroundColor: '#dfe7e1' },
+  web: { flex: 1, backgroundColor: '#dfe7e1' },
 });

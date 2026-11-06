@@ -14,6 +14,7 @@ import {
   type IndexKey, type IndexSpec,
 } from '../../services/indices';
 import type { SatelliteReport } from '../../services/reports';
+import { CSS_EASE_OUT } from '../scan/motion';
 
 export type Lang = 'es' | 'en';
 export const SAT = {
@@ -115,7 +116,7 @@ function BandGauge({ spec, position, dim, reduced }: { spec: IndexSpec; position
             left: `${position * 100}%`,
             transitionProperty: reduced ? 'none' : 'left',
             transitionDuration: 260,
-            transitionTimingFunction: 'cubic-bezier(0.23, 1, 0.32, 1)',
+            transitionTimingFunction: CSS_EASE_OUT,
           } as object]}
         />
       )}

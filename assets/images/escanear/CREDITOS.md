@@ -34,3 +34,7 @@ Si la app tiene una pantalla de créditos o "Acerca de", conviene listar ahí es
 
 Las retículas, recuadros de detección y rutas sobre las fotos son vectores propios (`components/ScanHome.tsx`).
 El mapa de Mis escaneos usa imágenes satelitales de Esri (atribución visible en el mapa).
+
+## Datos Satelitales
+`assets/images/satelite/relieve.jpg` (ilustración del relieve en el panel de capas) es una imagen propia de AVOTEX,
+renderizada a partir de una superficie generada (no corresponde a datos reales de ninguna huerta).

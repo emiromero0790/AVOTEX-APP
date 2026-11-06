@@ -3,13 +3,13 @@
  * Las ilustraciones se generan con SVG a partir de la geometría real de la huerta:
  * - Zonas: las zonas ilustrativas como bloques 3D sobre una rejilla isométrica.
  * - Contorno: la silueta real de la huerta con textura sobre una rejilla (textura ilustrativa, no NDVI).
- * - Relieve: superficie de puntos que representa la capa de sombreado de relieve.
+ * - Relieve: imagen fija ilustrativa de la capa de sombreado de relieve (vista Híbrido).
  * Cada sección cambia la capa del mapa; no son adornos.
  */
 import React, { memo, useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Reanimated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import Svg, { Circle, ClipPath, Defs, G, Line, LinearGradient as SvgGradient, Path, Polygon, Polyline, Rect, Stop } from 'react-native-svg';
+import Svg, { ClipPath, Defs, G, Line, LinearGradient as SvgGradient, Path, Polygon, Polyline, Rect, Stop } from 'react-native-svg';
 import { ChevronLeft, ChevronRight, Layers } from 'lucide-react-native';
 import type { LatLng, Zone } from '../../services/satZones';
 import type { SatLayer } from '../satMapHtml';
@@ -206,58 +206,8 @@ function HeatBar({ w, id }: { w: number; id: string }) {
   );
 }
 
-/** 3) Relieve de puntos brillantes con un plano flotante y un marcador en la cima. */
-const ReliefDots = memo(function ReliefDots({ seed, w, h }: { seed: number } & Size) {
-  const scene = useMemo(() => {
-    const nz = noise2(seed + 7);
-    const R = 15, C = 24;
-    const px = 0.45 + (seed % 5) * 0.04, py = 0.4 + (seed % 3) * 0.06;
-    const height = (u: number, v: number) =>
-      0.3 * Math.exp(-((u - px) ** 2 * 10 + (v - py) ** 2 * 12)) +
-      0.12 * Math.exp(-((u - 0.78) ** 2 * 16 + (v - 0.72) ** 2 * 16)) +
-      0.06 * nz(u * 5, v * 5);
-    const pts: { p: XY; t: number }[] = [];
-    const lines: { pts: XY[]; t: number }[] = [];
-    let peak = { p: { x: 0, y: 0 }, hgt: -1 };
-    for (let j = 0; j <= R; j++) {
-      const line: XY[] = [];
-      let lt = 0;
-      for (let i = 0; i <= C; i++) {
-        const u = i / C, v = j / R, hv = height(u, v);
-        const p = iso({ x: u, y: v }, hv);
-        pts.push({ p, t: hv / 0.36 });
-        line.push(p);
-        lt = Math.max(lt, hv / 0.36);
-        if (hv > peak.hgt) peak = { p: iso({ x: u, y: v }, hv), hgt: hv };
-      }
-      lines.push({ pts: line, t: lt });
-    }
-    const plane = [{ x: 0.08, y: 0.08 }, { x: 0.92, y: 0.08 }, { x: 0.92, y: 0.92 }, { x: 0.08, y: 0.92 }].map(p => iso(p, 0.42));
-    const base = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }].map(p => iso(p, 0));
-    const marker = { ...peak.p, y: peak.p.y - 0.2 };
-    const fit = fitter([...pts.map(q => q.p), ...plane, ...base, marker], w, h, 4);
-    return {
-      dots: pts.map(q => ({ ...fit.f(q.p), c: heat(q.t) })),
-      lines: lines.map(l => ({ s: fit.str(l.pts), c: heat(l.t * 0.8) })),
-      plane: fit.str(plane),
-      base: fit.str(base),
-      peak: fit.f(peak.p),
-      marker: fit.f(marker),
-    };
-  }, [seed, w, h]);
-  return (
-    <Svg width={w} height={h}>
-      <Polygon points={scene.base} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth={0.6} />
-      {scene.lines.map((l, i) => <Polyline key={i} points={l.s} fill="none" stroke={l.c} strokeOpacity={0.35} strokeWidth={0.7} />)}
-      {scene.dots.map((d, i) => <Circle key={i} cx={d.x} cy={d.y} r={0.75} fill={d.c} />)}
-      <Polygon points={scene.plane} fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.55)" strokeWidth={0.7} />
-      <Line x1={scene.peak.x} y1={scene.peak.y} x2={scene.marker.x} y2={scene.marker.y + 4} stroke="#FACC15" strokeWidth={0.8} strokeDasharray="1.5 1.5" />
-      <Circle cx={scene.peak.x} cy={scene.peak.y} r={1.8} fill="#FACC15" />
-      <Rect x={scene.marker.x - 5} y={scene.marker.y - 5} width={10} height={10} rx={2} fill="#3F3F46" stroke="rgba(255,255,255,0.5)" strokeWidth={0.6} />
-      <Circle cx={scene.marker.x} cy={scene.marker.y} r={1.6} fill="#FACC15" />
-    </Svg>
-  );
-});
+/** 3) Relieve: imagen fija (assets/images/satelite/relieve.jpg). */
+const RELIEF = require('../../assets/images/satelite/relieve.jpg');
 
 type Props = {
   open: boolean;
@@ -296,7 +246,7 @@ export default function LayerPanel({ open, onToggle, layer, onLayer, outline, zo
         </View>
       ),
     },
-    { key: 'hibrido', label: labels.relief, node: <ReliefDots seed={seed} w={art.w} h={Math.round(art.h * 1.05)} /> },
+    { key: 'hibrido', label: labels.relief, node: <Image source={RELIEF} style={{ width: art.w, height: Math.round(art.w * 0.75), borderRadius: 8 }} resizeMode="cover" accessibilityIgnoresInvertColors /> },
   ];
   return (
     <Reanimated.View entering={reduced ? undefined : FadeIn.duration(180)} exiting={reduced ? undefined : FadeOut.duration(140)} style={[s.panel, { width }]}>

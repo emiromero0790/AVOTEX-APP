@@ -13,6 +13,7 @@ import {
   Camera,
   Map,
   BarChart3,
+  Satellite,
   Settings,
   MessageCircle,
   Lock,
@@ -35,6 +36,7 @@ const translations: TranslationResource = {
   scan: { es: 'Escanear', en: 'Scan' },
   mapping: { es: 'Mapeo', en: 'Mapping' },
   activity: { es: 'Actividad', en: 'Activity' },
+  satellite: { es: 'Satélite', en: 'Satellite' },
   settings: { es: 'Ajustes', en: 'Settings' },
 };
 
@@ -84,8 +86,6 @@ export default function TabLayout() {
     pathname === '/chatbot' ||
     pathname === '/(app)/plans' ||
     pathname === '/plans' ||
-    pathname === '/(app)/notifications' ||
-    pathname === '/notifications' ||
     pathname === '/(app)/recorrido' ||
     pathname === '/recorrido';
   // Escanear, Mis escaneos e Importar: sin el botón flotante del chatbot (taparía los botones de abajo).
@@ -102,6 +102,8 @@ export default function TabLayout() {
   const [showLockModal, setShowLockModal] = useState(false);
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
+  // Seis opciones: en teléfonos angostos la barra gana ancho y las etiquetas bajan un punto.
+  const compact = !isTablet && width < 400;
 
   const [fontsLoaded] = useFonts({ Poppins_600SemiBold, Poppins_400Regular, Poppins_700Bold });
 
@@ -122,15 +124,16 @@ export default function TabLayout() {
 
   const tabHeight = isTablet ? 82 : 72;
   const tabBottom = isTablet ? 24 : 18;
-  const tabLabelSize = isTablet ? 13 : 11;
+  const tabLabelSize = isTablet ? 13 : compact ? 10 : 11;
+  const iconSize = isTablet ? 26 : compact ? 21 : 22;
 
   const handleLockedPress = () => {
     if (isGuest) setShowLockModal(true);
   };
 
   const LockedTabIcon = ({ color, focused }: { color: string; focused?: boolean }) => (
-    <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-      <Lock size={isTablet ? 26 : 22} color={isGuest ? '#cbd5e1' : color} />
+    <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
+      <Lock size={iconSize} color={isGuest ? '#cbd5e1' : color} />
     </View>
   );
 
@@ -149,12 +152,13 @@ export default function TabLayout() {
               bottom: tabBottom,
               height: tabHeight,
             },
+            compact && styles.tabBarCompact,
             isTablet && styles.tabBarTablet,
           ],
           tabBarActiveTintColor: '#0f766e',
           tabBarInactiveTintColor: '#94a3b8',
           tabBarShowLabel: true,
-          tabBarLabelStyle: [styles.tabBarLabel, { fontSize: tabLabelSize }],
+          tabBarLabelStyle: [styles.tabBarLabel, { fontSize: tabLabelSize }, compact && styles.tabBarLabelCompact],
           tabBarItemStyle: styles.tabBarItem,
           tabBarBackground: () => (
             <LinearGradient
@@ -169,8 +173,8 @@ export default function TabLayout() {
           options={{
             title: t('home'),
             tabBarIcon: ({ color, focused }) => (
-              <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                <Home size={isTablet ? 26 : 22} color={focused ? '#0f766e' : color} />
+              <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
+                <Home size={iconSize} color={focused ? '#0f766e' : color} />
               </View>
             ),
           }}
@@ -189,7 +193,7 @@ export default function TabLayout() {
                 </LinearGradient>
               </View>
             ),
-            tabBarLabelStyle: [styles.tabBarLabel, { color: '#0f766e', fontSize: tabLabelSize }],
+            tabBarLabelStyle: [styles.tabBarLabel, { color: '#0f766e', fontSize: tabLabelSize }, compact && styles.tabBarLabelCompact],
           }}
         />
         <Tabs.Screen
@@ -197,12 +201,12 @@ export default function TabLayout() {
           options={{
             title: t('mapping'),
             tabBarIcon: ({ color, focused }) => isGuest ? (
-              <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                <Lock size={isTablet ? 26 : 22} color="#cbd5e1" />
+              <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
+                <Lock size={iconSize} color="#cbd5e1" />
               </View>
             ) : (
-              <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                <Map size={isTablet ? 26 : 22} color={focused ? '#0f766e' : color} />
+              <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
+                <Map size={iconSize} color={focused ? '#0f766e' : color} />
               </View>
             ),
             tabBarButton: isGuest ? (props) => (
@@ -217,12 +221,31 @@ export default function TabLayout() {
           options={{
             title: t('activity'),
             tabBarIcon: ({ color, focused }) => isGuest ? (
-              <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                <Lock size={isTablet ? 26 : 22} color="#cbd5e1" />
+              <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
+                <Lock size={iconSize} color="#cbd5e1" />
               </View>
             ) : (
-              <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                <BarChart3 size={isTablet ? 26 : 22} color={focused ? '#0f766e' : color} />
+              <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
+                <BarChart3 size={iconSize} color={focused ? '#0f766e' : color} />
+              </View>
+            ),
+            tabBarButton: isGuest ? (props) => (
+              <TouchableOpacity style={props.style} onPress={handleLockedPress} activeOpacity={0.7}>
+                {props.children}
+              </TouchableOpacity>
+            ) : undefined,
+          }}
+        />
+        <Tabs.Screen
+          name="satelite"
+          options={{
+            title: t('satellite'),
+            tabBarAccessibilityLabel: t('satellite'),
+            tabBarIcon: ({ color, focused }) => (
+              <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
+                {isGuest
+                  ? <Lock size={iconSize} color="#cbd5e1" />
+                  : <Satellite size={iconSize} color={focused ? '#0f766e' : color} />}
               </View>
             ),
             tabBarButton: isGuest ? (props) => (
@@ -238,8 +261,8 @@ export default function TabLayout() {
           options={{
             title: t('settings'),
             tabBarIcon: ({ color, focused }) => (
-              <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                <Settings size={isTablet ? 26 : 22} color={focused ? '#111827' : color} />
+              <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
+                <Settings size={iconSize} color={focused ? '#111827' : color} />
               </View>
             ),
           }}
@@ -291,6 +314,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     borderWidth: 1,
     borderColor: 'rgba(20,184,166,0.12)',
+  },
+  tabBarCompact: {
+    left: 10,
+    right: 10,
+    paddingHorizontal: 2,
+  },
+  tabBarLabelCompact: {
+    letterSpacing: -0.2,
+  },
+  iconWrapCompact: {
+    width: 34,
+    height: 34,
   },
   tabBarTablet: {
     left: 40,

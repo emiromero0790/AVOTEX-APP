@@ -36,6 +36,7 @@ import type { SatMapHandle } from '../../components/SatMap.types';
 import { ZONE_PALETTE, type SatLayer, type SatMapData } from '../../components/satMapHtml';
 import LayerPanel from '../../components/sat/LayerPanel';
 import { ClimateGrid, IndexCard, NdviDial, SAT } from '../../components/sat/IndexViews';
+import { CSS_EASE_OUT } from '../../components/scan/motion';
 
 const STORE_KEY = 'avotex.satelite.huerta';
 const SEG_W = 222;
@@ -432,7 +433,7 @@ export default function SateliteScreen() {
                             left: 3 + layerIdx * SEG_ITEM,
                             transitionProperty: reduced ? 'none' : 'left',
                             transitionDuration: 200,
-                            transitionTimingFunction: 'cubic-bezier(0.23, 1, 0.32, 1)',
+                            transitionTimingFunction: CSS_EASE_OUT,
                           } as object]}
                         />
                         {layers.map(l => (

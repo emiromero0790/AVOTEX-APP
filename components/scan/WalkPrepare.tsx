@@ -20,7 +20,7 @@ import Reanimated, {
 import Svg, { Circle, Path, Polygon } from 'react-native-svg';
 import {
   AlertTriangle, BatteryMedium, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, HardDrive, Leaf, LocateFixed, MapPin, Play, Repeat2,
-  ScanLine, TrendingUp, Wifi, WifiOff, X,
+  TrendingUp, Wifi, WifiOff, X,
 } from 'lucide-react-native';
 import { TranslationResource, useTranslations } from '../../context/LanguageContext';
 import type { Orchard } from '../../services/orchards';
@@ -144,7 +144,7 @@ function CheckCell({ icon, label, value, status, reduced }: { icon: React.ReactN
           )}
         </View>
       </View>
-      <Text style={s.cellLabel} numberOfLines={1}>{label}</Text>
+      <Text style={s.cellLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{label}</Text>
       <Text style={[s.cellValue, status === 'warn' && { color: '#FDE68A' }]} numberOfLines={1}>{value}</Text>
     </View>
   );
@@ -263,9 +263,8 @@ export default function WalkPrepare(props: Props) {
           <View style={[s.heroTop, { paddingTop: topInset + 8, width: contentW }]}>
             <View style={s.headRow}>
               <PressableScale style={s.back} onPress={onBack} accessibilityRole="button" accessibilityLabel={t('back')}><ChevronLeft size={22} color={SCAN.ink} /></PressableScale>
-              <View style={{ flex: 1 }}><ScanHeader tokensValue={tokens != null ? (tokens * 100).toLocaleString() : null} /></View>
+              <View style={{ flex: 1 }}><ScanHeader tokensValue={tokens != null ? (tokens * 100).toLocaleString() : null} onImage /></View>
             </View>
-            <View style={s.chip}><ScanLine size={14} color="#D9F99D" /><Text style={s.chipText}>{t('chip').toUpperCase()}</Text></View>
             <Text style={[s.title, isTablet && s.titleTablet]} accessibilityRole="header">{t('title')}</Text>
             <Text style={s.subtitle}>{t('subtitle')}</Text>
           </View>
@@ -317,7 +316,7 @@ export default function WalkPrepare(props: Props) {
                     : warn ? <AlertTriangle size={24} color="#FCD34D" /> : <Text style={s.ringCount}>{okCount}/{total}</Text>}
                 </View>
               </View>
-              <View style={{ flex: 1, gap: 2 }}>
+              <View style={{ flex: 1, gap: 2, paddingRight: 58 }}>
                 <Reanimated.Text key={headline} entering={reduced ? undefined : FadeIn.duration(200)} style={s.deviceTitle}>{headline}</Reanimated.Text>
                 <Text style={s.deviceSub}>{sub}</Text>
               </View>
@@ -440,7 +439,7 @@ const s = StyleSheet.create({
   img: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   hero: { width: '100%', overflow: 'hidden', alignItems: 'center' },
   heroTop: { paddingHorizontal: 18, gap: 10 },
-  headRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  headRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 22 },
   back: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.92)' },
   chip: {
     flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', paddingHorizontal: 14, height: 34, borderRadius: 17,
@@ -487,7 +486,7 @@ const s = StyleSheet.create({
   badgeInfo: { backgroundColor: '#93C5FD' },
   badgePending: { backgroundColor: 'rgba(255,255,255,0.2)' },
   badgeMark: { fontFamily: 'Poppins_700Bold', fontSize: 9, lineHeight: 11, color: '#052e16' },
-  cellLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#ffffff' },
+  cellLabel: { alignSelf: 'stretch', textAlign: 'center', paddingHorizontal: 2, fontFamily: 'Poppins_600SemiBold', fontSize: 11.5, color: '#ffffff' },
   cellValue: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: 'rgba(236,253,245,0.8)' },
   helps: { gap: 4, paddingHorizontal: 4 },
   help: { fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 17, color: 'rgba(236,253,245,0.85)' },

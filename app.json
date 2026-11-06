@@ -71,7 +71,8 @@
         {
           "color": "#0f766e"
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true

@@ -10,21 +10,24 @@
  * Seleccionar fuente: borde y sombra con transición de 180 ms + Haptics.selectionAsync. Un solo bucle
  * (el punto de detección). Reducir movimiento: sin bucle ni escalas.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import Reanimated, { FadeIn, FadeInDown, FadeOut, useReducedMotion } from 'react-native-reanimated';
-import Svg, { Path } from 'react-native-svg';
+import { useFocusEffect } from 'expo-router';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { Camera, Check, ChevronRight, Footprints, History, Lock, Plane, ScanLine, Smartphone, Video } from 'lucide-react-native';
 import { TranslationResource, useTranslations } from '../context/LanguageContext';
 import ScanHeader from './scan/ScanHeader';
-import { CSS_EASE_OUT, EASE_OUT, PressableScale, PulseRing } from './scan/motion';
+import { CSS_EASE_OUT, EASE_OUT, PressableScale } from './scan/motion';
 import { CARD_SHADOW, LIME_GRADIENT, SCAN } from './scan/theme';
 
 // Fotografías de Pexels (licencia libre, uso comercial). Ver assets/images/escanear/CREDITOS.md
-const IMG_HERO = require('../assets/images/escanear/hero-huerta.jpg');
+// Video de dron sobre una huerta (Pexels 13779417, sin audio) y su primer cuadro como póster.
+const VIDEO_HERO = require('../assets/videos/huerta-dron.mp4');
+const IMG_POSTER = require('../assets/images/escanear/huerta-dron-poster.jpg');
 const IMG_DRONE = require('../assets/images/escanear/fuente-dron.jpg');
 const IMG_ACTION = require('../assets/images/escanear/fuente-gopro.jpg');
 const IMG_PHONE = require('../assets/images/escanear/fuente-celular.jpg');
@@ -43,7 +46,6 @@ const translations: TranslationResource = {
   subtitle: { es: 'Explora tu cultivo con inteligencia artificial', en: 'Explore your crop with artificial intelligence' },
   line1: { es: 'Una huerta.', en: 'One orchard.' },
   line2: { es: 'Cualquier cámara.', en: 'Any camera.' },
-  aiTag: { es: 'Visión IA', en: 'AI vision' },
   srcDrone: { es: 'Dron', en: 'Drone' },
   srcAction: { es: 'GoPro /\nCámara de acción', en: 'GoPro /\nAction camera' },
   srcPhone: { es: 'Celular', en: 'Phone' },
@@ -53,9 +55,6 @@ const translations: TranslationResource = {
   capPhoto: { es: 'Toma una foto de un fruto, hoja o árbol y recibe el diagnóstico.', en: 'Take a photo of a fruit, leaf or tree and get a diagnosis.' },
   modeWalk: { es: 'Recorrido inteligente', en: 'Smart walk' },
   modePhoto: { es: 'Foto individual', en: 'Single photo' },
-  reticleDrone: { es: 'Vista aérea', en: 'Aerial view' },
-  reticleAction: { es: 'Cámara de acción', en: 'Action camera' },
-  reticlePhone: { es: 'Cámara del celular', en: 'Phone camera' },
   start: { es: 'Iniciar escaneo', en: 'Start scan' },
   locked: { es: 'Crea una cuenta para usarlo', en: 'Create an account to use it' },
   myScans: { es: 'Ver mis escaneos', en: 'View my scans' },
@@ -110,6 +109,26 @@ function SourceCard({ image, icon, label, selected, locked, onPress, a11y, heigh
   );
 }
 
+/**
+ * Video de fondo: en bucle, sin sonido y sin controles. Solo se reproduce con la pestaña visible
+ * (ahorra batería) y no se reproduce con "Reducir movimiento" (queda el póster fijo).
+ */
+function HeroVideo({ playing }: { playing: boolean }) {
+  const player = useVideoPlayer(VIDEO_HERO, p => {
+    p.loop = true;
+    p.muted = true;
+  });
+  useEffect(() => {
+    try {
+      // En web play() devuelve una promesa que falla si el navegador no puede decodificar el video:
+      // en ese caso queda el póster debajo, sin error.
+      const r = playing ? (player.play() as unknown) : (player.pause() as unknown);
+      if (r && typeof (r as Promise<void>).catch === 'function') (r as Promise<void>).catch(() => {});
+    } catch { /* se queda el póster */ }
+  }, [playing, player]);
+  return <VideoView player={player} style={s.heroImg} contentFit="cover" nativeControls={false} />;
+}
+
 export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, onWalk, onImport, onOpenScans }: Props) {
   const t = useTranslations(translations);
   const insets = useSafeAreaInsets();
@@ -118,13 +137,21 @@ export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, 
   const isTablet = width >= 768;
   const contentW = isTablet ? Math.min(width - 64, 720) : width;
   const compact = height < 740;
+  const narrow = width < 380;
   // Pantallas bajas (≈ iPhone SE): tarjetas más cortas para que los botones queden sobre la barra.
   const cardH = height < 700 ? CARD_H_SHORT : CARD_H;
-  // Todo debe caber sobre la barra de pestañas flotante: la tarjeta fotográfica toma lo que sobra.
+  // Todo debe caber sobre la barra de pestañas flotante: el video de arriba toma el espacio que sobra.
   const tabZone = (isTablet ? 82 + 24 : 72 + 18) + insets.bottom + 18;
-  const above = insets.top + 8 + 40 + 8 + (isTablet ? 60 : 46) + 22 + 14;   // encabezado + título + subtítulo
-  const below = 12 + cardH + 10 + 44 + 12 + 58 + 10 + 48;                    // fuentes + modo/nota + botones
-  const heroH = Math.max(compact ? 150 : 180, Math.min(isTablet ? 460 : 360, height - tabZone - above - below));
+  const above = insets.top + 8 + 40 + 8 + (isTablet ? 60 : 46) + 22;        // encabezado + título + subtítulo
+  const claimH = compact ? 56 : 64;
+  const fade = 56;                                                          // donde el video se funde con el blanco
+  const below = 12 + cardH + 12 + 48 + 12 + 58 + 10 + 48;                   // fuentes + modo/nota + botones
+  const gap = Math.max(48, Math.min(isTablet ? 320 : 240, height - tabZone - above - claimH - fade - below));
+  const heroH = above + gap + claimH + fade;
+
+  // El video solo corre con la pestaña enfocada.
+  const [focused, setFocused] = useState(true);
+  useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
 
   const [source, setSource] = useState<ScanSource>('celular');
   const [phoneMode, setPhoneMode] = useState<PhoneMode>('recorrido');
@@ -143,7 +170,6 @@ export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, 
   const locked = isGuest && needsAccount;
 
   const caption = source === 'dron' ? t('capDrone') : source === 'camara' ? t('capAction') : phoneMode === 'recorrido' ? t('capWalk') : t('capPhoto');
-  const reticleLabel = source === 'dron' ? t('reticleDrone') : source === 'camara' ? t('reticleAction') : t('reticlePhone');
 
   const start = () => {
     if (locked) return;
@@ -164,45 +190,33 @@ export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, 
   return (
     <View style={s.screen}>
       <ScrollView contentContainerStyle={{ paddingBottom: bottomSpace }} showsVerticalScrollIndicator={false}>
+        {/* ── Video de la huerta a lo ancho de la pantalla, detrás del encabezado ── */}
+        <View style={[s.hero, { height: heroH }]} pointerEvents="none">
+          <Image source={IMG_POSTER} style={s.heroImg} resizeMode="cover" accessibilityIgnoresInvertColors />
+          {!reduced && <HeroVideo playing={focused} />}
+          <LinearGradient colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0.12)', 'rgba(0,0,0,0)']} locations={[0, 0.32, 0.5]} style={StyleSheet.absoluteFill} />
+          <LinearGradient
+            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.42)', 'rgba(0,0,0,0.12)', 'rgba(255,255,255,0.7)', '#FFFFFF']}
+            locations={[0.42, (heroH - fade - 4) / heroH, (heroH - fade * 0.6) / heroH, (heroH - fade * 0.25) / heroH, 1]}
+            style={StyleSheet.absoluteFill}
+          />
+          {/* retícula de la cámara */}
+          <View style={[s.frame, { top: above + 10, height: Math.max(36, gap - 20) }]}>
+            <View style={[s.c, s.cTL]} /><View style={[s.c, s.cTR]} /><View style={[s.c, s.cBL]} /><View style={[s.c, s.cBR]} />
+          </View>
+        </View>
+
         <View style={[s.content, { width: contentW, paddingTop: insets.top + 8 }]}>
-          <ScanHeader tokensValue={tokensValue} />
+          <ScanHeader tokensValue={tokensValue} onImage />
           <Text style={[s.title, isTablet && s.titleTablet]} accessibilityRole="header">{t('title')}</Text>
           <Text style={s.subtitle} numberOfLines={1}>{t('subtitle')}</Text>
 
-          {/* ── Tarjeta fotográfica con capas de visión ── */}
-          <View style={[s.hero, { height: heroH }]} accessible accessibilityLabel={`${t('line1')} ${t('line2')}`}>
-            <View style={s.heroClip} pointerEvents="none">
-              <Image source={IMG_HERO} style={s.heroImg} resizeMode="cover" accessibilityIgnoresInvertColors />
-              <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.05)', 'rgba(0,0,0,0.7)']} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
-              {/* trayectoria del vuelo/recorrido sobre la huerta */}
-              <Svg style={StyleSheet.absoluteFill} viewBox="0 0 100 100" preserveAspectRatio="none">
-                <Path d="M -4 34 C 22 22, 52 22, 104 30" stroke="rgba(255,255,255,0.7)" strokeWidth={0.3} strokeDasharray="0.6 1.6" fill="none" />
-              </Svg>
-              {/* retícula general */}
-              <View style={[s.frame, { top: 14, height: heroH * 0.52 }]}>
-                <View style={[s.c, s.cTL]} /><View style={[s.c, s.cTR]} /><View style={[s.c, s.cBL]} /><View style={[s.c, s.cBR]} />
-              </View>
-              {/* detección sobre una copa */}
-              <View style={[s.detect, { top: 14 + heroH * 0.2, height: Math.max(40, heroH * 0.24) }]}>
-                <View style={s.detectFill} />
-                <View style={[s.c2, s.cTL]} /><View style={[s.c2, s.cTR]} /><View style={[s.c2, s.cBL]} /><View style={[s.c2, s.cBR]} />
-                <View style={s.detectDot}>
-                  <PulseRing size={30} color={SCAN.limeBright} />
-                  <View style={s.dot} />
-                </View>
-                <View style={s.aiTagWrap}>
-                  <Reanimated.View key={reticleLabel} entering={reduced ? undefined : CAPTION_IN} style={s.aiTag}>
-                    <ScanLine size={11} color={SCAN.limeInk} />
-                    <Text style={s.aiTagText} numberOfLines={1}>{t('aiTag')} · {reticleLabel}</Text>
-                  </Reanimated.View>
-                </View>
-              </View>
-              <View style={s.claimBox}>
-                <Text style={[s.claim, compact && s.claimCompact]}>{t('line1')}</Text>
-                <Text style={[s.claim, s.claimLime, compact && s.claimCompact]}>{t('line2')}</Text>
-              </View>
-            </View>
+          <View style={{ height: gap }} />
+          <View style={{ height: claimH, justifyContent: 'flex-end' }} accessible accessibilityLabel={`${t('line1')} ${t('line2')}`}>
+            <Text style={[s.claim, compact && s.claimCompact]}>{t('line1')}</Text>
+            <Text style={[s.claim, s.claimLime, compact && s.claimCompact]}>{t('line2')}</Text>
           </View>
+          <View style={{ height: fade - 22 }} />
 
           {/* ── Fuentes de captura ── */}
           <View style={s.cards} accessibilityRole="radiogroup">
@@ -232,10 +246,11 @@ export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, 
                     accessibilityRole="radio"
                     accessibilityState={{ selected: on }}
                     accessibilityLabel={`${m === 'recorrido' ? t('modeWalk') : t('modePhoto')}. ${m === 'recorrido' ? t('capWalk') : t('capPhoto')}`}
-                    style={[s.mode, on && s.modeOn, { transitionProperty: ['backgroundColor', 'borderColor'], transitionDuration: 160, transitionTimingFunction: CSS_EASE_OUT } as object]}
+                    style={[s.mode, { flex: m === 'recorrido' ? 1.25 : 1 }, on && s.modeOn, { transitionProperty: ['backgroundColor', 'borderColor'], transitionDuration: 160, transitionTimingFunction: CSS_EASE_OUT } as object]}
                   >
-                    {m === 'recorrido' ? <Footprints size={15} color={on ? SCAN.limeInk : SCAN.muted} /> : <Camera size={15} color={on ? SCAN.limeInk : SCAN.muted} />}
-                    <Text style={[s.modeText, on && s.modeTextOn]}>{m === 'recorrido' ? t('modeWalk') : t('modePhoto')}</Text>
+                    {/* En pantallas angostas (≈360 pt) se omite el icono para que el texto quepa completo. */}
+                    {!narrow && (m === 'recorrido' ? <Footprints size={15} color={on ? SCAN.limeInk : SCAN.muted} /> : <Camera size={15} color={on ? SCAN.limeInk : SCAN.muted} />)}
+                    <Text style={[s.modeText, on && s.modeTextOn]} numberOfLines={1}>{m === 'recorrido' ? t('modeWalk') : t('modePhoto')}</Text>
                     {isGuest && m === 'recorrido' && <Lock size={12} color={SCAN.muted} />}
                   </PressableScale>
                 );
@@ -272,34 +287,23 @@ export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: SCAN.bg },
   content: { alignSelf: 'center', paddingHorizontal: 18 },
-  title: { fontFamily: 'Poppins_700Bold', fontSize: 38, lineHeight: 46, letterSpacing: -1.2, color: SCAN.ink, marginTop: 8 },
+  title: { fontFamily: 'Poppins_700Bold', fontSize: 38, lineHeight: 46, letterSpacing: -1.2, color: '#ffffff', marginTop: 8, textShadowColor: 'rgba(0,0,0,0.35)', textShadowRadius: 10 },
   titleTablet: { fontSize: 50, lineHeight: 60 },
-  subtitle: { fontFamily: 'Poppins_400Regular', fontSize: 15, lineHeight: 22, color: '#52606D' },
+  subtitle: { fontFamily: 'Poppins_400Regular', fontSize: 15, lineHeight: 22, color: 'rgba(255,255,255,0.92)', textShadowColor: 'rgba(0,0,0,0.35)', textShadowRadius: 8 },
   // Tarjeta fotográfica: sombra en la vista exterior, recorte en la interior (la sombra no se recorta).
-  hero: { marginTop: 14, borderRadius: 28, backgroundColor: '#E2E8F0', ...CARD_SHADOW },
-  heroClip: { flex: 1, borderRadius: 28, overflow: 'hidden' },
+  hero: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden', backgroundColor: '#E2E8F0' },
   // Ancho/alto explícitos: absoluteFill en <Image> amplía la foto en web.
   heroImg: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   frame: { position: 'absolute', left: '6%', right: '6%' },
   c: { position: 'absolute', width: 24, height: 24, borderColor: 'rgba(255,255,255,0.9)' },
-  c2: { position: 'absolute', width: 14, height: 14, borderColor: SCAN.limeBright },
   cTL: { top: 0, left: 0, borderTopWidth: 2.5, borderLeftWidth: 2.5, borderTopLeftRadius: 6 },
   cTR: { top: 0, right: 0, borderTopWidth: 2.5, borderRightWidth: 2.5, borderTopRightRadius: 6 },
   cBL: { bottom: 0, left: 0, borderBottomWidth: 2.5, borderLeftWidth: 2.5, borderBottomLeftRadius: 6 },
   cBR: { bottom: 0, right: 0, borderBottomWidth: 2.5, borderRightWidth: 2.5, borderBottomRightRadius: 6 },
-  detect: { position: 'absolute', right: '12%', width: '30%' },
-  detectFill: { ...StyleSheet.absoluteFill, borderRadius: 6, backgroundColor: 'rgba(168,232,62,0.24)', borderWidth: 1, borderColor: 'rgba(190,242,100,0.7)' },
-  detectDot: { position: 'absolute', left: '50%', top: '50%', width: 0, height: 0, alignItems: 'center', justifyContent: 'center' },
-  dot: { position: 'absolute', width: 10, height: 10, marginLeft: -5, marginTop: -5, left: 0, top: 0, borderRadius: 5, backgroundColor: SCAN.limeBright, borderWidth: 2, borderColor: '#ffffff' },
-  // La etiqueta se alinea a la derecha del recuadro y puede ser más ancha que él (una sola línea).
-  aiTagWrap: { position: 'absolute', right: 0, top: -24, width: 240, alignItems: 'flex-end' },
-  aiTag: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: SCAN.limeBright },
-  aiTagText: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: SCAN.limeInk },
-  claimBox: { position: 'absolute', left: 18, right: 18, bottom: 14 },
-  claim: { fontFamily: 'Poppins_700Bold', fontSize: 27, lineHeight: 31, letterSpacing: -0.7, color: SCAN.onPhoto },
+  claim: { fontFamily: 'Poppins_700Bold', fontSize: 28, lineHeight: 32, letterSpacing: -0.7, color: SCAN.onPhoto, textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 10 },
   claimLime: { color: '#BEF264' },
   claimCompact: { fontSize: 23, lineHeight: 27 },
-  cards: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  cards: { flexDirection: 'row', gap: 10 },
   cardWrap: { flex: 1 },
   card: { borderRadius: 22, borderWidth: 2, backgroundColor: '#E2E8F0', shadowColor: SCAN.lime, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   cardClip: { flex: 1, borderRadius: 20, overflow: 'hidden' },
@@ -310,12 +314,12 @@ const s = StyleSheet.create({
   cardLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, lineHeight: 15, color: '#ffffff', textAlign: 'center' },
   check: { position: 'absolute', top: 7, right: 7, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: SCAN.limeBright },
   lock: { position: 'absolute', top: 7, left: 7, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
-  modes: { flexDirection: 'row', gap: 8, marginTop: 10, height: 44 },
-  mode: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 14, borderWidth: 1, borderColor: SCAN.line, backgroundColor: SCAN.surface },
+  modes: { flexDirection: 'row', gap: 10, marginTop: 12, height: 48 },
+  mode: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: SCAN.line, backgroundColor: SCAN.surface },
   modeOn: { backgroundColor: SCAN.limeSoft, borderColor: SCAN.lime },
-  modeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: SCAN.muted },
+  modeText: { flexShrink: 1, fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: SCAN.muted },
   modeTextOn: { color: SCAN.limeInk },
-  caption: { fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 19, color: SCAN.muted, marginTop: 10, height: 44 },
+  caption: { fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 19, color: SCAN.muted, marginTop: 12, height: 48 },
   ctaWrap: { marginTop: 12, borderRadius: 22, shadowColor: SCAN.lime, shadowOpacity: 0.3, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 5 },
   cta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, height: 58, borderRadius: 22, paddingHorizontal: 20 },
   ctaText: { flex: 1, textAlign: 'center', fontFamily: 'Poppins_700Bold', fontSize: 18, color: SCAN.limeInk },

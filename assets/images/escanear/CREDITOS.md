@@ -7,10 +7,14 @@ uso gratuito, también comercial, sin atribución obligatoria. Se recortaron y c
 | Archivo | Foto original |
 |---|---|
 | `recorrido-aereo.jpg` | [Vista aérea de hileras de árboles — Pexels 33790879](https://www.pexels.com/photo/aerial-view-of-lush-green-vineyard-rows-33790879/) |
-| `hero-huerta.jpg` | [Cultivo en ladera al atardecer (título original: “Scenic Vineyard Landscape at Sunset”) — Pexels 33035529](https://www.pexels.com/photo/scenic-vineyard-landscape-at-sunset-33035529/) |
 | `fuente-dron.jpg` | [Dron volando sobre un campo — Pexels 9660112](https://www.pexels.com/photo/drone-flying-over-a-grass-field-9660112/) |
 | `fuente-gopro.jpg` | [Persona sosteniendo una cámara GoPro — Pexels 3718747](https://www.pexels.com/photo/a-person-holding-gopro-camera-3718747/) |
-| `fuente-celular.jpg` | [Persona con un celular entre plantas — Pexels 4526420](https://www.pexels.com/photo/crop-person-using-modern-smartphone-near-lush-plants-4526420/) |
+| `fuente-celular.jpg` | [Manos con un celular grabando un campo de cultivo — Pexels 4149466](https://www.pexels.com/photo/person-holding-black-iphone-5-taking-photo-of-green-grass-field-4149466/) |
+
+## Video
+| Archivo | Original |
+|---|---|
+| `assets/videos/huerta-dron.mp4` y `huerta-dron-poster.jpg` (primer cuadro) | [Vista aérea de una huerta de manzanos — Pexels video 13779417](https://www.pexels.com/video/drone-footage-of-an-apple-orchard-13779417/), licencia de Pexels. Versión 1920×1080 sin audio. |
 
 ## Creative Commons (requieren atribución)
 Fotos de Flickr encontradas con [Openverse](https://openverse.org/). Se ajustó el color/contraste y se comprimieron.

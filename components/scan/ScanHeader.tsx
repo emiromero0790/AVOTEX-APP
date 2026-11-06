@@ -17,11 +17,14 @@ const translations: TranslationResource = {
   settings: { es: 'Ajustes', en: 'Settings' },
 };
 
-export default function ScanHeader({ tokensValue }: { tokensValue: string | null }) {
+/** `onImage`: el encabezado va sobre una foto o video; el logotipo lleva fondo blanco para no perderse. */
+export default function ScanHeader({ tokensValue, onImage = false }: { tokensValue: string | null; onImage?: boolean }) {
   const t = useTranslations(translations);
   return (
     <View style={s.row}>
-      <Image source={WORDMARK} style={s.logo} resizeMode="contain" accessibilityRole="image" accessibilityLabel="AVOTEX" />
+      <View style={onImage && s.brand}>
+        <Image source={WORDMARK} style={s.logo} resizeMode="contain" accessibilityRole="image" accessibilityLabel="AVOTEX" />
+      </View>
       <View style={s.right}>
         {tokensValue ? (
           <View style={s.tokens} accessible accessibilityLabel={t('tokens', { value: tokensValue })}>
@@ -45,6 +48,7 @@ export default function ScanHeader({ tokensValue }: { tokensValue: string | null
 
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  brand: { height: 40, paddingHorizontal: 12, borderRadius: 20, justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.95)' },
   logo: { width: 112, height: 26 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   tokens: {

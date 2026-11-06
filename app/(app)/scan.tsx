@@ -198,10 +198,10 @@ export default function Scan() {
     }, [user?.email, isGuest])
   );
 
-  // Escanear es blanco (texto oscuro en la barra de estado); la cámara, oscura (texto claro).
+  // Escanear (video de la huerta arriba) y cámara: texto claro en la barra de estado.
   useFocusEffect(
     useCallback(() => {
-      setStatusBarStyle(mode === "choose" ? "dark" : "light");
+      setStatusBarStyle("light");
       return () => setStatusBarStyle("dark");
     }, [mode])
   );

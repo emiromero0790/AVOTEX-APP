@@ -151,6 +151,7 @@ export default function MisEscaneos() {
 
   const [user, setUser] = useState<User | null>(auth.currentUser);
   const email = user?.email ?? '';
+  const uid = user?.uid ?? '';
   const [tokens, setTokens] = useState<number | null>(null);
   const [orchards, setOrchards] = useState<Orchard[]>([]);
   const [remotes, setRemotes] = useState<RecorridoRemoto[]>([]);
@@ -187,7 +188,8 @@ export default function MisEscaneos() {
       listOrchards(email).catch(() => { failed = true; return [] as Orchard[]; }),
       listRemote(email, 50).catch(() => { failed = true; return [] as RecorridoRemoto[]; }),
       listLocal(email).catch(() => [] as RecorridoLocal[]),
-      Promise.resolve(supabase.from('scans').select('id,fruto,label,score,created_at').eq('user_email', email).order('created_at', { ascending: false }).limit(30))
+      // Igual que Inicio y Actividad: las fotos individuales se guardan con el uid de Firebase (user_id).
+      Promise.resolve(supabase.from('scans').select('id,fruto,label,score,created_at').eq('user_id', uid).order('created_at', { ascending: false }).limit(30))
         .then(({ data, error }) => { if (error) { failed = true; return [] as SingleScan[]; } return (data ?? []) as SingleScan[]; })
         .catch(() => { failed = true; return [] as SingleScan[]; }),
       Promise.resolve(supabase.from('users').select('tokens').eq('user_email', email).maybeSingle())
@@ -209,7 +211,7 @@ export default function MisEscaneos() {
       for (const h of (data ?? []) as Array<{ recorrido_id: string; miniatura_path: string }>) if (!map[h.recorrido_id]) map[h.recorrido_id] = h.miniatura_path;
       setThumbs(map);
     }
-  }, [email]);
+  }, [email, uid]);
 
   const sync = useCallback(async (force = false) => {
     if (!email || syncing) return;

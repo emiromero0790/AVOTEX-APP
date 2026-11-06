@@ -29,6 +29,8 @@ import { useGuest, GUEST_MAX_SCANS } from "../../context/GuestContext";
 import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations } from "../../context/LanguageContext";
 import ScanHome from "../../components/ScanHome";
 import { listLocal } from "../../services/recorridos";
+import { insertSingleScan, uploadScanImage } from "../../services/escaneos";
+import * as Location from "expo-location";
 import { CSS_EASE_OUT, EASE_OUT, PressableScale } from "../../components/scan/motion";
 
 // Entradas y salidas de una sola vez (resultado, estado de análisis). Constantes de módulo, ver skill animate-expo.
@@ -255,7 +257,25 @@ export default function Scan() {
     }
   };
 
-  const saveScanResult = async (pred: NormalizedPrediction) => {
+  // Ubicación del escaneo solo si ya hay permiso (no se pregunta aquí) y la foto, para verlos en Mis escaneos.
+  const scanExtras = async (photoUri: string | null) => {
+    let lat: number | null = null, lng: number | null = null, precision: number | null = null;
+    try {
+      const perm = await Location.getForegroundPermissionsAsync();
+      if (perm.granted) {
+        const pos = (await Location.getLastKnownPositionAsync({ maxAge: 60000, requiredAccuracy: 50 }))
+          ?? (await Promise.race([
+            Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+            new Promise<null>(r => setTimeout(() => r(null), 4000)),
+          ]));
+        if (pos) { lat = pos.coords.latitude; lng = pos.coords.longitude; precision = pos.coords.accuracy ?? null; }
+      }
+    } catch { /* sin ubicación */ }
+    const imagen_path = photoUri && user ? await uploadScanImage(user.uid, photoUri) : null;
+    return { lat, lng, precision_m: precision, imagen_path };
+  };
+
+  const saveScanResult = async (pred: NormalizedPrediction, photoUri: string | null = null) => {
     if (!user) return;
     setIsSaving(true);
     isBusyRef.current = true;
@@ -268,7 +288,7 @@ export default function Scan() {
         score: pred.state.confidence,
         created_at: new Date().toISOString(),
       };
-      const { error } = await supabase.from("scans").insert([scanRecord]);
+      const { error } = await insertSingleScan(scanRecord, await scanExtras(photoUri));
       if (error) throw error;
         Toast.show({ type: "success", text1: t("saved") });
     } catch (error) {
@@ -384,7 +404,7 @@ export default function Scan() {
             : Haptics.NotificationFeedbackType.Warning,
         ).catch(() => {});
         if (!isGuest) {
-          await saveScanResult(pred);
+          await saveScanResult(pred, photo?.uri ?? null);
         }
       } else {
         setPrediction(null);

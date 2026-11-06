@@ -6,7 +6,7 @@
  * El HTML se carga una vez; los datos llegan después por window.avx.* para no recargar el mapa.
  */
 import type { LatLng, ZoneColor, ZoneId } from '../services/satZones';
-import { safeJson } from './scansMapHtml';
+import { safeJsonValue as safeJson } from './safeJson';
 
 export type SatLayer = 'satelite' | 'zonas' | 'hibrido';
 

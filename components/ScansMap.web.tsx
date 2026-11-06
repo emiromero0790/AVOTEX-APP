@@ -1,19 +1,20 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { buildScansMapHtml } from './scansMapHtml';
-import type { ScansMapHandle, ScansMapProps } from './ScansMap.types';
+import { parseMapEvent, type ScansMapHandle, type ScansMapProps } from './ScansMap.types';
 
 type Avx = {
   setData: (d: unknown) => void;
-  select: (id: string | null, fly: boolean) => void;
-  setDetail: (route: unknown, findings: unknown) => void;
+  select: (id: string | null) => void;
+  setDetail: (d: unknown, fit: boolean) => void;
+  point: (kind: string | null, id: string | null) => void;
   setLayer: (l: string) => void;
   zoom: (d: number) => void;
   showUser: (lat: number, lng: number, fly: boolean) => void;
-  fitAll: () => void;
+  fit: () => void;
 };
 
 const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
-  { data, selectedId, detail, user, layer, onSelect, onError },
+  { data, selectedId, detail, point, user, layer, onEvent, onError },
   ref,
 ) {
   const frame = useRef<HTMLIFrameElement>(null);
@@ -27,34 +28,33 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
       try {
         const msg = JSON.parse(String(event.data));
         if (msg?.type === 'ready') setReady(true);
-        else if (msg?.type === 'select' && typeof msg.id === 'string') onSelect(msg.id);
-        else if (msg?.type === 'clear') onSelect(null);
         else if (msg?.type === 'error') onError?.();
+        else { const e = parseMapEvent(msg); if (e) onEvent(e); }
       } catch { /* mensaje ajeno */ }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [onSelect, onError]);
+  }, [onEvent, onError]);
 
   useImperativeHandle(ref, () => ({
     zoom: d => avx()?.zoom(d),
-    flyToSelected: () => { if (selectedId) avx()?.select(selectedId, true); },
+    fit: () => avx()?.fit(),
     flyToUser: () => { if (user) avx()?.showUser(user.lat, user.lng, true); },
-    fitAll: () => avx()?.fitAll(),
-  }), [selectedId, user]);
+  }), [user]);
 
-  useEffect(() => { if (ready) { avx()?.setData(data); avx()?.select(selectedId, false); } }, [ready, data]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (ready) avx()?.select(selectedId, true); }, [ready, selectedId]);
-  useEffect(() => { if (ready) avx()?.setDetail(detail?.route ?? [], detail?.findings ?? []); }, [ready, detail]);
-  useEffect(() => { if (ready && user) avx()?.showUser(user.lat, user.lng, false); }, [ready, user]);
   useEffect(() => { if (ready) avx()?.setLayer(layer); }, [ready, layer]);
+  useEffect(() => { if (ready) avx()?.setData(data); }, [ready, data]);
+  useEffect(() => { if (ready) avx()?.select(selectedId); }, [ready, selectedId]);
+  useEffect(() => { if (ready) avx()?.setDetail(detail, true); }, [ready, detail]);
+  useEffect(() => { if (ready) avx()?.point(point?.kind ?? null, point?.id ?? null); }, [ready, point]);
+  useEffect(() => { if (ready && user) avx()?.showUser(user.lat, user.lng, false); }, [ready, user]);
 
   return (
     <iframe
       ref={frame}
       title="Mapa de mis escaneos"
       srcDoc={html}
-      style={{ border: 0, width: '100%', height: '100%', display: 'block', background: '#e5e7eb' }}
+      style={{ border: 0, width: '100%', height: '100%', display: 'block', background: '#dfe7e1' }}
     />
   );
 });

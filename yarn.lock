@@ -4196,6 +4196,11 @@ expo-asset@~58.0.20:
     "@expo/image-utils" "^0.12.6"
     expo-constants "~58.0.15"
 
+expo-battery@~58.0.3:
+  version "58.0.3"
+  resolved "https://registry.npmjs.org/expo-battery/-/expo-battery-58.0.3.tgz#79f4818bf595a5c0c6be7e2de36ece9266700d25"
+  integrity sha512-ZS//7KNUeD/GO/xNPdIQ+agSNEJzRn0BWrjU5F/fFUX5LU7Y2U3ZByjHcLEY8jHdbqtwLgBP0BW5Ex++REw94g==
+
 expo-blur@~58.0.5:
   version "58.0.5"
   resolved "https://registry.npmjs.org/expo-blur/-/expo-blur-58.0.5.tgz#55f32f4817e91f06a996c40cc65913eb515d3f69"

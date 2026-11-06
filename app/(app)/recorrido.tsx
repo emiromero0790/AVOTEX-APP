@@ -86,6 +86,7 @@ import RecorridoMap from '../../components/RecorridoMap';
 // (La foto del arnés de pecho se usa en la importación de GoPro; cada foto aparece en una sola pantalla.)
 const IMG_MOUNT_HELMET = require('../../assets/images/escanear/montaje-casco.jpg');
 import { CSS_EASE_OUT, EASE_IN_OUT, EASE_OUT, PressableScale, PulseRing } from '../../components/scan/motion';
+import WalkPrepare from '../../components/scan/WalkPrepare';
 
 // Duración de "mantén presionado para terminar": evita cortar un recorrido por un toque accidental.
 const HOLD_TO_FINISH_MS = 900;
@@ -778,141 +779,26 @@ export default function RecorridoScreen() {
   }
 
   if (mode === 'prepare') {
-    const gb = prep.freeBytes != null ? (prep.freeBytes / 1024 ** 3).toFixed(1) : null;
-    const lowSpace = prep.freeBytes != null && prep.freeBytes < 300 * 1024 * 1024;
-    const permText = (p: PermState, deniedText: string) => p === 'granted' ? t('prepGranted') : p === 'denied' ? deniedText : t('prepWillAsk');
-    const netText = network === 'offline' ? t('prepOffline')
-      : network === 'wifi' ? t('prepWifi')
-      : network === 'cellular' ? (mobileData ? t('prepMobileOn') : t('prepCellular'))
-      : t('prepChecking');
-    type Status = 'ok' | 'warn' | 'info' | 'pending';
-    const checks: Array<{ key: string; icon: ReactNode; label: string; value: string; status: Status }> = [
-      {
-        key: 'camera', icon: <CameraIcon size={18} color="#0f766e" />, label: t('prepCamera'),
-        value: prep.camera ? permText(prep.camera, t('prepDenied')) : t('prepChecking'),
-        status: !prep.camera ? 'pending' : prep.camera === 'granted' ? 'ok' : prep.camera === 'denied' ? 'warn' : 'info',
-      },
-      {
-        key: 'location', icon: <MapPin size={18} color="#0f766e" />, label: t('prepLocation'),
-        value: prep.location ? permText(prep.location, t('prepLocationDenied')) : t('prepChecking'),
-        status: !prep.location ? 'pending' : prep.location === 'granted' ? 'ok' : prep.location === 'denied' ? 'warn' : 'info',
-      },
-      ...(Platform.OS !== 'web' ? [{
-        key: 'storage', icon: <HardDrive size={18} color="#0f766e" />, label: t('prepStorage'),
-        value: gb == null ? t('prepChecking') : lowSpace ? t('prepStorageLow', { gb }) : t('prepStorageOk', { gb }),
-        status: (gb == null ? 'pending' : lowSpace ? 'warn' : 'ok') as Status,
-      }] : []),
-      {
-        key: 'net', icon: network === 'offline' ? <WifiOff size={18} color="#0f766e" /> : <Wifi size={18} color="#0f766e" />,
-        label: t('prepConnection'), value: netText, status: network === 'unknown' ? 'pending' : 'info',
-      },
-    ];
-    const checking = checks.some(c => c.status === 'pending');
-    const warnings = checks.filter(c => c.status === 'warn').length;
-    const statusIcon = (status: Status) =>
-      status === 'ok' ? <CheckCircle2 size={18} color="#16a34a" /> :
-      status === 'warn' ? <AlertTriangle size={18} color="#d97706" /> :
-      status === 'pending' ? <ActivityIndicator size="small" color="#0f766e" /> :
-      <Info size={18} color="#0369a1" />;
     const goBack = () => { if (fromScan && router.canGoBack()) router.back(); else setMode('home'); };
-    const orchardOptions = [{ id: null as string | null, nombre: t('orchardAuto') }, ...orchards.map(o => ({ id: o.id as string | null, nombre: o.nombre }))];
     return (
-      <Reanimated.View entering={reducedMotion ? undefined : HUD_FADE_IN} style={[pp.screen, { paddingTop: insets.top }]}>
+      <Reanimated.View entering={reducedMotion ? undefined : HUD_FADE_IN} style={{ flex: 1 }}>
         <StatusBar style="dark" />
-        <View style={pp.header}>
-          <PressableScale style={pp.backBtn} onPress={goBack} accessibilityRole="button" accessibilityLabel={t('prepBack')}>
-            <ChevronLeft size={24} color="#0f172a" />
-          </PressableScale>
-          <Text style={pp.headerKicker}>{t('title')}</Text>
-        </View>
-        <ScrollView contentContainerStyle={[pp.scroll, isTablet && st.scrollTablet, { paddingBottom: insets.bottom + 120 }]} showsVerticalScrollIndicator={false}>
-          {/* Encabezado: qué va a pasar y estado general del teléfono */}
-          <View style={pp.hero}>
-            {/* Foto real del montaje: el celular va en el pecho con un arnés, o en el casco. */}
-            <View style={[pp.heroMedia, isTablet && { aspectRatio: 2.4 }]}>
-              <Image source={IMG_MOUNT_HELMET} style={pp.heroImg} resizeMode="cover" accessibilityIgnoresInvertColors />
-              <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)']} style={StyleSheet.absoluteFill} />
-              <View style={pp.heroTag}><Smartphone size={13} color="#0f766e" /><Text style={pp.heroTagText}>{t('mountTag')}</Text></View>
-            </View>
-            <View style={{ gap: 6, paddingHorizontal: 2 }}>
-              <Text style={pp.heroTitle}>{t('prepTitle')}</Text>
-              <Text style={pp.heroBody}>{t('prepIntro')}</Text>
-              <Reanimated.View
-                key={checking ? 'checking' : warnings ? 'warn' : 'ready'}
-                entering={reducedMotion ? undefined : PAUSE_IN}
-                style={[pp.ready, checking ? pp.readyChecking : warnings ? pp.readyWarn : pp.readyOk]}
-              >
-                {checking ? <ActivityIndicator size="small" color="#0f766e" /> : warnings ? <AlertTriangle size={14} color="#d97706" /> : <CheckCircle2 size={14} color="#16a34a" />}
-                <Text style={pp.readyText}>{checking ? t('prepChecking') : warnings ? t('prepWarnings', { count: warnings }) : t('prepReady')}</Text>
-              </Reanimated.View>
-            </View>
-          </View>
-
-          {/* Huerta del recorrido */}
-          <Text style={pp.section}>{t('prepOrchard')}</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={pp.chips}>
-            {orchardOptions.map(o => {
-              const on = huertaId === o.id;
-              return (
-                <PressableScale
-                  key={o.id ?? 'auto'}
-                  onPress={() => { if (!on) Haptics.selectionAsync().catch(() => {}); setHuertaId(o.id); }}
-                  style={[pp.chip, on && pp.chipOn]}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: on }}
-                >
-                  {o.id === null && <MapPin size={14} color={on ? '#ffffff' : '#0f766e'} />}
-                  <Text style={[pp.chipText, on && pp.chipTextOn]}>{o.nombre}</Text>
-                </PressableScale>
-              );
-            })}
-          </ScrollView>
-
-          {/* Lo que el teléfono permite comprobar de verdad */}
-          <Text style={pp.section}>{t('prepChecked')}</Text>
-          <View style={pp.card}>
-            {checks.map((c, i) => (
-              <View key={c.key} style={[pp.row, i > 0 && pp.rowBorder]}>
-                <View style={pp.rowIcon}>{c.icon}</View>
-                <View style={{ flex: 1 }}>
-                  <Text style={pp.rowLabel}>{c.label}</Text>
-                  <Text style={[pp.rowValue, c.status === 'warn' && { color: '#b45309' }]}>{c.value}</Text>
-                </View>
-                {/* el icono cambia con un fundido cuando termina la revisión */}
-                <Reanimated.View key={c.status} entering={reducedMotion ? undefined : PAUSE_IN}>{statusIcon(c.status)}</Reanimated.View>
-              </View>
-            ))}
-          </View>
-
-          {/* Lo que el usuario debe revisar */}
-          <Text style={pp.section}>{t('prepRecommend')}</Text>
-          <View style={pp.card}>
-            <Text style={pp.hint}>{t('prepRecommendHint')}</Text>
-            {[t('rec1'), t('rec2'), t('rec3'), t('rec4')].map((r, i) => (
-              <View key={i} style={pp.recRow}>
-                <View style={pp.recBullet}><Text style={pp.recBulletText}>{i + 1}</Text></View>
-                <Text style={pp.recText}>{r}</Text>
-              </View>
-            ))}
-          </View>
-        </ScrollView>
-        <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.96)', '#FFFFFF']} locations={[0, 0.35, 1]} style={[pp.footer, { paddingBottom: insets.bottom + 14 }]}>
-          <PressableScale style={pp.footBack} onPress={goBack} accessibilityRole="button" accessibilityLabel={t('prepBack')}>
-            <Text style={pp.footBackText}>{t('prepBack')}</Text>
-          </PressableScale>
-          <PressableScale
-            style={[pp.footStart, lowSpace && { opacity: 0.5 }]}
-            onPress={startRecording}
-            disabled={lowSpace}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: lowSpace }}
-          >
-            <LinearGradient colors={['#34d399', '#0f766e']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={pp.footStartGrad}>
-              <Route size={20} color="#fff" />
-              <Text style={st.startText}>{t('prepStart')}</Text>
-            </LinearGradient>
-          </PressableScale>
-        </LinearGradient>
+        <WalkPrepare
+          topInset={insets.top}
+          bottomInset={insets.bottom}
+          email={email}
+          orchards={orchards}
+          huertaId={huertaId}
+          onChangeOrchard={setHuertaId}
+          camera={prep.camera}
+          location={prep.location}
+          freeBytes={prep.freeBytes}
+          network={network}
+          isWeb={Platform.OS === 'web'}
+          tips={[t('rec1'), t('rec2'), t('rec3'), t('rec4')]}
+          onBack={goBack}
+          onStart={startRecording}
+        />
       </Reanimated.View>
     );
   }

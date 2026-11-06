@@ -22,6 +22,9 @@ Fotos de Flickr encontradas con [Openverse](https://openverse.org/). Se ajustó 
 
 Si la app tiene una pantalla de créditos o "Acerca de", conviene listar ahí estas dos atribuciones.
 
+## Imágenes de AVOTEX
+`hero-recorrido.jpg` (agricultor con el celular en la huerta) la proporcionó AVOTEX para la pantalla "Antes de empezar" del recorrido inteligente; se recortó y comprimió.
+
 ## Marca
 `avotex-wordmark.png` es un recorte del logotipo de AVOTEX (`assets/images/AvotexNuevoLogo.png`).
 

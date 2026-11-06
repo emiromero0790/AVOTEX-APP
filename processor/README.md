@@ -24,6 +24,17 @@ GitHub Actions (cada 10 min) → procesar_recorridos.py
 3. **Activar el flujo.** Los flujos programados solo corren desde `main`: al unir esta rama a `main` empieza solo.
    Para probar sin esperar: pestaña *Actions → Procesar recorridos → Run workflow*.
 
+4. **Disparo inmediato desde Supabase (recomendado).** GitHub retrasa u omite muchas ejecuciones programadas
+   (se vieron huecos de más de 14 horas), así que Supabase avisa a GitHub en cuanto un recorrido queda "pendiente":
+   1. Crea un token en GitHub → *Settings → Developer settings → Personal access tokens → Fine-grained tokens*:
+      solo el repositorio `AVOTEX-APP`, permiso **Actions: Read and write** (nada más). Anota cuándo caduca.
+   2. En Supabase → *SQL Editor* guarda el token en Vault (no en el código):
+      `select vault.create_secret('github_pat_...', 'github_dispatch_token');`
+   3. Ejecuta `supabase/migrations/20261106_disparar_procesador.sql`. Crea un trigger en `recorridos` y una
+      revisión cada 15 min con `pg_cron` como respaldo. El horario de GitHub se mantiene como tercer respaldo.
+   4. Comprueba con `select public.avisar_procesador();` y luego
+      `select status_code, content from net._http_response order by created desc limit 5;` (204 = correcto).
+
 ## Costos
 
 - **GitHub Actions:** gratis sin límite de minutos porque el repositorio es público. Si se vuelve privado, el plan

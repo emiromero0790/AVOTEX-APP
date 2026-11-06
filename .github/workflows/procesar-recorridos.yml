@@ -1,6 +1,8 @@
 # Procesa los recorridos que la app sube (fotos + GPS) con el modelo de AVOTEX.
 # Corre cada 10 minutos y también a mano desde la pestaña Actions ("Run workflow").
 # Nota de GitHub: los flujos programados solo corren desde la rama principal (main).
+# El disparo principal viene de Supabase (workflow_dispatch al quedar un recorrido "pendiente",
+# ver supabase/migrations/20261106_disparar_procesador.sql); GitHub retrasa u omite muchas ejecuciones programadas.
 name: Procesar recorridos
 
 on:

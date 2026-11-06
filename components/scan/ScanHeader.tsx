@@ -1,6 +1,6 @@
 /**
  * Encabezado de Escanear y Mis escaneos: marca AVOTEX, saldo de tokens y acceso a Ajustes.
- * Va sobre la fotografía o el mapa, con fondo de vidrio oscuro para que siempre se lea.
+ * Sobre fondo blanco, como el resto de la app.
  */
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
@@ -21,14 +21,11 @@ export default function ScanHeader({ tokensValue }: { tokensValue: string | null
   const t = useTranslations(translations);
   return (
     <View style={s.row}>
-      {/* Marca sobre fondo claro: así se lee el logotipo ilustrado de AVOTEX también sobre fotos oscuras. */}
-      <View style={s.brand}>
-        <Image source={WORDMARK} style={s.logo} resizeMode="contain" accessibilityRole="image" accessibilityLabel="AVOTEX" />
-      </View>
+      <Image source={WORDMARK} style={s.logo} resizeMode="contain" accessibilityRole="image" accessibilityLabel="AVOTEX" />
       <View style={s.right}>
         {tokensValue ? (
           <View style={s.tokens} accessible accessibilityLabel={t('tokens', { value: tokensValue })}>
-            <View style={s.coin}><Coins size={13} color="#FDE68A" /></View>
+            <View style={s.coin}><Coins size={13} color="#B45309" /></View>
             <Text style={s.tokensText}>{tokensValue}</Text>
           </View>
         ) : null}
@@ -48,17 +45,16 @@ export default function ScanHeader({ tokensValue }: { tokensValue: string | null
 
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  brand: { height: 40, paddingHorizontal: 12, borderRadius: 20, justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.94)' },
-  logo: { width: 104, height: 24 },
+  logo: { width: 112, height: 26 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   tokens: {
     flexDirection: 'row', alignItems: 'center', gap: 7, height: 40, paddingLeft: 6, paddingRight: 14, borderRadius: 20,
-    backgroundColor: SCAN.glass, borderWidth: 1, borderColor: 'rgba(253,230,138,0.28)',
+    backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A',
   },
-  coin: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(217,119,6,0.35)' },
-  tokensText: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: SCAN.ink, fontVariant: ['tabular-nums'] },
+  coin: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FEF3C7' },
+  tokensText: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#78350F', fontVariant: ['tabular-nums'] },
   gear: {
     width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: SCAN.glass, borderWidth: 1, borderColor: SCAN.line,
+    backgroundColor: SCAN.surface, borderWidth: 1, borderColor: SCAN.line,
   },
 });

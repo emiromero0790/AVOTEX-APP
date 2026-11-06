@@ -26,7 +26,7 @@ import { listOrchards, Orchard } from '../../services/orchards';
 import { MAX_IMPORT, importPhotos, readExif, summarize } from '../../services/importar';
 import { uploadPending, type SyncResult } from '../../services/recorridos';
 import { CSS_EASE_OUT, EASE_OUT, PressableScale } from '../../components/scan/motion';
-import { LIME_GRADIENT, SCAN } from '../../components/scan/theme';
+import { CARD_SHADOW, LIME_GRADIENT, SCAN } from '../../components/scan/theme';
 
 const auth = firebaseAuth as Auth;
 
@@ -114,7 +114,7 @@ export default function ImportarFotos() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
-  useFocusEffect(useCallback(() => { setStatusBarStyle('light'); return () => setStatusBarStyle('dark'); }, []));
+  useFocusEffect(useCallback(() => { setStatusBarStyle('dark'); }, []));
 
   // Cada vez que se abre desde Escanear empieza de cero (la pantalla sigue montada entre visitas).
   useEffect(() => {
@@ -176,7 +176,7 @@ export default function ImportarFotos() {
   if (isGuest) {
     return (
       <View style={[s.screen, s.center, { paddingTop: insets.top }]}>
-        <Lock size={36} color={SCAN.lime} />
+        <Lock size={36} color={SCAN.brand} />
         <Text style={s.lockText}>{t('locked')}</Text>
         <PressableScale style={s.lockBtn} onPress={() => router.replace('/(auth)')} accessibilityRole="button"><Text style={s.lockBtnText}>{t('signIn')}</Text></PressableScale>
       </View>
@@ -186,25 +186,29 @@ export default function ImportarFotos() {
   const stepIndex = phase === 'pick' ? 0 : phase === 'review' ? 1 : 2;
   const goBack = () => (router.canGoBack() ? router.back() : router.navigate('/(app)/scan'));
   const tabSpace = (isTablet ? 82 + 24 : 72 + 18) + 24 + insets.bottom;
-  const heroH = isTablet ? 360 : 300;
+  const heroH = isTablet ? 280 : 190;
 
   return (
     <View style={s.screen}>
       <ScrollView contentContainerStyle={{ paddingBottom: tabSpace }} showsVerticalScrollIndicator={false}>
-        {/* ── Encabezado fotográfico ── */}
-        <View style={[s.hero, { height: heroH + insets.top }]}>
-          <Image source={fuente === 'dron' ? IMG_AERIAL : IMG_CHEST} style={s.img} resizeMode="cover" accessibilityIgnoresInvertColors />
-          <LinearGradient colors={['rgba(3,10,6,0.75)', 'rgba(3,10,6,0.15)', 'rgba(6,18,11,0.6)', SCAN.bg]} locations={[0, 0.35, 0.7, 1]} style={StyleSheet.absoluteFill} />
-          <View style={[s.heroTop, { paddingTop: insets.top + 8 }]}>
+        {/* ── Encabezado (blanco) y tarjeta fotográfica ── */}
+        <View style={[s.top, isTablet && s.contentTablet, { paddingTop: insets.top + 8 }]}>
+          <View style={s.headRow}>
             <PressableScale style={s.back} onPress={goBack} accessibilityRole="button" accessibilityLabel={t('back')}><ChevronLeft size={22} color={SCAN.ink} /></PressableScale>
             <View style={s.kicker}>
-              {fuente === 'dron' ? <Plane size={14} color={SCAN.lime} /> : <Video size={14} color={SCAN.lime} />}
+              {fuente === 'dron' ? <Plane size={14} color={SCAN.limeInk} /> : <Video size={14} color={SCAN.limeInk} />}
               <Text style={s.kickerText}>{fuente === 'dron' ? t('kickerDron') : t('kickerCamara')}</Text>
             </View>
           </View>
-          <View style={s.heroText}>
-            <Text style={s.title} accessibilityRole="header">{fuente === 'dron' ? t('titleDron') : t('titleCamara')}</Text>
-            <Text style={s.body}>{fuente === 'dron' ? t('bodyDron') : t('bodyCamara')}</Text>
+          <Text style={s.title} accessibilityRole="header">{fuente === 'dron' ? t('titleDron') : t('titleCamara')}</Text>
+          <Text style={s.body}>{fuente === 'dron' ? t('bodyDron') : t('bodyCamara')}</Text>
+          <View style={[s.hero, { height: heroH }]}>
+            <View style={s.heroClip}>
+              <Image source={fuente === 'dron' ? IMG_AERIAL : IMG_CHEST} style={s.img} resizeMode="cover" accessibilityIgnoresInvertColors />
+              {fuente === 'camara' && (
+                <View style={s.heroTag}><Text style={s.heroTagText}>{t('chest')}</Text></View>
+              )}
+            </View>
           </View>
         </View>
 
@@ -215,7 +219,7 @@ export default function ImportarFotos() {
               const on = i <= stepIndex;
               return (
                 <View key={label} style={s.step}>
-                  <View style={[s.stepBar, { backgroundColor: on ? SCAN.lime : 'rgba(236,252,203,0.14)', transitionProperty: 'backgroundColor', transitionDuration: 220, transitionTimingFunction: CSS_EASE_OUT } as object]} />
+                  <View style={[s.stepBar, { backgroundColor: on ? SCAN.lime : '#E2E8F0', transitionProperty: 'backgroundColor', transitionDuration: 220, transitionTimingFunction: CSS_EASE_OUT } as object]} />
                   <Text style={[s.stepText, on && { color: SCAN.ink }]}>{`${i + 1}. ${label}`}</Text>
                 </View>
               );
@@ -236,19 +240,19 @@ export default function ImportarFotos() {
                 ))}
               </View>
               <View style={s.note}><Info size={15} color={SCAN.sky} /><Text style={s.noteText}>{t('noDirect')}</Text></View>
-              <Cta label={t('pick')} icon={<ImagePlus size={22} color="#0B1A05" />} onPress={() => pickPhotos(false)} />
+              <Cta label={t('pick')} icon={<ImagePlus size={22} color={SCAN.limeInk} />} onPress={() => pickPhotos(false)} />
             </Reanimated.View>
           )}
 
           {phase === 'review' && (
             <Reanimated.View entering={reduced ? undefined : STEP_IN} style={s.block}>
               <View style={s.stats}>
-                <Stat icon={<ImagePlus size={16} color={SCAN.lime} />} value={summary.total} label={t('statPhotos')} />
-                <Stat icon={<MapPin size={16} color={summary.withGps ? SCAN.lime : SCAN.amber} />} value={summary.withGps} label={t('statGps')} />
-                <Stat icon={<Calendar size={16} color={SCAN.lime} />} value={summary.withDate} label={t('statDate')} />
+                <Stat icon={<ImagePlus size={16} color={SCAN.brand} />} value={summary.total} label={t('statPhotos')} />
+                <Stat icon={<MapPin size={16} color={summary.withGps ? SCAN.brand : SCAN.amber} />} value={summary.withGps} label={t('statGps')} />
+                <Stat icon={<Calendar size={16} color={SCAN.brand} />} value={summary.withDate} label={t('statDate')} />
               </View>
               {summary.total > 0 && summary.withGps === 0 && (
-                <View style={[s.note, s.noteWarn]}><MapIcon size={15} color={SCAN.amber} /><Text style={[s.noteText, { color: '#FDE68A' }]}>{t('noGpsWarn')}</Text></View>
+                <View style={[s.note, s.noteWarn]}><MapIcon size={15} color={SCAN.amber} /><Text style={[s.noteText, { color: '#92400E' }]}>{t('noGpsWarn')}</Text></View>
               )}
               {summary.total > MAX_IMPORT && <Text style={s.small}>{t('limit', { max: MAX_IMPORT })}</Text>}
 
@@ -258,7 +262,7 @@ export default function ImportarFotos() {
                   return (
                     <View key={a.assetId ?? a.uri} style={s.cell}>
                       <Image source={{ uri: a.uri }} style={s.img} resizeMode="cover" />
-                      {gps && <View style={s.gpsBadge}><MapPin size={10} color="#0B1A05" /></View>}
+                      {gps && <View style={s.gpsBadge}><MapPin size={10} color={SCAN.limeInk} /></View>}
                       {i === 14 && assets.length > 15 && <View style={s.more}><Text style={s.moreText}>+{assets.length - 14}</Text></View>}
                     </View>
                   );
@@ -275,20 +279,20 @@ export default function ImportarFotos() {
                   const on = huertaId === o.id;
                   return (
                     <PressableScale key={o.id ?? 'auto'} onPress={() => { if (!on) Haptics.selectionAsync().catch(() => {}); setHuertaId(o.id); }} style={[s.chip, on && s.chipOn]} accessibilityRole="radio" accessibilityState={{ selected: on }}>
-                      {o.id === null && <MapPin size={14} color={on ? '#0B1A05' : SCAN.lime} />}
+                      {o.id === null && <MapPin size={14} color={on ? SCAN.limeInk : SCAN.brand} />}
                       <Text style={[s.chipText, on && s.chipTextOn]}>{o.nombre}</Text>
                     </PressableScale>
                   );
                 })}
               </ScrollView>
 
-              <Cta label={t('prepare')} icon={<CloudUpload size={22} color="#0B1A05" />} onPress={prepare} />
+              <Cta label={t('prepare')} icon={<CloudUpload size={22} color={SCAN.limeInk} />} onPress={prepare} />
             </Reanimated.View>
           )}
 
           {phase === 'preparing' && (
             <Reanimated.View entering={reduced ? undefined : FADE} style={[s.card, s.center, { paddingVertical: 28 }]}>
-              <ActivityIndicator color={SCAN.lime} size="large" />
+              <ActivityIndicator color={SCAN.brand} size="large" />
               <Text style={s.cardTitle}>{t('preparing', { done: prog.done, total: prog.total })}</Text>
               <View style={s.track}>
                 {/* relleno absoluto sin hijos: anima su ancho sin recalcular el resto */}
@@ -305,7 +309,7 @@ export default function ImportarFotos() {
                 <Text style={s.doneTitle}>{t('doneTitle')}</Text>
                 <Text style={s.doneBody}>{t('doneBody', { count: prog.total, gps: savedGps })}</Text>
                 <View style={s.syncRow}>
-                  {sync === 'running' ? <ActivityIndicator size="small" color={SCAN.sky} /> : <CloudUpload size={16} color={sync === 'done' ? SCAN.lime : SCAN.sky} />}
+                  {sync === 'running' ? <ActivityIndicator size="small" color={SCAN.sky} /> : <CloudUpload size={16} color={sync === 'done' ? SCAN.brand : SCAN.sky} />}
                   <Text style={s.syncText}>
                     {sync === 'running' ? t('syncing', { done: upProg.done, total: upProg.total || prog.total })
                       : sync === 'done' ? t('syncDone') : sync === 'offline' ? t('syncOffline') : sync === 'wifi-required' ? t('syncWifi') : t('syncError')}
@@ -314,7 +318,7 @@ export default function ImportarFotos() {
               </Reanimated.View>
               <Cta
                 label={t('viewScans')}
-                icon={<MapIcon size={22} color="#0B1A05" />}
+                icon={<MapIcon size={22} color={SCAN.limeInk} />}
                 onPress={() => router.replace({ pathname: '/(app)/escaneos', params: { n: String(Date.now()), focus: savedId ? `local:${savedId}` : undefined } })}
               />
               <PressableScale style={s.secondary} onPress={() => { setAssets([]); setPhase('pick'); setSync(null); }} accessibilityRole="button">
@@ -354,65 +358,65 @@ const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: SCAN.bg },
   center: { alignItems: 'center', justifyContent: 'center', gap: 12 },
   lockText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: SCAN.ink, textAlign: 'center', paddingHorizontal: 28 },
-  lockBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 16, backgroundColor: SCAN.lime },
-  lockBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#0B1A05' },
-  hero: { width: '100%', overflow: 'hidden', justifyContent: 'flex-end' },
+  lockBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 16, backgroundColor: SCAN.limeBright },
+  lockBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: SCAN.limeInk },
+  top: { paddingHorizontal: 16, gap: 6 },
+  headRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
+  back: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: SCAN.surface, borderWidth: 1, borderColor: SCAN.line },
+  kicker: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 32, borderRadius: 16, backgroundColor: SCAN.limeSoft, borderWidth: 1, borderColor: '#D9F99D' },
+  kickerText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: SCAN.limeInk },
+  title: { fontFamily: 'Poppins_700Bold', fontSize: 28, lineHeight: 34, letterSpacing: -0.8, color: SCAN.ink },
+  body: { fontFamily: 'Poppins_400Regular', fontSize: 14, lineHeight: 21, color: '#52606D' },
+  hero: { marginTop: 8, borderRadius: 26, backgroundColor: '#E2E8F0', ...CARD_SHADOW },
+  heroClip: { flex: 1, borderRadius: 26, overflow: 'hidden' },
+  heroTag: { position: 'absolute', left: 12, bottom: 12, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.94)' },
+  heroTagText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: SCAN.ink },
   img: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
-  heroTop: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
-  back: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: SCAN.glass, borderWidth: 1, borderColor: SCAN.line },
-  kicker: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 32, borderRadius: 16, backgroundColor: SCAN.glass, borderWidth: 1, borderColor: SCAN.line },
-  kickerText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: SCAN.ink },
-  inset: { position: 'absolute', right: 16, width: 112, height: 84, borderRadius: 16, overflow: 'hidden', borderWidth: 2, borderColor: 'rgba(255,255,255,0.85)' },
-  insetLabel: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingVertical: 3, alignItems: 'center', backgroundColor: 'rgba(3,10,6,0.7)' },
-  insetText: { fontFamily: 'Poppins_600SemiBold', fontSize: 10.5, color: '#ffffff' },
-  heroText: { paddingHorizontal: 18, paddingBottom: 6, gap: 6 },
-  title: { fontFamily: 'Poppins_700Bold', fontSize: 30, lineHeight: 35, letterSpacing: -0.8, color: '#ffffff' },
-  body: { fontFamily: 'Poppins_400Regular', fontSize: 14, lineHeight: 21, color: SCAN.inkSoft },
-  content: { paddingHorizontal: 16, gap: 14, marginTop: 10 },
+  content: { paddingHorizontal: 16, gap: 14, marginTop: 16 },
   contentTablet: { maxWidth: 720, width: '100%', alignSelf: 'center' },
   steps: { flexDirection: 'row', gap: 8 },
   step: { flex: 1, gap: 6 },
   stepBar: { height: 4, borderRadius: 2 },
   stepText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11.5, color: SCAN.muted },
   block: { gap: 14 },
-  card: { borderRadius: 22, padding: 16, gap: 12, backgroundColor: 'rgba(12,32,20,0.85)', borderWidth: 1, borderColor: 'rgba(190,242,100,0.14)' },
-  cardTitle: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#ffffff' },
+  card: { borderRadius: 22, padding: 16, gap: 12, backgroundColor: SCAN.card, borderWidth: 1, borderColor: '#EEF2F7', ...CARD_SHADOW, shadowOpacity: 0.08 },
+  cardTitle: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: SCAN.ink },
   li: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  liNum: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(163,230,53,0.18)', marginTop: 1 },
-  liNumText: { fontFamily: 'Poppins_700Bold', fontSize: 11.5, color: SCAN.lime },
+  liNum: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: SCAN.limeSoft, marginTop: 1 },
+  liNumText: { fontFamily: 'Poppins_700Bold', fontSize: 11.5, color: SCAN.limeInk },
   liText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 13.5, lineHeight: 20, color: SCAN.inkSoft },
-  note: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: 'rgba(56,189,248,0.08)', borderWidth: 1, borderColor: 'rgba(56,189,248,0.3)' },
-  noteWarn: { backgroundColor: 'rgba(251,191,36,0.08)', borderColor: 'rgba(251,191,36,0.35)' },
-  noteText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: '#BAE6FD' },
+  note: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: '#F0F9FF', borderWidth: 1, borderColor: '#BAE6FD' },
+  noteWarn: { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
+  noteText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: '#075985' },
   stats: { flexDirection: 'row', gap: 8 },
-  stat: { flex: 1, alignItems: 'flex-start', gap: 2, padding: 12, borderRadius: 18, backgroundColor: 'rgba(12,32,20,0.85)', borderWidth: 1, borderColor: 'rgba(190,242,100,0.14)' },
-  statValue: { fontFamily: 'Poppins_700Bold', fontSize: 24, color: '#ffffff', fontVariant: ['tabular-nums'] },
+  stat: { flex: 1, alignItems: 'flex-start', gap: 2, padding: 12, borderRadius: 18, backgroundColor: SCAN.card, borderWidth: 1, borderColor: '#EEF2F7', ...CARD_SHADOW, shadowOpacity: 0.06 },
+  statValue: { fontFamily: 'Poppins_700Bold', fontSize: 24, color: SCAN.ink, fontVariant: ['tabular-nums'] },
   statLabel: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: SCAN.muted },
   small: { fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 17, color: SCAN.muted, textAlign: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  cell: { width: '18.8%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', backgroundColor: '#0A1F14' },
+  cell: { width: '18.8%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', backgroundColor: '#F1F5F9' },
   gpsBadge: { position: 'absolute', right: 3, bottom: 3, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: SCAN.limeBright },
-  more: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(3,10,6,0.65)' },
+  more: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15,23,42,0.55)' },
   moreText: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#ffffff' },
   row: { flexDirection: 'row', gap: 10 },
-  ghost: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 44, borderRadius: 14, borderWidth: 1, borderColor: SCAN.line, backgroundColor: 'rgba(8,24,15,0.6)' },
+  ghost: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 44, borderRadius: 14, borderWidth: 1, borderColor: SCAN.line, backgroundColor: SCAN.surface },
   ghostText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: SCAN.ink },
   section: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, letterSpacing: 1.2, textTransform: 'uppercase', color: SCAN.muted, marginTop: 4 },
   chips: { gap: 8, paddingRight: 8 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, borderColor: SCAN.line, backgroundColor: 'rgba(8,24,15,0.6)' },
-  chipOn: { backgroundColor: SCAN.limeBright, borderColor: SCAN.limeBright },
-  chipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: SCAN.ink },
-  chipTextOn: { color: '#0B1A05' },
-  track: { alignSelf: 'stretch', height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, borderColor: SCAN.line, backgroundColor: SCAN.surface },
+  chipOn: { backgroundColor: SCAN.limeSoft, borderColor: SCAN.lime },
+  chipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: SCAN.inkSoft },
+  chipTextOn: { color: SCAN.limeInk },
+  track: { alignSelf: 'stretch', height: 6, borderRadius: 3, backgroundColor: '#E2E8F0', overflow: 'hidden' },
   fill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3, backgroundColor: SCAN.lime },
-  doneTitle: { fontFamily: 'Poppins_700Bold', fontSize: 22, color: '#ffffff' },
+  doneTitle: { fontFamily: 'Poppins_700Bold', fontSize: 22, color: SCAN.ink },
   doneBody: { fontFamily: 'Poppins_400Regular', fontSize: 13.5, lineHeight: 20, color: SCAN.inkSoft, textAlign: 'center' },
-  syncRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 14, backgroundColor: 'rgba(56,189,248,0.08)' },
-  syncText: { flexShrink: 1, fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: '#BAE6FD' },
+  syncRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 14, backgroundColor: '#F0F9FF' },
+  syncText: { flexShrink: 1, fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: '#075985' },
   error: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: SCAN.red },
-  ctaWrap: { borderRadius: 22, shadowColor: SCAN.lime, shadowOpacity: 0.3, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 5 },
-  cta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 60, borderRadius: 22, paddingHorizontal: 20 },
-  ctaText: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: '#0B1A05' },
-  secondary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 50, borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(236,252,203,0.3)' },
+  ctaWrap: { borderRadius: 22, shadowColor: SCAN.lime, shadowOpacity: 0.3, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 5 },
+  cta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 58, borderRadius: 22, paddingHorizontal: 20 },
+  ctaText: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: SCAN.limeInk },
+  secondary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 50, borderRadius: 20, borderWidth: 1.5, borderColor: SCAN.line, backgroundColor: SCAN.card },
   secondaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: SCAN.ink },
 });

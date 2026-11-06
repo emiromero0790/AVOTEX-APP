@@ -54,7 +54,7 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
       ref={frame}
       title="Mapa de mis escaneos"
       srcDoc={html}
-      style={{ border: 0, width: '100%', height: '100%', display: 'block', background: '#06120b' }}
+      style={{ border: 0, width: '100%', height: '100%', display: 'block', background: '#e5e7eb' }}
     />
   );
 });

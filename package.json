@@ -33,6 +33,7 @@
     "eas-cli": "^24.3.0",
     "expo": "^58.0.0",
     "expo-asset": "~58.0.20",
+    "expo-battery": "~58.0.3",
     "expo-blur": "~58.0.5",
     "expo-build-properties": "~58.0.12",
     "expo-camera": "~58.0.14",

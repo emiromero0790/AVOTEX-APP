@@ -1,4 +1,5 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import { PROXIMITY_WAVES_JS } from './proximityWavesJs';
 import { StyleSheet, View } from 'react-native';
 import { WebView as RNWebView } from 'react-native-webview';
 
@@ -18,6 +19,10 @@ export type PolygonMapProps = {
     title: string;
     rows: Array<{ label: string; value: string }>;
   };
+  /** Ondas rojas de "estás lejos de tu huerta", ancladas al polígono dentro del mapa. */
+  proximityAlert?: boolean;
+  /** Movimiento reducido del sistema: anillos fijos en lugar de ondas animadas. */
+  reducedMotion?: boolean;
 };
 
 export type PolygonMapHandle = {
@@ -110,10 +115,11 @@ map.on(L.Draw.Event.CREATED,function(e){
       }
     });
   });
+${PROXIMITY_WAVES_JS}
 </script></body></html>`;
 }
 
-const PolygonMap = forwardRef<PolygonMapHandle, PolygonMapProps>(({ location, onPolygonChange, initialPolygon = [], preview = false, perspective = false, zoneCallout }, ref) => {
+const PolygonMap = forwardRef<PolygonMapHandle, PolygonMapProps>(({ location, onPolygonChange, initialPolygon = [], preview = false, perspective = false, zoneCallout, proximityAlert = false, reducedMotion = false }, ref) => {
   const webViewRef = useRef<WebView>(null);
   const html = useMemo(
     () => buildMapHTML(location.coords.latitude, location.coords.longitude, initialPolygon, preview, zoneCallout),
@@ -132,6 +138,11 @@ const PolygonMap = forwardRef<PolygonMapHandle, PolygonMapProps>(({ location, on
     webViewRef.current?.injectJavaScript(`setPerspective(${perspective ? 'true' : 'false'}); true;`);
   }, [perspective]);
 
+  const alertJs = `setProximityAlert(${proximityAlert ? 'true' : 'false'},${reducedMotion ? 'true' : 'false'}); true;`;
+  useEffect(() => {
+    webViewRef.current?.injectJavaScript(alertJs);
+  }, [alertJs]);
+
   return (
     <View style={styles.mapContainer}>
       <WebView
@@ -146,7 +157,7 @@ const PolygonMap = forwardRef<PolygonMapHandle, PolygonMapProps>(({ location, on
         bounces={false}
         allowsInlineMediaPlayback
         mixedContentMode="always"
-        onLoadEnd={() => webViewRef.current?.injectJavaScript(`setPerspective(${perspective ? 'true' : 'false'}); true;`)}
+        onLoadEnd={() => webViewRef.current?.injectJavaScript(`setPerspective(${perspective ? 'true' : 'false'}); ${alertJs}`)}
         onMessage={(event) => {
           try {
             const message = JSON.parse(event.nativeEvent.data);

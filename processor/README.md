@@ -8,7 +8,7 @@ App → sube fotos a Supabase Storage (bucket "recorridos") → recorrido en est
 GitHub Actions (cada 10 min) → procesar_recorridos.py
   → elige 1 foto cada 2.5 m y descarta las borrosas
   → manda las fotos al modelo de Google Cloud en grupos (/predict_batch; el modelo NO se modifica)
-  → agrupa detecciones en "hallazgos", les asigna la huerta por GPS y guarda una miniatura
+  → agrupa detecciones en "hallazgos" (todos heredan la huerta del recorrido; solo las importaciones de dron/cámara sin huerta la detectan por el GPS de sus fotos) y guarda una miniatura
   → borra las fotos originales → recorrido "listo" → notificación push (Expo, gratis)
 ```
 

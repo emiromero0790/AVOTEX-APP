@@ -13,7 +13,7 @@
  * - Reducir movimiento: sin entradas ni escalas; se conservan los cambios de color y opacidad.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -87,6 +87,8 @@ type Props = {
   onWalk: () => void;
   onImport: (fuente: 'dron' | 'camara') => void;
   onOpenScans: () => void;
+  /** Mientras se verifica la huerta por GPS: el botón muestra este texto y no responde. */
+  busyLabel?: string | null;
 };
 
 /** Tarjeta panorámica de fuente de captura: foto a todo el fondo, texto nativo a la izquierda, flecha. */
@@ -164,7 +166,7 @@ function HeroVideo({ playing }: { playing: boolean }) {
   return <VideoView player={player} style={s.heroImg} contentFit="cover" nativeControls={false} />;
 }
 
-export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, onWalk, onImport, onOpenScans }: Props) {
+export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, onWalk, onImport, onOpenScans, busyLabel = null }: Props) {
   const t = useTranslations(translations);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -213,7 +215,7 @@ export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, 
   const CtaIcon = action === 'walk' ? Footprints : action === 'photo' ? Camera : ImageDown;
 
   const start = () => {
-    if (locked) return;
+    if (locked || busyLabel) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     if (source === 'celular') (phoneMode === 'foto' ? onPhoto : onWalk)();
     else onImport(source);
@@ -316,12 +318,12 @@ export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, 
           </View>
 
           {/* ── Acción principal (texto según fuente y modo) ── */}
-          <PressableScale onPress={start} disabled={locked} accessibilityRole="button" accessibilityState={{ disabled: locked }} accessibilityLabel={locked ? t('locked') : `${ctaLabel}. ${caption}`} style={s.ctaWrap}>
+          <PressableScale onPress={start} disabled={locked} accessibilityRole="button" accessibilityLabel={locked ? t('locked') : busyLabel ?? `${ctaLabel}. ${caption}`} accessibilityState={{ disabled: locked, busy: !!busyLabel }} style={s.ctaWrap}>
             <LinearGradient colors={locked ? ['#E2E8F0', '#CBD5E1'] : [...LIME_GRADIENT]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.cta}>
-              {locked ? <Lock size={20} color={SCAN.inkSoft} /> : <CtaIcon size={22} color={C.ink} />}
-              <Reanimated.Text key={locked ? 'locked' : action} entering={reduced ? undefined : TEXT_IN}
-                style={[s.ctaText, locked && { color: SCAN.inkSoft }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.15}>
-                {locked ? t('locked') : ctaLabel}
+              {locked ? <Lock size={20} color={SCAN.inkSoft} /> : busyLabel ? <ActivityIndicator color={C.ink} /> : <CtaIcon size={22} color={C.ink} />}
+              <Reanimated.Text key={locked ? 'locked' : busyLabel ? 'busy' : action} entering={reduced ? undefined : TEXT_IN}
+                style={[s.ctaText, locked && { color: SCAN.inkSoft }, !!busyLabel && { fontSize: 16 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.15}>
+                {locked ? t('locked') : busyLabel ?? ctaLabel}
               </Reanimated.Text>
               {!locked && <ChevronRight size={22} color={C.ink} />}
             </LinearGradient>

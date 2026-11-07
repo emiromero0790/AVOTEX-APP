@@ -105,6 +105,8 @@ type Props = {
   tips: string[];
   onBack: () => void;
   onStart: () => void;
+  /** Mientras se verifica la huerta por GPS: el botón muestra este texto y no responde. */
+  busyLabel?: string | null;
 };
 
 /** Contorno real de la huerta, escalado a la miniatura. */
@@ -151,7 +153,7 @@ function CheckCell({ icon, label, value, status, reduced }: { icon: React.ReactN
 }
 
 export default function WalkPrepare(props: Props) {
-  const { topInset, bottomInset, email, orchards, huertaId, onChangeOrchard, camera, location, freeBytes, network, isWeb, tips, onBack, onStart } = props;
+  const { topInset, bottomInset, email, orchards, huertaId, onChangeOrchard, camera, location, freeBytes, network, isWeb, tips, onBack, onStart, busyLabel = null } = props;
   const t = useTranslations(translations);
   const reduced = useReducedMotion();
   const { width, height } = useWindowDimensions();
@@ -388,14 +390,14 @@ export default function WalkPrepare(props: Props) {
         <PressableScale
           style={[s.ctaWrap, lowSpace && { opacity: 0.5 }, isTablet && { width: contentW - 32, alignSelf: 'center' }]}
           onPress={onStart}
-          disabled={lowSpace}
+          disabled={lowSpace || !!busyLabel}
           accessibilityRole="button"
-          accessibilityState={{ disabled: lowSpace }}
-          accessibilityLabel={t('start')}
+          accessibilityState={{ disabled: lowSpace, busy: !!busyLabel }}
+          accessibilityLabel={busyLabel ?? t('start')}
         >
           <LinearGradient colors={['#22C55E', '#16A34A', '#15803D']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.cta}>
-            <Play size={24} color="#ffffff" />
-            <Text style={s.ctaText}>{t('start')}</Text>
+            {busyLabel ? <ActivityIndicator color="#ffffff" /> : <Play size={24} color="#ffffff" />}
+            <Text style={[s.ctaText, !!busyLabel && { fontSize: 16 }]} numberOfLines={1}>{busyLabel ?? t('start')}</Text>
             <ChevronRight size={24} color="#ffffff" />
           </LinearGradient>
         </PressableScale>

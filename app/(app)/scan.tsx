@@ -30,6 +30,8 @@ import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations 
 import ScanHome from "../../components/ScanHome";
 import { listLocal } from "../../services/recorridos";
 import { insertSingleScan, uploadScanImage } from "../../services/escaneos";
+import { resolveScanHuerta, type HuertaResolution } from "../../services/huertaResolver";
+import OrchardPickerSheet from "../../components/scan/OrchardPickerSheet";
 import * as Location from "expo-location";
 import { CSS_EASE_OUT, EASE_OUT, PressableScale } from "../../components/scan/motion";
 
@@ -90,6 +92,11 @@ const scanTranslations: TranslationResource = {
   modes: { es: "Modos", en: "Modes" },
   backToModes: { es: "Volver a elegir el modo de escaneo", en: "Back to scan modes" },
   photoMode: { es: "Foto individual", en: "Single photo" },
+  checkingOrchard: { es: "Verificando tu ubicación…", en: "Checking your location…" },
+  inOrchard: { es: "Huerta: {name}", en: "Orchard: {name}" },
+  noOrchard: { es: "Sin huerta asignada", en: "No orchard assigned" },
+  autoOrchard: { es: "Estás en {name}", en: "You are in {name}" },
+  autoOrchardDetail: { es: "Las fotos se guardarán en esta huerta.", en: "Photos will be saved to this orchard." },
   tip1: { es: "Centra un solo fruto en el recuadro", en: "Center one fruit in the frame" },
   tip2: { es: "Buena luz, sin contraluz", en: "Good light, no backlight" },
   tip3: { es: "A unos 30 cm del fruto", en: "About 30 cm from the fruit" },
@@ -151,6 +158,13 @@ export default function Scan() {
   // El aviso de uso de la cámara se muestra al elegir la foto individual.
   const [scanModalVisible, setScanModalVisible] = useState(false);
   const [scanAccepted, setScanAccepted] = useState(false);
+  // Huerta de la sesión de cámara: se decide ANTES de abrir la cámara y no cambia hasta volver a
+  // Escanear (todas las fotos de esta sesión, sus reintentos y su guardado usan la misma).
+  // undefined = sin decidir; null = el usuario eligió no asignar.
+  const scanHuertaRef = useRef<string | null | undefined>(undefined);
+  const [scanHuertaName, setScanHuertaName] = useState<string | null>(null);
+  const [checkingOrchard, setCheckingOrchard] = useState(false);
+  const [orchardPick, setOrchardPick] = useState<Extract<HuertaResolution, { kind: "manual" }> | null>(null);
 
   const [predictUrl, setPredictUrl] = useState<string | null>(null);
   const [userTokens, setUserTokens] = useState<number | null>(null);
@@ -208,6 +222,14 @@ export default function Scan() {
     }, [mode])
   );
 
+  // Al volver al selector se olvida la huerta de la sesión anterior.
+  useEffect(() => {
+    if (mode === "choose") {
+      scanHuertaRef.current = undefined;
+      setScanHuertaName(null);
+    }
+  }, [mode]);
+
   // Cada vez que se vuelve a la pestaña se muestra el selector de modo.
   useFocusEffect(
     useCallback(() => {
@@ -235,6 +257,23 @@ export default function Scan() {
         return;
       }
     }
+    // Invitados: sus fotos no se guardan, así que no hay huerta que asignar.
+    if (isGuest || !user?.email) { openCamera(); return; }
+    if (checkingOrchard) return;
+    setCheckingOrchard(true);
+    const res = await resolveScanHuerta(user.email);
+    setCheckingOrchard(false);
+    if (res.kind === "auto") {
+      scanHuertaRef.current = res.huerta.id;
+      setScanHuertaName(res.huerta.nombre);
+      Toast.show({ type: "success", text1: t("autoOrchard", { name: res.huerta.nombre }), text2: t("autoOrchardDetail") });
+      openCamera();
+    } else {
+      setOrchardPick(res);
+    }
+  };
+
+  const openCamera = () => {
     setMode("photo");
     if (!scanAccepted) setScanModalVisible(true);
   };
@@ -288,7 +327,8 @@ export default function Scan() {
         score: pred.state.confidence,
         created_at: new Date().toISOString(),
       };
-      const { error } = await insertSingleScan(scanRecord, await scanExtras(photoUri));
+      // La huerta ya quedó decidida antes de abrir la cámara: no se vuelve a calcular aquí.
+      const { error } = await insertSingleScan(scanRecord, { ...(await scanExtras(photoUri)), huerta_id: scanHuertaRef.current ?? null });
       if (error) throw error;
         Toast.show({ type: "success", text1: t("saved") });
     } catch (error) {
@@ -427,6 +467,7 @@ export default function Scan() {
         ? (userTokens * 100).toLocaleString(locale)
         : null;
     return (
+      <>
       <ScanHome
         isGuest={isGuest}
         tokensValue={tokensValue}
@@ -437,7 +478,25 @@ export default function Scan() {
         onWalk={() => router.push({ pathname: "/(app)/recorrido", params: { open: "prepare", n: String(Date.now()) } })}
         onImport={fuente => router.push({ pathname: "/(app)/importar", params: { fuente, n: String(Date.now()) } })}
         onOpenScans={() => router.push({ pathname: "/(app)/escaneos", params: { n: String(Date.now()) } })}
+        busyLabel={checkingOrchard ? t("checkingOrchard") : null}
       />
+      <OrchardPickerSheet
+        visible={!!orchardPick}
+        reason={orchardPick?.reason ?? null}
+        accuracyM={orchardPick?.accuracyM}
+        orchards={orchardPick?.orchards ?? []}
+        candidates={orchardPick?.candidates}
+        onCancel={() => setOrchardPick(null)}
+        onRegister={() => { setOrchardPick(null); router.navigate("/(app)/mapping"); }}
+        onConfirm={huertaId => {
+          const chosen = orchardPick?.orchards.find(o => o.id === huertaId) ?? null;
+          scanHuertaRef.current = huertaId;
+          setScanHuertaName(chosen?.nombre ?? null);
+          setOrchardPick(null);
+          openCamera();
+        }}
+      />
+      </>
     );
   }
 
@@ -686,6 +745,11 @@ export default function Scan() {
                   <View style={styles.modeTagDot} />
                   <Text style={styles.modeTagText}>{t("photoMode")}</Text>
                 </View>
+                {!isGuest && scanHuertaRef.current !== undefined && (
+                  <Text style={styles.orchardTagText} numberOfLines={1}>
+                    {scanHuertaName ? t("inOrchard", { name: scanHuertaName }) : t("noOrchard")}
+                  </Text>
+                )}
                 <Text style={[styles.headerText, isTablet && styles.headerTextTablet]}>{t("aim")}</Text>
               </View>
             </LinearGradient>
@@ -850,6 +914,7 @@ const styles = StyleSheet.create({
   },
   modeTagDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#c4b5fd" },
   modeTagText: { color: "#ede9fe", fontSize: 11.5, fontFamily: "Poppins_600SemiBold", letterSpacing: 0.3 },
+  orchardTagText: { color: "rgba(255,255,255,0.9)", fontSize: 12, fontFamily: "Poppins_600SemiBold", marginTop: 6, maxWidth: 280, textAlign: "center", textShadowColor: "rgba(0,0,0,0.45)", textShadowRadius: 6 },
   headerText: { color: "#ffffff", fontSize: 19, fontFamily: "Poppins_600SemiBold", textAlign: "center" },
   headerTextTablet: { fontSize: 26 },
 

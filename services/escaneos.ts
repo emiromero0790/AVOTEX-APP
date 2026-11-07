@@ -118,10 +118,11 @@ function missingColumn(error: { code?: string; message?: string } | null): boole
   return !!error && (error.code === '42703' || error.code === 'PGRST204' || /column/i.test(String(error.message)));
 }
 
-/** Lee las fotos individuales; si la migración 20261107 no se ha ejecutado, sin ubicación ni imagen. */
+/** Lee las fotos individuales; sin las migraciones 20261107 / 20261108, sin ubicación, imagen o huerta. */
 export async function listSingleScans(userId: string, limit = 60): Promise<SingleScan[]> {
   const q = (cols: string) => supabase.from('scans').select(cols).eq('user_id', userId).order('created_at', { ascending: false }).limit(limit);
   let { data, error } = await q(`${SCAN_BASE},${SCAN_EXTRA}`);
+  if (missingColumn(error)) ({ data, error } = await q(`${SCAN_BASE},huerta_id`));
   if (missingColumn(error)) ({ data, error } = await q(SCAN_BASE));
   if (error) throw error;
   return ((data ?? []) as unknown as Array<Partial<SingleScan> & { created_at: string }>).map(r => ({
@@ -163,18 +164,31 @@ export async function uploadScanImage(userId: string, uri: string): Promise<stri
 }
 
 /**
- * Guarda un escaneo individual. Si existen las columnas nuevas (migración 20261107) guarda también
- * ubicación e imagen; si no, guarda el registro de siempre. Nunca inventa coordenadas.
+ * Guarda un escaneo individual en `scans`, conservando las columnas de siempre (user_email, label,
+ * score, created_at, user_id, fruto) y agregando:
+ * - huerta_id (migración 20261108): la huerta decidida antes de la captura, o null.
+ * - lat, lng, precision_m, imagen_path (migración opcional 20261107), solo si existen.
+ * Si una migración no se ha ejecutado, se reintenta sin esas columnas, en capas, para no perder
+ * la huerta por falta de las columnas de ubicación. Nunca inventa coordenadas.
  */
-export async function insertSingleScan(base: Record<string, unknown>, extra: { lat?: number | null; lng?: number | null; precision_m?: number | null; imagen_path?: string | null }) {
-  const withExtra = { ...base };
-  if (validCoord(extra.lat, extra.lng)) Object.assign(withExtra, { lat: extra.lat, lng: extra.lng, precision_m: extra.precision_m ?? null });
-  if (extra.imagen_path) Object.assign(withExtra, { imagen_path: extra.imagen_path });
-  if (withExtra === base || Object.keys(withExtra).length === Object.keys(base).length) {
-    return supabase.from('scans').insert([base]);
+export async function insertSingleScan(
+  base: Record<string, unknown>,
+  extra: { lat?: number | null; lng?: number | null; precision_m?: number | null; imagen_path?: string | null; huerta_id?: string | null },
+) {
+  const location: Record<string, unknown> = {};
+  if (validCoord(extra.lat, extra.lng)) Object.assign(location, { lat: extra.lat, lng: extra.lng, precision_m: extra.precision_m ?? null });
+  if (extra.imagen_path) location.imagen_path = extra.imagen_path;
+  const huerta = 'huerta_id' in extra ? { huerta_id: extra.huerta_id ?? null } : {};
+  const attempts = [
+    { ...base, ...huerta, ...location },
+    { ...base, ...huerta },
+    { ...base },
+  ].filter((row, k, all) => k === 0 || Object.keys(row).length !== Object.keys(all[k - 1]).length);
+  let res = await supabase.from('scans').insert([attempts[0]]);
+  for (let k = 1; k < attempts.length && missingColumn(res.error); k++) {
+    if (k === attempts.length - 1 && extra.huerta_id) console.warn('[scans] falta la columna huerta_id (migración 20261108): se guardó sin huerta');
+    res = await supabase.from('scans').insert([attempts[k]]);
   }
-  const res = await supabase.from('scans').insert([withExtra]);
-  if (missingColumn(res.error)) return supabase.from('scans').insert([base]);
   return res;
 }
 

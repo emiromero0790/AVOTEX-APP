@@ -87,6 +87,8 @@ import RecorridoMap from '../../components/RecorridoMap';
 const IMG_MOUNT_HELMET = require('../../assets/images/escanear/montaje-casco.jpg');
 import { CSS_EASE_OUT, EASE_IN_OUT, EASE_OUT, PressableScale, PulseRing } from '../../components/scan/motion';
 import WalkPrepare from '../../components/scan/WalkPrepare';
+import OrchardPickerSheet from '../../components/scan/OrchardPickerSheet';
+import { resolveScanHuerta, type HuertaResolution } from '../../services/huertaResolver';
 
 // Duración de "mantén presionado para terminar": evita cortar un recorrido por un toque accidental.
 const HOLD_TO_FINISH_MS = 900;
@@ -120,6 +122,7 @@ const translations: TranslationResource = {
   step3Body: { es: 'Te avisamos con una notificación', en: 'We notify you when it is ready' },
   orchard: { es: 'Huerta', en: 'Orchard' },
   orchardAuto: { es: 'Detectar por GPS', en: 'Detect by GPS' },
+  checkingOrchard: { es: 'Verificando tu ubicación…', en: 'Checking your location…' },
   start: { es: 'Iniciar recorrido', en: 'Start walk' },
   tipsTitle: { es: 'Para mejores resultados', en: 'For better results' },
   tips: {
@@ -573,7 +576,8 @@ export default function RecorridoScreen() {
     if (far && (!prev || accuracy == null || accuracy <= 30)) shoot({ lat, lng, precision: accuracy ?? null });
   }, [shoot]);
 
-  const startRecording = useCallback(async () => {
+  // La huerta del recorrido se decide antes de empezar y viaja con él (archivo local → recorridos.huerta_id).
+  const startRecording = useCallback(async (walkHuertaId: string | null) => {
     if (!email) return;
     if (Platform.OS !== 'web') {
       try {
@@ -587,7 +591,7 @@ export default function RecorridoScreen() {
     const loc = await Location.requestForegroundPermissionsAsync().catch(() => ({ status: 'denied' as const }));
     const begin = async (withGps: boolean) => {
       useGpsRef.current = withGps;
-      const rec = await createLocal(email, huertaId);
+      const rec = await createLocal(email, walkHuertaId);
       recRef.current = rec;
       lastFixRef.current = null;
       lastShotRef.current = null;
@@ -640,7 +644,22 @@ export default function RecorridoScreen() {
       return;
     }
     await begin(true);
-  }, [email, huertaId, cameraPermission, requestCameraPermission, onPosition, shoot, refreshNetwork, t]);
+  }, [email, cameraPermission, requestCameraPermission, onPosition, shoot, refreshNetwork, t]);
+
+  // «Comenzar recorrido»: si el usuario ya eligió una huerta en la preparación, se usa esa.
+  // Con «Detectar por GPS» se resuelve aquí, una sola vez: dentro de una huerta → se asigna sola;
+  // si no, se pregunta con la hoja de selección y el recorrido empieza al pulsar «Continuar».
+  const [checkingOrchard, setCheckingOrchard] = useState(false);
+  const [orchardPick, setOrchardPick] = useState<Extract<HuertaResolution, { kind: 'manual' }> | null>(null);
+  const beginWalk = useCallback(async () => {
+    if (!email || checkingOrchard || orchardPick) return;
+    if (huertaId) { await startRecording(huertaId); return; }
+    setCheckingOrchard(true);
+    const res = await resolveScanHuerta(email, orchards.length ? orchards : undefined);
+    setCheckingOrchard(false);
+    if (res.kind === 'auto') await startRecording(res.huerta.id);
+    else setOrchardPick(res);
+  }, [email, checkingOrchard, orchardPick, huertaId, orchards, startRecording]);
 
   const togglePause = useCallback(() => {
     const next = !pausedRef.current;
@@ -797,7 +816,18 @@ export default function RecorridoScreen() {
           isWeb={Platform.OS === 'web'}
           tips={[t('rec1'), t('rec2'), t('rec3'), t('rec4')]}
           onBack={goBack}
-          onStart={startRecording}
+          onStart={beginWalk}
+          busyLabel={checkingOrchard ? t('checkingOrchard') : null}
+        />
+        <OrchardPickerSheet
+          visible={!!orchardPick}
+          reason={orchardPick?.reason ?? null}
+          accuracyM={orchardPick?.accuracyM}
+          orchards={orchardPick?.orchards ?? []}
+          candidates={orchardPick?.candidates}
+          onCancel={() => setOrchardPick(null)}
+          onRegister={() => { setOrchardPick(null); router.navigate('/(app)/mapping'); }}
+          onConfirm={id => { setOrchardPick(null); startRecording(id); }}
         />
       </Reanimated.View>
     );

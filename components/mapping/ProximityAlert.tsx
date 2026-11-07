@@ -57,11 +57,11 @@ export default function ProximityAlert({ proximity, gpsIssue, onRetry, reduced, 
     return (
       <Reanimated.View key="far" entering={entering} exiting={OUT} pointerEvents="none" style={[s.card, s.cardFar, pos]}
         accessible accessibilityRole="alert" accessibilityLiveRegion="polite" accessibilityLabel={`${t('farTitle')}. ${t('farText')}`}>
-        <View style={s.iconFar}><AlertTriangle size={24} color="#FFFFFF" strokeWidth={2.3} /></View>
+        <View style={s.iconFar}><AlertTriangle size={18} color="#FFFFFF" strokeWidth={2.4} /></View>
         <View style={s.divider} />
         <View style={s.copy}>
-          <Text style={s.title} maxFontSizeMultiplier={1.2}>{t('farTitle')}</Text>
-          <Text style={s.text} maxFontSizeMultiplier={1.2}>{t('farText')}</Text>
+          <Text style={s.title} numberOfLines={2} maxFontSizeMultiplier={1.15}>{t('farTitle')}</Text>
+          <Text style={s.textSmall} maxFontSizeMultiplier={1.15}>{t('farText')}</Text>
         </View>
       </Reanimated.View>
     );
@@ -108,16 +108,17 @@ const s = StyleSheet.create({
     borderRadius: 24, borderWidth: 1.5,
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 10,
   },
-  cardFar: { backgroundColor: 'rgba(110,14,14,0.86)', borderColor: '#FF4545' },
+  cardFar: { backgroundColor: 'rgba(110,14,14,0.86)', borderColor: '#FF4545', paddingVertical: 10, paddingHorizontal: 12, gap: 10, borderRadius: 18 },
   cardUnknown: { backgroundColor: 'rgba(5,7,7,0.9)', borderColor: 'rgba(253,230,138,0.45)', gap: 12 },
   iconFar: {
-    width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E5302F',
-    shadowColor: '#FF4545', shadowOpacity: 0.7, shadowRadius: 10, shadowOffset: { width: 0, height: 0 }, elevation: 6,
+    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E5302F',
+    shadowColor: '#FF4545', shadowOpacity: 0.7, shadowRadius: 7, shadowOffset: { width: 0, height: 0 }, elevation: 6,
   },
-  divider: { width: 1.5, alignSelf: 'stretch', marginVertical: 4, borderRadius: 1, backgroundColor: 'rgba(255,90,80,0.7)' },
+  divider: { width: 1.5, alignSelf: 'stretch', marginVertical: 2, borderRadius: 1, backgroundColor: 'rgba(255,90,80,0.7)' },
   iconUnknown: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(253,230,138,0.14)' },
   copy: { flex: 1, gap: 3 },
-  title: { fontFamily: 'Poppins_700Bold', fontSize: 17.5, lineHeight: 23, color: '#FFFFFF' },
+  title: { fontFamily: 'Poppins_700Bold', fontSize: 15, lineHeight: 19, color: '#FFFFFF' },
+  textSmall: { fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 16, color: 'rgba(255,255,255,0.84)' },
   titleSmall: { fontFamily: 'Poppins_700Bold', fontSize: 14.5, lineHeight: 19, color: '#FFFFFF' },
   text: { fontFamily: 'Poppins_400Regular', fontSize: 13.5, lineHeight: 18.5, color: 'rgba(255,255,255,0.84)' },
   retry: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 36, borderRadius: 18, backgroundColor: '#A3E635' },

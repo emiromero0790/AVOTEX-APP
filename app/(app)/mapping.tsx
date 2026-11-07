@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Poppins_400Regular, useFonts } from '@expo-google-fonts/poppins';
 import * as Location from 'expo-location';
@@ -7,6 +7,9 @@ import { ChevronRight, Eraser, MapPin, MapPinOff, MessageSquareText, Navigation,
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import PolygonMap, { PolygonMapHandle } from '../../components/PolygonMap';
+import ProximityAlert, { type GpsIssue } from '../../components/mapping/ProximityAlert';
+import { useReducedMotion } from 'react-native-reanimated';
+import { evaluateProximity, type Proximity } from '../../services/proximity';
 import { TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 import { auth } from '../../firebaseConfig';
 import { deleteOrchard, listOrchards, Orchard, PolygonPoint, saveOrchard } from '../../services/orchards';
@@ -153,6 +156,15 @@ export default function Mapping() {
   const saveEditedPolygonRef = useRef(false);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [gpsLocation, setGpsLocation] = useState<Location.LocationObject | null>(null);
+  // Proximidad a la huerta seleccionada (services/proximity.ts)
+  const [gpsIssue, setGpsIssue] = useState<GpsIssue>(null);
+  const [gpsReady, setGpsReady] = useState(false);
+  const [gpsRetryKey, setGpsRetryKey] = useState(0);
+  const [screenFocused, setScreenFocused] = useState(false);
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+  const [proximity, setProximity] = useState<Proximity | null>(null);
+  const proximityMemo = useRef<{ id: string | null; far: boolean; first: boolean }>({ id: null, far: false, first: true });
+  const reducedMotion = useReducedMotion();
   const [locationTitle, setLocationTitle] = useState(t('searching'));
   const [locationDetail, setLocationDetail] = useState(t('preciseReading'));
   const [notice, setNotice] = useState<string | null>(t('gettingPrecise'));
@@ -231,6 +243,9 @@ export default function Mapping() {
     useCallback(() => {
       let active = true;
 
+      // Con una huerta seleccionada, el encabezado muestra la huerta: la lectura GPS no lo reemplaza.
+      const setHeaderTitle = (value: string) => { if (!selectedOrchardRef.current) setLocationTitle(value); };
+      const setHeaderDetail = (value: string) => { if (!selectedOrchardRef.current) setLocationDetail(value); };
       const requestLocation = async () => {
         const savedValue = await AsyncStorage.getItem(LOCATION_SETTING_KEY);
         if (!active) return;
@@ -248,15 +263,17 @@ export default function Mapping() {
         }
 
         try {
-          setLocationTitle(t('searching'));
-          setLocationDetail(t('preciseReading'));
+          setHeaderTitle(t('searching'));
+          setHeaderDetail(t('preciseReading'));
           setNotice(t('gettingPrecise'));
         const permission = await Location.requestForegroundPermissionsAsync();
         if (!active) return;
         if (permission.status !== 'granted') {
+          setGpsReady(false);
+          setGpsIssue(permission.canAskAgain === false ? 'blocked' : 'denied');
           setNotice(t('permissionNotice'));
-          setLocationTitle(t('unavailable'));
-          setLocationDetail(t('devicePermission'));
+          setHeaderTitle(t('unavailable'));
+          setHeaderDetail(t('devicePermission'));
           return;
         }
         setNotice(t('gettingPrecise'));
@@ -264,10 +281,12 @@ export default function Mapping() {
           accuracy: Location.Accuracy.Highest,
         });
         if (active) {
+          setGpsIssue(null);
+          setGpsReady(true);
           setGpsLocation(current);
           if (!selectedOrchardRef.current) setLocation(current);
-           setLocationTitle(t('current'));
-          setLocationDetail(`${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}`);
+           setHeaderTitle(t('current'));
+          setHeaderDetail(`${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}`);
           const accuracy = current.coords.accuracy;
           setNotice(
             typeof accuracy === 'number'
@@ -287,21 +306,24 @@ export default function Mapping() {
               const secondary = [address.district, address.city, address.region]
                 .filter((part, index, parts) => part && parts.indexOf(part) === index)
                 .join(', ');
-               setLocationTitle(primary || t('current'));
-              setLocationDetail(secondary || `${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}`);
+               setHeaderTitle(primary || t('current'));
+              setHeaderDetail(secondary || `${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}`);
             }
           } catch {
             if (active) {
-               setLocationTitle(t('current'));
-              setLocationDetail(`${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}`);
+               setHeaderTitle(t('current'));
+              setHeaderDetail(`${current.coords.latitude.toFixed(5)}, ${current.coords.longitude.toFixed(5)}`);
             }
           }
         }
         } catch {
+          const servicesOn = await Location.hasServicesEnabledAsync().catch(() => true);
           if (active) {
+             setGpsReady(false);
+             setGpsIssue(servicesOn ? 'error' : 'off');
              setNotice(t('gpsError'));
-             setLocationTitle(t('unavailable'));
-             setLocationDetail(t('gpsCheck'));
+             setHeaderTitle(t('unavailable'));
+             setHeaderDetail(t('gpsCheck'));
           }
         }
       };
@@ -310,8 +332,105 @@ export default function Mapping() {
       return () => {
         active = false;
       };
-    }, [t, locale]),
+    }, [t, locale, gpsRetryKey]),
   );
+
+  // ── Proximidad a la huerta ──
+  useFocusEffect(useCallback(() => {
+    setScreenFocused(true);
+    return () => setScreenFocused(false);
+  }, []));
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => setAppActive(state === 'active'));
+    return () => sub.remove();
+  }, []);
+
+  // Al volver a la app (p. ej. desde los ajustes del sistema) se revisan otra vez permiso y GPS.
+  const gpsIssueRef = useRef<GpsIssue>(null);
+  gpsIssueRef.current = gpsIssue;
+  useEffect(() => {
+    if (appActive && screenFocused && gpsIssueRef.current) setGpsRetryKey(key => key + 1);
+  }, [appActive, screenFocused]);
+
+  const retryGps = useCallback(() => {
+    if (gpsIssue === 'blocked') {
+      Linking.openSettings().catch(() => {});
+      return;
+    }
+    setGpsRetryKey(key => key + 1);
+  }, [gpsIssue]);
+
+  // La comprobación solo corre con una huerta abierta, fuera de dibujo/edición y con la pantalla visible.
+  const proximityActive = Boolean(selectedOrchard) && !editingBoundary && !drawingNewBoundary
+    && !selectorMapMode && !orchardsOpen && locationEnabled && screenFocused && appActive;
+
+  // Un solo observador de ubicación, mientras la comprobación está activa (se quita al salir,
+  // al pasar a segundo plano o al abrir el selector de huertas).
+  useEffect(() => {
+    if (!proximityActive || !gpsReady) return;
+    let cancelled = false;
+    let subscription: Location.LocationSubscription | null = null;
+    Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.High, distanceInterval: 8, timeInterval: 4000 },
+      next => {
+        setGpsLocation(previous => {
+          if (!previous) return next;
+          const moved = Math.abs(previous.coords.latitude - next.coords.latitude) + Math.abs(previous.coords.longitude - next.coords.longitude) > 0.00003;
+          const accuracyChanged = Math.abs((previous.coords.accuracy ?? 0) - (next.coords.accuracy ?? 0)) > 5;
+          return moved || accuracyChanged ? next : previous;
+        });
+      },
+    ).then(sub => {
+      if (cancelled) sub.remove();
+      else subscription = sub;
+    }).catch(async () => {
+      const servicesOn = await Location.hasServicesEnabledAsync().catch(() => true);
+      if (!cancelled) {
+        setGpsReady(false);
+        setGpsIssue(servicesOn ? 'error' : 'off');
+      }
+    });
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
+  }, [proximityActive, gpsReady]);
+
+  // Se evalúa con el polígono vigente (también el recién editado) y la última lectura GPS.
+  useEffect(() => {
+    if (!proximityActive || !selectedOrchard) {
+      setProximity(null);
+      return;
+    }
+    const memo = proximityMemo.current;
+    if (memo.id !== selectedOrchard.id) {
+      memo.id = selectedOrchard.id;
+      memo.far = false;
+      memo.first = true;
+    }
+    if (gpsIssue) {
+      memo.far = false;
+      setProximity({ state: 'unknown', distanceM: null, accuracyM: null });
+      return;
+    }
+    // Una lectura de hace más de 2 min (p. ej. al volver a la pantalla) no vale: se espera la nueva.
+    if (!gpsLocation || Date.now() - gpsLocation.timestamp > 120000) {
+      setProximity(null); // todavía buscando: no se afirma nada
+      return;
+    }
+    const result = evaluateProximity(polygon, {
+      latitude: gpsLocation.coords.latitude,
+      longitude: gpsLocation.coords.longitude,
+      accuracy: gpsLocation.coords.accuracy,
+    }, { wasFar: memo.far, firstReading: memo.first });
+    if (result.state !== 'unknown') memo.first = false;
+    if (result.state === 'far') memo.far = true;
+    else if (result.state === 'near' || result.state === 'inside') memo.far = false;
+    setProximity(result);
+  }, [proximityActive, selectedOrchard, polygon, gpsLocation, gpsIssue]);
+
+  const proximityAlertOn = proximity?.state === 'far';
 
   const selectOrchard = useCallback((orchard: Orchard, deferPerspective = false) => {
     if (selectorRestoreTimerRef.current) {
@@ -530,6 +649,8 @@ export default function Mapping() {
             perspective={selectorMapMode ? false : Boolean(selectedOrchard) && !editingBoundary && perspectiveReady}
             zoneCallout={selectorMapMode ? undefined : zoneCallout}
             preview={selectorMapMode}
+            proximityAlert={!selectorMapMode && proximityAlertOn}
+            reducedMotion={reducedMotion}
             onPolygonChange={(points: PolygonPoint[]) => {
               if (orchardsOpen && !isWide) return;
               setPolygon(points);
@@ -664,6 +785,10 @@ export default function Mapping() {
           <MessageSquareText size={19} color="#FFFFFF" />
           <Text style={styles.commentsFloatingText}>{t('editComments')}</Text>
         </Pressable>
+      )}
+
+      {(!orchardsOpen || isWide) && (
+        <ProximityAlert proximity={proximity} gpsIssue={gpsIssue} onRetry={retryGps} reduced={reducedMotion} top={164} wide={isWide} />
       )}
 
       {(!orchardsOpen || isWide) && <BlurView intensity={55} tint="light" style={[styles.bottomPanel, isWide && styles.bottomPanelWide]}>

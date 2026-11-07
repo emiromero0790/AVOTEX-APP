@@ -1,4 +1,5 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { PROXIMITY_WAVES_JS } from './proximityWavesJs';
 import { StyleSheet } from 'react-native';
 import type * as Location from 'expo-location';
 import { TranslationResource, useTranslations } from '../context/LanguageContext';
@@ -17,6 +18,10 @@ export type PolygonMapProps = {
     title: string;
     rows: Array<{ label: string; value: string }>;
   };
+  /** Ondas rojas de "estás lejos de tu huerta", ancladas al polígono dentro del mapa. */
+  proximityAlert?: boolean;
+  /** Movimiento reducido del sistema: anillos fijos en lugar de ondas animadas. */
+  reducedMotion?: boolean;
 };
 
 export type PolygonMapHandle = {
@@ -91,7 +96,7 @@ if(initialPoints.length>=3){
 map.on(L.Draw.Event.DRAWVERTEX,markFirstVertex);
 map.on(L.Draw.Event.EDITSTART,markFirstVertex);
 map.on(L.Draw.Event.EDITVERTEX,markFirstVertex);
-  window.addEventListener('message',function(event){if(event.data?.source!=='avotex-mapping-controls')return;if(event.data.action==='draw')startDrawing();if(event.data.action==='draw-fresh')startFreshDrawing();if(event.data.action==='edit')editDrawing();if(event.data.action==='finish-edit')finishEditing();if(event.data.action==='clear')clearDrawing();if(event.data.action==='perspective')setPerspective(event.data.enabled);});
+  window.addEventListener('message',function(event){if(event.data?.source!=='avotex-mapping-controls')return;if(event.data.action==='draw')startDrawing();if(event.data.action==='draw-fresh')startFreshDrawing();if(event.data.action==='edit')editDrawing();if(event.data.action==='finish-edit')finishEditing();if(event.data.action==='clear')clearDrawing();if(event.data.action==='perspective')setPerspective(event.data.enabled);if(event.data.action==='proximity')setProximityAlert(event.data.enabled,event.data.reduced);});
 map.on(L.Draw.Event.CREATED,function(e){
   activeDrawer=null;
   drawn.clearLayers();drawn.addLayer(e.layer);
@@ -110,10 +115,11 @@ map.on(L.Draw.Event.CREATED,function(e){
       }
     });
   });
+${PROXIMITY_WAVES_JS}
 </script></body></html>`;
 }
 
-const PolygonMap = forwardRef<PolygonMapHandle, PolygonMapProps>(({ location, onPolygonChange, initialPolygon = [], preview = false, perspective = false, zoneCallout }, ref) => {
+const PolygonMap = forwardRef<PolygonMapHandle, PolygonMapProps>(({ location, onPolygonChange, initialPolygon = [], preview = false, perspective = false, zoneCallout, proximityAlert = false, reducedMotion = false }, ref) => {
   const t = useTranslations(translations);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const html = buildMapHTML(location.coords.latitude, location.coords.longitude, initialPolygon, preview, zoneCallout);
@@ -142,6 +148,9 @@ const PolygonMap = forwardRef<PolygonMapHandle, PolygonMapProps>(({ location, on
     iframeRef.current?.contentWindow?.postMessage({ source: 'avotex-mapping-controls', action: 'perspective', enabled: perspective }, '*');
   }, [perspective]);
 
+  const sendAlert = () => iframeRef.current?.contentWindow?.postMessage({ source: 'avotex-mapping-controls', action: 'proximity', enabled: proximityAlert, reduced: reducedMotion }, '*');
+  useEffect(() => { sendAlert(); }, [proximityAlert, reducedMotion]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <iframe
       ref={iframeRef}
@@ -149,7 +158,7 @@ const PolygonMap = forwardRef<PolygonMapHandle, PolygonMapProps>(({ location, on
       srcDoc={html}
       style={styles.map}
       allow="geolocation"
-      onLoad={() => iframeRef.current?.contentWindow?.postMessage({ source: 'avotex-mapping-controls', action: 'perspective', enabled: perspective }, '*')}
+      onLoad={() => { iframeRef.current?.contentWindow?.postMessage({ source: 'avotex-mapping-controls', action: 'perspective', enabled: perspective }, '*'); sendAlert(); }}
     />
   );
 });

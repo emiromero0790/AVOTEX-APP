@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import Reanimated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
+import { Calendar as CalendarIcon, ChevronRight as ChevronRightIcon, Layers, Map as MapIcon, Settings, Sprout, X } from 'lucide-react-native';
+import StatsHero from '../../components/actividad/StatsHero';
+import { listOrchards, type Orchard } from '../../services/orchards';
+import { categoria, listUserHallazgos, type CategoriaHallazgo, type HallazgoMapa } from '../../services/escaneos';
+import { CSS_EASE_OUT } from '../../components/scan/motion';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { AlertTriangle, BarChart3, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Clock, Leaf, Plus, ScanLine, ShieldCheck, Trash2 } from 'lucide-react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -10,7 +18,11 @@ import { supabase } from '../../supabaseConfig';
 import { useAccessibility } from '../../context/AccessibilityContext';
 import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 
-type Scan = { id: number; created_at: string; user_id: string; label: string; score: number; fruto?: string };
+type Scan = { id: number; created_at: string; user_id: string; label: string; score: number; fruto?: string; huerta_id?: string | null };
+type Period = 7 | 30 | 90 | 'all';
+/** Un análisis para el Resumen: foto individual (scans) o hallazgo de un recorrido (hallazgos). Fuentes distintas: no se duplican. */
+type Rec = { source: 'foto' | 'recorrido'; crop: string; cat: CategoriaHallazgo; conf: number; date: number; huertaId: string | null };
+const CROP_EMOJI: Record<string, string> = { Aguacate: '🥑', Limón: '🍋', Mango: '🥭', Café: '☕' };
 type Task = { id: number; title: string; detail?: string; completed: boolean; user_id: string; scheduled_at?: string; created_at?: string };
 type Section = 'summary' | 'history' | 'plan';
 type Recommendation = { title: string; text: string; tone: 'positive' | 'info' | 'warning' };
@@ -52,6 +64,20 @@ const translations: TranslationResource = {
   noTasks: { es: 'No hay tareas para este día', en: 'No tasks for this day' }, createAction: { es: 'Selecciona otra fecha o crea una acción nueva.', en: 'Select another date or create a new action.' }, delete: { es: 'Eliminar {title}', en: 'Delete {title}' },
   newScanTask: { es: 'Crear una tarea desde un nuevo escaneo', en: 'Create a task from a new scan' }, goScan: { es: 'Ve a Escanear para empezar.', en: 'Go to Scan to get started.' },
   noChartData: { es: 'Aún no hay datos para graficar.', en: 'There is not enough data to chart yet.' },
+  settings: { es: 'Ajustes', en: 'Settings' },
+  avgConfidence: { es: 'Confianza media', en: 'Average confidence' }, healthyCap: { es: 'Saludable', en: 'Healthy' }, withProblem: { es: 'Con problema', en: 'With issues' },
+  toReview: { es: 'por revisar', en: 'to review' }, noData: { es: 'Sin escaneos en esta selección', en: 'No scans in this selection' },
+  allOrchards: { es: 'Todas las huertas', en: 'All orchards' }, pickOrchard: { es: 'Elige una huerta', en: 'Choose an orchard' },
+  scansCap: { es: 'Escaneos', en: 'Scans' }, crops: { es: 'Cultivos', en: 'Crops' }, area: { es: 'Superficie', en: 'Area' }, period: { es: 'Periodo', en: 'Period' },
+  days: { es: '{count} días', en: '{count} days' }, allTime: { es: 'Todo', en: 'All time' }, allTimeLong: { es: 'Todo el historial', en: 'All history' },
+  crop: { es: 'Cultivo', en: 'Crop' }, allCrops: { es: 'Todos', en: 'All' },
+  cropStatus: { es: 'Estado de tus cultivos', en: 'Your crop status' }, seeDetail: { es: 'Ver detalle', en: 'See details' },
+  nScans: { es: '{count} escaneos', en: '{count} scans' }, nScan1: { es: '1 escaneo', en: '1 scan' },
+  healthyPct: { es: 'Saludable {pct}%', en: 'Healthy {pct}%' },
+  sources: { es: '{photos} fotos individuales · {walk} de recorridos', en: '{photos} single photos · {walk} from walks' },
+  noOrchardNote: { es: '{count} fotos individuales sin huerta asignada no se incluyen al filtrar por huerta.', en: '{count} single photos without an orchard are excluded when filtering by orchard.' },
+  legendHealthy: { es: 'Saludable', en: 'Healthy' }, legendReview: { es: 'Revisar (confianza baja)', en: 'Review (low confidence)' }, legendProblem: { es: 'Posible problema', en: 'Possible issue' },
+  close: { es: 'Cerrar', en: 'Close' },
 };
 const normalize = (value = '') => value.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
 const healthy = (label = '') => {
@@ -98,6 +124,15 @@ export default function ResultsScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState((new Date().getDay() + 6) % 7);
+  // Resumen: hallazgos de recorridos y huertas, con filtros propios (no afectan Historial ni Plan).
+  const insets = useSafeAreaInsets();
+  const reduced = useReducedMotion();
+  const [hallazgos, setHallazgos] = useState<HallazgoMapa[]>([]);
+  const [orchards, setOrchards] = useState<Orchard[]>([]);
+  const [orchardId, setOrchardId] = useState<string | null>(null);
+  const [crop, setCrop] = useState<string | null>(null);
+  const [period, setPeriod] = useState<Period | null>(null);
+  const [picker, setPicker] = useState<'orchard' | 'crop' | 'period' | null>(null);
   const colors = useMemo(() => ({
     primary: isColorblindMode ? '#145DA0' : '#14B8A6',
     accent: isColorblindMode ? '#3B82C4' : '#55D68B',
@@ -115,13 +150,18 @@ export default function ResultsScreen() {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      const [scanResult, taskResult] = await Promise.all([
+      const email = user.email ?? '';
+      const [scanResult, taskResult, hz, orch] = await Promise.all([
         supabase.from('scans').select('*').eq('user_id', user.uid).order('created_at', { ascending: false }),
         supabase.from('tasks').select('*').eq('user_id', user.uid).order('created_at', { ascending: false }),
+        email ? listUserHallazgos(email).catch(() => [] as HallazgoMapa[]) : Promise.resolve([] as HallazgoMapa[]),
+        email ? listOrchards(email).catch(() => [] as Orchard[]) : Promise.resolve([] as Orchard[]),
       ]);
       if (!cancelled) {
         if (!scanResult.error) setScans((scanResult.data ?? []) as Scan[]);
         if (!taskResult.error) setTasks((taskResult.data ?? []) as Task[]);
+        setHallazgos(hz);
+        setOrchards(orch);
         setLoading(false);
       }
     };
@@ -149,6 +189,61 @@ export default function ResultsScreen() {
       return { name, count: items.length, healthyCount, averageScore, statusCounts };
     }).sort((a, b) => b.count - a.count);
   }, [filtered, fruit, validScans]);
+  // ───────── Resumen: un solo conjunto de registros, filtrado igual para todas las métricas ─────────
+  const records = useMemo<Rec[]>(() => {
+    const cropOf = (f?: string | null) => localizeDomainLabel(f || 'Aguacate', 'es') ?? (f || 'Aguacate');
+    const out: Rec[] = [];
+    for (const sc of scans) {
+      const cat = categoria({ fruto: sc.fruto ?? '', estado: sc.label ?? '', confianza: Number(sc.score) });
+      if (cat === 'otro') continue; // "no es fruto": no cuenta como resultado de un cultivo
+      out.push({ source: 'foto', crop: cropOf(sc.fruto), cat, conf: Math.max(0, Math.min(1, Number(sc.score) || 0)), date: new Date(sc.created_at).getTime(), huertaId: sc.huerta_id ?? null });
+    }
+    for (const h of hallazgos) {
+      const cat = categoria(h);
+      if (cat === 'otro') continue;
+      out.push({ source: 'recorrido', crop: cropOf(h.fruto), cat, conf: Math.max(0, Math.min(1, Number(h.confianza) || 0)), date: new Date(h.tomada_at).getTime(), huertaId: h.huerta_id });
+    }
+    return out;
+  }, [scans, hallazgos]);
+  // Periodo inicial: 30 días si hay datos recientes; si no, todo el historial (no se muestra un resumen vacío).
+  const effPeriod: Period = period ?? (records.some(r => r.date >= Date.now() - 30 * 86400000) ? 30 : 'all');
+  const scoped = useMemo(() => {
+    const since = effPeriod === 'all' ? 0 : Date.now() - effPeriod * 86400000;
+    // Con huerta elegida solo cuentan registros con ese huerta_id; nada sin relación verificable se le atribuye.
+    return records.filter(r => r.date >= since && (!orchardId || r.huertaId === orchardId));
+  }, [records, effPeriod, orchardId]);
+  const excludedNoOrchard = useMemo(() => {
+    if (!orchardId) return 0;
+    const since = effPeriod === 'all' ? 0 : Date.now() - effPeriod * 86400000;
+    return records.filter(r => r.date >= since && r.source === 'foto' && !r.huertaId).length;
+  }, [records, effPeriod, orchardId]);
+  const sel = useMemo(() => (crop ? scoped.filter(r => r.crop === crop) : scoped), [scoped, crop]);
+  const stat = useMemo(() => {
+    const n = sel.length;
+    const c = (k: CategoriaHallazgo) => sel.filter(r => r.cat === k).length;
+    return {
+      n,
+      conf: n ? Math.round((sel.reduce((a, r) => a + r.conf, 0) / n) * 100) : null,
+      healthy: n ? Math.round((c('sano') / n) * 100) : null,
+      problem: n ? Math.round((c('enfermo') / n) * 100) : null,
+      review: n ? Math.round((c('revisar') / n) * 100) : null,
+      photos: sel.filter(r => r.source === 'foto').length,
+      walk: sel.filter(r => r.source === 'recorrido').length,
+    };
+  }, [sel]);
+  const cropRows = useMemo(() => {
+    const names = Array.from(new Set(sel.map(r => r.crop)));
+    return names.map(name => {
+      const items = sel.filter(r => r.crop === name);
+      const k = (c: CategoriaHallazgo) => items.filter(r => r.cat === c).length;
+      return { name, count: items.length, sano: k('sano'), revisar: k('revisar'), enfermo: k('enfermo') };
+    }).sort((a, b) => b.count - a.count);
+  }, [sel]);
+  const cropOptions = useMemo(() => Array.from(new Set(scoped.map(r => r.crop))).sort(), [scoped]);
+  const orchardObj = orchards.find(o => o.id === orchardId) ?? null;
+  const areaHa = (orchardObj ? orchardObj.area_m2 : orchards.reduce((a, o) => a + (o.area_m2 || 0), 0)) / 10000;
+  const tap = () => { if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {}); };
+
   const weekDays = useMemo(() => {
     const start = new Date();
     start.setHours(12, 0, 0, 0);
@@ -160,15 +255,15 @@ export default function ResultsScreen() {
     });
   }, [weekOffset]);
   const recommendations = useMemo(() => {
-    if (!validScans.length) return [{ title: t('firstScanTitle'), text: t('firstScanText'), tone: 'info' as const }];
-    const findings = filtered.length - goodCount;
+    if (!validScans.length && !records.length) return [{ title: t('firstScanTitle'), text: t('firstScanText'), tone: 'info' as const }];
+    const findings = sel.length ? sel.filter(r => r.cat !== 'sano').length : filtered.length - goodCount;
     const items: Recommendation[] = findings > 0
       ? [{ title: t('separateTitle'), text: t('separateText', { count: findings }), tone: 'warning' as const }]
       : [{ title: t('preventiveTitle'), text: t('preventiveText'), tone: 'positive' as const }];
-    if (average < 0.8) items.push({ title: t('repeatTitle'), text: t('repeatText'), tone: 'info' as const });
+    if ((stat.conf ?? Math.round(average * 100)) < 80) items.push({ title: t('repeatTitle'), text: t('repeatText'), tone: 'info' as const });
     items.push({ title: t('documentTitle'), text: t('documentText'), tone: 'positive' as const });
     return items;
-  }, [average, filtered.length, goodCount, t, validScans.length]);
+  }, [average, filtered.length, goodCount, t, validScans.length, sel, stat.conf, records.length]);
   const selectedDateLabel = weekDays[selectedDay]?.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' }) ?? '';
   const selectedDateKey = weekDays[selectedDay] ? dateKey(weekDays[selectedDay]) : '';
   const scheduledDateLabel = scheduledAt.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
@@ -241,6 +336,8 @@ export default function ResultsScreen() {
     setSection(nextSection);
     router.setParams({ view: nextSection === 'history' ? 'list' : nextSection === 'plan' ? 'plan' : 'charts' });
   };
+  const heroW = Math.min(width, 1100) - 32;
+  const heroH = Math.round(Math.max(220, Math.min(260, heroW * 0.62)));
   if (!fontsLoaded) return null;
   if (!user) return <View style={styles.center}><Text style={styles.emptyTitle}>{t('loginToSee')}</Text></View>;
 
@@ -248,24 +345,117 @@ export default function ResultsScreen() {
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Stack.Screen options={{ title: t('activity') }} />
       <ScrollView contentContainerStyle={[styles.content, tablet && styles.contentTablet]} keyboardShouldPersistTaps="handled">
-         <View style={styles.header}>
-           <Text style={styles.title}>{t('clearDecisions')}</Text>
-         </View>
-        <View style={styles.navigator}>{([
+        {/* Encabezado compacto: respeta la barra de estado; el engrane abre Ajustes (no flota sobre el contenido). */}
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.title} accessibilityRole="header">{t('activity')}</Text>
+            <Text style={styles.subtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('clearDecisions')}</Text>
+          </View>
+          <Pressable onPress={() => { tap(); router.navigate('/(app)/settings'); }} accessibilityRole="button" accessibilityLabel={t('settings')} hitSlop={6}
+            style={({ pressed }) => [styles.gear, pressed && { transform: [{ scale: 0.95 }] }]}>
+            <Settings size={20} color="#0F172A" />
+          </Pressable>
+        </View>
+        <View style={styles.navigator} accessibilityRole="tablist">{([
            ['summary', t('summary'), BarChart3], ['history', t('history'), ClipboardList], ['plan', t('workPlan'), Check],
-        ] as const).map(([key, label, Icon]) => <TouchableOpacity key={key} onPress={() => changeSection(key)} style={[styles.navItem, section === key && { backgroundColor: colors.primary }]}><Icon size={17} color={section === key ? '#fff' : colors.primary} /><Text style={[styles.navText, section === key && styles.navTextActive]}>{label}</Text></TouchableOpacity>)}</View>
+        ] as const).map(([key, label, Icon]) => {
+          const on = section === key;
+          return (
+            <Pressable key={key} onPress={() => { if (!on) { tap(); changeSection(key); } }} accessibilityRole="tab" accessibilityState={{ selected: on }}
+              style={[styles.navItem, { flex: key === 'plan' ? 1.4 : 1 }, on && { backgroundColor: isColorblindMode ? colors.primary : '#15803D' }, { transitionProperty: 'backgroundColor', transitionDuration: 180, transitionTimingFunction: CSS_EASE_OUT } as object]}>
+              <Icon size={15} color={on ? '#fff' : '#475569'} />
+              <Text style={[styles.navText, on && styles.navTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{label}</Text>
+            </Pressable>
+          );
+        })}</View>
         {loading ? <ActivityIndicator color={colors.primary} style={{ margin: 40 }} /> : section === 'summary' ? (
-          <View>
-             <Text style={styles.heading}>{t('healthSummary')}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{fruits.map(item => <TouchableOpacity key={item} onPress={() => setFruit(item)} style={[styles.chip, fruit === item && { backgroundColor: colors.primary }]}><Text style={[styles.chipText, fruit === item && styles.chipTextActive]}>{item === 'Todos' ? t('all') : localizeDomainLabel(item, language)}</Text></TouchableOpacity>)}</ScrollView>
-             <View style={styles.metrics}><Metric value={String(filtered.length)} label={t('scans')} /><Metric value={`${Math.round(average * 100)}%`} label={t('averageConfidence')} /><Metric value={`${filtered.length ? Math.round(goodCount / filtered.length * 100) : 0}%`} label={t('healthy')} /></View>
-              <View style={styles.card}><View style={styles.cardTitle}><ShieldCheck size={18} color={colors.primary} /><Text style={styles.headingSmall}>{t('fruitStatus')}</Text></View><Text style={styles.cardCaption}>{t('resultDistribution')}</Text>{fruitAnalytics.length ? fruitAnalytics.map(item => <View key={item.name} style={styles.fruitChart}><View style={styles.fruitChartHeader}><Text style={styles.headingSmall}>{localizeDomainLabel(item.name, language)}</Text><Text style={styles.muted}>{item.count} {t(item.count === 1 ? 'scan' : 'scans')}</Text></View><View style={styles.statusTrack}><View style={[styles.statusHealthy, { width: `${item.count ? item.healthyCount / item.count * 100 : 0}%`, backgroundColor: colors.accent }]} /><View style={[styles.statusNeedsReview, { width: `${item.count ? (item.count - item.healthyCount) / item.count * 100 : 0}%`, backgroundColor: colors.danger }]} /></View><View style={styles.chartLegend}><Text style={styles.legendHealthy}>{t('healthy')} {item.count ? Math.round(item.healthyCount / item.count * 100) : 0}%</Text><Text style={styles.legendReview}>{t('review')} {item.count ? Math.round((item.count - item.healthyCount) / item.count * 100) : 0}%</Text></View></View>) : <Empty text={t('noChartData')} />}</View>
-              <View style={styles.card}><View style={styles.cardTitle}><BarChart3 size={18} color={colors.primary} /><Text style={styles.headingSmall}>{t('volumeByFruit')}</Text></View><Text style={styles.cardCaption}>{t('currentSelectionScans')}</Text>{fruitAnalytics.length ? <View style={styles.volumeChart}>{fruitAnalytics.map(item => { const max = Math.max(...fruitAnalytics.map(value => value.count), 1); return <View key={item.name} style={styles.volumeColumn}><Text style={styles.volumeValue}>{item.count}</Text><View style={styles.volumeTrack}><View style={[styles.volumeBar, { height: `${Math.max(12, item.count / max * 100)}%`, backgroundColor: colors.primary }]} /></View><Text numberOfLines={1} style={styles.volumeLabel}>{localizeDomainLabel(item.name, language)}</Text></View>; })}</View> : <Empty text={t('noChartData')} />}</View>
-              <View style={styles.card}><View style={styles.cardTitle}><Leaf size={18} color={colors.primary} /><Text style={styles.headingSmall}>{t('readingByFruit')}</Text></View><Text style={styles.cardCaption}>{t('confidenceAttention')}</Text>{fruitAnalytics.length ? fruitAnalytics.map(item => <View key={item.name} style={styles.readingRow}><View style={{ flex: 1 }}><Text style={styles.body}>{localizeDomainLabel(item.name, language)}</Text><View style={styles.confidenceTrack}><View style={[styles.confidenceFill, { width: `${Math.round(item.averageScore * 100)}%`, backgroundColor: colors.accent }]} /></View></View><Text style={styles.readingScore}>{Math.round(item.averageScore * 100)}%</Text><Text style={styles.readingAttention}>{item.count - item.healthyCount} {t('reviews')}</Text></View>) : <Empty text={t('noChartData')} />}</View>
+          <Reanimated.View entering={reduced ? undefined : FadeIn.duration(200)}>
+            <View style={{ paddingHorizontal: 16 }}>
+              <StatsHero
+                width={heroW} height={heroH}
+                confidence={stat.conf} healthy={stat.healthy} problem={stat.problem} review={stat.review}
+                orchardLabel={orchardObj?.nombre ?? t('allOrchards')}
+                onOrchard={() => { tap(); setPicker('orchard'); }}
+                labels={{ confidence: t('avgConfidence'), healthy: t('healthyCap'), problem: t('withProblem'), review: t('toReview'), empty: t('noData') }}
+                reduced={reduced}
+                animKey={`${orchardId}|${crop}|${effPeriod}`}
+              />
+            </View>
+
+            {/* Métricas rápidas */}
+            <View style={styles.quick}>
+              <Quick icon={<Layers size={20} color="#16A34A" />} value={String(stat.n)} label={t('scansCap')} />
+              <View style={styles.quickSep} />
+              <Quick icon={<Sprout size={20} color="#16A34A" />} value={String(new Set(sel.map(r => r.crop)).size)} label={t('crops')} />
+              <View style={styles.quickSep} />
+              <Quick icon={<MapIcon size={20} color="#16A34A" />} value={areaHa > 0 ? `${areaHa.toFixed(2)} ha` : '—'} label={t('area')} />
+              <View style={styles.quickSep} />
+              <Quick icon={<CalendarIcon size={20} color="#16A34A" />} value={effPeriod === 'all' ? t('allTime') : t('days', { count: effPeriod })} label={t('period')} onPress={() => { tap(); setPicker('period'); }} />
+            </View>
+            {stat.n > 0 && <Text style={styles.sources}>{t('sources', { photos: stat.photos, walk: stat.walk })}</Text>}
+            {excludedNoOrchard > 0 && <Text style={styles.sources}>{t('noOrchardNote', { count: excludedNoOrchard })}</Text>}
+
+            {/* Filtros compactos: cultivo y periodo */}
+            <View style={styles.filterRow}>
+              <Pressable onPress={() => { tap(); setPicker('crop'); }} accessibilityRole="button" style={({ pressed }) => [styles.filterPill, crop && styles.filterPillOn, pressed && { opacity: 0.85 }]}>
+                <Text style={[styles.filterText, crop && styles.filterTextOn]} numberOfLines={1}>{t('crop')}: {crop ? localizeDomainLabel(crop, language) : t('allCrops')}</Text>
+                <ChevronDown size={15} color={crop ? '#166534' : '#475569'} />
+              </Pressable>
+              <Pressable onPress={() => { tap(); setPicker('period'); }} accessibilityRole="button" style={({ pressed }) => [styles.filterPill, pressed && { opacity: 0.85 }]}>
+                <Text style={styles.filterText} numberOfLines={1}>{t('period')}: {effPeriod === 'all' ? t('allTimeLong') : t('days', { count: effPeriod })}</Text>
+                <ChevronDown size={15} color="#475569" />
+              </Pressable>
+            </View>
+
+            {/* Estado de tus cultivos */}
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>{t('cropStatus')}</Text>
+              <Pressable onPress={() => { tap(); changeSection('history'); }} accessibilityRole="button" hitSlop={8} style={styles.seeDetail}>
+                <Text style={styles.seeDetailText}>{t('seeDetail')}</Text>
+                <ChevronRightIcon size={16} color="#15803D" />
+              </Pressable>
+            </View>
+            {cropRows.length ? cropRows.map((row, i) => {
+              const pct = (v: number) => (row.count ? (v / row.count) * 100 : 0);
+              const on = crop === row.name;
+              return (
+                <Reanimated.View key={row.name} entering={reduced ? undefined : FadeIn.duration(220).delay(i * 50)}>
+                  <Pressable onPress={() => { tap(); setCrop(on ? null : row.name); }} accessibilityRole="button" accessibilityState={{ selected: on }}
+                    accessibilityLabel={`${localizeDomainLabel(row.name, language)}, ${row.count === 1 ? t('nScan1') : t('nScans', { count: row.count })}, ${t('healthyPct', { pct: Math.round(pct(row.sano)) })}`}
+                    style={({ pressed }) => [styles.cropRow, on && styles.cropRowOn, pressed && { opacity: 0.9 }]}>
+                    <View style={styles.cropIcon}>{CROP_EMOJI[row.name] ? <Text style={styles.cropEmoji}>{CROP_EMOJI[row.name]}</Text> : <Leaf size={22} color="#15803D" />}</View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={styles.cropTop}>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={styles.cropName} numberOfLines={1}>{localizeDomainLabel(row.name, language)}</Text>
+                          <Text style={styles.muted}>{row.count === 1 ? t('nScan1') : t('nScans', { count: row.count })}</Text>
+                        </View>
+                        <Text style={styles.cropHealthy}>{t('healthyPct', { pct: Math.round(pct(row.sano)) })}</Text>
+                      </View>
+                      <View style={styles.dist}>
+                        {([['sano', '#34C759', 0], ['revisar', '#FBBF24', pct(row.sano)], ['enfermo', '#EF6A4C', pct(row.sano) + pct(row.revisar)]] as const).map(([k, color, left]) => (
+                          <Reanimated.View key={k} style={[styles.distSeg, {
+                            left: `${left}%`, width: `${pct(row[k])}%`, backgroundColor: color,
+                            transitionProperty: reduced ? 'none' : ['left', 'width'], transitionDuration: 350, transitionTimingFunction: CSS_EASE_OUT,
+                          } as object]} />
+                        ))}
+                      </View>
+                    </View>
+                  </Pressable>
+                </Reanimated.View>
+              );
+            }) : <Empty text={t('noChartData')} />}
+            {cropRows.length > 0 && (
+              <View style={styles.legend}>
+                <LegendDot color="#34C759" text={t('legendHealthy')} />
+                <LegendDot color="#FBBF24" text={t('legendReview')} />
+                <LegendDot color="#EF6A4C" text={t('legendProblem')} />
+              </View>
+            )}
              <Text style={styles.subheading}>{t('recommendedActions')}</Text>
              {recommendations.map((item, index) => <View key={item.title} style={[styles.recommendation, { backgroundColor: item.tone === 'warning' ? '#FFF4E1' : item.tone === 'info' ? '#EAF4FC' : colors.soft }]}><View style={[styles.priorityBadge, { backgroundColor: item.tone === 'warning' ? '#C78335' : colors.primary }]}><Text style={styles.priorityText}>{index + 1}</Text></View><View style={{ flex: 1 }}><Text style={styles.headingSmall}>{item.title}</Text><Text style={styles.body}>{item.text}</Text><TouchableOpacity onPress={() => prepareTask(item)}><Text style={[styles.actionText, { color: colors.primary }]}>{t('addToPlan')}</Text></TouchableOpacity></View></View>)}
              <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => router.push('/(app)/scan')}><ScanLine size={18} color="#fff" /><Text style={styles.buttonText}>{t('scanFruit')}</Text></TouchableOpacity>
-          </View>
+          </Reanimated.View>
         ) : section === 'history' ? (
            <View><Text style={styles.heading}>{t('analysisHistory')}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{fruits.map(item => <TouchableOpacity key={item} onPress={() => setFruit(item)} style={[styles.chip, fruit === item && { backgroundColor: colors.primary }]}><Text style={[styles.chipText, fruit === item && styles.chipTextActive]}>{item === 'Todos' ? t('all') : localizeDomainLabel(item, language)}</Text></TouchableOpacity>)}</ScrollView>{filtered.length ? filtered.map((scan, index) => { const isHealthy = healthy(scan.label); const score = Math.max(0, Math.min(1, Number(scan.score) || 0)); return <TouchableOpacity key={`${scan.id ?? scan.created_at}-${index}`} style={styles.scanRow} onPress={() => setExpanded(expanded === scan.id ? null : scan.id)}><Image source={fruitImage(scan.fruto, isHealthy)} style={styles.scanImage} /><View style={styles.scanInfo}><Text style={styles.headingSmall}>{localizeDomainLabel(scan.fruto || 'Aguacate', language)}</Text><Text numberOfLines={1} style={[styles.scanDiagnosis, { color: isHealthy ? '#3BAE72' : colors.danger }]}>{localizeDomainLabel(scan.label, language)}</Text><Text style={styles.muted}>{dateText(scan.created_at, locale)}</Text>{expanded === scan.id && <Text style={styles.detail}>{isHealthy ? t('noRisk') : t('reviewRecommended')}</Text>}</View><View style={styles.scanSparkline}>{[0.62, 0.8, 0.7, 0.92, 0.76, 1].map((factor, barIndex) => <View key={barIndex} style={[styles.scanSparkBar, { height: Math.max(5, Math.min(28, score * factor * 28)), backgroundColor: isHealthy ? colors.primary : colors.danger }]} />)}</View><View style={styles.scanScoreColumn}><Text style={styles.scanScoreValue}>{Math.round(score * 100)}%</Text><Text style={[styles.scanScoreCaption, { color: isHealthy ? '#3BAE72' : colors.danger }]}>{t('score')}</Text></View><ChevronDown size={15} color="#94A3B8" /></TouchableOpacity>; }) : <Empty text={t('noScans')} />}</View>
         ) : (
@@ -353,15 +543,99 @@ export default function ResultsScreen() {
            </View>
         )}
       </ScrollView>
+
+      {/* Selectores del Resumen: huerta, cultivo y periodo */}
+      <Modal visible={picker !== null} transparent animationType={reduced ? 'fade' : 'slide'} onRequestClose={() => setPicker(null)} statusBarTranslucent>
+        <Pressable style={styles.backdrop} onPress={() => setPicker(null)} accessibilityLabel={t('close')} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }, tablet && { left: '20%', right: '20%' }]}>
+          <View style={styles.handle} />
+          <View style={styles.sheetHead}>
+            <Text style={styles.sectionTitle}>{picker === 'orchard' ? t('pickOrchard') : picker === 'crop' ? t('crop') : t('period')}</Text>
+            <Pressable onPress={() => setPicker(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('close')} style={styles.closeRound}><X size={17} color="#64748B" /></Pressable>
+          </View>
+          <ScrollView style={{ maxHeight: 420 }}>
+            {picker === 'orchard' && [{ id: null as string | null, name: t('allOrchards'), ha: orchards.reduce((a, o) => a + (o.area_m2 || 0), 0) / 10000 },
+              ...orchards.map(o => ({ id: o.id as string | null, name: o.nombre, ha: (o.area_m2 || 0) / 10000 }))].map(o => (
+              <PickRow key={o.id ?? 'all'} on={orchardId === o.id} title={o.name} meta={o.ha > 0 ? `${o.ha.toFixed(2)} ha` : ''}
+                onPress={() => { tap(); setOrchardId(o.id); setCrop(null); setPicker(null); }} />
+            ))}
+            {picker === 'crop' && [null, ...cropOptions].map(c => (
+              <PickRow key={c ?? 'all'} on={crop === c} title={c ? `${CROP_EMOJI[c] ?? ''} ${localizeDomainLabel(c, language)}`.trim() : t('allCrops')}
+                meta={c ? (() => { const n = scoped.filter(r => r.crop === c).length; return n === 1 ? t('nScan1') : t('nScans', { count: n }); })() : ''}
+                onPress={() => { tap(); setCrop(c); setPicker(null); }} />
+            ))}
+            {picker === 'period' && ([7, 30, 90, 'all'] as Period[]).map(pv => (
+              <PickRow key={String(pv)} on={effPeriod === pv} title={pv === 'all' ? t('allTimeLong') : t('days', { count: pv })} meta=""
+                onPress={() => { tap(); setPeriod(pv); setPicker(null); }} />
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
+  );
+}
+function Quick({ icon, value, label, onPress }: { icon: React.ReactNode; value: string; label: string; onPress?: () => void }) {
+  const body = <>{icon}<Text style={styles.quickValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{value}</Text><Text style={styles.quickLabel} numberOfLines={1}>{label}</Text></>;
+  return onPress
+    ? <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} style={styles.quickItem}>{body}</Pressable>
+    : <View style={styles.quickItem} accessible accessibilityLabel={`${label}: ${value}`}>{body}</View>;
+}
+function LegendDot({ color, text }: { color: string; text: string }) {
+  return <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: color }]} /><Text style={styles.muted}>{text}</Text></View>;
+}
+function PickRow({ on, title, meta, onPress }: { on: boolean; title: string; meta: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: on }} style={({ pressed }) => [styles.pickRow, on && styles.pickRowOn, pressed && { opacity: 0.85 }]}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.pickTitle} numberOfLines={1}>{title}</Text>
+        {meta ? <Text style={styles.muted}>{meta}</Text> : null}
+      </View>
+      {on && <Check size={18} color="#15803D" />}
+    </Pressable>
   );
 }
 function Metric({ value, label }: { value: string; label: string }) { return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.muted}>{label}</Text></View>; }
 function Empty({ text }: { text: string }) { const t = useTranslations(translations); return <View style={styles.empty}><Text style={styles.emptyTitle}>{text}</Text><Text style={styles.muted}>{t('goScan')}</Text></View>; }
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#FFFFFF' }, content: { paddingBottom: 120, backgroundColor: '#FFFFFF' }, contentTablet: { maxWidth: 1100, width: '100%', alignSelf: 'center' },
-  header: { paddingHorizontal: 22, paddingTop: 72, paddingBottom: 30, backgroundColor: '#FFFFFF' }, title: { maxWidth: 390, color: '#0A0A0A', fontFamily: 'Poppins_700Bold', fontSize: 38, lineHeight: 42, letterSpacing: -1.2 },
-  navigator: { flexDirection: 'row', margin: 16, padding: 4, borderRadius: 16, backgroundColor: '#EAF4FC', gap: 3 }, navItem: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 2 }, navText: { color: '#52606D', fontFamily: 'Poppins_600SemiBold', fontSize: 10, textAlign: 'center' }, navTextActive: { color: '#fff' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingBottom: 6, backgroundColor: '#FFFFFF' },
+  title: { color: '#0F172A', fontFamily: 'Poppins_700Bold', fontSize: 28, lineHeight: 34, letterSpacing: -0.8 },
+  subtitle: { color: '#64748B', fontFamily: 'Poppins_400Regular', fontSize: 13 },
+  gear: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EDF0EE', shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  navigator: { flexDirection: 'row', marginHorizontal: 16, marginTop: 12, marginBottom: 14, padding: 4, borderRadius: 18, backgroundColor: '#F1F6F3', gap: 4 },
+  navItem: { flex: 1, minHeight: 44, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6 },
+  navText: { color: '#334155', fontFamily: 'Poppins_600SemiBold', fontSize: 12, textAlign: 'center', flexShrink: 1 }, navTextActive: { color: '#fff' },
+  quick: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 12, paddingVertical: 12, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EDF0EE', shadowColor: '#0f172a', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  quickItem: { flex: 1, alignItems: 'center', gap: 3, paddingHorizontal: 4 },
+  quickSep: { width: 1, alignSelf: 'stretch', backgroundColor: '#EDF0EE' },
+  quickValue: { color: '#0F172A', fontFamily: 'Poppins_700Bold', fontSize: 17, lineHeight: 22 },
+  quickLabel: { color: '#64748B', fontFamily: 'Poppins_400Regular', fontSize: 11 },
+  sources: { marginHorizontal: 20, marginTop: 6, color: '#64748B', fontFamily: 'Poppins_400Regular', fontSize: 11 },
+  filterRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 12 },
+  filterPill: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 36, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF' },
+  filterPillOn: { backgroundColor: '#ECFCCB', borderColor: '#BEF264' },
+  filterText: { flexShrink: 1, color: '#334155', fontFamily: 'Poppins_600SemiBold', fontSize: 12 }, filterTextOn: { color: '#166534' },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 18, marginTop: 20, marginBottom: 8 },
+  sectionTitle: { color: '#0F172A', fontFamily: 'Poppins_700Bold', fontSize: 17, letterSpacing: -0.3 },
+  seeDetail: { flexDirection: 'row', alignItems: 'center', gap: 2 }, seeDetailText: { color: '#15803D', fontFamily: 'Poppins_600SemiBold', fontSize: 13 },
+  cropRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginHorizontal: 16, marginBottom: 10, padding: 12, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EDF0EE', shadowColor: '#0f172a', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  cropRowOn: { borderColor: '#BEF264', backgroundColor: '#FBFEF5' },
+  cropIcon: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ECF8EF' },
+  cropEmoji: { fontSize: 26 },
+  cropTop: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 8 },
+  cropName: { color: '#0F172A', fontFamily: 'Poppins_600SemiBold', fontSize: 15 },
+  cropHealthy: { color: '#15803D', fontFamily: 'Poppins_600SemiBold', fontSize: 12.5 },
+  dist: { height: 9, borderRadius: 5, overflow: 'hidden', backgroundColor: '#EEF2F0' },
+  distSeg: { position: 'absolute', top: 0, bottom: 0 },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginHorizontal: 20, marginTop: 2 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 }, legendDot: { width: 8, height: 8, borderRadius: 4 },
+  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.45)' },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 8, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: '#fff' },
+  handle: { alignSelf: 'center', width: 38, height: 4.5, borderRadius: 3, backgroundColor: '#CBD5E1', marginBottom: 10 },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  closeRound: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9' },
+  pickRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14 }, pickRowOn: { backgroundColor: '#F6FDE9' },
+  pickTitle: { color: '#0F172A', fontFamily: 'Poppins_600SemiBold', fontSize: 14 },
   heading: { fontFamily: 'Poppins_600SemiBold', color: '#1F2937', fontSize: 21, marginHorizontal: 18, marginTop: 8 }, headingSmall: { fontFamily: 'Poppins_600SemiBold', color: '#263238', fontSize: 14 }, body: { fontFamily: 'Poppins_400Regular', color: '#52606D', fontSize: 12, lineHeight: 19 }, muted: { color: '#718096', fontFamily: 'Poppins_400Regular', fontSize: 11 }, chips: { paddingHorizontal: 18, gap: 8, paddingVertical: 14 }, chip: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#fff' }, chipText: { color: '#52606D', fontFamily: 'Poppins_600SemiBold', fontSize: 11 }, chipTextActive: { color: '#fff' },
   subheading: { marginHorizontal: 18, marginTop: 20, marginBottom: 2, fontFamily: 'Poppins_600SemiBold', color: '#1F2937', fontSize: 17 },
   metrics: { flexDirection: 'row', marginHorizontal: 16, gap: 10 }, metric: { flex: 1, backgroundColor: '#fff', borderRadius: 15, padding: 14 }, metricValue: { color: '#14B8A6', fontFamily: 'Poppins_600SemiBold', fontSize: 20 }, card: { backgroundColor: '#fff', borderRadius: 18, margin: 16, marginBottom: 0, padding: 16, shadowColor: '#7895B2', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 }, cardTitle: { flexDirection: 'row', gap: 8, alignItems: 'center' }, cardCaption: { color: '#718096', fontFamily: 'Poppins_400Regular', fontSize: 11, marginTop: 5, marginBottom: 12 }, fruitChart: { borderTopWidth: 1, borderTopColor: '#E8EFF5', paddingTop: 11, marginTop: 3 }, fruitChartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }, statusTrack: { height: 11, borderRadius: 8, overflow: 'hidden', backgroundColor: '#FBEDEA', flexDirection: 'row' }, statusHealthy: { height: '100%' }, statusNeedsReview: { height: '100%' }, chartLegend: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }, legendHealthy: { color: '#3BAE72', fontFamily: 'Poppins_600SemiBold', fontSize: 10 }, legendReview: { color: '#B65B50', fontFamily: 'Poppins_400Regular', fontSize: 10 }, volumeChart: { height: 172, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', gap: 8, paddingTop: 16 }, volumeColumn: { flex: 1, alignItems: 'center', height: '100%', justifyContent: 'flex-end' }, volumeValue: { color: '#374151', fontFamily: 'Poppins_600SemiBold', fontSize: 11, marginBottom: 5 }, volumeTrack: { height: 112, width: 27, borderRadius: 8, backgroundColor: '#EAF4FC', justifyContent: 'flex-end', overflow: 'hidden' }, volumeBar: { width: '100%', borderRadius: 8 }, volumeLabel: { color: '#52606D', fontFamily: 'Poppins_400Regular', fontSize: 9, marginTop: 7, maxWidth: 64 }, readingRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#E8EFF5' }, confidenceTrack: { height: 7, backgroundColor: '#EAF4FC', borderRadius: 5, overflow: 'hidden', marginTop: 6 }, confidenceFill: { height: '100%', borderRadius: 5 }, readingScore: { color: '#263238', fontFamily: 'Poppins_600SemiBold', fontSize: 12, width: 36, textAlign: 'right' }, readingAttention: { color: '#718096', fontFamily: 'Poppins_400Regular', fontSize: 9, width: 54, textAlign: 'right' },

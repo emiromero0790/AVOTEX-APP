@@ -111,6 +111,7 @@ const T: TranslationResource = {
   noLocation: { es: 'Ubicación no disponible', en: 'Location unavailable' },
   tapHint: { es: 'Toca un escaneo en el mapa o en el historial.', en: 'Tap a scan on the map or in the history.' },
   viewResults: { es: 'Ver resultados', en: 'View results' },
+  viewFinding: { es: 'Ver hallazgo', en: 'View finding' },
   viewActivity: { es: 'Ver en Actividad', en: 'View in Activity' },
   uploadNow: { es: 'Subir ahora', en: 'Upload now' },
   inQueue: { es: 'En cola para análisis', en: 'Queued for analysis' },
@@ -204,7 +205,7 @@ export default function MisEscaneos() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const reduced = useReducedMotion();
-  const params = useLocalSearchParams<{ n?: string; focus?: string }>();
+  const params = useLocalSearchParams<{ n?: string; focus?: string; point?: string }>();
   const isTablet = width >= 768;
 
   const [user, setUser] = useState<User | null>(auth.currentUser);
@@ -466,10 +467,19 @@ export default function MisEscaneos() {
     if (y != null) listRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: !reduced });
   }, [selectedId, sheetIdx, tab, reduced]);
 
+  // Abrir con un escaneo concreto y, opcionalmente, un hallazgo resaltado (desde Detalle del hallazgo).
   useEffect(() => {
-    if (params.focus && items.some(i => i.id === params.focus)) select(params.focus);
+    if (!params.focus || !items.some(i => i.id === params.focus)) return;
+    autoScope.current = scopeKey;
+    select(params.focus);
+    if (params.point) { const pid = params.point; setTimeout(() => setPoint({ kind: 'finding', id: pid }), 0); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.focus, items.length]);
+  }, [params.focus, params.point, params.n, items.length]);
+
+  const openFinding = (id: string) => {
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    router.push({ pathname: '/(app)/hallazgo', params: { id, n: String(Date.now()) } });
+  };
 
   const onMapEvent = useCallback((e: ScansMapEvent) => {
     if (e.type === 'select') select(e.id);
@@ -762,7 +772,7 @@ export default function MisEscaneos() {
           </Text>
         </View>
         {parent?.kind === 'remoto' && (
-          <Pressable onPress={() => openResults(parent)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('viewResults')} style={({ pressed }) => [st.rowChevron, pressed && st.pressed]}>
+          <Pressable onPress={() => openFinding(h.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('viewFinding')} style={({ pressed }) => [st.rowChevron, pressed && st.pressed]}>
             <ChevronRight size={18} color={INK} />
           </Pressable>
         )}
@@ -851,7 +861,7 @@ export default function MisEscaneos() {
             <Text style={st.pointMeta}>{localizeDomainLabel(h.fruto, language)} · {fmtTime(h.tomada_at)}</Text>
           </View>
           {selected.kind === 'remoto' && (
-            <Pressable onPress={() => openResults(selected)} accessibilityRole="button" accessibilityLabel={t('viewResults')} hitSlop={6} style={({ pressed }) => [st.pointGo, pressed && st.pressed]}>
+            <Pressable onPress={() => openFinding(h.id)} accessibilityRole="button" accessibilityLabel={t('viewFinding')} hitSlop={6} style={({ pressed }) => [st.pointGo, pressed && st.pressed]}>
               <ChevronRight size={18} color="#fff" />
             </Pressable>
           )}

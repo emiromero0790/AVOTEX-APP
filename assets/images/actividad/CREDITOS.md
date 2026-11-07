@@ -1,0 +1,7 @@
+# Créditos de imágenes — Actividad
+
+| Archivo | Original |
+|---|---|
+| `huerta-hero.jpg` | Imagen proporcionada por AVOTEX para el fondo del resumen de Actividad (huerta al atardecer). Redimensionada a 1400×700 y comprimida. |
+
+La foto es ilustrativa del fondo del resumen; no corresponde a la huerta del usuario.

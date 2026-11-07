@@ -177,3 +177,23 @@ export async function insertSingleScan(base: Record<string, unknown>, extra: { l
   if (missingColumn(res.error)) return supabase.from('scans').insert([base]);
   return res;
 }
+
+// ───────────────────────── detalle de un hallazgo ─────────────────────────
+
+export type HallazgoDetalle = HallazgoMapa & {
+  confianza_fruto: number | null;
+  fotos_en_grupo: number;
+  created_at: string;
+};
+
+/** Un hallazgo por su id, solo si pertenece al usuario (filtra también por user_email). */
+export async function getHallazgo(id: string, userEmail: string): Promise<HallazgoDetalle | null> {
+  const { data, error } = await supabase
+    .from('hallazgos')
+    .select('id,recorrido_id,huerta_id,tomada_at,lat,lng,fruto,estado,confianza,confianza_fruto,fotos_en_grupo,miniatura_path,created_at')
+    .eq('id', id)
+    .eq('user_email', userEmail)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as HallazgoDetalle | null) ?? null;
+}

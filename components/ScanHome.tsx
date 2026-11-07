@@ -1,16 +1,18 @@
 /**
  * Escanear — pantalla principal (fondo blanco, como el resto de la app).
  *
- * Tarjeta fotográfica de huerta con capas de visión artificial y tres fuentes de captura:
+ * Video de huerta arriba y tres fuentes de captura en tarjetas panorámicas a lo ancho, apiladas:
  * - Dron y GoPro/cámara de acción: importación de fotos desde la galería (no hay conexión directa
  *   con ningún fabricante; ver services/importar.ts).
- * - Celular: Foto individual y Recorrido inteligente (los flujos existentes).
+ * - Celular: Recorrido inteligente y Foto individual (los flujos existentes).
  *
- * Movimiento (skill animate-expo): pestaña de uso frecuente, así que nada entra animado al abrirla.
- * Seleccionar fuente: borde y sombra con transición de 180 ms + Haptics.selectionAsync. Un solo bucle
- * (el punto de detección). Reducir movimiento: sin bucle ni escalas.
+ * Movimiento (skill animate-expo):
+ * - Entrada escalonada de las tarjetas solo la primera vez que se monta la pantalla (260 ms, salida fuerte).
+ * - Selección: borde, indicador y flecha con transiciones CSS de 180 ms (opacidad, color, escala) +
+ *   Haptics.selectionAsync. Nada de animar alto/ancho: el texto del botón cambia con un fundido.
+ * - Reducir movimiento: sin entradas ni escalas; se conservan los cambios de color y opacidad.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,25 +20,34 @@ import * as Haptics from 'expo-haptics';
 import Reanimated, { FadeIn, FadeInDown, FadeOut, useReducedMotion } from 'react-native-reanimated';
 import { useFocusEffect } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { Camera, Check, ChevronRight, Footprints, History, Lock, Plane, ScanLine, Smartphone, Video } from 'lucide-react-native';
+import { ArrowRight, Camera, ChevronRight, Footprints, History, ImageDown, Lock, Plane, Smartphone, Video } from 'lucide-react-native';
 import { TranslationResource, useTranslations } from '../context/LanguageContext';
 import ScanHeader from './scan/ScanHeader';
 import { CSS_EASE_OUT, EASE_OUT, PressableScale } from './scan/motion';
-import { CARD_SHADOW, LIME_GRADIENT, SCAN } from './scan/theme';
+import { LIME_GRADIENT, SCAN } from './scan/theme';
 
-// Fotografías de Pexels (licencia libre, uso comercial). Ver assets/images/escanear/CREDITOS.md
 // Video de dron sobre una huerta (Pexels 13779417, sin audio) y su primer cuadro como póster.
+// Ver assets/images/escanear/CREDITOS.md
 const VIDEO_HERO = require('../assets/videos/huerta-dron.mp4');
 const IMG_POSTER = require('../assets/images/escanear/huerta-dron-poster.jpg');
-const IMG_DRONE = require('../assets/images/escanear/fuente-dron.jpg');
-const IMG_ACTION = require('../assets/images/escanear/fuente-gopro.jpg');
-const IMG_PHONE = require('../assets/images/escanear/fuente-celular.jpg');
+// Imágenes de las tarjetas (proporcionadas por AVOTEX). El dispositivo está a la derecha de cada foto:
+// la imagen se alinea a la derecha de la tarjeta y lo que sobra queda bajo el degradado de la izquierda.
+const CARD_IMAGES = {
+  dron: { src: require('../assets/images/escanear/avotex_card_dron.jpg'), ratio: 1640 / 208 },
+  camara: { src: require('../assets/images/escanear/avotex_card_gopro.jpg'), ratio: 1545 / 202 },
+  celular: { src: require('../assets/images/escanear/avotex_card_celular.jpg'), ratio: 1570 / 218 },
+} as const;
 
-const CAPTION_IN = FadeIn.duration(200).easing(EASE_OUT);
+const C = { deep: '#123D25', lime: '#A3E635', teal: '#14B8A6', white: '#FFFFFF', ink: '#14231A' } as const;
+
 const ROW_IN = FadeInDown.duration(220).easing(EASE_OUT);
 const ROW_OUT = FadeOut.duration(140);
-const CARD_H = 146;
-const CARD_H_SHORT = 112;
+const TEXT_IN = FadeIn.duration(180).easing(EASE_OUT);
+const cardIn = (i: number) => FadeInDown.duration(260).delay(60 + i * 70).easing(EASE_OUT);
+const TRANSITION = { transitionDuration: 180, transitionTimingFunction: CSS_EASE_OUT };
+
+// Las tarjetas entran escalonadas solo la primera vez (la pestaña se visita muchas veces al día).
+let cardsShown = false;
 
 export type ScanSource = 'dron' | 'camara' | 'celular';
 type PhoneMode = 'recorrido' | 'foto';
@@ -47,19 +58,24 @@ const translations: TranslationResource = {
   line1: { es: 'Una huerta.', en: 'One orchard.' },
   line2: { es: 'Cualquier cámara.', en: 'Any camera.' },
   srcDrone: { es: 'Dron', en: 'Drone' },
-  srcAction: { es: 'GoPro /\nCámara de acción', en: 'GoPro /\nAction camera' },
+  srcAction: { es: 'GoPro / Cámara de acción', en: 'GoPro / Action camera' },
   srcPhone: { es: 'Celular', en: 'Phone' },
-  capDrone: { es: 'Importa fotos aéreas de tu galería. Se ubican con su GPS.', en: 'Import aerial photos from your gallery. Placed by their GPS.' },
-  capAction: { es: 'Importa fotos de tu GoPro o cámara de acción, por recorrido.', en: 'Import photos from your GoPro or action camera, per walk.' },
+  descDrone: { es: 'Escaneo aéreo de tu huerta para un análisis más completo', en: 'Aerial scan of your orchard for a more complete analysis' },
+  descAction: { es: 'Captura recorridos en campo con alta estabilidad', en: 'Capture field walks with high stability' },
+  descPhone: { es: 'Escanea plantas, hojas y frutos de forma rápida y sencilla', en: 'Scan plants, leaves and fruit quickly and easily' },
+  capImport: { es: 'Importa las fotos desde la galería de tu celular. Se ubican con su GPS.', en: 'Import the photos from your phone gallery. Placed by their GPS.' },
   capWalk: { es: 'Camina tu huerta: el celular toma las fotos solo, sin internet.', en: 'Walk your orchard: the phone takes the photos, offline.' },
   capPhoto: { es: 'Toma una foto de un fruto, hoja o árbol y recibe el diagnóstico.', en: 'Take a photo of a fruit, leaf or tree and get a diagnosis.' },
   modeWalk: { es: 'Recorrido inteligente', en: 'Smart walk' },
   modePhoto: { es: 'Foto individual', en: 'Single photo' },
-  start: { es: 'Iniciar escaneo', en: 'Start scan' },
+  ctaWalk: { es: 'Iniciar recorrido', en: 'Start walk' },
+  ctaPhoto: { es: 'Tomar fotografía', en: 'Take photo' },
+  ctaImport: { es: 'Importar capturas', en: 'Import captures' },
   locked: { es: 'Crea una cuenta para usarlo', en: 'Create an account to use it' },
   myScans: { es: 'Ver mis escaneos', en: 'View my scans' },
   pending: { es: '{count} sin subir', en: '{count} not uploaded' },
   selected: { es: 'seleccionado', en: 'selected' },
+  needsAccount: { es: 'requiere cuenta', en: 'requires an account' },
 };
 
 type Props = {
@@ -73,39 +89,58 @@ type Props = {
   onOpenScans: () => void;
 };
 
-/** Tarjeta de fuente de captura: fotografía real, icono y nombre. */
-function SourceCard({ image, icon, label, selected, locked, onPress, a11y, height }: {
-  image: number; icon: React.ReactNode; label: string; selected: boolean; locked: boolean; onPress: () => void; a11y: string; height: number;
+/** Tarjeta panorámica de fuente de captura: foto a todo el fondo, texto nativo a la izquierda, flecha. */
+function SourceCard({ kind, icon, title, desc, selected, locked, onPress, a11y, height, index, animateIn }: {
+  kind: ScanSource; icon: React.ReactNode; title: string; desc: string; selected: boolean; locked: boolean;
+  onPress: () => void; a11y: string; height: number; index: number; animateIn: boolean;
 }) {
+  const img = CARD_IMAGES[kind];
   return (
-    <PressableScale onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={a11y} style={s.cardWrap}>
-      <View
-        style={[
-          s.card,
-          {
-            height,
-            borderColor: selected ? SCAN.lime : SCAN.line,
-            shadowOpacity: selected ? 0.35 : 0.1,
-            transitionProperty: ['borderColor', 'shadowOpacity'],
-            transitionDuration: 180,
-            transitionTimingFunction: CSS_EASE_OUT,
-          } as object,
-        ]}
-      >
-        <View style={s.cardClip}>
-          <Image source={image} style={s.cardImg} resizeMode="cover" accessibilityIgnoresInvertColors />
-          <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.25)', 'rgba(0,0,0,0.78)']} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
-          <View style={s.cardBody}>
-            <View style={[s.cardIcon, selected && s.cardIconOn]}>{icon}</View>
-            <Text style={s.cardLabel} numberOfLines={3}>{label}</Text>
+    <Reanimated.View entering={animateIn ? cardIn(index) : undefined}>
+      <PressableScale onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={a11y}>
+        <View
+          style={[
+            s.card,
+            {
+              height,
+              // Escala sutil: la no seleccionada queda apenas más chica.
+              transform: [{ scale: selected ? 1 : 0.985 }],
+              shadowOpacity: selected ? 0.28 : 0.1,
+              transitionProperty: ['transform', 'shadowOpacity'],
+              ...TRANSITION,
+            } as object,
+          ]}
+        >
+          <View style={s.cardClip}>
+            <Image source={img.src} style={[s.cardImg, { height, width: Math.round(height * img.ratio) }]} resizeMode="cover" accessibilityIgnoresInvertColors />
+            {/* Degradado verde a la izquierda para el texto; la foto no se oscurece al deseleccionar. */}
+            <LinearGradient
+              colors={['rgba(18,61,37,0.97)', 'rgba(18,61,37,0.86)', 'rgba(18,61,37,0.35)', 'rgba(18,61,37,0)']}
+              locations={[0, 0.36, 0.58, 0.78]}
+              start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={s.cardBody}>
+              <View style={[s.cardIcon, { backgroundColor: selected ? C.lime : 'rgba(255,255,255,0.16)', borderColor: selected ? C.lime : 'rgba(255,255,255,0.35)', transitionProperty: ['backgroundColor', 'borderColor'], ...TRANSITION } as object]}>
+                {icon}
+              </View>
+              <View style={s.cardText}>
+                <Text style={s.cardTitle} numberOfLines={2} maxFontSizeMultiplier={1.15}>{title}</Text>
+                <Text style={s.cardDesc} numberOfLines={3} adjustsFontSizeToFit minimumFontScale={0.85} maxFontSizeMultiplier={1.1}>{desc}</Text>
+              </View>
+            </View>
+            {/* Indicador de selección (barra lima a la izquierda) */}
+            <View style={[s.indicator, { opacity: selected ? 1 : 0, transform: [{ scaleY: selected ? 1 : 0.4 }], transitionProperty: ['opacity', 'transform'], ...TRANSITION } as object]} />
+            <View style={[s.arrow, { backgroundColor: selected ? C.lime : 'rgba(255,255,255,0.2)', borderColor: selected ? C.lime : 'rgba(255,255,255,0.55)', transitionProperty: ['backgroundColor', 'borderColor'], ...TRANSITION } as object]}>
+              <ArrowRight size={17} color={selected ? C.ink : C.white} strokeWidth={2.4} />
+            </View>
+            {locked && <View style={s.lock}><Lock size={12} color="#ffffff" /></View>}
           </View>
-          {selected && (
-            <Reanimated.View entering={FadeIn.duration(160)} style={s.check}><Check size={13} color={SCAN.limeInk} strokeWidth={3} /></Reanimated.View>
-          )}
-          {locked && <View style={s.lock}><Lock size={12} color="#ffffff" /></View>}
+          {/* Borde lima sobre la foto (solo opacidad: no cambia el tamaño de la tarjeta) */}
+          <View pointerEvents="none" style={[s.ring, { opacity: selected ? 1 : 0, transitionProperty: ['opacity'], ...TRANSITION } as object]} />
         </View>
-      </View>
-    </PressableScale>
+      </PressableScale>
+    </Reanimated.View>
   );
 }
 
@@ -136,22 +171,25 @@ export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, 
   const reduced = useReducedMotion();
   const isTablet = width >= 768;
   const contentW = isTablet ? Math.min(width - 64, 720) : width;
+  const innerW = contentW - 36;
   const compact = height < 740;
   const narrow = width < 380;
-  // Pantallas bajas (≈ iPhone SE): tarjetas más cortas para que los botones queden sobre la barra.
-  const cardH = height < 700 ? CARD_H_SHORT : CARD_H;
-  // Todo debe caber sobre la barra de pestañas flotante: el video de arriba toma el espacio que sobra.
-  const tabZone = (isTablet ? 82 + 24 : 72 + 18) + insets.bottom + 18;
+  // Tarjetas de 105–125 dp de alto según el ancho disponible.
+  const cardH = Math.round(Math.max(105, Math.min(125, innerW * 0.32)));
+  // El video ocupa lo justo: encabezado, título, el lema y un respiro con la retícula de la cámara.
   const above = insets.top + 8 + 40 + 8 + (isTablet ? 60 : 46) + 22;        // encabezado + título + subtítulo
   const claimH = compact ? 56 : 64;
-  const fade = 56;                                                          // donde el video se funde con el blanco
-  const below = 12 + cardH + 12 + 48 + 12 + 58 + 10 + 48;                   // fuentes + modo/nota + botones
-  const gap = Math.max(48, Math.min(isTablet ? 320 : 240, height - tabZone - above - claimH - fade - below));
+  const fade = 44;                                                          // donde el video se funde con el blanco
+  // Respiro mínimo entre subtítulo y lema: así las tarjetas y el botón quedan sobre la barra de pestañas.
+  const gap = isTablet ? 110 : compact ? 6 : 14;
   const heroH = above + gap + claimH + fade;
 
   // El video solo corre con la pestaña enfocada.
   const [focused, setFocused] = useState(true);
   useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
+
+  const [animateIn] = useState(() => !cardsShown && !reduced);
+  useEffect(() => { cardsShown = true; }, []);
 
   const [source, setSource] = useState<ScanSource>('celular');
   const [phoneMode, setPhoneMode] = useState<PhoneMode>('recorrido');
@@ -169,7 +207,10 @@ export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, 
   const needsAccount = source !== 'celular' || phoneMode === 'recorrido';
   const locked = isGuest && needsAccount;
 
-  const caption = source === 'dron' ? t('capDrone') : source === 'camara' ? t('capAction') : phoneMode === 'recorrido' ? t('capWalk') : t('capPhoto');
+  const action: 'walk' | 'photo' | 'import' = source !== 'celular' ? 'import' : phoneMode === 'foto' ? 'photo' : 'walk';
+  const ctaLabel = action === 'walk' ? t('ctaWalk') : action === 'photo' ? t('ctaPhoto') : t('ctaImport');
+  const caption = action === 'import' ? t('capImport') : action === 'walk' ? t('capWalk') : t('capPhoto');
+  const CtaIcon = action === 'walk' ? Footprints : action === 'photo' ? Camera : ImageDown;
 
   const start = () => {
     if (locked) return;
@@ -178,11 +219,11 @@ export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, 
     else onImport(source);
   };
 
-  const sources = useMemo(() => [
-    { key: 'dron' as const, image: IMG_DRONE, icon: <Plane size={17} color="#ffffff" />, label: t('srcDrone') },
-    { key: 'camara' as const, image: IMG_ACTION, icon: <Video size={17} color="#ffffff" />, label: t('srcAction') },
-    { key: 'celular' as const, image: IMG_PHONE, icon: <Smartphone size={17} color="#ffffff" />, label: t('srcPhone') },
-  ], [t]);
+  const sources = [
+    { key: 'dron' as const, icon: Plane, title: t('srcDrone'), desc: t('descDrone') },
+    { key: 'camara' as const, icon: Video, title: t('srcAction'), desc: t('descAction') },
+    { key: 'celular' as const, icon: Smartphone, title: t('srcPhone'), desc: t('descPhone') },
+  ];
 
   // Barra de pestañas flotante + botón central que sobresale.
   const bottomSpace = (isTablet ? 82 + 24 : 72 + 18) + 28 + insets.bottom;
@@ -201,7 +242,7 @@ export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, 
             style={StyleSheet.absoluteFill}
           />
           {/* retícula de la cámara */}
-          <View style={[s.frame, { top: above + 10, height: Math.max(36, gap - 20) }]}>
+          <View style={[s.frame, { top: above + gap - 12, height: claimH + 20 }]}>
             <View style={[s.c, s.cTL]} /><View style={[s.c, s.cTR]} /><View style={[s.c, s.cBL]} /><View style={[s.c, s.cBR]} />
           </View>
         </View>
@@ -209,70 +250,87 @@ export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, 
         <View style={[s.content, { width: contentW, paddingTop: insets.top + 8 }]}>
           <ScanHeader tokensValue={tokensValue} onImage />
           <Text style={[s.title, isTablet && s.titleTablet]} accessibilityRole="header">{t('title')}</Text>
-          <Text style={s.subtitle} numberOfLines={1}>{t('subtitle')}</Text>
+          <Text style={s.subtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('subtitle')}</Text>
 
           <View style={{ height: gap }} />
-          <View style={{ height: claimH, justifyContent: 'flex-end' }} accessible accessibilityLabel={`${t('line1')} ${t('line2')}`}>
-            <Text style={[s.claim, compact && s.claimCompact]}>{t('line1')}</Text>
-            <Text style={[s.claim, s.claimLime, compact && s.claimCompact]}>{t('line2')}</Text>
+          <View style={[s.claimBox, { height: claimH }]} accessible accessibilityLabel={`${t('line1')} ${t('line2')}`}>
+            <Text style={[s.claim, compact && s.claimCompact]} maxFontSizeMultiplier={1.1}>{t('line1')}</Text>
+            <Text style={[s.claim, s.claimLime, compact && s.claimCompact]} maxFontSizeMultiplier={1.1}>{t('line2')}</Text>
           </View>
           <View style={{ height: fade - 22 }} />
 
-          {/* ── Fuentes de captura ── */}
+          {/* ── Fuentes de captura: tarjetas panorámicas apiladas ── */}
           <View style={s.cards} accessibilityRole="radiogroup">
-            {sources.map(src => (
-              <SourceCard
-                key={src.key}
-                image={src.image}
-                icon={src.icon}
-                label={src.label}
-                selected={source === src.key}
-                locked={isGuest && src.key !== 'celular'}
-                onPress={() => pick(src.key)}
-                height={cardH}
-                a11y={`${src.label.replace('\n', ' ')}${source === src.key ? `, ${t('selected')}` : ''}`}
-              />
-            ))}
+            {sources.map((src, i) => {
+              const Icon = src.icon;
+              const on = source === src.key;
+              const lockedSrc = isGuest && src.key !== 'celular';
+              return (
+                <SourceCard
+                  key={src.key}
+                  kind={src.key}
+                  index={i}
+                  animateIn={animateIn}
+                  icon={<Icon size={18} color={on ? C.ink : C.white} />}
+                  title={src.title}
+                  desc={src.desc}
+                  selected={on}
+                  locked={lockedSrc}
+                  onPress={() => pick(src.key)}
+                  height={cardH}
+                  a11y={`${src.title}. ${src.desc}${lockedSrc ? `, ${t('needsAccount')}` : ''}${on ? `, ${t('selected')}` : ''}`}
+                />
+              );
+            })}
           </View>
 
-          {source === 'celular' ? (
-            <Reanimated.View entering={reduced ? undefined : ROW_IN} exiting={reduced ? undefined : ROW_OUT} style={s.modes}>
-              {(['recorrido', 'foto'] as PhoneMode[]).map(m => {
-                const on = phoneMode === m;
-                return (
-                  <PressableScale
-                    key={m}
-                    onPress={() => pickMode(m)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: on }}
-                    accessibilityLabel={`${m === 'recorrido' ? t('modeWalk') : t('modePhoto')}. ${m === 'recorrido' ? t('capWalk') : t('capPhoto')}`}
-                    style={[s.mode, { flex: m === 'recorrido' ? 1.25 : 1 }, on && s.modeOn, { transitionProperty: ['backgroundColor', 'borderColor'], transitionDuration: 160, transitionTimingFunction: CSS_EASE_OUT } as object]}
-                  >
-                    {/* En pantallas angostas (≈360 pt) se omite el icono para que el texto quepa completo. */}
-                    {!narrow && (m === 'recorrido' ? <Footprints size={15} color={on ? SCAN.limeInk : SCAN.muted} /> : <Camera size={15} color={on ? SCAN.limeInk : SCAN.muted} />)}
-                    <Text style={[s.modeText, on && s.modeTextOn]} numberOfLines={1}>{m === 'recorrido' ? t('modeWalk') : t('modePhoto')}</Text>
-                    {isGuest && m === 'recorrido' && <Lock size={12} color={SCAN.muted} />}
-                  </PressableScale>
-                );
-              })}
-            </Reanimated.View>
-          ) : (
-            <Reanimated.Text key={caption} entering={reduced ? undefined : CAPTION_IN} style={s.caption} numberOfLines={2}>{caption}</Reanimated.Text>
-          )}
+          {/* Modos del celular, o la nota de importación (misma altura: nada salta) */}
+          <View style={s.modeZone}>
+            {source === 'celular' ? (
+              <Reanimated.View key="modes" entering={reduced ? undefined : ROW_IN} exiting={reduced ? undefined : ROW_OUT} style={s.modes} accessibilityRole="radiogroup">
+                {(['recorrido', 'foto'] as PhoneMode[]).map(m => {
+                  const on = phoneMode === m;
+                  const ModeIcon = m === 'recorrido' ? Footprints : Camera;
+                  return (
+                    <PressableScale
+                      key={m}
+                      onPress={() => pickMode(m)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={`${m === 'recorrido' ? t('modeWalk') : t('modePhoto')}. ${m === 'recorrido' ? t('capWalk') : t('capPhoto')}`}
+                      style={[s.mode, { flex: m === 'recorrido' ? 1.25 : 1 }, on && s.modeOn, { transitionProperty: ['backgroundColor', 'borderColor'], transitionDuration: 160, transitionTimingFunction: CSS_EASE_OUT } as object]}
+                    >
+                      {/* En pantallas angostas (≈360 pt) se omite el icono para que el texto quepa completo. */}
+                      {!narrow && <ModeIcon size={15} color={on ? C.deep : SCAN.muted} />}
+                      <Text style={[s.modeText, on && s.modeTextOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} maxFontSizeMultiplier={1.15}>
+                        {m === 'recorrido' ? t('modeWalk') : t('modePhoto')}
+                      </Text>
+                      {isGuest && m === 'recorrido' && <Lock size={12} color={SCAN.muted} />}
+                    </PressableScale>
+                  );
+                })}
+              </Reanimated.View>
+            ) : (
+              <Reanimated.Text key="note" entering={reduced ? undefined : TEXT_IN} style={s.caption} numberOfLines={2} maxFontSizeMultiplier={1.15}>{caption}</Reanimated.Text>
+            )}
+          </View>
 
-          {/* ── Acciones ── */}
-          <PressableScale onPress={start} disabled={locked} accessibilityRole="button" accessibilityState={{ disabled: locked }} accessibilityLabel={locked ? t('locked') : `${t('start')}. ${caption}`} style={s.ctaWrap}>
+          {/* ── Acción principal (texto según fuente y modo) ── */}
+          <PressableScale onPress={start} disabled={locked} accessibilityRole="button" accessibilityState={{ disabled: locked }} accessibilityLabel={locked ? t('locked') : `${ctaLabel}. ${caption}`} style={s.ctaWrap}>
             <LinearGradient colors={locked ? ['#E2E8F0', '#CBD5E1'] : [...LIME_GRADIENT]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.cta}>
-              {locked ? <Lock size={20} color={SCAN.inkSoft} /> : <ScanLine size={22} color={SCAN.limeInk} />}
-              <Text style={[s.ctaText, locked && { color: SCAN.inkSoft }]}>{locked ? t('locked') : t('start')}</Text>
-              {!locked && <ChevronRight size={22} color={SCAN.limeInk} />}
+              {locked ? <Lock size={20} color={SCAN.inkSoft} /> : <CtaIcon size={22} color={C.ink} />}
+              <Reanimated.Text key={locked ? 'locked' : action} entering={reduced ? undefined : TEXT_IN}
+                style={[s.ctaText, locked && { color: SCAN.inkSoft }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.15}>
+                {locked ? t('locked') : ctaLabel}
+              </Reanimated.Text>
+              {!locked && <ChevronRight size={22} color={C.ink} />}
             </LinearGradient>
           </PressableScale>
 
           {!isGuest && (
             <PressableScale onPress={onOpenScans} accessibilityRole="button" accessibilityLabel={t('myScans')} style={s.secondary}>
-              <History size={18} color={SCAN.ink} />
-              <Text style={s.secondaryText}>{t('myScans')}</Text>
+              <History size={18} color={C.deep} />
+              <Text style={s.secondaryText} maxFontSizeMultiplier={1.2}>{t('myScans')}</Text>
               {pendingCount > 0 && (
                 <View style={s.badge}><Text style={s.badgeText}>{t('pending', { count: pendingCount })}</Text></View>
               )}
@@ -290,44 +348,50 @@ const s = StyleSheet.create({
   title: { fontFamily: 'Poppins_700Bold', fontSize: 38, lineHeight: 46, letterSpacing: -1.2, color: '#ffffff', marginTop: 8, textShadowColor: 'rgba(0,0,0,0.35)', textShadowRadius: 10 },
   titleTablet: { fontSize: 50, lineHeight: 60 },
   subtitle: { fontFamily: 'Poppins_400Regular', fontSize: 15, lineHeight: 22, color: 'rgba(255,255,255,0.92)', textShadowColor: 'rgba(0,0,0,0.35)', textShadowRadius: 8 },
-  // Tarjeta fotográfica: sombra en la vista exterior, recorte en la interior (la sombra no se recorta).
   hero: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden', backgroundColor: '#E2E8F0' },
   // Ancho/alto explícitos: absoluteFill en <Image> amplía la foto en web.
   heroImg: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   frame: { position: 'absolute', left: '6%', right: '6%' },
-  c: { position: 'absolute', width: 24, height: 24, borderColor: 'rgba(255,255,255,0.9)' },
+  c: { position: 'absolute', width: 22, height: 22, borderColor: 'rgba(255,255,255,0.9)' },
   cTL: { top: 0, left: 0, borderTopWidth: 2.5, borderLeftWidth: 2.5, borderTopLeftRadius: 6 },
   cTR: { top: 0, right: 0, borderTopWidth: 2.5, borderRightWidth: 2.5, borderTopRightRadius: 6 },
   cBL: { bottom: 0, left: 0, borderBottomWidth: 2.5, borderLeftWidth: 2.5, borderBottomLeftRadius: 6 },
   cBR: { bottom: 0, right: 0, borderBottomWidth: 2.5, borderRightWidth: 2.5, borderBottomRightRadius: 6 },
+  claimBox: { justifyContent: 'flex-end', paddingLeft: 22 },
   claim: { fontFamily: 'Poppins_700Bold', fontSize: 28, lineHeight: 32, letterSpacing: -0.7, color: SCAN.onPhoto, textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 10 },
-  claimLime: { color: '#BEF264' },
+  claimLime: { color: C.lime },
   claimCompact: { fontSize: 23, lineHeight: 27 },
-  cards: { flexDirection: 'row', gap: 10 },
-  cardWrap: { flex: 1 },
-  card: { borderRadius: 22, borderWidth: 2, backgroundColor: '#E2E8F0', shadowColor: SCAN.lime, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
-  cardClip: { flex: 1, borderRadius: 20, overflow: 'hidden' },
-  cardImg: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
-  cardBody: { position: 'absolute', left: 0, right: 0, bottom: 10, alignItems: 'center', gap: 5, paddingHorizontal: 6 },
-  cardIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' },
-  cardIconOn: { backgroundColor: 'rgba(132,204,22,0.85)', borderColor: '#ffffff' },
-  cardLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, lineHeight: 15, color: '#ffffff', textAlign: 'center' },
-  check: { position: 'absolute', top: 7, right: 7, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: SCAN.limeBright },
-  lock: { position: 'absolute', top: 7, left: 7, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
-  modes: { flexDirection: 'row', gap: 10, marginTop: 12, height: 48 },
-  mode: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: SCAN.line, backgroundColor: SCAN.surface },
-  modeOn: { backgroundColor: SCAN.limeSoft, borderColor: SCAN.lime },
+
+  cards: { gap: 11 },
+  // Sombra en la vista exterior, recorte en la interior (la sombra no se recorta).
+  card: { borderRadius: 24, backgroundColor: C.deep, shadowColor: C.deep, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
+  cardClip: { flex: 1, borderRadius: 24, overflow: 'hidden' },
+  cardImg: { position: 'absolute', top: 0, right: 0 },
+  ring: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 24, borderWidth: 2, borderColor: C.lime },
+  cardBody: { position: 'absolute', top: 0, bottom: 0, left: 18, width: '62%', flexDirection: 'row', alignItems: 'center', gap: 11 },
+  cardIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  cardText: { flex: 1, gap: 2 },
+  cardTitle: { fontFamily: 'Poppins_700Bold', fontSize: 17, lineHeight: 21, color: C.white, letterSpacing: -0.2 },
+  cardDesc: { fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 16, color: 'rgba(255,255,255,0.86)' },
+  indicator: { position: 'absolute', left: 0, top: '28%', bottom: '28%', width: 4, borderTopRightRadius: 3, borderBottomRightRadius: 3, backgroundColor: C.lime },
+  arrow: { position: 'absolute', right: 12, bottom: 12, width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  lock: { position: 'absolute', top: 10, right: 12, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
+
+  modeZone: { marginTop: 12, minHeight: 48, justifyContent: 'center' },
+  modes: { flexDirection: 'row', gap: 10, minHeight: 48 },
+  mode: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: SCAN.line, backgroundColor: C.white },
+  modeOn: { backgroundColor: '#ECFCCB', borderColor: C.lime },
   modeText: { flexShrink: 1, fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: SCAN.muted },
-  modeTextOn: { color: SCAN.limeInk },
-  caption: { fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 19, color: SCAN.muted, marginTop: 12, height: 48 },
-  ctaWrap: { marginTop: 12, borderRadius: 22, shadowColor: SCAN.lime, shadowOpacity: 0.3, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 5 },
+  modeTextOn: { color: C.deep },
+  caption: { fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 19, color: SCAN.muted },
+  ctaWrap: { marginTop: 12, borderRadius: 22, shadowColor: '#65A30D', shadowOpacity: 0.3, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 5 },
   cta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, height: 58, borderRadius: 22, paddingHorizontal: 20 },
-  ctaText: { flex: 1, textAlign: 'center', fontFamily: 'Poppins_700Bold', fontSize: 18, color: SCAN.limeInk },
+  ctaText: { flex: 1, textAlign: 'center', fontFamily: 'Poppins_700Bold', fontSize: 18, color: C.ink },
   secondary: {
-    marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 48,
-    borderRadius: 20, borderWidth: 1.5, borderColor: SCAN.line, backgroundColor: SCAN.card,
+    marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 46,
+    borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: C.white,
   },
-  secondaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: SCAN.ink },
+  secondaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 14.5, color: C.ink },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: '#E0F2FE', borderWidth: 1, borderColor: '#7DD3FC' },
   badgeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#0369A1' },
 });

@@ -62,7 +62,7 @@ export default function StatsHero({ width, height, confidence, healthy, problem,
   const d = Math.round(D * 0.68);
   // Los laterales asoman detrás del central (~1/3 de su ancho queda oculto) y su contenido se corre hacia afuera.
   const off = Math.round(D / 2 + d * 0.32);
-  const shift = Math.round(d * 0.11);
+  const shift = Math.round(d * 0.08);
   const cx = width / 2;
   const cy = height * 0.45;
   const conf = useCount(confidence, reduced);
@@ -77,8 +77,11 @@ export default function StatsHero({ width, height, confidence, healthy, problem,
       <View style={[s.ring, { borderRadius: (d + 12) / 2, borderColor: tone === 'ok' ? 'rgba(217,249,157,0.65)' : 'rgba(254,215,170,0.7)' }]} />
       <View style={[s.side, { width: d, height: d, borderRadius: d / 2 }, tone === 'ok' ? [s.sideOk, { paddingRight: shift * 2 }] : [s.sideBad, { paddingLeft: shift * 2 }]]}>
         {icon}
-        <Text style={[s.sideValue, { fontSize: d * 0.24 }, tone === 'ok' ? { color: '#14532D' } : { color: '#9A3412' }]} numberOfLines={1}>{value}</Text>
-        <Text style={[s.sideLabel, tone === 'ok' ? { color: '#166534' } : { color: '#9A3412' }]} numberOfLines={2}>{label}</Text>
+        {/* Ancho fijo dentro del círculo: el texto se reduce para caber (también con letra grande del sistema). */}
+        <Text style={[s.sideValue, { width: d * 0.64, fontSize: d * 0.21, lineHeight: d * 0.26 }, tone === 'ok' ? { color: '#14532D' } : { color: '#9A3412' }]}
+          numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} maxFontSizeMultiplier={1}>{value}</Text>
+        <Text style={[s.sideLabel, { width: d * 0.6, fontSize: Math.min(11, d * 0.1), lineHeight: Math.min(13.5, d * 0.125) }, tone === 'ok' ? { color: '#166534' } : { color: '#9A3412' }]}
+          numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7} maxFontSizeMultiplier={1.1}>{label}</Text>
       </View>
     </Reanimated.View>
   );
@@ -101,8 +104,10 @@ export default function StatsHero({ width, height, confidence, healthy, problem,
         <LinearGradient colors={['#34A853', '#15803D', '#0F5A2B']} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }}
           style={[s.center, { width: D, height: D, borderRadius: D / 2 }]}>
           <Leaf size={D * 0.15} color="#ECFCCB" />
-          <Text style={[s.centerValue, { fontSize: D * 0.25, lineHeight: D * 0.3 }]} numberOfLines={1}>{empty ? '—' : pct(conf)}</Text>
-          <Text style={[s.centerLabel, { fontSize: Math.max(11, D * 0.085) }]} numberOfLines={2}>{empty ? labels.empty : labels.confidence}</Text>
+          <Text style={[s.centerValue, { width: D * 0.72, fontSize: D * 0.24, lineHeight: D * 0.29 }]}
+            numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55} maxFontSizeMultiplier={1}>{empty ? '—' : pct(conf)}</Text>
+          <Text style={[s.centerLabel, { width: D * 0.66, fontSize: Math.min(13, Math.max(11, D * 0.082)), lineHeight: Math.min(16, D * 0.1) }]}
+            numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75} maxFontSizeMultiplier={1.1}>{empty ? labels.empty : labels.confidence}</Text>
         </LinearGradient>
       </Reanimated.View>
 
@@ -132,14 +137,14 @@ const s = StyleSheet.create({
   },
   sideOk: { backgroundColor: 'rgba(217,249,157,0.88)', borderColor: 'rgba(255,255,255,0.75)' },
   sideBad: { backgroundColor: 'rgba(254,215,190,0.9)', borderColor: 'rgba(255,255,255,0.75)' },
-  sideValue: { fontFamily: 'Poppins_700Bold', marginTop: 2, letterSpacing: -0.5 },
-  sideLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 10.5, lineHeight: 13, maxWidth: '84%', textAlign: 'center' },
+  sideValue: { fontFamily: 'Poppins_700Bold', marginTop: 2, letterSpacing: -0.5, textAlign: 'center' },
+  sideLabel: { fontFamily: 'Poppins_600SemiBold', textAlign: 'center' },
   center: {
     alignItems: 'center', justifyContent: 'center', gap: 2, borderWidth: 3, borderColor: '#A3E635',
     shadowColor: '#052e16', shadowOpacity: 0.4, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 9,
   },
-  centerValue: { fontFamily: 'Poppins_700Bold', color: '#FFFFFF', letterSpacing: -1 },
-  centerLabel: { fontFamily: 'Poppins_600SemiBold', color: '#F0FDF4', textAlign: 'center', maxWidth: '78%', lineHeight: 16 },
+  centerValue: { fontFamily: 'Poppins_700Bold', color: '#FFFFFF', letterSpacing: -1, textAlign: 'center' },
+  centerLabel: { fontFamily: 'Poppins_600SemiBold', color: '#F0FDF4', textAlign: 'center' },
   reviewChip: { position: 'absolute', top: 12, left: 12, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.92)' },
   reviewDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#F59E0B' },
   reviewText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#92400E' },

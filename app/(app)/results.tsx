@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import Reanimated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import { Calendar as CalendarIcon, ChevronRight as ChevronRightIcon, Layers, Map as MapIcon, Settings, Sprout, X } from 'lucide-react-native';
 import StatsHero from '../../components/actividad/StatsHero';
+import { SectionSkeleton } from '../../components/actividad/Skeleton';
 import { listOrchards, type Orchard } from '../../services/orchards';
 import { categoria, listUserHallazgos, type CategoriaHallazgo, type HallazgoMapa } from '../../services/escaneos';
 import { CSS_EASE_OUT } from '../../components/scan/motion';
@@ -133,6 +134,10 @@ export default function ResultsScreen() {
   const [crop, setCrop] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period | null>(null);
   const [picker, setPicker] = useState<'orchard' | 'crop' | 'period' | null>(null);
+  // Cambio de sección sin congelar: la pestaña cambia al instante, se muestra el esqueleto y el contenido
+  // pesado se dibuja en el siguiente cuadro. El historial se dibuja por partes (25 filas cada vez).
+  const [pending, setPending] = useState(false);
+  const [historyLimit, setHistoryLimit] = useState(25);
   const colors = useMemo(() => ({
     primary: isColorblindMode ? '#145DA0' : '#14B8A6',
     accent: isColorblindMode ? '#3B82C4' : '#55D68B',
@@ -333,8 +338,12 @@ export default function ResultsScreen() {
     setScheduledAt(current => new Date(current.getFullYear(), current.getMonth(), current.getDate(), hours, minutes));
   };
   const changeSection = (nextSection: Section) => {
+    // Antes se llamaba a router.setParams en cada cambio: eso volvía a dibujar toda la navegación de
+    // pestañas y congelaba la pantalla unos segundos. El parámetro `view` solo se lee al llegar de fuera.
+    setPending(true);
     setSection(nextSection);
-    router.setParams({ view: nextSection === 'history' ? 'list' : nextSection === 'plan' ? 'plan' : 'charts' });
+    setHistoryLimit(25);
+    requestAnimationFrame(() => setTimeout(() => setPending(false), 0));
   };
   const heroW = Math.min(width, 1100) - 32;
   const heroH = Math.round(Math.max(220, Math.min(260, heroW * 0.62)));
@@ -344,7 +353,17 @@ export default function ResultsScreen() {
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Stack.Screen options={{ title: t('activity') }} />
-      <ScrollView contentContainerStyle={[styles.content, tablet && styles.contentTablet]} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={[styles.content, tablet && styles.contentTablet]}
+        keyboardShouldPersistTaps="handled"
+        scrollEventThrottle={200}
+        onScroll={e => {
+          // Historial: al acercarse al final se dibujan 25 filas más.
+          if (section !== 'history' || historyLimit >= filtered.length) return;
+          const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+          if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 600) setHistoryLimit(n => n + 25);
+        }}
+      >
         {/* Encabezado compacto: respeta la barra de estado; el engrane abre Ajustes (no flota sobre el contenido). */}
         <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
           <View style={{ flex: 1, minWidth: 0 }}>
@@ -362,13 +381,13 @@ export default function ResultsScreen() {
           const on = section === key;
           return (
             <Pressable key={key} onPress={() => { if (!on) { tap(); changeSection(key); } }} accessibilityRole="tab" accessibilityState={{ selected: on }}
-              style={[styles.navItem, { flex: key === 'plan' ? 1.4 : 1 }, on && { backgroundColor: isColorblindMode ? colors.primary : '#15803D' }, { transitionProperty: 'backgroundColor', transitionDuration: 180, transitionTimingFunction: CSS_EASE_OUT } as object]}>
-              <Icon size={15} color={on ? '#fff' : '#475569'} />
+              style={[styles.navItem, { flex: key === 'plan' ? 1.4 : 1 }, on && { backgroundColor: colors.primary }, { transitionProperty: 'backgroundColor', transitionDuration: 180, transitionTimingFunction: CSS_EASE_OUT } as object]}>
+              <Icon size={15} color={on ? '#fff' : colors.primary} />
               <Text style={[styles.navText, on && styles.navTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{label}</Text>
             </Pressable>
           );
         })}</View>
-        {loading ? <ActivityIndicator color={colors.primary} style={{ margin: 40 }} /> : section === 'summary' ? (
+        {loading || pending ? <SectionSkeleton kind={section} heroH={heroH} /> : section === 'summary' ? (
           <Reanimated.View entering={reduced ? undefined : FadeIn.duration(200)}>
             <View style={{ paddingHorizontal: 16 }}>
               <StatsHero
@@ -457,7 +476,7 @@ export default function ResultsScreen() {
              <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => router.push('/(app)/scan')}><ScanLine size={18} color="#fff" /><Text style={styles.buttonText}>{t('scanFruit')}</Text></TouchableOpacity>
           </Reanimated.View>
         ) : section === 'history' ? (
-           <View><Text style={styles.heading}>{t('analysisHistory')}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{fruits.map(item => <TouchableOpacity key={item} onPress={() => setFruit(item)} style={[styles.chip, fruit === item && { backgroundColor: colors.primary }]}><Text style={[styles.chipText, fruit === item && styles.chipTextActive]}>{item === 'Todos' ? t('all') : localizeDomainLabel(item, language)}</Text></TouchableOpacity>)}</ScrollView>{filtered.length ? filtered.map((scan, index) => { const isHealthy = healthy(scan.label); const score = Math.max(0, Math.min(1, Number(scan.score) || 0)); return <TouchableOpacity key={`${scan.id ?? scan.created_at}-${index}`} style={styles.scanRow} onPress={() => setExpanded(expanded === scan.id ? null : scan.id)}><Image source={fruitImage(scan.fruto, isHealthy)} style={styles.scanImage} /><View style={styles.scanInfo}><Text style={styles.headingSmall}>{localizeDomainLabel(scan.fruto || 'Aguacate', language)}</Text><Text numberOfLines={1} style={[styles.scanDiagnosis, { color: isHealthy ? '#3BAE72' : colors.danger }]}>{localizeDomainLabel(scan.label, language)}</Text><Text style={styles.muted}>{dateText(scan.created_at, locale)}</Text>{expanded === scan.id && <Text style={styles.detail}>{isHealthy ? t('noRisk') : t('reviewRecommended')}</Text>}</View><View style={styles.scanSparkline}>{[0.62, 0.8, 0.7, 0.92, 0.76, 1].map((factor, barIndex) => <View key={barIndex} style={[styles.scanSparkBar, { height: Math.max(5, Math.min(28, score * factor * 28)), backgroundColor: isHealthy ? colors.primary : colors.danger }]} />)}</View><View style={styles.scanScoreColumn}><Text style={styles.scanScoreValue}>{Math.round(score * 100)}%</Text><Text style={[styles.scanScoreCaption, { color: isHealthy ? '#3BAE72' : colors.danger }]}>{t('score')}</Text></View><ChevronDown size={15} color="#94A3B8" /></TouchableOpacity>; }) : <Empty text={t('noScans')} />}</View>
+           <View><Text style={styles.heading}>{t('analysisHistory')}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{fruits.map(item => <TouchableOpacity key={item} onPress={() => { setFruit(item); setHistoryLimit(25); }} style={[styles.chip, fruit === item && { backgroundColor: colors.primary }]}><Text style={[styles.chipText, fruit === item && styles.chipTextActive]}>{item === 'Todos' ? t('all') : localizeDomainLabel(item, language)}</Text></TouchableOpacity>)}</ScrollView>{filtered.length ? filtered.slice(0, historyLimit).map((scan, index) => { const isHealthy = healthy(scan.label); const score = Math.max(0, Math.min(1, Number(scan.score) || 0)); return <TouchableOpacity key={`${scan.id ?? scan.created_at}-${index}`} style={styles.scanRow} onPress={() => setExpanded(expanded === scan.id ? null : scan.id)}><Image source={fruitImage(scan.fruto, isHealthy)} style={styles.scanImage} /><View style={styles.scanInfo}><Text style={styles.headingSmall}>{localizeDomainLabel(scan.fruto || 'Aguacate', language)}</Text><Text numberOfLines={1} style={[styles.scanDiagnosis, { color: isHealthy ? '#3BAE72' : colors.danger }]}>{localizeDomainLabel(scan.label, language)}</Text><Text style={styles.muted}>{dateText(scan.created_at, locale)}</Text>{expanded === scan.id && <Text style={styles.detail}>{isHealthy ? t('noRisk') : t('reviewRecommended')}</Text>}</View><View style={styles.scanSparkline}>{[0.62, 0.8, 0.7, 0.92, 0.76, 1].map((factor, barIndex) => <View key={barIndex} style={[styles.scanSparkBar, { height: Math.max(5, Math.min(28, score * factor * 28)), backgroundColor: isHealthy ? colors.primary : colors.danger }]} />)}</View><View style={styles.scanScoreColumn}><Text style={styles.scanScoreValue}>{Math.round(score * 100)}%</Text><Text style={[styles.scanScoreCaption, { color: isHealthy ? '#3BAE72' : colors.danger }]}>{t('score')}</Text></View><ChevronDown size={15} color="#94A3B8" /></TouchableOpacity>; }) : <Empty text={t('noScans')} />}{filtered.length > historyLimit && <ActivityIndicator color={colors.primary} style={{ marginVertical: 18 }} />}</View>
         ) : (
            <View>
              <Text style={styles.heading}>{t('workPlan')}</Text>

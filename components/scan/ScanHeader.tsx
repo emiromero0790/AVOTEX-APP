@@ -17,19 +17,22 @@ const translations: TranslationResource = {
   settings: { es: 'Ajustes', en: 'Settings' },
 };
 
-/** `onImage`: el encabezado va sobre una foto o video; el logotipo lleva fondo blanco para no perderse. */
-export default function ScanHeader({ tokensValue, onImage = false }: { tokensValue: string | null; onImage?: boolean }) {
+/**
+ * `onImage`: el encabezado va sobre una foto o video. El logotipo va solo (PNG con transparencia, sin fondo).
+ * El logotipo es lo único que se reduce si falta espacio: tokens y Ajustes nunca se recortan.
+ */
+export default function ScanHeader({ tokensValue }: { tokensValue: string | null; onImage?: boolean }) {
   const t = useTranslations(translations);
   return (
     <View style={s.row}>
-      <View style={onImage && s.brand}>
+      <View style={s.brand}>
         <Image source={WORDMARK} style={s.logo} resizeMode="contain" accessibilityRole="image" accessibilityLabel="AVOTEX" />
       </View>
       <View style={s.right}>
         {tokensValue ? (
           <View style={s.tokens} accessible accessibilityLabel={t('tokens', { value: tokensValue })}>
             <View style={s.coin}><Coins size={13} color="#B45309" /></View>
-            <Text style={s.tokensText}>{tokensValue}</Text>
+            <Text style={s.tokensText} numberOfLines={1} maxFontSizeMultiplier={1.2}>{tokensValue}</Text>
           </View>
         ) : null}
         <PressableScale
@@ -48,11 +51,12 @@ export default function ScanHeader({ tokensValue, onImage = false }: { tokensVal
 
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  brand: { height: 40, paddingHorizontal: 12, borderRadius: 20, justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.95)' },
-  logo: { width: 112, height: 26 },
-  right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  brand: { flexShrink: 1, minWidth: 64, height: 40, justifyContent: 'center' },
+  // 600×139 px: misma proporción a cualquier ancho.
+  logo: { width: 124, maxWidth: '100%', height: undefined, aspectRatio: 600 / 139 },
+  right: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
   tokens: {
-    flexDirection: 'row', alignItems: 'center', gap: 7, height: 40, paddingLeft: 6, paddingRight: 14, borderRadius: 20,
+    flexDirection: 'row', alignItems: 'center', gap: 7, height: 40, paddingLeft: 6, paddingRight: 12, borderRadius: 20,
     backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A',
   },
   coin: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FEF3C7' },

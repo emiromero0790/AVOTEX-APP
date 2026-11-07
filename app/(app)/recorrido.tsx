@@ -1005,7 +1005,7 @@ export default function RecorridoScreen() {
                   key={h.id}
                   activeOpacity={0.85}
                   onLayout={e => { cardY.current[h.id] = e.nativeEvent.layout.y; }}
-                  onPress={() => setSelected(h.id)}
+                  onPress={() => { setSelected(h.id); router.push({ pathname: '/(app)/hallazgo', params: { id: h.id, n: String(Date.now()) } }); }}
                   style={[st.findCard, selected === h.id && st.findCardSelected]}
                 >
                   {h.miniatura_path ? (

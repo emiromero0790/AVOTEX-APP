@@ -86,7 +86,7 @@ export default function StatsHero({ width, height, confidence, healthy, problem,
   return (
     <View style={[s.card, { width, height }]}>
       <Image source={HERO} style={StyleSheet.absoluteFill} resizeMode="cover" accessibilityIgnoresInvertColors />
-      <LinearGradient colors={['rgba(5,30,15,0.25)', 'rgba(5,30,15,0.05)', 'rgba(5,30,15,0.45)']} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['rgba(5,30,15,0.12)', 'rgba(5,30,15,0.02)', 'rgba(5,30,15,0.4)']} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
 
       {/* Laterales (detrás) */}
       <Side x={cx - off} tone="ok" delay={90} a11y={`${labels.healthy}: ${pct(ok)}`}

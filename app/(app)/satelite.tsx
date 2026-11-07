@@ -506,7 +506,7 @@ export default function SateliteScreen() {
                             accessibilityRole="button"
                             accessibilityState={{ selected: on }}
                             accessibilityLabel={`${t('zone', { id: z.id })}, ${formatArea((z.share / 100) * areaM2, lang)}`}
-                            style={({ pressed }) => [s.zoneChip, on && { borderColor: pal.line, backgroundColor: 'rgba(255,255,255,0.08)' }, pressed && s.pressed]}
+                            style={({ pressed }) => [s.zoneChip, isTablet && s.zoneChipWide, on && { borderColor: pal.line, backgroundColor: 'rgba(255,255,255,0.08)' }, pressed && s.pressed]}
                           >
                             <View style={[s.zoneSwatch, { backgroundColor: pal.label }]} />
                             <View style={{ minWidth: 0 }}>
@@ -728,11 +728,13 @@ const s = StyleSheet.create({
 
   zonesHead: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 6 },
   zonesHeadText: { color: SAT.soft, fontFamily: 'Poppins_600SemiBold', fontSize: 12 },
-  zoneChips: { marginTop: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  zoneChip: { flexBasis: '22%', flexGrow: 1, minWidth: 74, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14, backgroundColor: SAT.card, borderWidth: 1, borderColor: SAT.line },
-  zoneSwatch: { width: 12, height: 12, borderRadius: 4 },
-  zoneChipName: { color: SAT.ink, fontFamily: 'Poppins_600SemiBold', fontSize: 12 },
-  zoneChipArea: { color: SAT.muted, fontFamily: 'Poppins_400Regular', fontSize: 10 },
+  zoneChips: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  // Teléfono: 2 × 2 con aire suficiente; tableta: las cuatro en una fila.
+  zoneChip: { flexBasis: '46%', flexGrow: 1, minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 16, backgroundColor: SAT.card, borderWidth: 1, borderColor: SAT.line },
+  zoneChipWide: { flexBasis: '22%' },
+  zoneSwatch: { width: 14, height: 14, borderRadius: 5 },
+  zoneChipName: { color: SAT.ink, fontFamily: 'Poppins_600SemiBold', fontSize: 13, lineHeight: 18 },
+  zoneChipArea: { color: SAT.muted, fontFamily: 'Poppins_400Regular', fontSize: 11, lineHeight: 15 },
   zonesHelp: { marginTop: 10, color: SAT.muted, fontFamily: 'Poppins_400Regular', fontSize: 11, lineHeight: 16 },
   zoneCard: { marginTop: 10, padding: 14, borderRadius: 18, backgroundColor: SAT.card, borderWidth: 1 },
   zoneCardTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },

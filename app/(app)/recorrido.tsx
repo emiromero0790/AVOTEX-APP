@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
+  AppState,
   ActivityIndicator,
   Alert,
   Image,
@@ -81,6 +82,7 @@ import {
   uploadRecorrido,
 } from '../../services/recorridos';
 import { registerForPush } from '../../services/push';
+import { withTimeout } from '../../services/timeout';
 import RecorridoMap from '../../components/RecorridoMap';
 // Fotos reales de montaje (Flickr, CC BY 2.0 y CC BY-SA 2.0). Ver assets/images/escanear/CREDITOS.md
 // (La foto del arnés de pecho se usa en la importación de GoPro; cada foto aparece en una sola pantalla.)
@@ -123,6 +125,7 @@ const translations: TranslationResource = {
   orchard: { es: 'Huerta', en: 'Orchard' },
   orchardAuto: { es: 'Detectar por GPS', en: 'Detect by GPS' },
   checkingOrchard: { es: 'Verificando tu ubicación…', en: 'Checking your location…' },
+  startingWalk: { es: 'Preparando el recorrido…', en: 'Preparing the walk…' },
   start: { es: 'Iniciar recorrido', en: 'Start walk' },
   tipsTitle: { es: 'Para mejores resultados', en: 'For better results' },
   tips: {
@@ -364,7 +367,7 @@ export default function RecorridoScreen() {
   useEffect(() => {
     if (!params.n || params.id || modeRef.current === 'record') return;
     if (params.open === 'prepare') {
-      setPrep({ camera: null, location: null, freeBytes: null });
+      setPrep({ camera: null, location: null, freeBytes: null, networkChecked: false });
       setMode('prepare');
     } else if (params.open === 'home') {
       setMode('home');
@@ -376,7 +379,9 @@ export default function RecorridoScreen() {
 
   const refreshNetwork = useCallback(async () => {
     try {
-      const st = await Network.getNetworkStateAsync();
+      // En algunos Android esta llamada no responde: a los 4 s se da por desconocida.
+      const st = await withTimeout(Network.getNetworkStateAsync(), 4000, null);
+      if (!st) { setNetwork('unknown'); return 'unknown' as const; }
       if (!st.isConnected || st.isInternetReachable === false) { setNetwork('offline'); return 'offline' as const; }
       const kind = st.type === Network.NetworkStateType.WIFI || st.type === Network.NetworkStateType.ETHERNET ? 'wifi' : 'cellular';
       setNetwork(kind);
@@ -493,33 +498,39 @@ export default function RecorridoScreen() {
 
   // ───────────────────────── preparación ─────────────────────────
 
-  const [prep, setPrep] = useState<{ camera: PermState; location: PermState; freeBytes: number | null }>({ camera: null, location: null, freeBytes: null });
+  // Cada revisión se muestra en cuanto termina y tiene un límite de tiempo: si una llamada nativa no
+  // responde, se marca «no disponible» / «se pedirá al empezar» en vez de quedarse cargando.
+  type Prep = { camera: PermState; location: PermState; freeBytes: number | null | 'na'; networkChecked: boolean };
+  const [prep, setPrep] = useState<Prep>({ camera: null, location: null, freeBytes: null, networkChecked: false });
+  // Al volver a la app (p. ej. desde Ajustes, tras dar un permiso) se revisa todo otra vez.
+  const [prepNonce, setPrepNonce] = useState(0);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', st => { if (st === 'active' && modeRef.current === 'prepare') setPrepNonce(n => n + 1); });
+    return () => sub.remove();
+  }, []);
 
   // Revisa de verdad lo que el teléfono permite comprobar (permisos, espacio y conexión).
   useEffect(() => {
     if (mode !== 'prepare') return;
     let alive = true;
-    (async () => {
-      const toState = (p: { granted: boolean; canAskAgain?: boolean } | null | undefined): PermState =>
-        !p ? 'ask' : p.granted ? 'granted' : p.canAskAgain === false ? 'denied' : 'ask';
-      const camera = toState(cameraPermission);
-      let location: PermState = 'ask';
-      try { location = toState(await Location.getForegroundPermissionsAsync()); } catch { /* sin dato */ }
-      let freeBytes: number | null = null;
-      if (Platform.OS !== 'web') {
-        try { freeBytes = await FileSystem.getFreeDiskStorageAsync(); } catch { /* sin dato */ }
-      }
-      await refreshNetwork();
-      // Si se entró directo a la preparación (desde Escanear), aún no se cargaron las huertas.
-      if (email) {
-        getMobileDataAllowed().then(v => { if (alive) setMobileData(v); }).catch(() => {});
-        if (!orchards.length) listOrchards(email).then(o => { if (alive) setOrchards(o); }).catch(() => {});
-      }
-      if (alive) setPrep({ camera, location, freeBytes });
-    })();
+    const patch = (p: Partial<Prep>) => { if (alive) setPrep(prev => ({ ...prev, ...p })); };
+    const toState = (p: { granted: boolean; canAskAgain?: boolean } | null | undefined): PermState =>
+      !p ? 'ask' : p.granted ? 'granted' : p.canAskAgain === false ? 'denied' : 'ask';
+    // Cámara: el hook ya la conoce; sin dato todavía, se pedirá al empezar.
+    patch({ camera: toState(cameraPermission) });
+    withTimeout(Location.getForegroundPermissionsAsync(), 4000, null).then(p => patch({ location: toState(p) }));
+    if (Platform.OS === 'web') patch({ freeBytes: 'na' });
+    else withTimeout<number | 'na'>(FileSystem.getFreeDiskStorageAsync(), 4000, 'na').then(v => patch({ freeBytes: typeof v === 'number' && v >= 0 ? v : 'na' }));
+    patch({ networkChecked: false });
+    refreshNetwork().then(() => patch({ networkChecked: true }));
+    // Si se entró directo a la preparación (desde Escanear), aún no se cargaron las huertas.
+    if (email) {
+      getMobileDataAllowed().then(v => { if (alive) setMobileData(v); }).catch(() => {});
+      if (!orchards.length) listOrchards(email).then(o => { if (alive) setOrchards(o); }).catch(() => {});
+    }
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- las huertas solo se cargan una vez al entrar
-  }, [mode, cameraPermission, refreshNetwork, email]);
+  }, [mode, cameraPermission, refreshNetwork, email, prepNonce]);
 
   // ───────────────────────── grabación ─────────────────────────
 
@@ -581,14 +592,19 @@ export default function RecorridoScreen() {
     if (!email) return;
     if (Platform.OS !== 'web') {
       try {
-        const free = await FileSystem.getFreeDiskStorageAsync();
+        const free = await withTimeout(FileSystem.getFreeDiskStorageAsync(), 4000, Infinity);
         if (free < 300 * 1024 * 1024) { Alert.alert(t('title'), t('noSpace')); return; }
       } catch { /* sin dato de espacio */ }
     }
-    const cam = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
-    if (!cam.granted) { Alert.alert(t('title'), t('permCamera')); return; }
+    // Permisos con límite de tiempo: si el sistema nunca responde, se avisa en vez de quedarse esperando.
+    // El diálogo de permiso tiene 30 s (el usuario puede tardar en leerlo).
+    const cam = cameraPermission?.granted ? cameraPermission : await withTimeout(requestCameraPermission(), 30000, null);
+    if (!cam?.granted) { Alert.alert(t('title'), t('permCamera')); return; }
 
-    const loc = await Location.requestForegroundPermissionsAsync().catch(() => ({ status: 'denied' as const }));
+    const current = await withTimeout(Location.getForegroundPermissionsAsync(), 4000, null);
+    const loc = current?.granted
+      ? current
+      : await withTimeout<{ status: string } | null>(Location.requestForegroundPermissionsAsync(), 30000, null);
     const begin = async (withGps: boolean) => {
       useGpsRef.current = withGps;
       const rec = await createLocal(email, walkHuertaId);
@@ -612,11 +628,17 @@ export default function RecorridoScreen() {
       setTimeout(() => setStartBanner(false), 2600);
       refreshNetwork();
       activateKeepAwakeAsync('recorrido').catch(() => {});
+      // El GPS no se espera: si tarda o nunca responde, el reloj y la captura por tiempo ya corren
+      // (tras 8 s sin lectura se marca «Sin GPS» y se toma una imagen cada pocos segundos).
       if (withGps) {
-        watchRef.current = await Location.watchPositionAsync(
+        Location.watchPositionAsync(
           { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0 },
           onPosition,
-        );
+        ).then(sub => {
+          // Si el recorrido ya terminó o cambió mientras esperaba, se suelta el observador.
+          if (recRef.current?.localId === rec.localId && !watchRef.current) watchRef.current = sub;
+          else sub.remove();
+        }).catch(() => { useGpsRef.current = false; });
       }
       tickRef.current = setInterval(() => {
         const now = Date.now();
@@ -636,7 +658,7 @@ export default function RecorridoScreen() {
       }, 1000);
     };
 
-    if (loc.status !== 'granted') {
+    if (loc?.status !== 'granted') {
       Alert.alert(t('title'), t('permLocation'), [
         { text: t('cancel'), style: 'cancel' },
         { text: t('recordAnyway'), onPress: () => { begin(false); } },
@@ -650,16 +672,22 @@ export default function RecorridoScreen() {
   // Con «Detectar por GPS» se resuelve aquí, una sola vez: dentro de una huerta → se asigna sola;
   // si no, se pregunta con la hoja de selección y el recorrido empieza al pulsar «Continuar».
   const [checkingOrchard, setCheckingOrchard] = useState(false);
+  // Mientras se piden permisos y se arranca la grabación, el botón lo dice (y no se puede pulsar dos veces).
+  const [starting, setStarting] = useState(false);
+  const startWalk = useCallback(async (id: string | null) => {
+    setStarting(true);
+    try { await startRecording(id); } finally { setStarting(false); }
+  }, [startRecording]);
   const [orchardPick, setOrchardPick] = useState<Extract<HuertaResolution, { kind: 'manual' }> | null>(null);
   const beginWalk = useCallback(async () => {
-    if (!email || checkingOrchard || orchardPick) return;
-    if (huertaId) { await startRecording(huertaId); return; }
+    if (!email || checkingOrchard || orchardPick || starting) return;
+    if (huertaId) { await startWalk(huertaId); return; }
     setCheckingOrchard(true);
     const res = await resolveScanHuerta(email, orchards.length ? orchards : undefined);
     setCheckingOrchard(false);
-    if (res.kind === 'auto') await startRecording(res.huerta.id);
+    if (res.kind === 'auto') await startWalk(res.huerta.id);
     else setOrchardPick(res);
-  }, [email, checkingOrchard, orchardPick, huertaId, orchards, startRecording]);
+  }, [email, checkingOrchard, orchardPick, starting, huertaId, orchards, startWalk]);
 
   const togglePause = useCallback(() => {
     const next = !pausedRef.current;
@@ -813,11 +841,12 @@ export default function RecorridoScreen() {
           location={prep.location}
           freeBytes={prep.freeBytes}
           network={network}
+          networkChecked={prep.networkChecked}
           isWeb={Platform.OS === 'web'}
           tips={[t('rec1'), t('rec2'), t('rec3'), t('rec4')]}
           onBack={goBack}
           onStart={beginWalk}
-          busyLabel={checkingOrchard ? t('checkingOrchard') : null}
+          busyLabel={checkingOrchard ? t('checkingOrchard') : starting ? t('startingWalk') : null}
         />
         <OrchardPickerSheet
           visible={!!orchardPick}
@@ -827,7 +856,7 @@ export default function RecorridoScreen() {
           candidates={orchardPick?.candidates}
           onCancel={() => setOrchardPick(null)}
           onRegister={() => { setOrchardPick(null); router.navigate('/(app)/mapping'); }}
-          onConfirm={id => { setOrchardPick(null); startRecording(id); }}
+          onConfirm={id => { setOrchardPick(null); startWalk(id); }}
         />
       </Reanimated.View>
     );
@@ -1200,7 +1229,7 @@ export default function RecorridoScreen() {
 
         <PressableScale
           style={hm.newBtn}
-          onPress={() => { setPrep({ camera: null, location: null, freeBytes: null }); setMode('prepare'); }}
+          onPress={() => { setPrep({ camera: null, location: null, freeBytes: null, networkChecked: false }); setMode('prepare'); }}
           accessibilityRole="button"
         >
           <LinearGradient colors={['#34d399', '#0f766e']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={pp.footStartGrad}>

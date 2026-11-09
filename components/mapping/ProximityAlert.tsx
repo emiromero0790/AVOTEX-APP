@@ -1,6 +1,6 @@
 /**
  * Aviso de proximidad de Mapeo, debajo de "Comentarios" y "Tus huertas".
- * - far: tarjeta roja "Estás muy lejos de tu huerta" (no intercepta toques: el mapa sigue usable).
+ * - far: tarjeta roja sin contorno "Estás muy lejos de tu huerta" (no intercepta toques: el mapa sigue usable).
  * - unknown: "No pudimos verificar tu ubicación" con botón para reintentar o abrir ajustes.
  * - near / imprecise: indicador discreto. inside: nada.
  *
@@ -108,7 +108,7 @@ const s = StyleSheet.create({
     borderRadius: 24, borderWidth: 1.5,
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 10,
   },
-  cardFar: { backgroundColor: 'rgba(110,14,14,0.86)', borderColor: '#FF4545', paddingVertical: 10, paddingHorizontal: 12, gap: 10, borderRadius: 18 },
+  cardFar: { backgroundColor: 'rgba(110,14,14,0.88)', borderWidth: 0, paddingVertical: 10, paddingHorizontal: 12, gap: 10, borderRadius: 18 },
   cardUnknown: { backgroundColor: 'rgba(5,7,7,0.9)', borderColor: 'rgba(253,230,138,0.45)', gap: 12 },
   iconFar: {
     width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E5302F',

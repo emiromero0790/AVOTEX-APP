@@ -213,7 +213,8 @@ class ProcesarTest(unittest.TestCase):
         respuesta_push.raise_for_status = lambda: None
         with mock.patch.object(pr.requests, "Session") as S:
             S.return_value.post.return_value = respuesta_push
-            out = pr.procesar(sb, modelo, {"id": "r1", "user_email": "a@b.mx", "huerta_id": None},
+            # Importación de dron sin huerta: se detecta por el GPS de sus fotos.
+            out = pr.procesar(sb, modelo, {"id": "r1", "user_email": "a@b.mx", "huerta_id": None, "fuente": "dron"},
                               {"lote": 2, "min_dist_m": 2.5, "max_fotos": 600, "umbral_nitidez": 60})
             enviado = S.return_value.post.call_args.kwargs["json"][0]
 
@@ -222,7 +223,7 @@ class ProcesarTest(unittest.TestCase):
         hall = sb.tablas["hallazgos"]
         self.assertEqual([(h["estado"], h["fotos_en_grupo"]) for h in hall], [("Antracnosis", 2), ("Saludable", 1)])
         self.assertEqual(hall[0]["confianza"], 0.88)       # se queda con la mejor foto del grupo
-        self.assertEqual(hall[0]["huerta_id"], "h1")       # asignada por GPS
+        self.assertEqual({h["huerta_id"] for h in hall}, {"h1"})  # todos heredan la del recorrido
         self.assertEqual(set(sb.subidos), {"hallazgos/r1/001.jpg", "hallazgos/r1/002.jpg"})
         self.assertEqual(sorted(sb.borrados), sorted(f["storage_path"] for f in fotos))  # originales borradas
         final = sb.updates[-1][2]
@@ -232,6 +233,29 @@ class ProcesarTest(unittest.TestCase):
         self.assertEqual(out["notificados"], 1)
         self.assertEqual(enviado["title"], "Tu recorrido en Huerta 1 está listo")
         self.assertEqual(enviado["data"], {"tipo": "recorrido", "recorridoId": "r1"})
+
+    def _procesar_simple(self, recorrido):
+        m = 1 / 111320
+        fotos = [foto(i, i, 19.4652 + 4 * i * m, -101.7220) for i in range(3)]
+        archivos = {f["storage_path"]: jpg_nitida() for f in fotos}
+        sb = FakeSupabase(fotos, archivos, [{"id": "h1", "nombre": "Huerta 1", "coordinates": CUADRO}])
+        modelo = FakeModelo({f"f{i}.jpg": res("Aguacate", 0.95, "Antracnosis", 0.85) for i in range(3)})
+        with mock.patch.object(pr.requests, "Session"):
+            pr.procesar(sb, modelo, recorrido, {"lote": 4, "min_dist_m": 2.5, "max_fotos": 600, "umbral_nitidez": 60})
+        return sb
+
+    def test_hallazgos_heredan_la_huerta_del_recorrido(self):
+        # Las fotos caen en h1, pero el recorrido se guardó en h9: no se vuelve a calcular por GPS.
+        sb = self._procesar_simple({"id": "r5", "user_email": "a@b.mx", "huerta_id": "h9", "fuente": "celular"})
+        self.assertTrue(sb.tablas["hallazgos"])
+        self.assertEqual({h["huerta_id"] for h in sb.tablas["hallazgos"]}, {"h9"})
+        self.assertNotIn("huerta_id", sb.updates[-1][2])  # la huerta del recorrido no se toca
+
+    def test_recorrido_celular_sin_huerta_se_queda_sin_huerta(self):
+        # «No asignar a ninguna huerta»: aunque las fotos caigan en h1, todo queda en NULL.
+        sb = self._procesar_simple({"id": "r6", "user_email": "a@b.mx", "huerta_id": None})
+        self.assertEqual({h["huerta_id"] for h in sb.tablas["hallazgos"]}, {None})
+        self.assertNotIn("huerta_id", sb.updates[-1][2])
 
     def test_recorrido_sin_fotos(self):
         sb = FakeSupabase([], {}, [])

@@ -33,9 +33,32 @@ export function validPoint(p: { latitude?: unknown; longitude?: unknown } | null
     && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0);
 }
 
+/**
+ * Lee `huertas.coordinates` en cualquiera de los formatos que existen en la base:
+ * objetos `{ latitude, longitude }` (los que guarda la app), `{ lat, lng }` o pares `[lat, lng]`
+ * (mismo criterio que el procesador, processor/nucleo.py). También acepta el JSON como texto.
+ */
+export function normalizePolygon(raw: unknown): GeoPoint[] {
+  let list = raw;
+  if (typeof list === 'string') { try { list = JSON.parse(list); } catch { return []; } }
+  if (!Array.isArray(list)) return [];
+  const out: GeoPoint[] = [];
+  for (const c of list) {
+    let lat: unknown, lng: unknown;
+    if (Array.isArray(c) && c.length >= 2) { lat = c[0]; lng = c[1]; }
+    else if (c && typeof c === 'object') {
+      const o = c as Record<string, unknown>;
+      lat = o.latitude ?? o.lat; lng = o.longitude ?? o.lng;
+    }
+    const p = { latitude: Number(lat), longitude: Number(lng) };
+    if (lat != null && lng != null && validPoint(p)) out.push(p);
+  }
+  return out;
+}
+
 /** Polígono limpio (sin puntos inválidos ni cierre repetido). null si no forma un área. */
 export function cleanPolygon(points: GeoPoint[] | null | undefined): GeoPoint[] | null {
-  const ring = (points ?? []).filter(validPoint);
+  const ring = normalizePolygon(points ?? []);
   if (ring.length > 1) {
     const a = ring[0], b = ring[ring.length - 1];
     if (a.latitude === b.latitude && a.longitude === b.longitude) ring.pop();

@@ -199,6 +199,7 @@ def procesar(sb: Supabase, modelo: Modelo, recorrido: dict, cfg: dict) -> dict:
 
     grupos = nucleo.agrupar(detecciones)
     huertas = sb.select("huertas", {"user_email": f"eq.{email}", "select": "id,nombre,coordinates"})
+    huerta_id = huerta_del_recorrido(recorrido, fotos, huertas)
 
     # Reintento seguro: se reemplazan los hallazgos de una corrida anterior incompleta.
     sb.delete("hallazgos", {"recorrido_id": f"eq.{rid}"})
@@ -210,7 +211,8 @@ def procesar(sb: Supabase, modelo: Modelo, recorrido: dict, cfg: dict) -> dict:
         filas.append({
             "recorrido_id": rid,
             "user_email": email,
-            "huerta_id": nucleo.huerta_para_punto(f.get("lat"), f.get("lng"), huertas) or recorrido.get("huerta_id"),
+            # Todos los hallazgos heredan la huerta de su recorrido (mismo UUID o NULL).
+            "huerta_id": huerta_id,
             "tomada_at": f["tomada_at"],
             "lat": f.get("lat"),
             "lng": f.get("lng"),
@@ -223,32 +225,45 @@ def procesar(sb: Supabase, modelo: Modelo, recorrido: dict, cfg: dict) -> dict:
         })
     sb.insert("hallazgos", filas)
 
-    # Huerta del recorrido: la que más hallazgos tuvo (si la app no la indicó).
-    huerta_id = recorrido.get("huerta_id")
-    if not huerta_id:
-        conteo = Counter(fl["huerta_id"] for fl in filas if fl["huerta_id"])
-        if not conteo:
-            puntos = [f for f in fotos if nucleo.coordenada_valida(f.get("lat"), f.get("lng"))]
-            conteo = Counter(h for h in (nucleo.huerta_para_punto(p["lat"], p["lng"], huertas) for p in puntos) if h)
-        huerta_id = conteo.most_common(1)[0][0] if conteo else None
-
     # Privacidad y espacio: las fotos originales se borran; solo quedan las miniaturas.
     sb.borrar_archivos([f["storage_path"] for f in fotos])
 
-    sb.update("recorridos", {"id": f"eq.{rid}"}, {
+    cambios = {
         "estado": "listo",
-        "huerta_id": huerta_id,
         "fotos_analizadas": len(nitidas),
         "hallazgos_total": len(filas),
         "procesado_at": datetime.now(timezone.utc).isoformat(),
         "error": None,
-    })
+    }
+    # Solo se escribe la huerta si se detectó para una importación (la del celular ya viene fijada).
+    if huerta_id != recorrido.get("huerta_id"):
+        cambios["huerta_id"] = huerta_id
+    sb.update("recorridos", {"id": f"eq.{rid}"}, cambios)
 
     nombre = next((h.get("nombre") for h in huertas if h.get("id") == huerta_id), None)
     titulo, cuerpo = nucleo.resumen_notificacion(nombre, grupos)
     enviados = enviar_push(sb, email, titulo, cuerpo, {"tipo": "recorrido", "recorridoId": rid})
     log(f"  listo: {len(filas)} hallazgos; notificación a {enviados} dispositivo(s)")
     return {"hallazgos": len(filas), "analizadas": len(nitidas), "notificados": enviados}
+
+
+def huerta_del_recorrido(recorrido: dict, fotos: list[dict], huertas: list[dict]) -> Optional[str]:
+    """Huerta de un recorrido y de todos sus hallazgos.
+
+    - Si el recorrido ya tiene huerta (la app la decide antes de empezar: GPS o elección del
+      usuario), se usa tal cual. No se vuelve a calcular por GPS.
+    - Recorrido del celular sin huerta: el usuario eligió «No asignar» → se queda en NULL.
+    - Importación (dron / cámara de acción) sin huerta: las fotos se tomaron en otro momento, así
+      que se usa la huerta donde cayó la mayoría de sus fotos con GPS (si hay alguna).
+    """
+    actual = recorrido.get("huerta_id")
+    if actual:
+        return actual
+    if (recorrido.get("fuente") or "celular") == "celular":
+        return None
+    puntos = [f for f in fotos if nucleo.coordenada_valida(f.get("lat"), f.get("lng"))]
+    conteo = Counter(h for h in (nucleo.huerta_para_punto(p["lat"], p["lng"], huertas) for p in puntos) if h)
+    return conteo.most_common(1)[0][0] if conteo else None
 
 
 def configuracion() -> dict:

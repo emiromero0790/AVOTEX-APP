@@ -6,6 +6,9 @@ import Reanimated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import { Calendar as CalendarIcon, ChevronRight as ChevronRightIcon, Layers, Map as MapIcon, Settings, Sprout, X } from 'lucide-react-native';
 import StatsHero from '../../components/actividad/StatsHero';
 import { SectionSkeleton } from '../../components/actividad/Skeleton';
+import OrchardFilterSheet, { type OrchardFilter } from '../../components/actividad/OrchardFilterSheet';
+import { listRemote, type RecorridoRemoto } from '../../services/recorridos';
+import { Footprints, Unlink } from 'lucide-react-native';
 import { listOrchards, type Orchard } from '../../services/orchards';
 import { categoria, listUserHallazgos, type CategoriaHallazgo, type HallazgoMapa } from '../../services/escaneos';
 import { CSS_EASE_OUT } from '../../components/scan/motion';
@@ -76,6 +79,16 @@ const translations: TranslationResource = {
   nScans: { es: '{count} escaneos', en: '{count} scans' }, nScan1: { es: '1 escaneo', en: '1 scan' },
   healthyPct: { es: 'Saludable {pct}%', en: 'Healthy {pct}%' },
   sources: { es: '{photos} fotos individuales · {walk} de recorridos', en: '{photos} single photos · {walk} from walks' },
+  histAll: { es: 'Todas las huertas', en: 'All orchards' }, histNone: { es: 'Sin huerta asignada', en: 'No orchard assigned' },
+  histCount: { es: '{count} registros', en: '{count} records' }, histFilterLabel: { es: 'Huerta del historial: {name}', en: 'History orchard: {name}' },
+  typePhoto: { es: 'Foto individual', en: 'Single photo' }, typeWalk: { es: 'Recorrido inteligente', en: 'Smart walk' },
+  walkStats: { es: '{photos} fotos · {findings} hallazgos', en: '{photos} photos · {findings} findings' },
+  walkStatsPending: { es: '{photos} fotos · análisis pendiente', en: '{photos} photos · analysis pending' },
+  st_subiendo: { es: 'Subiendo', en: 'Uploading' }, st_pendiente: { es: 'En cola', en: 'Queued' }, st_procesando: { es: 'Analizando', en: 'Analyzing' }, st_listo: { es: 'Listo', en: 'Ready' }, st_error: { es: 'Con error', en: 'Error' },
+  emptyOrchardTitle: { es: 'Todavía no hay escaneos en esta huerta', en: 'There are no scans in this orchard yet' },
+  emptyOrchardText: { es: 'Comienza a analizar tus cultivos para construir su historial.', en: 'Start analyzing your crops to build its history.' },
+  emptyNoneTitle: { es: 'No hay escaneos sin huerta', en: 'There are no scans without an orchard' },
+  doScan: { es: 'Realizar escaneo', en: 'Scan now' },
   noOrchardNote: { es: '{count} fotos individuales sin huerta asignada no se incluyen al filtrar por huerta.', en: '{count} single photos without an orchard are excluded when filtering by orchard.' },
   legendHealthy: { es: 'Saludable', en: 'Healthy' }, legendReview: { es: 'Revisar (confianza baja)', en: 'Review (low confidence)' }, legendProblem: { es: 'Posible problema', en: 'Possible issue' },
   close: { es: 'Cerrar', en: 'Close' },
@@ -138,6 +151,10 @@ export default function ResultsScreen() {
   // pesado se dibuja en el siguiente cuadro. El historial se dibuja por partes (25 filas cada vez).
   const [pending, setPending] = useState(false);
   const [historyLimit, setHistoryLimit] = useState(25);
+  // Historial: filtro de huerta propio (no modifica registros ni afecta el Resumen).
+  const [walks, setWalks] = useState<RecorridoRemoto[]>([]);
+  const [histOrchard, setHistOrchard] = useState<OrchardFilter>('all');
+  const [histPicker, setHistPicker] = useState(false);
   const colors = useMemo(() => ({
     primary: isColorblindMode ? '#145DA0' : '#14B8A6',
     accent: isColorblindMode ? '#3B82C4' : '#55D68B',
@@ -156,17 +173,19 @@ export default function ResultsScreen() {
     const load = async () => {
       setLoading(true);
       const email = user.email ?? '';
-      const [scanResult, taskResult, hz, orch] = await Promise.all([
+      const [scanResult, taskResult, hz, orch, walkList] = await Promise.all([
         supabase.from('scans').select('*').eq('user_id', user.uid).order('created_at', { ascending: false }),
         supabase.from('tasks').select('*').eq('user_id', user.uid).order('created_at', { ascending: false }),
         email ? listUserHallazgos(email).catch(() => [] as HallazgoMapa[]) : Promise.resolve([] as HallazgoMapa[]),
         email ? listOrchards(email).catch(() => [] as Orchard[]) : Promise.resolve([] as Orchard[]),
+        email ? listRemote(email, 300).catch(() => [] as RecorridoRemoto[]) : Promise.resolve([] as RecorridoRemoto[]),
       ]);
       if (!cancelled) {
         if (!scanResult.error) setScans((scanResult.data ?? []) as Scan[]);
         if (!taskResult.error) setTasks((taskResult.data ?? []) as Task[]);
         setHallazgos(hz);
         setOrchards(orch);
+        setWalks(walkList);
         setLoading(false);
       }
     };
@@ -211,6 +230,35 @@ export default function ResultsScreen() {
     return out;
   }, [scans, hallazgos]);
   // Periodo inicial: 30 días si hay datos recientes; si no, todo el historial (no se muestra un resumen vacío).
+  // ── Historial unificado: fotos individuales (scans) y recorridos (recorridos), por su fecha real.
+  // Un recorrido es UN registro (sus hallazgos no se cuentan como recorridos aparte).
+  const walkCrops = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    hallazgos.forEach(h => { if (!m.has(h.recorrido_id)) m.set(h.recorrido_id, new Set()); m.get(h.recorrido_id)!.add(normalize(h.fruto)); });
+    return m;
+  }, [hallazgos]);
+  type HistItem = { kind: 'foto'; key: string; date: number; huertaId: string | null; scan: Scan } | { kind: 'walk'; key: string; date: number; huertaId: string | null; walk: RecorridoRemoto };
+  const histByCrop = useMemo<HistItem[]>(() => {
+    const photos: HistItem[] = filtered.map((scan, i) => ({ kind: 'foto', key: `f-${scan.id ?? scan.created_at}-${i}`, date: new Date(scan.created_at).getTime(), huertaId: scan.huerta_id ?? null, scan }));
+    const walkItems: HistItem[] = walks
+      .filter(w => fruit === 'Todos' || walkCrops.get(w.id)?.has(normalize(fruit)))
+      .map(w => ({ kind: 'walk', key: `w-${w.id}`, date: new Date(w.iniciado_at || w.created_at).getTime(), huertaId: w.huerta_id ?? null, walk: w }));
+    return [...photos, ...walkItems].sort((a, b) => b.date - a.date);
+  }, [filtered, walks, fruit, walkCrops]);
+  const histCounts = useMemo(() => {
+    const byOrchard: Record<string, number> = {};
+    let none = 0;
+    histByCrop.forEach(it => { if (it.huertaId) byOrchard[it.huertaId] = (byOrchard[it.huertaId] ?? 0) + 1; else none++; });
+    return { all: histByCrop.length, none, byOrchard };
+  }, [histByCrop]);
+  const history = useMemo(() => histByCrop.filter(it => histOrchard === 'all' || (histOrchard === 'none' ? !it.huertaId : it.huertaId === histOrchard)), [histByCrop, histOrchard]);
+  const orchardName = useCallback((id: string | null) => (id ? orchards.find(o => o.id === id)?.nombre ?? null : null), [orchards]);
+  // Si la huerta elegida ya no existe (se borró), se vuelve a «Todas».
+  useEffect(() => {
+    if (histOrchard !== 'all' && histOrchard !== 'none' && orchards.length && !orchards.some(o => o.id === histOrchard)) setHistOrchard('all');
+  }, [orchards, histOrchard]);
+  const histLabel = histOrchard === 'all' ? t('histAll') : histOrchard === 'none' ? t('histNone') : orchardName(histOrchard) ?? t('histAll');
+
   const effPeriod: Period = period ?? (records.some(r => r.date >= Date.now() - 30 * 86400000) ? 30 : 'all');
   const scoped = useMemo(() => {
     const since = effPeriod === 'all' ? 0 : Date.now() - effPeriod * 86400000;
@@ -476,7 +524,70 @@ export default function ResultsScreen() {
              <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => router.push('/(app)/scan')}><ScanLine size={18} color="#fff" /><Text style={styles.buttonText}>{t('scanFruit')}</Text></TouchableOpacity>
           </Reanimated.View>
         ) : section === 'history' ? (
-           <View><Text style={styles.heading}>{t('analysisHistory')}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{fruits.map(item => <TouchableOpacity key={item} onPress={() => { setFruit(item); setHistoryLimit(25); }} style={[styles.chip, fruit === item && { backgroundColor: colors.primary }]}><Text style={[styles.chipText, fruit === item && styles.chipTextActive]}>{item === 'Todos' ? t('all') : localizeDomainLabel(item, language)}</Text></TouchableOpacity>)}</ScrollView>{filtered.length ? filtered.slice(0, historyLimit).map((scan, index) => { const isHealthy = healthy(scan.label); const score = Math.max(0, Math.min(1, Number(scan.score) || 0)); return <TouchableOpacity key={`${scan.id ?? scan.created_at}-${index}`} style={styles.scanRow} onPress={() => setExpanded(expanded === scan.id ? null : scan.id)}><Image source={fruitImage(scan.fruto, isHealthy)} style={styles.scanImage} /><View style={styles.scanInfo}><Text style={styles.headingSmall}>{localizeDomainLabel(scan.fruto || 'Aguacate', language)}</Text><Text numberOfLines={1} style={[styles.scanDiagnosis, { color: isHealthy ? '#3BAE72' : colors.danger }]}>{localizeDomainLabel(scan.label, language)}</Text><Text style={styles.muted}>{dateText(scan.created_at, locale)}</Text>{expanded === scan.id && <Text style={styles.detail}>{isHealthy ? t('noRisk') : t('reviewRecommended')}</Text>}</View><View style={styles.scanSparkline}>{[0.62, 0.8, 0.7, 0.92, 0.76, 1].map((factor, barIndex) => <View key={barIndex} style={[styles.scanSparkBar, { height: Math.max(5, Math.min(28, score * factor * 28)), backgroundColor: isHealthy ? colors.primary : colors.danger }]} />)}</View><View style={styles.scanScoreColumn}><Text style={styles.scanScoreValue}>{Math.round(score * 100)}%</Text><Text style={[styles.scanScoreCaption, { color: isHealthy ? '#3BAE72' : colors.danger }]}>{t('score')}</Text></View><ChevronDown size={15} color="#94A3B8" /></TouchableOpacity>; }) : <Empty text={t('noScans')} />}{filtered.length > historyLimit && <ActivityIndicator color={colors.primary} style={{ marginVertical: 18 }} />}</View>
+           <View>
+             <Text style={styles.heading}>{t('analysisHistory')}</Text>
+             {/* Huerta del historial (filtra, no modifica registros) */}
+             <Pressable onPress={() => setHistPicker(true)} accessibilityRole="button" accessibilityLabel={`${t('histFilterLabel', { name: histLabel })}. ${t('histCount', { count: history.length })}`}
+               style={({ pressed }) => [styles.histSelector, pressed && { transform: [{ scale: 0.98 }] }]}>
+               <View style={styles.histSelectorIcon}>{histOrchard === 'none' ? <Unlink size={17} color="#BE123C" /> : <Sprout size={18} color="#0D756B" />}</View>
+               <Text style={styles.histSelectorText} numberOfLines={1}>{histLabel}</Text>
+               <View style={styles.histSelectorCount}><Text style={styles.histSelectorCountText}>{history.length}</Text></View>
+               <ChevronDown size={18} color="#475569" />
+             </Pressable>
+             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{fruits.map(item => <TouchableOpacity key={item} onPress={() => { setFruit(item); setHistoryLimit(25); }} style={[styles.chip, fruit === item && { backgroundColor: colors.primary }]}><Text style={[styles.chipText, fruit === item && styles.chipTextActive]}>{item === 'Todos' ? t('all') : localizeDomainLabel(item, language)}</Text></TouchableOpacity>)}</ScrollView>
+             {history.length ? history.slice(0, historyLimit).map(item => {
+               const place = orchardName(item.huertaId);
+               if (item.kind === 'walk') {
+                 const w = item.walk;
+                 const ready = w.estado === 'listo';
+                 return (
+                   <TouchableOpacity key={item.key} style={styles.scanRow} onPress={() => router.push({ pathname: '/(app)/escaneos', params: { focus: w.id, n: String(Date.now()) } })}
+                     accessibilityRole="button" accessibilityLabel={`${t('typeWalk')}, ${dateText(new Date(item.date).toISOString(), locale)}`}>
+                     <View style={[styles.scanImage, styles.walkIcon]}><Footprints size={22} color="#0D756B" /></View>
+                     <View style={styles.scanInfo}>
+                       <Text style={styles.typeTag}>{t('typeWalk')}</Text>
+                       <Text style={styles.headingSmall} numberOfLines={1}>{t(`st_${w.estado}` as 'st_listo')}</Text>
+                       <Text style={styles.scanDiagnosis} numberOfLines={1}>{ready ? t('walkStats', { photos: w.fotos_total ?? 0, findings: w.hallazgos_total ?? 0 }) : t('walkStatsPending', { photos: w.fotos_total ?? 0 })}</Text>
+                       <Text style={styles.muted} numberOfLines={1}>{dateText(new Date(item.date).toISOString(), locale)}</Text>
+                       {place ? <Text style={styles.placeText} numberOfLines={1}>{place}</Text> : null}
+                     </View>
+                     <ChevronRight size={16} color="#94A3B8" />
+                   </TouchableOpacity>
+                 );
+               }
+               const scan = item.scan;
+               const isHealthy = healthy(scan.label);
+               const score = Math.max(0, Math.min(1, Number(scan.score) || 0));
+               return (
+                 <TouchableOpacity key={item.key} style={styles.scanRow} onPress={() => setExpanded(expanded === scan.id ? null : scan.id)}>
+                   <Image source={fruitImage(scan.fruto, isHealthy)} style={styles.scanImage} />
+                   <View style={styles.scanInfo}>
+                     <Text style={styles.typeTag}>{t('typePhoto')}</Text>
+                     <Text style={styles.headingSmall}>{localizeDomainLabel(scan.fruto || 'Aguacate', language)}</Text>
+                     <Text numberOfLines={1} style={[styles.scanDiagnosis, { color: isHealthy ? '#3BAE72' : colors.danger }]}>{localizeDomainLabel(scan.label, language)}</Text>
+                     <Text style={styles.muted} numberOfLines={1}>{dateText(scan.created_at, locale)}</Text>
+                     {place ? <Text style={styles.placeText} numberOfLines={1}>{place}</Text> : null}
+                     {expanded === scan.id && <Text style={styles.detail}>{isHealthy ? t('noRisk') : t('reviewRecommended')}</Text>}
+                   </View>
+                   <View style={styles.scanSparkline}>{[0.62, 0.8, 0.7, 0.92, 0.76, 1].map((factor, barIndex) => <View key={barIndex} style={[styles.scanSparkBar, { height: Math.max(5, Math.min(28, score * factor * 28)), backgroundColor: isHealthy ? colors.primary : colors.danger }]} />)}</View>
+                   <View style={styles.scanScoreColumn}><Text style={styles.scanScoreValue}>{Math.round(score * 100)}%</Text><Text style={[styles.scanScoreCaption, { color: isHealthy ? '#3BAE72' : colors.danger }]}>{t('score')}</Text></View>
+                   <ChevronDown size={15} color="#94A3B8" />
+                 </TouchableOpacity>
+               );
+             }) : histOrchard === 'all' ? <Empty text={t('noScans')} /> : (
+               <View style={styles.histEmpty}>
+                 <View style={styles.histEmptyIcon}>{histOrchard === 'none' ? <Unlink size={26} color="#BE123C" /> : <Sprout size={28} color="#0D756B" />}</View>
+                 <Text style={styles.emptyTitle}>{histOrchard === 'none' ? t('emptyNoneTitle') : t('emptyOrchardTitle')}</Text>
+                 <Text style={[styles.body, { textAlign: 'center' }]}>{t('emptyOrchardText')}</Text>
+                 <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary, alignSelf: 'stretch' }]} onPress={() => router.navigate('/(app)/scan')}>
+                   <ScanLine size={18} color="#fff" /><Text style={styles.buttonText}>{t('doScan')}</Text>
+                 </TouchableOpacity>
+               </View>
+             )}
+             {history.length > historyLimit && <ActivityIndicator color={colors.primary} style={{ marginVertical: 18 }} />}
+             <OrchardFilterSheet visible={histPicker} value={histOrchard} orchards={orchards} counts={histCounts}
+               onChange={v => { setHistOrchard(v); setHistoryLimit(25); }} onClose={() => setHistPicker(false)} />
+           </View>
         ) : (
            <View>
              <Text style={styles.heading}>{t('workPlan')}</Text>
@@ -656,6 +767,16 @@ const styles = StyleSheet.create({
   pickRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14 }, pickRowOn: { backgroundColor: '#F6FDE9' },
   pickTitle: { color: '#0F172A', fontFamily: 'Poppins_600SemiBold', fontSize: 14 },
   heading: { fontFamily: 'Poppins_600SemiBold', color: '#1F2937', fontSize: 21, marginHorizontal: 18, marginTop: 8 }, headingSmall: { fontFamily: 'Poppins_600SemiBold', color: '#263238', fontSize: 14 }, body: { fontFamily: 'Poppins_400Regular', color: '#52606D', fontSize: 12, lineHeight: 19 }, muted: { color: '#718096', fontFamily: 'Poppins_400Regular', fontSize: 11 }, chips: { paddingHorizontal: 18, gap: 8, paddingVertical: 14 }, chip: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#fff' }, chipText: { color: '#52606D', fontFamily: 'Poppins_600SemiBold', fontSize: 11 }, chipTextActive: { color: '#fff' },
+  histSelector: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginTop: 12, minHeight: 50, paddingLeft: 8, paddingRight: 14, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#7895B2', shadowOpacity: 0.08, shadowRadius: 9, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  histSelectorIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ECFDF5' },
+  histSelectorText: { flex: 1, fontFamily: 'Poppins_600SemiBold', fontSize: 14.5, color: '#1F2937' },
+  histSelectorCount: { minWidth: 30, height: 24, paddingHorizontal: 8, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ECFCCB' },
+  histSelectorCountText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#3F6212' },
+  placeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 10.5, color: '#0D756B', marginTop: 1 },
+  typeTag: { fontFamily: 'Poppins_600SemiBold', fontSize: 9.5, color: '#0D756B', letterSpacing: 0.3, textTransform: 'uppercase' },
+  walkIcon: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#ECFDF5' },
+  histEmpty: { alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 6, padding: 20, borderRadius: 22, backgroundColor: '#fff' },
+  histEmptyIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F0FDF4' },
   subheading: { marginHorizontal: 18, marginTop: 20, marginBottom: 2, fontFamily: 'Poppins_600SemiBold', color: '#1F2937', fontSize: 17 },
   metrics: { flexDirection: 'row', marginHorizontal: 16, gap: 10 }, metric: { flex: 1, backgroundColor: '#fff', borderRadius: 15, padding: 14 }, metricValue: { color: '#14B8A6', fontFamily: 'Poppins_600SemiBold', fontSize: 20 }, card: { backgroundColor: '#fff', borderRadius: 18, margin: 16, marginBottom: 0, padding: 16, shadowColor: '#7895B2', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 }, cardTitle: { flexDirection: 'row', gap: 8, alignItems: 'center' }, cardCaption: { color: '#718096', fontFamily: 'Poppins_400Regular', fontSize: 11, marginTop: 5, marginBottom: 12 }, fruitChart: { borderTopWidth: 1, borderTopColor: '#E8EFF5', paddingTop: 11, marginTop: 3 }, fruitChartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }, statusTrack: { height: 11, borderRadius: 8, overflow: 'hidden', backgroundColor: '#FBEDEA', flexDirection: 'row' }, statusHealthy: { height: '100%' }, statusNeedsReview: { height: '100%' }, chartLegend: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }, legendHealthy: { color: '#3BAE72', fontFamily: 'Poppins_600SemiBold', fontSize: 10 }, legendReview: { color: '#B65B50', fontFamily: 'Poppins_400Regular', fontSize: 10 }, volumeChart: { height: 172, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', gap: 8, paddingTop: 16 }, volumeColumn: { flex: 1, alignItems: 'center', height: '100%', justifyContent: 'flex-end' }, volumeValue: { color: '#374151', fontFamily: 'Poppins_600SemiBold', fontSize: 11, marginBottom: 5 }, volumeTrack: { height: 112, width: 27, borderRadius: 8, backgroundColor: '#EAF4FC', justifyContent: 'flex-end', overflow: 'hidden' }, volumeBar: { width: '100%', borderRadius: 8 }, volumeLabel: { color: '#52606D', fontFamily: 'Poppins_400Regular', fontSize: 9, marginTop: 7, maxWidth: 64 }, readingRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#E8EFF5' }, confidenceTrack: { height: 7, backgroundColor: '#EAF4FC', borderRadius: 5, overflow: 'hidden', marginTop: 6 }, confidenceFill: { height: '100%', borderRadius: 5 }, readingScore: { color: '#263238', fontFamily: 'Poppins_600SemiBold', fontSize: 12, width: 36, textAlign: 'right' }, readingAttention: { color: '#718096', fontFamily: 'Poppins_400Regular', fontSize: 9, width: 54, textAlign: 'right' },
   recommendation: { flexDirection: 'row', marginHorizontal: 16, marginTop: 10, padding: 16, borderRadius: 18, gap: 12 }, priorityBadge: { width: 25, height: 25, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, priorityText: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: 11 }, actionText: { marginTop: 7, fontFamily: 'Poppins_600SemiBold', fontSize: 11 }, primaryButton: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, margin: 16, borderRadius: 14, padding: 14 }, buttonText: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: 13 }, scanRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 8, borderRadius: 18, paddingHorizontal: 10, paddingVertical: 9, gap: 9, shadowColor: '#7895B2', shadowOpacity: 0.07, shadowRadius: 9, shadowOffset: { width: 0, height: 3 }, elevation: 2 }, scanImage: { width: 52, height: 52, borderRadius: 14 }, scanInfo: { flex: 1, minWidth: 0 }, scanDiagnosis: { fontFamily: 'Poppins_400Regular', fontSize: 10, marginTop: 1, marginBottom: 1 }, scanSparkline: { width: 46, height: 30, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 2 }, scanSparkBar: { width: 3, minHeight: 5, borderRadius: 2 }, scanScoreColumn: { width: 43, alignItems: 'flex-end' }, scanScoreValue: { color: '#263238', fontFamily: 'Poppins_600SemiBold', fontSize: 12 }, scanScoreCaption: { fontFamily: 'Poppins_600SemiBold', fontSize: 8, marginTop: 1 }, detail: { color: '#526B68', fontSize: 10, marginTop: 5, fontFamily: 'Poppins_400Regular' },

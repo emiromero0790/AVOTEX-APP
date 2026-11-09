@@ -74,7 +74,6 @@ import {
   listLocal,
   listRemote,
   recoverInterrupted,
-  routeDistanceMeters,
   saveLocal,
   setMobileDataAllowed,
   storePhoto,
@@ -83,6 +82,8 @@ import {
 } from '../../services/recorridos';
 import { registerForPush } from '../../services/push';
 import { withTimeout } from '../../services/timeout';
+import { GpsTrack } from '../../services/gpsFilter';
+import { cleanRoute, routeMeters } from '../../services/escaneos';
 import RecorridoMap from '../../components/RecorridoMap';
 // Fotos reales de montaje (Flickr, CC BY 2.0 y CC BY-SA 2.0). Ver assets/images/escanear/CREDITOS.md
 // (La foto del arnés de pecho se usa en la importación de GoPro; cada foto aparece en una sola pantalla.)
@@ -327,6 +328,7 @@ export default function RecorridoScreen() {
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const busyRef = useRef(false);
   const pausedRef = useRef(false);
+  const trackRef = useRef<GpsTrack | null>(null);
   const lastFixRef = useRef<{ lat: number; lng: number; acc: number | null; at: number } | null>(null);
   const lastShotRef = useRef<{ lat: number | null; lng: number | null; at: number } | null>(null);
   const useGpsRef = useRef(true);
@@ -567,24 +569,25 @@ export default function RecorridoScreen() {
   const onPosition = useCallback((loc: Location.LocationObject) => {
     const rec = recRef.current;
     if (!rec) return;
-    const { latitude: lat, longitude: lng, accuracy } = loc.coords;
+    const { latitude: lat, longitude: lng, accuracy, speed } = loc.coords;
     const now = Date.now();
     const prev = lastFixRef.current;
     lastFixRef.current = { lat, lng, acc: accuracy ?? null, at: now };
-    // Se ignoran saltos de GPS muy imprecisos (> 25 m) para la distancia y la ruta.
-    if (accuracy == null || accuracy <= 25) {
-      const lastPt = rec.ruta[rec.ruta.length - 1];
-      const step = lastPt ? distanceMeters(lastPt.lat, lastPt.lng, lat, lng) : 0;
-      if (!lastPt || step >= 1) {
-        rec.ruta.push({ lat, lng, t: new Date(now).toISOString() });
-        if (lastPt && !pausedRef.current) setStats(s => ({ ...s, distance: s.distance + step }));
-      }
+    // Filtro de la traza (services/gpsFilter.ts): el «baile» del GPS estando quieto ya no suma metros
+    // ni dispara fotos. Solo los pasos de movimiento real entran a la ruta y a la distancia.
+    const track = trackRef.current ?? (trackRef.current = new GpsTrack());
+    const step = track.push({ lat, lng, acc: accuracy ?? null, speed: speed ?? null, t: now });
+    if (step.accepted && step.point) {
+      rec.ruta.push({ lat: step.point.lat, lng: step.point.lng, t: new Date(now).toISOString(), f: 1 });
+      if (step.step > 0 && !pausedRef.current) setStats(s => ({ ...s, distance: s.distance + step.step }));
     }
     setStats(s => ({ ...s, accuracy: accuracy ?? null, gps: 'ok' }));
     if (pausedRef.current) return;
+    // Fotos por distancia solo si de verdad te estás moviendo; la posición es la suavizada.
+    const pos = track.position() ?? { lat, lng };
     const shot = lastShotRef.current;
-    const far = !shot || shot.lat == null || shot.lng == null || distanceMeters(shot.lat, shot.lng, lat, lng) >= CAPTURE_EVERY_M;
-    if (far && (!prev || accuracy == null || accuracy <= 30)) shoot({ lat, lng, precision: accuracy ?? null });
+    const far = !shot || shot.lat == null || shot.lng == null || distanceMeters(shot.lat, shot.lng, pos.lat, pos.lng) >= CAPTURE_EVERY_M;
+    if (far && (!shot || track.isMoving(now)) && (!prev || accuracy == null || accuracy <= 30)) shoot({ lat: pos.lat, lng: pos.lng, precision: accuracy ?? null });
   }, [shoot]);
 
   // La huerta del recorrido se decide antes de empezar y viaja con él (archivo local → recorridos.huerta_id).
@@ -610,6 +613,7 @@ export default function RecorridoScreen() {
       const rec = await createLocal(email, walkHuertaId);
       recRef.current = rec;
       lastFixRef.current = null;
+      trackRef.current = new GpsTrack();
       lastShotRef.current = null;
       pausedRef.current = false;
       setPaused(false);
@@ -1157,7 +1161,7 @@ export default function RecorridoScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={hm.itemTitle}>{fmtDate(r.iniciadoAt)}</Text>
                     <Text style={hm.itemMeta}>
-                      {t('photos', { count: r.fotos.length })} · {formatDistance(routeDistanceMeters(r.ruta))}
+                      {t('photos', { count: r.fotos.length })} · {formatDistance(routeMeters(cleanRoute(r.ruta)))}
                       {orchardName(r.huertaId) ? ` · ${orchardName(r.huertaId)}` : ''}
                     </Text>
                     {p && <Text style={hm.itemProgress}>{t('uploading', { done: p.done, total: p.total })}</Text>}

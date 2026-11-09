@@ -8,13 +8,14 @@ type Avx = {
   setDetail: (d: unknown, fit: boolean) => void;
   point: (kind: string | null, id: string | null) => void;
   setLayer: (l: string) => void;
+  setRouteStyle: (s: string) => void;
   zoom: (d: number) => void;
   showUser: (lat: number, lng: number, fly: boolean) => void;
   fit: () => void;
 };
 
 const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
-  { data, selectedId, detail, point, user, layer, onEvent, onError },
+  { data, selectedId, detail, point, user, layer, routeStyle = 'clasica', onEvent, onError },
   ref,
 ) {
   const frame = useRef<HTMLIFrameElement>(null);
@@ -43,6 +44,7 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
   }), [user]);
 
   useEffect(() => { if (ready) avx()?.setLayer(layer); }, [ready, layer]);
+  useEffect(() => { if (ready) avx()?.setRouteStyle(routeStyle); }, [ready, routeStyle]);
   useEffect(() => { if (ready) avx()?.setData(data); }, [ready, data]);
   useEffect(() => { if (ready) avx()?.select(selectedId); }, [ready, selectedId]);
   useEffect(() => { if (ready) avx()?.setDetail(detail, true); }, [ready, detail]);

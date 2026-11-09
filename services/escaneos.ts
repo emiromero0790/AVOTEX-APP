@@ -6,12 +6,14 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { supabase } from '../supabaseConfig';
 import { distanceMeters, isHealthy, type PuntoRuta } from './recorridos';
+import { filterRoute } from './gpsFilter';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 const BUCKET = 'recorridos';
 
-export type LatLng = { lat: number; lng: number };
+/** t: hora del punto en ms, si la ruta la trae (estilos Velocidad y Tiempo del mapa). */
+export type LatLng = { lat: number; lng: number; t?: number };
 
 export function validCoord(lat: unknown, lng: unknown): boolean {
   return typeof lat === 'number' && typeof lng === 'number' && Number.isFinite(lat) && Number.isFinite(lng)
@@ -81,8 +83,17 @@ export async function listRecorridoFotos(recorridoId: string): Promise<FotoPunto
 
 // ───────────────────────── recorridos ─────────────────────────
 
+/**
+ * Ruta lista para dibujar y medir. Las grabadas con el filtro actual (puntos con `f: 1`) se usan tal
+ * cual; las antiguas guardaban el «baile» del GPS (estar quieto sumaba metros), así que se filtran
+ * aquí con el mismo criterio (services/gpsFilter.ts) para mostrar una distancia realista.
+ */
 export function cleanRoute(ruta: PuntoRuta[] | null | undefined): LatLng[] {
-  return (ruta ?? []).filter(p => validCoord(p?.lat, p?.lng)).map(p => ({ lat: p.lat, lng: p.lng }));
+  const valid = (ruta ?? []).filter(p => validCoord(p?.lat, p?.lng));
+  const withT = (p: PuntoRuta): LatLng => { const t = Date.parse(p.t); return Number.isFinite(t) ? { lat: p.lat, lng: p.lng, t } : { lat: p.lat, lng: p.lng }; };
+  if (valid.length < 2 || valid.some(p => p.f === 1)) return valid.map(withT);
+  const filtered = filterRoute(valid).points;
+  return filtered.length ? filtered : valid.slice(0, 1).map(withT);
 }
 
 export function routeMeters(points: LatLng[]): number {

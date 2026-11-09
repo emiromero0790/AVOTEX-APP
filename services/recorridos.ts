@@ -34,7 +34,8 @@ export type FotoLocal = {
   subida: boolean;
 };
 
-export type PuntoRuta = { lat: number; lng: number; t: string };
+/** f: 1 = punto ya filtrado al grabar (services/gpsFilter.ts); las rutas antiguas no lo traen. */
+export type PuntoRuta = { lat: number; lng: number; t: string; f?: 1 };
 
 export type EstadoLocal = 'grabando' | 'guardado' | 'subiendo' | 'enviado';
 

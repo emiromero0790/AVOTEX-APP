@@ -81,7 +81,9 @@ const translations: TranslationResource = {
 
 type Props = {
   isGuest: boolean;
-  tokensValue: string | null;
+  /** Tokens que quedan (users.tokens × 100); null = cargando. */
+  tokensRemaining: number | null;
+  email?: string | null;
   /** Escaneos guardados en el celular que aún no se suben. */
   pendingCount: number;
   onPhoto: () => void;
@@ -218,7 +220,7 @@ function HeroVideo({ playing }: { playing: boolean }) {
   );
 }
 
-export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, onWalk, onImport, onOpenScans, busyLabel = null }: Props) {
+export default function ScanHome({ isGuest, tokensRemaining, email = null, pendingCount, onPhoto, onWalk, onImport, onOpenScans, busyLabel = null }: Props) {
   const t = useTranslations(translations);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -302,7 +304,7 @@ export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, 
         </View>
 
         <View style={[s.content, { width: contentW, paddingTop: insets.top + 8 }]}>
-          <ScanHeader tokensValue={tokensValue} onImage />
+          <ScanHeader remaining={tokensRemaining} isGuest={isGuest} email={email} onImage />
           <Text style={[s.title, isTablet && s.titleTablet]} accessibilityRole="header">{t('title')}</Text>
           <Text style={s.subtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('subtitle')}</Text>
 

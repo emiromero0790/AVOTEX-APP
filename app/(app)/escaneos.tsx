@@ -26,7 +26,7 @@ import * as Location from 'expo-location';
 import Reanimated, { FadeIn, FadeInDown, FadeOut, FadeOutDown, useReducedMotion } from 'react-native-reanimated';
 import Svg, { Path, Polygon } from 'react-native-svg';
 import {
-  BarChart3, Bug, Calendar, Camera, Check, ChevronDown, ChevronRight, Clock, CloudUpload, Coins, Crosshair, Filter, Layers,
+  BarChart3, Bug, Calendar, Camera, Check, ChevronDown, ChevronRight, Clock, CloudUpload, Crosshair, Filter, Layers,
   Leaf, Lock, Maximize2, MapPin, Minimize2, Minus, Navigation, Plane, Plus, Route, Search, Video, X,
 } from 'lucide-react-native';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
@@ -43,11 +43,15 @@ import {
 import { buildOrchardGeometry } from '../../services/satZones';
 import ScansMap, { type ScansMapEvent, type ScansMapHandle } from '../../components/ScansMap';
 import {
-  FINDING_COLOR, SCAN_STATUS_COLOR, type ScanStatus, type ScansMapData, type ScansMapDetail, type ScansMapLayer, type ScansMapShow,
+  FINDING_COLOR, SCAN_STATUS_COLOR, type ScanStatus, type ScansMapData, type ScansMapDetail, type ScansMapLayer, type ScansMapRouteStyle, type ScansMapShow, SPEED_COLORS, TIME_COLORS,
   type ScansMapZone,
 } from '../../components/scansMapHtml';
 import BottomSheet from '../../components/escaneos/BottomSheet';
 import SatThumb from '../../components/escaneos/SatThumb';
+import MapStylePicker from '../../components/escaneos/MapStylePicker';
+import TokenRing from '../../components/TokenRing';
+import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CSS_EASE_OUT, EASE_OUT, PressableScale } from '../../components/scan/motion';
 import { SCAN } from '../../components/scan/theme';
 
@@ -60,6 +64,25 @@ const INK = '#0F172A';
 const MUTED = '#64748B';
 const LINE = '#E8ECEF';
 const PANEL = '#FFFFFF';
+
+const MAP_STYLE_KEY = 'avx_mis_escaneos_mapa';
+
+/** Rango de velocidad (km/h, percentiles 10–90) de una ruta con horas por punto; null si no alcanza. */
+function speedRangeOf(route: LatLng[]): [number, number] | null {
+  const v: number[] = [];
+  for (let i = 1; i < route.length; i++) {
+    const a = route[i - 1], b = route[i];
+    if (!a.t || !b.t || b.t <= a.t) continue;
+    const kmh = (Math.hypot((b.lng - a.lng) * 111320 * Math.cos((a.lat * Math.PI) / 180), (b.lat - a.lat) * 111320) / ((b.t - a.t) / 1000)) * 3.6;
+    if (kmh > 0.1 && kmh < 20) v.push(kmh);
+  }
+  if (v.length < 3) return null;
+  v.sort((x, y) => x - y);
+  const lo = Math.round(v[Math.floor(v.length * 0.1)] * 10) / 10;
+  let hi = Math.round(v[Math.min(v.length - 1, Math.floor(v.length * 0.9))] * 10) / 10;
+  if (hi - lo < 0.5) hi = Math.round((lo + 0.5) * 10) / 10;
+  return [lo, hi];
+}
 
 const T: TranslationResource = {
   title: { es: 'Mis escaneos', en: 'My scans' },
@@ -145,6 +168,11 @@ const T: TranslationResource = {
   zonesNote: { es: 'Zonas ilustrativas, no son mediciones', en: 'Illustrative zones, not measurements' },
   layers: { es: 'Capas del mapa', en: 'Map layers' },
   lyRoutes: { es: 'Rutas de recorridos', en: 'Walk routes' },
+  lyLayers: { es: 'Capas', en: 'Layers' },
+  lgSlow: { es: 'Lento', en: 'Slow' }, lgFast: { es: 'Rápido', en: 'Fast' },
+  lgStart: { es: 'Inicio', en: 'Start' }, lgEnd: { es: 'Fin', en: 'End' },
+  lgNoTimes: { es: 'Esta ruta no guardó la hora de cada punto', en: 'This route has no time per point' },
+  lgHeat: { es: 'Más brillante donde más has caminado', en: 'Brighter where you walked most' },
   lyPhotos: { es: 'Puntos de foto', en: 'Photo points' },
   lyFindings: { es: 'Hallazgos', en: 'Findings' },
   lyOrchards: { es: 'Perímetros de huertas', en: 'Orchard outlines' },
@@ -235,6 +263,22 @@ export default function MisEscaneos() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [picker, setPicker] = useState<'orchard' | 'filters' | 'layers' | null>(null);
   const [layer, setLayer] = useState<ScansMapLayer>('satelite');
+  const [routeStyle, setRouteStyle] = useState<ScansMapRouteStyle>('clasica');
+  // Tipo de mapa y estilo de ruta se recuerdan entre visitas.
+  const styleLoaded = useRef(false);
+  useEffect(() => {
+    AsyncStorage.getItem(MAP_STYLE_KEY).then(raw => {
+      if (!raw) return;
+      try {
+        const v = JSON.parse(raw) as { layer?: ScansMapLayer; routeStyle?: ScansMapRouteStyle };
+        if (v.layer && ['satelite', 'hibrido', 'estandar', 'topo', 'oscuro', 'zonas'].includes(v.layer)) setLayer(v.layer);
+        if (v.routeStyle && ['clasica', 'velocidad', 'tiempo', 'calor'].includes(v.routeStyle)) setRouteStyle(v.routeStyle);
+      } catch { /* preferencia dañada: se ignora */ }
+    }).catch(() => {}).finally(() => { styleLoaded.current = true; });
+  }, []);
+  useEffect(() => {
+    if (styleLoaded.current) AsyncStorage.setItem(MAP_STYLE_KEY, JSON.stringify({ layer, routeStyle })).catch(() => {});
+  }, [layer, routeStyle]);
   const [show, setShow] = useState<ScansMapShow>({ routes: true, photos: true, findings: true, orchards: true });
   const [me, setMe] = useState<LatLng | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -449,7 +493,7 @@ export default function MisEscaneos() {
     if (selected.route.length < 2 && !photos.length && !findings.length) return null;
     const o = selected.orchardId ? orchardById[selected.orchardId] : null;
     const orchard = (o?.coordinates ?? []).filter(c => validCoord(c.latitude, c.longitude)).map(c => ({ lat: c.latitude, lng: c.longitude }));
-    return { id: selected.id, route: selected.route, photos, findings, orchard };
+    return { id: selected.id, route: selected.route, photos, findings, orchard, speedRange: speedRangeOf(selected.route) };
   }, [selected, selectedPhotos, selectedFindings, orchardById]);
 
   // ───────── selección (mapa ↔ historial) ─────────
@@ -539,7 +583,6 @@ export default function MisEscaneos() {
   const countFor = (f: OrchardFilter) => items.filter(it => matchesOrchard(it, f)).length;
   const filtersActive = statusFilter !== 'all' || typeFilter !== 'all';
   const fade = reduced ? undefined : FadeIn.duration(180).easing(EASE_OUT);
-  const tokensValue = tokens != null ? (tokens * 100).toLocaleString(locale) : null;
 
   // Hallazgos de la pestaña: los del recorrido elegido; sin selección, los de la vista actual.
   const tabFindings = selected?.remoteId ? selectedFindings : hallazgos.filter(h => visible.some(v => v.remoteId === h.recorrido_id));
@@ -552,13 +595,7 @@ export default function MisEscaneos() {
     <View style={[st.header, { paddingTop: insets.top + 4 }]}>
       {!short && <View style={st.brandRow}>
         <Image source={WORDMARK} style={st.wordmark} resizeMode="contain" accessibilityLabel="AVOTEX" />
-        {tokensValue && (
-          <Pressable onPress={() => router.push('/(app)/plans')} accessibilityRole="button" accessibilityLabel={t('tokens', { value: tokensValue })}
-            style={({ pressed }) => [st.tokens, pressed && st.pressed]}>
-            <Coins size={14} color="#B45309" />
-            <Text style={st.tokensText}>{tokensValue}</Text>
-          </Pressable>
-        )}
+        {tokens != null && <TokenRing remaining={tokens * 100} email={email} size={36} />}
       </View>}
       <View style={st.titleRow}>
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -883,12 +920,38 @@ export default function MisEscaneos() {
     );
   })();
 
+  // Centro para las miniaturas de estilos: el recorrido elegido, el primero visible o una huerta.
+  const styleCenter = useMemo(() => {
+    const first = selected?.loc ?? visible.find(v => v.loc)?.loc;
+    if (first) return first;
+    const o = orchards.find(x => x.coordinates?.length);
+    return o ? { lat: o.coordinates[0].latitude, lng: o.coordinates[0].longitude } : { lat: 19.415, lng: -102.06 };
+  }, [selected, visible, orchards]);
+
+  // Leyenda del estilo de ruta (solo cuando hay un recorrido con ruta en el mapa, o el mapa de calor).
+  const legend = (() => {
+    if (routeStyle === 'calor') return <Text style={st.legendText}>{t('lgHeat')}</Text>;
+    if (!mapDetail || mapDetail.route.length < 2 || routeStyle === 'clasica') return null;
+    if (routeStyle === 'velocidad' && !mapDetail.speedRange) return <Text style={st.legendText}>{t('lgNoTimes')}</Text>;
+    const colors = routeStyle === 'velocidad' ? SPEED_COLORS : TIME_COLORS;
+    const left = routeStyle === 'velocidad' ? `${t('lgSlow')} ${mapDetail.speedRange![0].toFixed(1)}` : t('lgStart');
+    const right = routeStyle === 'velocidad' ? `${mapDetail.speedRange![1].toFixed(1)} km/h ${t('lgFast')}` : t('lgEnd');
+    return (
+      <>
+        <Text style={st.legendText}>{left}</Text>
+        <LinearGradient colors={[...colors]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={st.legendBar} />
+        <Text style={st.legendText}>{right}</Text>
+      </>
+    );
+  })();
+
   const layerOptions: { key: ScansMapLayer; label: string }[] = [
     { key: 'satelite', label: t('layerSat') },
     { key: 'hibrido', label: t('layerHybrid') },
     ...(zonesAvailable ? [{ key: 'zonas' as const, label: t('layerZones') }] : []),
   ];
-  const layerIdx = Math.max(0, layerOptions.findIndex(l => l.key === layer));
+  const layerFound = layerOptions.findIndex(l => l.key === layer);
+  const layerIdx = Math.max(0, layerFound);
   const SEG_ITEM = 70;
 
   return (
@@ -898,8 +961,14 @@ export default function MisEscaneos() {
         onLayout={e => setCardH(Math.round(e.nativeEvent.layout.height))}>
         <Reanimated.View entering={reduced ? undefined : FadeIn.duration(320)} style={StyleSheet.absoluteFill}>
           <ScansMap ref={mapRef} data={mapData} selectedId={selected?.loc || mapDetail ? selectedId : null} detail={mapDetail}
-            point={point} user={me} layer={layer} onEvent={onMapEvent} />
+            point={point} user={me} layer={layer} routeStyle={routeStyle} onEvent={onMapEvent} />
         </Reanimated.View>
+
+        {legend && (
+          <Reanimated.View key={routeStyle} entering={reduced ? undefined : FadeIn.duration(180)} style={st.legend} pointerEvents="none" accessibilityRole="text">
+            {legend}
+          </Reanimated.View>
+        )}
 
         <View style={st.compass} accessibilityLabel="Norte" pointerEvents="none">
           <Svg width={10} height={8} viewBox="0 0 10 8"><Path d="M5 0 L10 8 L5 6 L0 8 Z" fill="#fff" /></Svg>
@@ -907,7 +976,7 @@ export default function MisEscaneos() {
         </View>
 
         <View style={[st.segment, { width: SEG_ITEM * layerOptions.length + 8 }]} accessibilityRole="tablist">
-          <Reanimated.View style={[st.segPill, { width: SEG_ITEM, left: 4 + layerIdx * SEG_ITEM, transitionProperty: reduced ? 'none' : 'left', transitionDuration: 200, transitionTimingFunction: CSS_EASE_OUT } as object]} />
+          <Reanimated.View style={[st.segPill, { opacity: layerFound < 0 ? 0 : 1, width: SEG_ITEM, left: 4 + layerIdx * SEG_ITEM, transitionProperty: reduced ? 'none' : 'left', transitionDuration: 200, transitionTimingFunction: CSS_EASE_OUT } as object]} />
           {layerOptions.map(l => (
             <Pressable key={l.key} onPress={() => { if (layer !== l.key) { tick(); setLayer(l.key); } }} accessibilityRole="tab" accessibilityState={{ selected: layer === l.key }} style={[st.segBtn, { width: SEG_ITEM }]}>
               <Text style={[st.segText, layer === l.key && st.segTextOn]} numberOfLines={1}>{l.label}</Text>
@@ -1005,6 +1074,16 @@ export default function MisEscaneos() {
             )}
             {picker === 'layers' && (
               <>
+                <MapStylePicker
+                  layer={layer}
+                  routeStyle={routeStyle}
+                  zonesAvailable={zonesAvailable}
+                  center={styleCenter}
+                  width={(isTablet ? width * 0.6 : width) - 32 - 8}
+                  onLayer={setLayer}
+                  onRouteStyle={setRouteStyle}
+                />
+                <Text style={[st.sectionTitle, { marginTop: 18, marginBottom: 2 }]}>{t('lyLayers')}</Text>
                 {([['routes', t('lyRoutes'), <Route key="r" size={17} color={TEAL} />], ['photos', t('lyPhotos'), <Camera key="c" size={17} color={TEAL} />],
                   ['findings', t('lyFindings'), <Bug key="b" size={17} color={FINDING_COLOR.enfermo} />], ['orchards', t('lyOrchards'), <Leaf key="l" size={17} color={LIME_INK} />]] as Array<[keyof ScansMapShow, string, React.ReactNode]>)
                   .map(([k, label, icon]) => (
@@ -1257,6 +1336,9 @@ const st = StyleSheet.create({
   empty: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 19, color: MUTED, textAlign: 'center', paddingHorizontal: 24, marginTop: 14 },
 
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.45)' },
+  legend: { position: 'absolute', top: 52, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, height: 28, borderRadius: 14, backgroundColor: 'rgba(15,23,42,0.78)' },
+  legendText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#F8FAFC' },
+  legendBar: { width: 64, height: 6, borderRadius: 3 },
   modalSheet: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 8, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: '#fff' },
   handle: { alignSelf: 'center', width: 38, height: 4.5, borderRadius: 3, backgroundColor: '#CBD5E1', marginBottom: 10 },
   modalClose: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9' },

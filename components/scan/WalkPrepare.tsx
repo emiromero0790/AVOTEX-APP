@@ -272,7 +272,7 @@ export default function WalkPrepare(props: Props) {
           <View style={[s.heroTop, { paddingTop: topInset + 8, width: contentW }]}>
             <View style={s.headRow}>
               <PressableScale style={s.back} onPress={onBack} accessibilityRole="button" accessibilityLabel={t('back')}><ChevronLeft size={22} color={SCAN.ink} /></PressableScale>
-              <View style={{ flex: 1 }}><ScanHeader tokensValue={tokens != null ? (tokens * 100).toLocaleString() : null} onImage /></View>
+              <View style={{ flex: 1 }}><ScanHeader remaining={tokens != null ? tokens * 100 : null} email={email} onImage /></View>
             </View>
             <Text style={[s.title, isTablet && s.titleTablet]} accessibilityRole="header">{t('title')}</Text>
             <Text style={s.subtitle}>{t('subtitle')}</Text>

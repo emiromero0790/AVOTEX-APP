@@ -12,14 +12,15 @@
  *   Haptics.selectionAsync. Nada de animar alto/ancho: el texto del botón cambia con un fundido.
  * - Reducir movimiento: sin entradas ni escalas; se conservan los cambios de color y opacidad.
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, AppState, Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import Reanimated, { FadeIn, FadeInDown, FadeOut, useReducedMotion } from 'react-native-reanimated';
 import { useFocusEffect } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { useEventListener } from 'expo';
 import { ArrowRight, Camera, ChevronRight, Footprints, History, ImageDown, Lock, Plane, Smartphone, Video } from 'lucide-react-native';
 import { TranslationResource, useTranslations } from '../context/LanguageContext';
 import ScanHeader from './scan/ScanHeader';
@@ -149,21 +150,72 @@ function SourceCard({ kind, icon, title, desc, selected, locked, onPress, a11y, 
 /**
  * Video de fondo: en bucle, sin sonido y sin controles. Solo se reproduce con la pestaña visible
  * (ahorra batería) y no se reproduce con "Reducir movimiento" (queda el póster fijo).
+ *
+ * Robustez (en algunos teléfonos a veces no arrancaba):
+ * - Al volver a la app desde segundo plano o desde la cámara, el sistema lo pausa: se reanuda.
+ * - Si se pidió reproducir mientras aún cargaba, se reproduce en cuanto está listo.
+ * - Si el decodificador falla, se recarga hasta 3 veces; si sigue fallando, queda el póster.
+ * - No pide el foco de audio (mixWithOthers): otra app con sonido ya no lo pausa.
+ * - El video solo se muestra cuando de verdad está reproduciendo, así nunca se ve un cuadro negro:
+ *   mientras tanto se ve el póster que está debajo.
  */
 function HeroVideo({ playing }: { playing: boolean }) {
   const player = useVideoPlayer(VIDEO_HERO, p => {
     p.loop = true;
     p.muted = true;
+    try { p.audioMixingMode = 'mixWithOthers'; } catch { /* no disponible en esta plataforma */ }
   });
-  useEffect(() => {
+  const [shown, setShown] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const wantRef = useRef(playing);
+  const retriesRef = useRef(0);
+  const lastKickRef = useRef(0);
+  wantRef.current = playing;
+
+  const kick = useCallback(() => {
+    if (!wantRef.current) return;
+    lastKickRef.current = Date.now();
     try {
-      // En web play() devuelve una promesa que falla si el navegador no puede decodificar el video:
-      // en ese caso queda el póster debajo, sin error.
-      const r = playing ? (player.play() as unknown) : (player.pause() as unknown);
+      // En web play() devuelve una promesa que falla si el navegador no puede decodificar el video.
+      const r = player.play() as unknown;
       if (r && typeof (r as Promise<void>).catch === 'function') (r as Promise<void>).catch(() => {});
     } catch { /* se queda el póster */ }
-  }, [playing, player]);
-  return <VideoView player={player} style={s.heroImg} contentFit="cover" nativeControls={false} />;
+  }, [player]);
+
+  useEffect(() => {
+    if (playing) kick();
+    else { try { player.pause(); } catch { /* sin reproductor */ } }
+  }, [playing, player, kick]);
+
+  useEventListener(player, 'statusChange', ({ status }) => {
+    if (status === 'readyToPlay') { retriesRef.current = 0; kick(); }
+    if (status === 'error') {
+      setShown(false);
+      if (retriesRef.current < 3) {
+        retriesRef.current += 1;
+        setTimeout(() => { try { player.replace(VIDEO_HERO); } catch { setFailed(true); } }, 800 * retriesRef.current);
+      } else setFailed(true);
+    }
+  });
+  useEventListener(player, 'playingChange', ({ isPlaying }) => {
+    if (isPlaying) { setShown(true); return; }
+    // Pausado por el sistema (llamada, otra app, pantalla apagada…) mientras debería reproducirse.
+    if (wantRef.current && Date.now() - lastKickRef.current > 1500) setTimeout(kick, 600);
+  });
+
+  // Volver a la app: el sistema dejó el video en pausa.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', st => { if (st === 'active') setTimeout(kick, 300); });
+    return () => sub.remove();
+  }, [kick]);
+
+  if (failed) return null;
+  return (
+    <Reanimated.View pointerEvents="none" style={[s.heroImg, { opacity: shown ? 1 : 0, transitionProperty: ['opacity'], transitionDuration: 250, transitionTimingFunction: CSS_EASE_OUT } as object]}>
+      {/* textureView en Android: respeta la opacidad del contenedor (SurfaceView la ignora y se vería negro). */}
+      <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} surfaceType="textureView" />
+    </Reanimated.View>
+  );
 }
 
 export default function ScanHome({ isGuest, tokensValue, pendingCount, onPhoto, onWalk, onImport, onOpenScans, busyLabel = null }: Props) {

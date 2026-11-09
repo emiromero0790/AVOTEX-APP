@@ -10,13 +10,37 @@
  * El resultado se decide una vez y se conserva durante toda la captura: no se vuelve a calcular
  * después de tomar la foto ni al procesar el recorrido.
  */
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { listOrchards, type Orchard } from './orchards';
 import { cleanPolygon, distanceToBoundaryM, pointInPolygon } from './proximity';
+import { withTimeout } from './timeout';
 
 /** Peor precisión aceptada para asignar sola una huerta. */
 export const MAX_AUTO_ACCURACY_M = 30;
 const GPS_TIMEOUT_MS = 9000;
+/** Llamadas que deberían ser instantáneas (estado del GPS, permisos ya dados). */
+const QUICK_MS = 4000;
+/** Diálogo de permiso: el usuario puede tardar; si el sistema nunca lo muestra, no se espera para siempre. */
+const DIALOG_MS = 30000;
+/** Huertas desde Supabase: en campo puede no haber señal. */
+const ORCHARDS_MS = 6000;
+const cacheKey = (email: string) => `avx_huertas_cache_${email}`;
+
+/**
+ * Huertas del usuario con respaldo sin conexión: si Supabase no responde a tiempo, se usa la última
+ * lista guardada en el celular (el recorrido funciona sin internet y la huerta se puede elegir igual).
+ */
+async function loadOrchards(userEmail: string): Promise<Orchard[]> {
+  const fresh = await withTimeout(listOrchards(userEmail).then(list => list as Orchard[] | null), ORCHARDS_MS, null);
+  if (fresh) {
+    AsyncStorage.setItem(cacheKey(userEmail), JSON.stringify(fresh)).catch(() => {});
+    return fresh;
+  }
+  const raw = await withTimeout(AsyncStorage.getItem(cacheKey(userEmail)), QUICK_MS, null);
+  if (raw) { try { return JSON.parse(raw) as Orchard[]; } catch { /* caché dañada */ } }
+  throw new Error('No se pudieron cargar las huertas');
+}
 
 export type ManualReason =
   | 'outside'       // fuera de todas las huertas
@@ -72,7 +96,7 @@ async function currentFix(): Promise<GpsFix | null> {
     if (pos) return { latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy ?? null };
   } catch { /* se intenta la última conocida */ }
   try {
-    const last = await Location.getLastKnownPositionAsync({ maxAge: 30000, requiredAccuracy: MAX_AUTO_ACCURACY_M });
+    const last = await withTimeout(Location.getLastKnownPositionAsync({ maxAge: 30000, requiredAccuracy: MAX_AUTO_ACCURACY_M }), QUICK_MS, null);
     if (last) return { latitude: last.coords.latitude, longitude: last.coords.longitude, accuracy: last.coords.accuracy ?? null };
   } catch { /* sin lectura */ }
   return null;
@@ -86,7 +110,7 @@ async function currentFix(): Promise<GpsFix | null> {
 export async function resolveScanHuerta(userEmail: string, orchards?: Orchard[]): Promise<HuertaResolution> {
   let list: Orchard[];
   try {
-    list = orchards ?? await listOrchards(userEmail);
+    list = orchards?.length ? orchards : await loadOrchards(userEmail);
   } catch {
     return { kind: 'manual', reason: 'load-error', orchards: [], candidates: [], accuracyM: null };
   }
@@ -95,11 +119,11 @@ export async function resolveScanHuerta(userEmail: string, orchards?: Orchard[])
   if (!list.length) return decideHuerta(list, null);
 
   try {
-    const enabled = await Location.hasServicesEnabledAsync().catch(() => true);
+    const enabled = await withTimeout(Location.hasServicesEnabledAsync(), QUICK_MS, true);
     if (!enabled) return { kind: 'manual', reason: 'gps-off', orchards: list, candidates: [], accuracyM: null };
-    let perm = await Location.getForegroundPermissionsAsync();
-    if (!perm.granted && perm.canAskAgain !== false) perm = await Location.requestForegroundPermissionsAsync();
-    if (!perm.granted) return { kind: 'manual', reason: 'no-permission', orchards: list, candidates: [], accuracyM: null };
+    let perm = await withTimeout(Location.getForegroundPermissionsAsync(), QUICK_MS, null);
+    if (perm && !perm.granted && perm.canAskAgain !== false) perm = await withTimeout(Location.requestForegroundPermissionsAsync(), DIALOG_MS, null);
+    if (!perm?.granted) return { kind: 'manual', reason: 'no-permission', orchards: list, candidates: [], accuracyM: null };
   } catch {
     return { kind: 'manual', reason: 'no-fix', orchards: list, candidates: [], accuracyM: null };
   }

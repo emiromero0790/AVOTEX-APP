@@ -22,6 +22,7 @@ import {
   AlertTriangle, BatteryMedium, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, HardDrive, Leaf, LocateFixed, MapPin, Play, Repeat2,
   TrendingUp, Wifi, WifiOff, X,
 } from 'lucide-react-native';
+import { withTimeout } from '../../services/timeout';
 import { TranslationResource, useTranslations } from '../../context/LanguageContext';
 import type { Orchard } from '../../services/orchards';
 import { supabase } from '../../supabaseConfig';
@@ -99,8 +100,11 @@ type Props = {
   onChangeOrchard: (id: string | null) => void;
   camera: PermState;
   location: PermState;
-  freeBytes: number | null;
+  /** null = revisando; 'na' = el teléfono no lo informó. */
+  freeBytes: number | null | 'na';
   network: 'wifi' | 'cellular' | 'offline' | 'unknown';
+  /** false mientras se revisa la conexión; 'unknown' ya revisado = no disponible. */
+  networkChecked?: boolean;
   isWeb: boolean;
   tips: string[];
   onBack: () => void;
@@ -153,7 +157,7 @@ function CheckCell({ icon, label, value, status, reduced }: { icon: React.ReactN
 }
 
 export default function WalkPrepare(props: Props) {
-  const { topInset, bottomInset, email, orchards, huertaId, onChangeOrchard, camera, location, freeBytes, network, isWeb, tips, onBack, onStart, busyLabel = null } = props;
+  const { topInset, bottomInset, email, orchards, huertaId, onChangeOrchard, camera, location, freeBytes, network, networkChecked = true, isWeb, tips, onBack, onStart, busyLabel = null } = props;
   const t = useTranslations(translations);
   const reduced = useReducedMotion();
   const { width, height } = useWindowDimensions();
@@ -175,9 +179,11 @@ export default function WalkPrepare(props: Props) {
     let alive = true;
     (async () => {
       try {
-        if (!(await Battery.isAvailableAsync())) { if (alive) setBattery('na'); return; }
-        const st = await Battery.getPowerStateAsync();
+        // Con límite de tiempo: si el teléfono no responde, se muestra «No disponible».
+        if (!(await withTimeout(Battery.isAvailableAsync(), 3000, false))) { if (alive) setBattery('na'); return; }
+        const st = await withTimeout(Battery.getPowerStateAsync(), 3000, null);
         if (!alive) return;
+        if (!st) { setBattery('na'); return; }
         if (st.batteryLevel < 0) { setBattery('na'); return; }
         const charging = st.batteryState === Battery.BatteryState.CHARGING || st.batteryState === Battery.BatteryState.FULL;
         setBattery({ level: st.batteryLevel, charging });
@@ -188,8 +194,9 @@ export default function WalkPrepare(props: Props) {
   }, []);
 
   const selected = orchards.find(o => o.id === huertaId) ?? null;
-  const gb = freeBytes != null ? freeBytes / 1024 ** 3 : null;
-  const lowSpace = freeBytes != null && freeBytes < 300 * 1024 * 1024;
+  const gb = typeof freeBytes === 'number' ? freeBytes / 1024 ** 3 : null;
+  const lowSpace = typeof freeBytes === 'number' && freeBytes < 300 * 1024 * 1024;
+  const spaceNa = isWeb || freeBytes === 'na';
 
   const perm = (p: PermState, female: boolean): { status: Status; value: string } =>
     !p ? { status: 'pending', value: '…' }
@@ -203,14 +210,14 @@ export default function WalkPrepare(props: Props) {
     {
       key: 'net', icon: network === 'offline' ? <WifiOff size={22} color="#ECFDF5" /> : <Wifi size={22} color="#ECFDF5" />, label: t('connection'),
       // Sin señal no impide grabar: el recorrido funciona sin internet.
-      status: (network === 'unknown' ? 'pending' : 'ok') as Status,
-      value: network === 'wifi' ? t('wifi') : network === 'cellular' ? t('cellular') : network === 'offline' ? t('offline') : '…',
+      status: (!networkChecked ? 'pending' : network === 'unknown' ? 'info' : 'ok') as Status,
+      value: network === 'wifi' ? t('wifi') : network === 'cellular' ? t('cellular') : network === 'offline' ? t('offline') : !networkChecked ? '…' : t('na'),
       help: network === 'offline' ? t('offlineHelp') : network === 'cellular' ? t('cellularHelp') : null,
     },
     {
       key: 'storage', icon: <HardDrive size={22} color="#ECFDF5" />, label: t('storage'),
-      status: (isWeb ? 'info' : gb == null ? 'pending' : lowSpace ? 'warn' : 'ok') as Status,
-      value: isWeb ? t('na') : gb == null ? '…' : lowSpace ? t('low') : gb >= 10 ? `${Math.round(gb)} GB` : `${gb.toFixed(1)} GB`,
+      status: (spaceNa ? 'info' : gb == null ? 'pending' : lowSpace ? 'warn' : 'ok') as Status,
+      value: spaceNa ? t('na') : gb == null ? '…' : lowSpace ? t('low') : gb >= 10 ? `${Math.round(gb)} GB` : `${gb.toFixed(1)} GB`,
       help: lowSpace ? t('lowSpaceHelp') : null,
     },
     {

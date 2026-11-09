@@ -1,4 +1,4 @@
-import type { ScansMapData, ScansMapDetail, ScansMapLayer, ScansMapPoint } from './scansMapHtml';
+import type { ScansMapData, ScansMapDetail, ScansMapLayer, ScansMapPoint, ScansMapRouteStyle } from './scansMapHtml';
 
 export type ScansMapEvent =
   | { type: 'select'; id: string }
@@ -15,6 +15,8 @@ export type ScansMapProps = {
   point: { kind: 'photo' | 'finding'; id: string } | null;
   user: ScansMapPoint | null;
   layer: ScansMapLayer;
+  /** Estilo de la ruta (clásica, velocidad, tiempo o calor). */
+  routeStyle?: ScansMapRouteStyle;
   onEvent: (e: ScansMapEvent) => void;
   onError?: () => void;
 };

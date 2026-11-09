@@ -16,7 +16,18 @@ import { ZONE_PALETTE } from './satMapHtml';
 
 export type ScansMapPoint = { lat: number; lng: number };
 export type ScanStatus = 'listo' | 'proceso' | 'cola' | 'local' | 'error';
-export type ScansMapLayer = 'satelite' | 'hibrido' | 'zonas';
+export type ScansMapLayer = 'satelite' | 'hibrido' | 'zonas' | 'estandar' | 'topo' | 'oscuro';
+/**
+ * Estilo de la ruta (como los mapas de actividad de Strava):
+ * - clasica: teal.
+ * - velocidad: cada tramo coloreado por su rapidez real (distancia / tiempo entre puntos GPS).
+ * - tiempo: degradado del inicio (verde) al final (violeta).
+ * - calor: todas las rutas superpuestas brillan más donde más has caminado.
+ */
+export type ScansMapRouteStyle = 'clasica' | 'velocidad' | 'tiempo' | 'calor';
+/** Escala de velocidad (azul lento → rojo rápido), compartida con la leyenda de la pantalla. */
+export const SPEED_COLORS = ['#3B82F6', '#22C55E', '#EAB308', '#F97316', '#EF4444'] as const;
+export const TIME_COLORS = ['#22C55E', '#14B8A6', '#6366F1', '#A855F7'] as const;
 export type FindingCat = 'sano' | 'enfermo' | 'revisar' | 'otro';
 
 export type ScansMapOrchard = { id: string; name: string; points: ScansMapPoint[] };
@@ -25,7 +36,10 @@ export type ScansMapRoute = { id: string; points: ScansMapPoint[] };
 export type ScansMapZone = { key: string; label: string; color: string; ring: ScansMapPoint[]; at: ScansMapPoint };
 export type ScansMapDetail = {
   id: string;
-  route: ScansMapPoint[];
+  /** t: hora del punto en ms (si la ruta la trae), para los estilos Velocidad y Tiempo. */
+  route: (ScansMapPoint & { t?: number })[];
+  /** Límites de la escala de velocidad (km/h) que también muestra la leyenda. */
+  speedRange?: [number, number] | null;
   photos: { id: string; lat: number; lng: number; n: number }[];
   findings: { id: string; lat: number; lng: number; cat: FindingCat }[];
   /** Perímetro de su huerta, para encuadrar el terreno junto con la ruta. */
@@ -67,6 +81,8 @@ export const safeJson = safeJsonValue;
 export function buildScansMapHtml(): string {
   const colors = safeJson(SCAN_STATUS_COLOR);
   const fcolors = safeJson(FINDING_COLOR);
+  const scol = safeJson(SPEED_COLORS);
+  const tcol = safeJson(TIME_COLORS);
   const zpal = safeJson(ZONE_PALETTE);
   return `<!doctype html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
@@ -105,13 +121,14 @@ html,body,#map{height:100%;width:100%;margin:0;background:#dfe7e1}
 @keyframes pop{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
 .fade{animation:fade .45s cubic-bezier(.23,1,.32,1) both}
 @keyframes fade{from{opacity:0}to{opacity:1}}
+.leaflet-heat-pane svg{mix-blend-mode:screen}
 .calm .pin,.calm .in,.calm .fade,.calm .pin.sel::after{animation:none!important;transition:none!important}
 @media (prefers-reduced-motion: reduce){.pin,.in,.fade,.pin.sel::after{animation:none!important;transition:none!important}}
 </style></head><body><div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function(){
-var COLORS=${colors},FC=${fcolors},ZP=${zpal};
+var COLORS=${colors},FC=${fcolors},ZP=${zpal},SC=${scol},TC=${tcol};
 function post(m){var s=JSON.stringify(m);try{if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(s);else if(window.parent!==window)window.parent.postMessage(s,'*');}catch(e){}}
 if(typeof L==='undefined'){post({type:'error',message:'leaflet'});return;}
 var MAXZ=22;
@@ -120,11 +137,19 @@ map.attributionControl.setPrefix(false);
 L.control.scale({imperial:false,position:'bottomleft',maxWidth:110}).addTo(map);
 var base='https://server.arcgisonline.com/ArcGIS/rest/services/';
 // z18 existe en todas partes; más cerca se amplía (z19 falta en algunas zonas y sale un recuadro gris).
-L.tileLayer(base+'World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:18,maxZoom:MAXZ,attribution:'Imágenes © Esri'}).addTo(map);
+var BASES={
+  satelite:L.tileLayer(base+'World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:18,maxZoom:MAXZ,attribution:'Imágenes © Esri'}),
+  estandar:L.tileLayer(base+'World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:18,maxZoom:MAXZ,attribution:'© Esri'}),
+  topo:L.tileLayer(base+'World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:18,maxZoom:MAXZ,attribution:'© Esri'}),
+  oscuro:L.tileLayer(base+'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:16,maxZoom:MAXZ,attribution:'© Esri'})
+};
+var darkLabels=L.tileLayer(base+'Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:16,maxZoom:MAXZ});
+var curBase=BASES.satelite.addTo(map),routeStyle='clasica';
 var labels=L.tileLayer(base+'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:18,maxZoom:MAXZ});
 var roads=L.tileLayer(base+'Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:18,maxZoom:MAXZ,opacity:.75});
 map.createPane('zones').style.zIndex=405;
 map.createPane('routes').style.zIndex=420;
+map.createPane('heat').style.zIndex=425;
 map.createPane('route').style.zIndex=440;
 var zoneLayer=L.layerGroup().addTo(map),orchLayer=L.layerGroup().addTo(map),routeLayer=L.layerGroup().addTo(map),scanLayer=L.layerGroup().addTo(map),
     detailLayer=L.layerGroup().addTo(map),photoLayer=L.layerGroup().addTo(map),meLayer=L.layerGroup().addTo(map);
@@ -171,8 +196,16 @@ function drawOrchards(){orchLayer.clearLayers();if(!show('orchards'))return;
     poly.bindTooltip(o.name,{permanent:true,direction:'center',className:'orch',opacity:off?.6:1});
     poly.on('click',function(e){L.DomEvent.stopPropagation(e);post({type:'orchard',id:o.id});});poly.addTo(orchLayer);});}
 function drawRoutes(){routeLayer.clearLayers();if(!show('routes'))return;
-  data.routes.forEach(function(r){if(r.points.length<2||(detail&&detail.id===r.id))return;
+  var heat=routeStyle==='calor';
+  data.routes.forEach(function(r){if(r.points.length<2||(detail&&detail.id===r.id&&!heat))return;
     var dim=!!selected;
+    if(heat){
+      // Mapa de calor: capas translúcidas que se suman (mix-blend-mode: screen) donde las rutas se repiten.
+      [[12,'#ff3d00',.16],[6,'#ff7a00',.32],[2.2,'#ffd166',.7]].forEach(function(w){
+        L.polyline(r.points.map(ll),{pane:'heat',color:w[1],weight:w[0],opacity:dim&&!(detail&&detail.id===r.id)?w[2]*.45:w[2],lineCap:'round',lineJoin:'round',interactive:false}).addTo(routeLayer);});
+      var hit=L.polyline(r.points.map(ll),{pane:'heat',color:'#000',weight:14,opacity:0,lineCap:'round'});
+      hit.on('click',function(e){L.DomEvent.stopPropagation(e);post({type:'select',id:r.id});});hit.addTo(routeLayer);
+      return;}
     L.polyline(r.points.map(ll),{pane:'routes',color:'#ffffff',weight:5,opacity:dim?.25:.55,lineCap:'round',lineJoin:'round',interactive:false}).addTo(routeLayer);
     var line=L.polyline(r.points.map(ll),{pane:'routes',color:'#2dd4bf',weight:3,opacity:dim?.35:.9,lineCap:'round',lineJoin:'round'});
     line.on('click',function(e){L.DomEvent.stopPropagation(e);post({type:'select',id:r.id});});line.addTo(routeLayer);});}
@@ -216,11 +249,28 @@ function detailBounds(withOrchard){var b=L.latLngBounds([]);if(!detail)return b;
   if(withOrchard&&b.isValid()&&detail.orchard.length>2){var ob=L.latLngBounds(detail.orchard.map(ll));
     if(map.distance(b.getNorthEast(),b.getSouthWest())>map.distance(ob.getNorthEast(),ob.getSouthWest())*.3)b.extend(ob);}
   return b;}
+function mix(a,b,t){var pa=parseInt(a.slice(1),16),pb=parseInt(b.slice(1),16);
+  var r=Math.round(((pa>>16)&255)*(1-t)+((pb>>16)&255)*t),g=Math.round(((pa>>8)&255)*(1-t)+((pb>>8)&255)*t),bl=Math.round((pa&255)*(1-t)+(pb&255)*t);
+  return '#'+((1<<24)|(r<<16)|(g<<8)|bl).toString(16).slice(1);}
+function ramp(stops,t){t=Math.max(0,Math.min(1,t));var n=stops.length-1,i=Math.min(n-1,Math.floor(t*n));return mix(stops[i],stops[i+1],t*n-i);}
+// Color de cada tramo (null = estilo de un solo color). Velocidad: km/h entre puntos con hora, suavizada.
+function segmentColors(r){
+  if(routeStyle==='tiempo'){var out=[];for(var i=1;i<r.length;i++)out.push(ramp(TC,(i-.5)/(r.length-1)));return out;}
+  if(routeStyle!=='velocidad'||!detail.speedRange)return null;
+  var v=[];for(var j=1;j<r.length;j++){var dt=(r[j].t-r[j-1].t)/1000;v.push(r[j].t&&r[j-1].t&&dt>0?dist(r[j-1],r[j])/dt*3.6:null);}
+  var lo=detail.speedRange[0],hi=detail.speedRange[1],res=[];
+  for(var k=0;k<v.length;k++){var w=[v[k-1],v[k],v[k+1]].filter(function(x){return x!=null&&isFinite(x);});
+    var s=w.length?w.reduce(function(a,b){return a+b;},0)/w.length:null;res.push(s==null?'#94a3b8':ramp(SC,(s-lo)/Math.max(.1,hi-lo)));}
+  return res;}
 function drawDetail(fit){detailLayer.clearLayers();if(!detail){photoLayer.clearLayers();pointMarkers={};return;}
   var r=detail.route;
   if(r.length>1){
-    L.polyline(r.map(ll),{pane:'route',color:'#ffffff',weight:9,opacity:.9,lineCap:'round',lineJoin:'round',interactive:false}).addTo(detailLayer);
-    L.polyline(r.map(ll),{pane:'route',color:'#14b8a6',weight:5,opacity:1,lineCap:'round',lineJoin:'round',interactive:false,className:anim()?'fade':''}).addTo(detailLayer);
+    var heat=routeStyle==='calor';
+    L.polyline(r.map(ll),{pane:'route',color:heat?'#1f0a00':'#ffffff',weight:heat?11:9,opacity:heat?.35:.9,lineCap:'round',lineJoin:'round',interactive:false}).addTo(detailLayer);
+    var cols=segmentColors(r);
+    if(cols){for(var q=1;q<r.length;q++){L.polyline([ll(r[q-1]),ll(r[q])],{pane:'route',color:cols[q-1],weight:5.5,opacity:1,lineCap:'round',lineJoin:'round',interactive:false,className:anim()?'fade':''}).addTo(detailLayer);}}
+    else if(heat){[[9,'#ff7a00',.55],[4,'#ffd166',1]].forEach(function(w){L.polyline(r.map(ll),{pane:'route',color:w[1],weight:w[0],opacity:w[2],lineCap:'round',lineJoin:'round',interactive:false}).addTo(detailLayer);});}
+    else L.polyline(r.map(ll),{pane:'route',color:'#14b8a6',weight:5,opacity:1,lineCap:'round',lineJoin:'round',interactive:false,className:anim()?'fade':''}).addTo(detailLayer);
     var total=0,seg=[];for(var i=1;i<r.length;i++){var d=dist(r[i-1],r[i]);seg.push(d);total+=d;}
     var every=Math.max(total/7,15),acc=0,next=every;
     for(var k=1;k<r.length&&total>40;k++){acc+=seg[k-1];if(acc>=next&&acc<total-every*.4){next+=every;
@@ -248,7 +298,10 @@ window.avx={
     if(!active)return;var m=pointMarkers[kind+':'+id],f=null;
     if(!m&&detail){f=(kind==='photo'?detail.photos:detail.findings).filter(function(x){return x.id===id;})[0];}
     var at=m?m.getLatLng():f?L.latLng(f.lat,f.lng):null;if(at)centerOn(at,20);},
-  setLayer:function(n){var hy=n==='hibrido';[labels,roads].forEach(function(t){if(hy&&!map.hasLayer(t))t.addTo(map);if(!hy&&map.hasLayer(t))map.removeLayer(t);});},
+  setLayer:function(n){var b=BASES[n]||BASES.satelite;if(b!==curBase){map.removeLayer(curBase);curBase=b.addTo(map);curBase.bringToBack();}
+    var hy=n==='hibrido';[labels,roads].forEach(function(t){if(hy&&!map.hasLayer(t))t.addTo(map);if(!hy&&map.hasLayer(t))map.removeLayer(t);});
+    if(n==='oscuro'&&!map.hasLayer(darkLabels))darkLabels.addTo(map);if(n!=='oscuro'&&map.hasLayer(darkLabels))map.removeLayer(darkLabels);},
+  setRouteStyle:function(st){routeStyle=st||'clasica';if(!data)return;drawRoutes();drawDetail(false);},
   zoom:function(d){d>0?map.zoomIn():map.zoomOut();},
   showUser:function(lat,lng,fly){meLayer.clearLayers();L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[16,16],iconAnchor:[8,8]}),interactive:false}).addTo(meLayer);
     if(fly){if(anim())map.flyTo([lat,lng],Math.max(map.getZoom(),17),{duration:.8});else map.setView([lat,lng],17);}},

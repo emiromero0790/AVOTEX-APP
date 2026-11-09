@@ -15,7 +15,7 @@ import Svg, { Circle } from 'react-native-svg';
 import Reanimated, { FadeIn, Keyframe, useReducedMotion } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { ArrowRight, Coins } from 'lucide-react-native';
+import { ArrowRight, Coins, X } from 'lucide-react-native';
 import { TranslationResource, useLanguage, useTranslations } from '../context/LanguageContext';
 import { GUEST_MAX_SCANS } from '../context/GuestContext';
 import { PLAN_NAME, PLAN_TOKENS, usePlan, usageOf } from '../services/plan';
@@ -78,7 +78,7 @@ export default function TokenRing({ remaining, isGuest = false, email = null, va
     ref.current?.measureInWindow((x, y, w, h) => setAnchor({ x, y, w, h }));
   };
 
-  const cardW = Math.min(320, winW - 24);
+  const cardW = Math.min(252, winW - 24);
   const cardLeft = anchor ? Math.max(12, Math.min(winW - cardW - 12, anchor.x + anchor.w - cardW)) : 12;
 
   return (
@@ -106,9 +106,9 @@ export default function TokenRing({ remaining, isGuest = false, email = null, va
             style={[s.card, { width: cardW, left: cardLeft, top: anchor.y + anchor.h + 8, transformOrigin: 'top right' } as object]}>
             <View style={s.head}>
               <Text style={s.title} numberOfLines={1} maxFontSizeMultiplier={1.2}>{isGuest ? t('titleGuest') : t('title', { plan: planName })}</Text>
-              <Pressable onPress={() => { setAnchor(null); router.push('/(app)/plans'); }} hitSlop={8} accessibilityRole="link" style={s.link}>
-                <Text style={s.linkText} maxFontSizeMultiplier={1.2}>{t('seePlans')}</Text>
-                <ArrowRight size={14} color="#0F172A" />
+              <Pressable onPress={() => setAnchor(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('close')}
+                style={({ pressed }) => [s.close, pressed && { opacity: 0.6 }]}>
+                <X size={14} color="#475569" strokeWidth={2.4} />
               </Pressable>
             </View>
             <View style={s.rowHead}>
@@ -121,6 +121,10 @@ export default function TokenRing({ remaining, isGuest = false, email = null, va
             <View style={s.track}>
               <View style={[s.fill, { width: `${Math.max(usedPct, usedPct > 0 ? 2 : 0)}%`, backgroundColor: color }]} />
             </View>
+            <Pressable onPress={() => { setAnchor(null); router.push('/(app)/plans'); }} hitSlop={8} accessibilityRole="link" style={s.link}>
+              <Text style={s.linkText} maxFontSizeMultiplier={1.2}>{t('seePlans')}</Text>
+              <ArrowRight size={12} color="#0F766E" />
+            </Pressable>
           </Reanimated.View>
         )}
       </Modal>
@@ -132,17 +136,18 @@ const s = StyleSheet.create({
   disc: { alignItems: 'center', justifyContent: 'center' },
   discShadow: { shadowColor: '#0F172A', shadowOpacity: 0.1, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   card: {
-    position: 'absolute', padding: 16, gap: 6, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB',
-    shadowColor: '#0F172A', shadowOpacity: 0.16, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 12,
+    position: 'absolute', paddingTop: 10, paddingBottom: 10, paddingHorizontal: 12, gap: 3, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB',
+    shadowColor: '#0F172A', shadowOpacity: 0.16, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 12,
   },
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8 },
-  title: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#64748B' },
-  link: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  linkText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#0F172A' },
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 },
+  title: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: '#64748B' },
+  close: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9' },
+  link: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: 3, marginTop: 6 },
+  linkText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11.5, color: '#0F766E' },
   rowHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  rowTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 14.5, color: '#0F172A' },
-  pct: { fontFamily: 'Poppins_700Bold', fontSize: 14.5 },
-  sub: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, color: '#64748B', textAlign: 'right' },
-  track: { height: 6, borderRadius: 3, backgroundColor: '#E5E7EB', overflow: 'hidden', marginTop: 4 },
-  fill: { height: 6, borderRadius: 3 },
+  rowTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#0F172A' },
+  pct: { fontFamily: 'Poppins_700Bold', fontSize: 13 },
+  sub: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: '#64748B' },
+  track: { height: 5, borderRadius: 3, backgroundColor: '#E5E7EB', overflow: 'hidden', marginTop: 4 },
+  fill: { height: 5, borderRadius: 3 },
 });

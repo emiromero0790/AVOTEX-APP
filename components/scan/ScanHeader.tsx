@@ -5,7 +5,8 @@
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { Coins, Settings } from 'lucide-react-native';
+import { Settings } from 'lucide-react-native';
+import TokenRing from '../TokenRing';
 import { TranslationResource, useTranslations } from '../../context/LanguageContext';
 import { PressableScale } from './motion';
 import { SCAN } from './theme';
@@ -21,7 +22,10 @@ const translations: TranslationResource = {
  * `onImage`: el encabezado va sobre una foto o video. El logotipo va solo (PNG con transparencia, sin fondo).
  * El logotipo es lo único que se reduce si falta espacio: tokens y Ajustes nunca se recortan.
  */
-export default function ScanHeader({ tokensValue }: { tokensValue: string | null; onImage?: boolean }) {
+export default function ScanHeader({ remaining, isGuest = false, email = null }: {
+  /** Tokens que quedan (unidades visibles, users.tokens × 100); null = cargando. */
+  remaining: number | null; isGuest?: boolean; email?: string | null; onImage?: boolean;
+}) {
   const t = useTranslations(translations);
   return (
     <View style={s.row}>
@@ -29,12 +33,8 @@ export default function ScanHeader({ tokensValue }: { tokensValue: string | null
         <Image source={WORDMARK} style={s.logo} resizeMode="contain" accessibilityRole="image" accessibilityLabel="AVOTEX" />
       </View>
       <View style={s.right}>
-        {tokensValue ? (
-          <View style={s.tokens} accessible accessibilityLabel={t('tokens', { value: tokensValue })}>
-            <View style={s.coin}><Coins size={13} color="#B45309" /></View>
-            <Text style={s.tokensText} numberOfLines={1} maxFontSizeMultiplier={1.2}>{tokensValue}</Text>
-          </View>
-        ) : null}
+        {/* Anillo de uso del plan; al tocarlo muestra el porcentaje (components/TokenRing.tsx). */}
+        <TokenRing remaining={remaining} isGuest={isGuest} email={email} size={40} />
         <PressableScale
           style={s.gear}
           onPress={() => router.navigate('/(app)/settings')}

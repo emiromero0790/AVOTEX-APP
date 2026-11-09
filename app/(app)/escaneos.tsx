@@ -26,7 +26,7 @@ import * as Location from 'expo-location';
 import Reanimated, { FadeIn, FadeInDown, FadeOut, FadeOutDown, useReducedMotion } from 'react-native-reanimated';
 import Svg, { Path, Polygon } from 'react-native-svg';
 import {
-  BarChart3, Bug, Calendar, Camera, Check, ChevronDown, ChevronRight, Clock, CloudUpload, Coins, Crosshair, Filter, Layers,
+  BarChart3, Bug, Calendar, Camera, Check, ChevronDown, ChevronRight, Clock, CloudUpload, Crosshair, Filter, Layers,
   Leaf, Lock, Maximize2, MapPin, Minimize2, Minus, Navigation, Plane, Plus, Route, Search, Video, X,
 } from 'lucide-react-native';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
@@ -49,6 +49,7 @@ import {
 import BottomSheet from '../../components/escaneos/BottomSheet';
 import SatThumb from '../../components/escaneos/SatThumb';
 import MapStylePicker from '../../components/escaneos/MapStylePicker';
+import TokenRing from '../../components/TokenRing';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CSS_EASE_OUT, EASE_OUT, PressableScale } from '../../components/scan/motion';
@@ -582,7 +583,6 @@ export default function MisEscaneos() {
   const countFor = (f: OrchardFilter) => items.filter(it => matchesOrchard(it, f)).length;
   const filtersActive = statusFilter !== 'all' || typeFilter !== 'all';
   const fade = reduced ? undefined : FadeIn.duration(180).easing(EASE_OUT);
-  const tokensValue = tokens != null ? (tokens * 100).toLocaleString(locale) : null;
 
   // Hallazgos de la pestaña: los del recorrido elegido; sin selección, los de la vista actual.
   const tabFindings = selected?.remoteId ? selectedFindings : hallazgos.filter(h => visible.some(v => v.remoteId === h.recorrido_id));
@@ -595,13 +595,7 @@ export default function MisEscaneos() {
     <View style={[st.header, { paddingTop: insets.top + 4 }]}>
       {!short && <View style={st.brandRow}>
         <Image source={WORDMARK} style={st.wordmark} resizeMode="contain" accessibilityLabel="AVOTEX" />
-        {tokensValue && (
-          <Pressable onPress={() => router.push('/(app)/plans')} accessibilityRole="button" accessibilityLabel={t('tokens', { value: tokensValue })}
-            style={({ pressed }) => [st.tokens, pressed && st.pressed]}>
-            <Coins size={14} color="#B45309" />
-            <Text style={st.tokensText}>{tokensValue}</Text>
-          </Pressable>
-        )}
+        {tokens != null && <TokenRing remaining={tokens * 100} email={email} size={36} />}
       </View>}
       <View style={st.titleRow}>
         <View style={{ flex: 1, minWidth: 0 }}>

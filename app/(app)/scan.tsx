@@ -11,7 +11,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
-import { RotateCw as RotateCwIcon, Shield, Lock, ChevronLeft, Coins, Focus, CheckCircle2, AlertTriangle } from "lucide-react-native";
+import { RotateCw as RotateCwIcon, Shield, Lock, ChevronLeft, Focus, CheckCircle2, AlertTriangle } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import Reanimated, { FadeIn, FadeInDown, FadeOut, useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -28,6 +28,7 @@ import { supabase } from "../../supabaseConfig";
 import { useGuest, GUEST_MAX_SCANS } from "../../context/GuestContext";
 import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations } from "../../context/LanguageContext";
 import ScanHome from "../../components/ScanHome";
+import TokenRing from "../../components/TokenRing";
 import { listLocal } from "../../services/recorridos";
 import { insertSingleScan, uploadScanImage } from "../../services/escaneos";
 import { resolveScanHuerta, type HuertaResolution } from "../../services/huertaResolver";
@@ -461,16 +462,13 @@ export default function Scan() {
 
   if (mode === "choose") {
     // Mismo cálculo que ya muestra la cámara (tokens × 100).
-    const tokensValue = isGuest
-      ? (guestScansLeft * 100).toLocaleString(locale)
-      : userTokens !== null
-        ? (userTokens * 100).toLocaleString(locale)
-        : null;
+    const tokensRemaining = isGuest ? guestScansLeft * 100 : userTokens !== null ? userTokens * 100 : null;
     return (
       <>
       <ScanHome
         isGuest={isGuest}
-        tokensValue={tokensValue}
+        tokensRemaining={tokensRemaining}
+        email={user?.email ?? null}
         pendingCount={pendingWalks}
         onPhoto={choosePhoto}
         // `open`/`fuente` y `n` hacen que la pantalla destino (que sigue montada entre visitas)
@@ -727,17 +725,7 @@ export default function Scan() {
                   <Text style={styles.modesButtonText}>{t("modes")}</Text>
                 </PressableScale>
                 {(isGuest || userTokens !== null) && (
-                  <View
-                    style={styles.tokenPill}
-                    accessibilityLabel={isGuest
-                    ? t("remaining", { tokens: (guestScansLeft * 100).toLocaleString(locale) })
-                    : t("tokensAvailable", { tokens: ((userTokens ?? 0) * 100).toLocaleString(locale) })}
-                  >
-                    <Coins size={13} color="#fbbf24" />
-                    <Text style={styles.tokenPillText}>
-                      {((isGuest ? guestScansLeft : userTokens ?? 0) * 100).toLocaleString(locale)}
-                    </Text>
-                  </View>
+                  <TokenRing remaining={(isGuest ? guestScansLeft : userTokens ?? 0) * 100} isGuest={isGuest} email={user?.email ?? null} variant="dark" size={40} />
                 )}
               </View>
               <View style={[styles.header, isTablet && styles.headerTablet]}>

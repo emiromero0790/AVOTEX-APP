@@ -15,7 +15,8 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-import { ArrowRight, ArrowUpRight, Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, Coins, ChevronLeft, X } from 'lucide-react-native';
+import { ArrowRight, ArrowUpRight, Camera, Map, ChartLine as LineChart, Leaf, Sun, Droplets, Wind, LogOut, MapPinOff, Lock, ChevronLeft, X } from 'lucide-react-native';
+import TokenRing from '../../components/TokenRing';
 import { router, useFocusEffect } from 'expo-router';
 import Svg, { Polygon as SvgPolygon } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -554,30 +555,11 @@ export default function Home() {
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[s.tokenWidgetContainer, isTablet && s.tokenWidgetContainerTablet]}
-        onPress={() => router.push('/(app)/plans')}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityLabel={t('tokensPlans')}
-      >
-        <View style={s.tokenWidget} pointerEvents="none">
-          <Coins size={isTablet ? 26 : 22} color="#d97706" />
-          <View style={{ marginLeft: 6 }}>
-            <Text style={[s.tokenAmount, isTablet && s.tokenAmountTablet]}>
-              {isGuest
-                 ? (guestScansLeft * 100).toLocaleString(locale)
-                : userTokens !== null
-                   ? (userTokens * 100).toLocaleString(locale)
-                  : '—'}
-            </Text>
-            <Text style={[s.tokenLabel, isTablet && s.tokenLabelTablet]}>{t('tokens')}</Text>
-          </View>
-          <View style={[s.tokenAddButton, isTablet && s.tokenAddButtonTablet]}>
-            <Text style={[s.tokenAddText, isTablet && s.tokenAddTextTablet]}>+</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
+      {/* Anillo de uso de tokens del plan; al tocarlo muestra el porcentaje y el enlace a Planes. */}
+      <View style={[s.tokenWidgetContainer, isTablet && s.tokenWidgetContainerTablet]}>
+        <TokenRing remaining={isGuest ? guestScansLeft * 100 : userTokens !== null ? userTokens * 100 : null}
+          isGuest={isGuest} email={user?.email ?? null} size={isTablet ? 52 : 44} />
+      </View>
 
       <Modal
         visible={mapExpanded}

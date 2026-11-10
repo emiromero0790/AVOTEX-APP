@@ -3,13 +3,12 @@
  *
  * Orden (el celular es la forma principal de escanear):
  * 1. Héroe con foto de la huerta al atardecer: marca, anillo de tokens, título y lema.
- * 2. Celular destacado (tarjeta más grande) y su acción:
- *    - Con cuenta: Iniciar recorrido + Ver mis escaneos (la foto individual se toma con «Tomar foto» dentro
- *      del recorrido).
- *    - Invitado: Tomar fotografía (foto individual) y «Recorrido inteligente» con candado; al tocarlo se
- *      explica que se desbloquea al crear una cuenta o suscribirse a un plan de pago.
- * 3. Abajo, Dron y GoPro/cámara de acción: cada tarjeta inicia el mismo recorrido inteligente; solo cambia
- *    la animación (el agricultor lanza un dron que lo sigue, o se pone un casco con GoPro).
+ * 2. Selector de cámara: Celular (la principal, tarjeta más grande), Dron y GoPro. Se elige una y luego se pulsa
+ *    el botón: las tres inician el mismo recorrido inteligente; Dron y GoPro solo cambian la animación del
+ *    agricultor (lanza un dron que lo sigue, o se pone un casco con GoPro).
+ * 3. Botón principal y Ver mis escaneos.
+ *    Invitado: Tomar fotografía (foto individual) y «Recorrido inteligente» con candado; al tocarlo se explica
+ *    que se desbloquea al crear una cuenta o suscribirse a un plan de pago. Dron y GoPro aparecen con candado.
  *
  * Movimiento (skill animate-expo): entrada escalonada de las tarjetas solo la primera vez (260 ms, salida
  * fuerte); cambio de modo con transiciones de color de 160 ms + Haptics.selectionAsync; el texto del botón
@@ -23,7 +22,7 @@ import * as Haptics from 'expo-haptics';
 import Reanimated, { FadeIn, FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { router } from 'expo-router';
-import { ArrowRight, Camera, Check, ChevronRight, Footprints, History, Lock, Plane, ScanLine, Smartphone, Video } from 'lucide-react-native';
+import { Camera, Check, ChevronRight, Footprints, History, Lock, Plane, ScanLine, Smartphone, Video } from 'lucide-react-native';
 import { TranslationResource, useTranslations } from '../context/LanguageContext';
 import ScanHeader from './scan/ScanHeader';
 import { CSS_EASE_OUT, EASE_OUT, PressableScale } from './scan/motion';
@@ -54,21 +53,22 @@ const translations: TranslationResource = {
   subtitle: { es: 'Explora tu cultivo con inteligencia artificial', en: 'Explore your crop with artificial intelligence' },
   line1: { es: 'Una huerta.', en: 'One orchard.' },
   line2: { es: 'Cualquier cámara.', en: 'Any camera.' },
-  more: { es: 'Más formas de escanear', en: 'More ways to scan' },
   srcDrone: { es: 'Dron', en: 'Drone' },
   srcAction: { es: 'GoPro / Cámara de acción', en: 'GoPro / Action camera' },
   srcPhone: { es: 'Celular', en: 'Phone' },
   descDrone: { es: 'Escaneo aéreo de tu huerta para un análisis más completo', en: 'Aerial scan of your orchard for a more complete analysis' },
   descAction: { es: 'Captura recorridos en campo con alta estabilidad', en: 'Capture field walks with high stability' },
   descPhone: { es: 'Escanea plantas, hojas y frutos de forma rápida y sencilla', en: 'Scan plants, leaves and fruit quickly and easily' },
-  capModes: { es: 'Inician el recorrido inteligente con la animación de tu dron o tu GoPro.', en: 'They start the smart walk with your drone or GoPro animation.' },
   capWalk: { es: 'Camina tu huerta: el celular toma las fotos solo, sin internet.', en: 'Walk your orchard: the phone takes the photos, offline.' },
   capPhoto: { es: 'Toma una foto de un fruto, hoja o árbol y recibe el diagnóstico.', en: 'Take a photo of a fruit, leaf or tree and get a diagnosis.' },
   modeWalk: { es: 'Recorrido inteligente', en: 'Smart walk' },
   modePhoto: { es: 'Foto individual', en: 'Single photo' },
   ctaWalk: { es: 'Iniciar recorrido', en: 'Start walk' },
   ctaPhoto: { es: 'Tomar fotografía', en: 'Take photo' },
-  ctaModeWalk: { es: 'Iniciar recorrido', en: 'Start walk' },
+  ctaWalkDrone: { es: 'Iniciar recorrido con dron', en: 'Start walk with drone' },
+  ctaWalkGopro: { es: 'Iniciar recorrido con GoPro', en: 'Start walk with GoPro' },
+  capDrone: { es: 'Recorrido inteligente en modo dron: tu dron te acompaña en la animación.', en: 'Smart walk in drone mode: your drone follows you in the animation.' },
+  capGopro: { es: 'Recorrido inteligente en modo GoPro: con tu casco y GoPro en la animación.', en: 'Smart walk in GoPro mode: with your helmet and GoPro in the animation.' },
   locked: { es: 'Crea una cuenta para usarlo', en: 'Create an account to use it' },
   unlockTitle: { es: 'Recorrido inteligente bloqueado', en: 'Smart walk is locked' },
   unlockBody: { es: 'Se desbloquea al crear una cuenta o al suscribirte a un plan de pago. Con él caminas tu huerta y el celular toma las fotos solo.', en: 'Unlock it by creating an account or subscribing to a paid plan. Walk your orchard and the phone takes the photos for you.' },
@@ -97,48 +97,44 @@ type Props = {
 };
 
 /**
- * Tarjeta panorámica de fuente de captura: foto a todo el fondo, texto nativo a la izquierda.
- * `featured` (Celular): más alta, borde lima y check. Las demás son botones que abren la importación.
+ * Tarjeta panorámica de fuente de captura (selector): foto a todo el fondo, texto nativo a la izquierda.
+ * `large` (Celular) es más alta. La elegida lleva borde lima y check; las demás, un círculo vacío.
+ * Movimiento: borde, check e icono cambian con transiciones de 160 ms (color/opacidad) y vibración ligera.
  */
-function SourceCard({ kind, icon, title, desc, featured, locked, onPress, a11y, height, index, animateIn }: {
-  kind: ScanSource; icon: React.ReactNode; title: string; desc: string; featured?: boolean; locked: boolean;
-  onPress?: () => void; a11y: string; height: number; index: number; animateIn: boolean;
+function SourceCard({ kind, icon, title, desc, large, selected, locked, onPress, a11y, height, index, animateIn }: {
+  kind: ScanSource; icon: (on: boolean) => React.ReactNode; title: string; desc: string; large?: boolean; selected: boolean; locked: boolean;
+  onPress: () => void; a11y: string; height: number; index: number; animateIn: boolean;
 }) {
   const img = CARD_IMAGES[kind];
-  const body = (
-    <View style={[s.card, featured && s.cardFeatured, { height }]}>
-      <View style={s.cardClip}>
-        <Image source={img.src} style={[s.cardImg, { height, width: Math.round(height * img.ratio) }]} resizeMode="cover" accessibilityIgnoresInvertColors />
-        <LinearGradient
-          colors={['rgba(18,61,37,0.97)', 'rgba(18,61,37,0.86)', 'rgba(18,61,37,0.35)', 'rgba(18,61,37,0)']}
-          locations={[0, 0.36, 0.58, 0.78]}
-          start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }}
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={[s.cardBody, featured && s.cardBodyFeatured]}>
-          <View style={[s.cardIcon, featured ? s.cardIconOn : s.cardIconOff]}>{icon}</View>
-          <View style={s.cardText}>
-            <Text style={[s.cardTitle, featured && s.cardTitleFeatured]} numberOfLines={2} maxFontSizeMultiplier={1.15}>{title}</Text>
-            <Text style={[s.cardDesc, featured && s.cardDescFeatured]} numberOfLines={3} adjustsFontSizeToFit minimumFontScale={0.85} maxFontSizeMultiplier={1.1}>{desc}</Text>
-          </View>
-        </View>
-        {featured ? (
-          <View style={s.check}><Check size={16} color={C.ink} strokeWidth={3} /></View>
-        ) : (
-          <View style={s.arrow}><ArrowRight size={17} color={C.white} strokeWidth={2.4} /></View>
-        )}
-        {locked && <View style={s.lock}><Lock size={12} color="#ffffff" /></View>}
-      </View>
-      {featured && <View pointerEvents="none" style={s.ring} />}
-    </View>
-  );
+  const fade = { transitionProperty: ['opacity', 'backgroundColor', 'borderColor'], transitionDuration: 160, transitionTimingFunction: CSS_EASE_OUT } as object;
   return (
     <Reanimated.View entering={animateIn ? cardIn(index) : undefined}>
-      {onPress ? (
-        <PressableScale onPress={onPress} accessibilityRole="button" accessibilityLabel={a11y}>{body}</PressableScale>
-      ) : (
-        <View accessible accessibilityLabel={a11y}>{body}</View>
-      )}
+      <PressableScale onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={a11y}>
+        <View style={[s.card, large && s.cardFeatured, selected && s.cardOn, { height }]}>
+          <View style={[s.cardClip, large && { borderRadius: 28 }]}>
+            <Image source={img.src} style={[s.cardImg, { height, width: Math.round(height * img.ratio) }]} resizeMode="cover" accessibilityIgnoresInvertColors />
+            <LinearGradient
+              colors={['rgba(18,61,37,0.97)', 'rgba(18,61,37,0.86)', 'rgba(18,61,37,0.35)', 'rgba(18,61,37,0)']}
+              locations={[0, 0.36, 0.58, 0.78]}
+              start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={[s.cardBody, large && s.cardBodyFeatured]}>
+              <View style={[s.cardIcon, large && s.cardIconLarge, selected ? s.cardIconOn : s.cardIconOff, fade]}>{icon(selected)}</View>
+              <View style={s.cardText}>
+                <Text style={[s.cardTitle, large && s.cardTitleFeatured]} numberOfLines={2} maxFontSizeMultiplier={1.15}>{title}</Text>
+                <Text style={[s.cardDesc, large && s.cardDescFeatured]} numberOfLines={3} adjustsFontSizeToFit minimumFontScale={0.85} maxFontSizeMultiplier={1.1}>{desc}</Text>
+              </View>
+            </View>
+            {locked ? (
+              <View style={s.lock}><Lock size={12} color="#ffffff" /></View>
+            ) : (
+              <View style={[s.radio, selected && s.radioOn, fade]}>{selected && <Check size={16} color={C.ink} strokeWidth={3} />}</View>
+            )}
+          </View>
+          <View pointerEvents="none" style={[s.ring, large && { borderRadius: 28 }, { opacity: selected ? 1 : 0 }, fade]} />
+        </View>
+      </PressableScale>
     </Reanimated.View>
   );
 }
@@ -166,28 +162,33 @@ export default function ScanHome({ isGuest, tokensRemaining, email = null, pendi
   useEffect(() => { cardsShown = true; }, []);
 
   const [lockedTap, setLockedTap] = useState(false);
+  // Cámara elegida: Celular, Dron o GoPro. Las tres inician el mismo recorrido; solo cambia la animación.
+  const [source, setSource] = useState<ScanSource>('celular');
   // Invitado: tocó «Recorrido inteligente» (bloqueado) → se explica cómo desbloquearlo.
   const [walkInfo, setWalkInfo] = useState(false);
 
   // Con cuenta: solo recorrido (la foto individual se toma con «Tomar foto» dentro del recorrido).
   // Invitado: solo foto individual; el recorrido aparece con candado.
-  const ctaLabel = isGuest ? t('ctaPhoto') : t('ctaWalk');
-  const caption = isGuest ? t('capPhoto') : t('capWalk');
+  const ctaLabel = isGuest ? t('ctaPhoto') : source === 'dron' ? t('ctaWalkDrone') : source === 'camara' ? t('ctaWalkGopro') : t('ctaWalk');
+  const caption = isGuest ? t('capPhoto') : source === 'dron' ? t('capDrone') : source === 'camara' ? t('capGopro') : t('capWalk');
 
   const start = () => {
     if (busyLabel) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    if (isGuest) onPhoto?.(); else onWalk();
+    if (isGuest) onPhoto?.();
+    else onWalk(source === 'dron' ? 'dron' : source === 'camara' ? 'gopro' : undefined);
+  };
+  const pick = (next: ScanSource) => {
+    // Dron y GoPro inician un recorrido: requieren cuenta.
+    if (isGuest && next !== 'celular') { Haptics.selectionAsync().catch(() => {}); setLockedTap(true); return; }
+    if (next !== source) Haptics.selectionAsync().catch(() => {});
+    setSource(next);
   };
   const tapLockedWalk = () => {
     Haptics.selectionAsync().catch(() => {});
     setWalkInfo(v => !v);
   };
-  const walkWith = (fuente: 'dron' | 'camara') => {
-    if (isGuest) { Haptics.selectionAsync().catch(() => {}); setLockedTap(true); return; }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    onWalk(fuente === 'dron' ? 'dron' : 'gopro');
-  };
+
 
   // Barra de pestañas flotante + botón central que sobresale.
   const bottomSpace = (isTablet ? 82 + 24 : 72 + 18) + 28 + insets.bottom;
@@ -230,13 +231,27 @@ export default function ScanHome({ isGuest, tokensRemaining, email = null, pendi
           </View>
           <View style={{ height: fade - 30 }} />
 
-          {/* ── Celular: la forma principal ── */}
-          <SourceCard
-            kind="celular" featured index={0} animateIn={animateIn} locked={false} height={phoneH}
-            icon={<Smartphone size={22} color={C.ink} />}
-            title={t('srcPhone')} desc={t('descPhone')}
-            a11y={`${t('srcPhone')}. ${t('descPhone')}, ${t('selected')}`}
-          />
+          {/* ── Cámara: Celular (la principal, más grande), Dron o GoPro. Se elige y luego se inicia. ── */}
+          <View style={s.cards} accessibilityRole="radiogroup">
+            {([
+              { key: 'celular' as const, Icon: Smartphone, title: t('srcPhone'), desc: t('descPhone') },
+              { key: 'dron' as const, Icon: Plane, title: t('srcDrone'), desc: t('descDrone') },
+              { key: 'camara' as const, Icon: Video, title: t('srcAction'), desc: t('descAction') },
+            ]).map((src, i) => {
+              const on = source === src.key;
+              const locked = isGuest && src.key !== 'celular';
+              const large = src.key === 'celular';
+              return (
+                <SourceCard
+                  key={src.key} kind={src.key} index={i} animateIn={animateIn} large={large} selected={on} locked={locked}
+                  height={large ? phoneH : cardH} title={src.title} desc={src.desc} onPress={() => pick(src.key)}
+                  icon={sel => <src.Icon size={large ? 22 : 18} color={sel ? C.ink : C.white} />}
+                  a11y={`${src.title}. ${src.desc}${locked ? `, ${t('needsAccount')}` : ''}${on ? `, ${t('selected')}` : ''}`}
+                />
+              );
+            })}
+          </View>
+          {isGuest && lockedTap && <Text style={[s.caption, { color: SCAN.inkSoft }]} maxFontSizeMultiplier={1.15}>{t('locked')}</Text>}
 
           <Text style={[s.caption, { marginTop: 14 }]} maxFontSizeMultiplier={1.15}>{caption}</Text>
           {/* ── Acción principal: recorrido (con cuenta) o foto individual (invitado) ── */}
@@ -287,25 +302,6 @@ export default function ScanHome({ isGuest, tokensRemaining, email = null, pendi
             </PressableScale>
           )}
 
-          {/* ── Otras fuentes: importan fotos de la galería ── */}
-          <Text style={s.section} accessibilityRole="header">{t('more')}</Text>
-          <View style={s.cards}>
-            {([
-              { key: 'dron' as const, icon: Plane, title: t('srcDrone'), desc: t('descDrone') },
-              { key: 'camara' as const, icon: Video, title: t('srcAction'), desc: t('descAction') },
-            ]).map((src, i) => {
-              const Icon = src.icon;
-              return (
-                <SourceCard
-                  key={src.key} kind={src.key} index={i + 1} animateIn={animateIn} height={cardH} locked={isGuest}
-                  icon={<Icon size={18} color={C.white} />} title={src.title} desc={src.desc}
-                  onPress={() => walkWith(src.key)}
-                  a11y={`${src.title}. ${src.desc}. ${t('ctaModeWalk')}${isGuest ? `, ${t('needsAccount')}` : ''}`}
-                />
-              );
-            })}
-          </View>
-          <Text style={s.caption} maxFontSizeMultiplier={1.15}>{isGuest && lockedTap ? t('locked') : t('capModes')}</Text>
         </View>
       </ScrollView>
     </View>
@@ -329,26 +325,27 @@ const s = StyleSheet.create({
   claimCompact: { fontSize: 26, lineHeight: 30 },
   swoosh: { marginTop: 4, marginLeft: 6 },
 
-  section: { marginTop: 22, marginBottom: 10, fontFamily: 'Poppins_600SemiBold', fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase', color: SCAN.muted },
   cards: { gap: 10 },
   // Sombra en la vista exterior, recorte en la interior (la sombra no se recorta).
   card: { borderRadius: 24, backgroundColor: C.deep, shadowColor: C.deep, shadowRadius: 12, shadowOpacity: 0.12, shadowOffset: { width: 0, height: 5 }, elevation: 3 },
   cardFeatured: { borderRadius: 28, shadowColor: '#4D7C0F', shadowOpacity: 0.32, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 7 },
   cardClip: { flex: 1, borderRadius: 24, overflow: 'hidden' },
   cardImg: { position: 'absolute', top: 0, right: 0 },
+  cardOn: { shadowOpacity: 0.3 },
+  radio: { position: 'absolute', right: 14, top: 14, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.75)', backgroundColor: 'rgba(0,0,0,0.15)' },
+  radioOn: { backgroundColor: C.lime, borderColor: C.lime },
+  cardIconLarge: { width: 48, height: 48, borderRadius: 16 },
   ring: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 28, borderWidth: 2.5, borderColor: C.lime },
   cardBody: { position: 'absolute', top: 0, bottom: 0, left: 18, width: '62%', flexDirection: 'row', alignItems: 'center', gap: 11 },
   cardBodyFeatured: { left: 20, width: '64%', gap: 14 },
   cardIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  cardIconOn: { width: 48, height: 48, borderRadius: 16, backgroundColor: C.lime, borderColor: C.lime },
+  cardIconOn: { backgroundColor: C.lime, borderColor: C.lime },
   cardIconOff: { backgroundColor: 'rgba(255,255,255,0.16)', borderColor: 'rgba(255,255,255,0.35)' },
   cardText: { flex: 1, gap: 2 },
   cardTitle: { fontFamily: 'Poppins_700Bold', fontSize: 16.5, lineHeight: 21, color: C.white, letterSpacing: -0.2 },
   cardTitleFeatured: { fontSize: 23, lineHeight: 28, letterSpacing: -0.5 },
   cardDesc: { fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 16, color: 'rgba(255,255,255,0.86)' },
   cardDescFeatured: { fontSize: 13, lineHeight: 18 },
-  arrow: { position: 'absolute', right: 12, bottom: 12, width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', borderWidth: 1, backgroundColor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.55)' },
-  check: { position: 'absolute', right: 14, top: 14, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: C.lime },
   lock: { position: 'absolute', top: 10, right: 12, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
 
   caption: { marginTop: 8, fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: SCAN.muted },

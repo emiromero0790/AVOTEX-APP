@@ -1,0 +1,62 @@
+{
+  "generatedBy": "scripts/field-tracking/render.mjs",
+  "camera": {
+    "viewW": 128,
+    "viewH": 176,
+    "renderScale": 3,
+    "camHeight": 2.5,
+    "pitchDeg": 15,
+    "fovDeg": 50,
+    "charZ": 4.4,
+    "walkFrames": 16,
+    "idleFrames": 8,
+    "idlePeriodS": 2.6,
+    "treeRowsX": [
+      2.7,
+      5.4
+    ],
+    "treeSpacing": 4.5,
+    "dynamicTreeZ": [
+      2.2,
+      34
+    ],
+    "farTreeZ": [
+      34,
+      150
+    ]
+  },
+  "farmer": {
+    "frameW": 24.333333333333332,
+    "frameH": 81,
+    "sheetCols": 8,
+    "sheetRows": 3,
+    "walkFrames": 16,
+    "idleFrames": 8,
+    "x": 51,
+    "y": 61.666666666666664,
+    "metersPerCycle": 1.213
+  },
+  "trees": [
+    {
+      "w": 379,
+      "h": 314,
+      "anchorX": 167,
+      "anchorY": 300.9,
+      "metersPerPx": 0.00962
+    },
+    {
+      "w": 346,
+      "h": 326,
+      "anchorX": 134,
+      "anchorY": 311.9,
+      "metersPerPx": 0.00962
+    },
+    {
+      "w": 363,
+      "h": 314,
+      "anchorX": 151,
+      "anchorY": 301.9,
+      "metersPerPx": 0.00962
+    }
+  ]
+}

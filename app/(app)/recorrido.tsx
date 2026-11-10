@@ -25,7 +25,7 @@ import { StatusBar } from 'expo-status-bar';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import Reanimated, { FadeIn, FadeInDown, FadeOut, LinearTransition, useReducedMotion } from 'react-native-reanimated';
+import Reanimated, { FadeIn, FadeOut, LinearTransition, useReducedMotion } from 'react-native-reanimated';
 import {
   ChevronLeft,
   CloudOff,
@@ -83,6 +83,8 @@ import {
 import { registerForPush } from '../../services/push';
 import { withTimeout } from '../../services/timeout';
 import { GpsTrack } from '../../services/gpsFilter';
+import { FieldMotion } from '../../services/fieldMotion';
+import FieldTracking3D, { FieldTrackingGuard } from '../../components/fieldTracking/FieldTracking3D';
 import { cleanRoute, routeMeters } from '../../services/escaneos';
 import RecorridoMap from '../../components/RecorridoMap';
 // Fotos reales de montaje (Flickr, CC BY 2.0 y CC BY-SA 2.0). Ver assets/images/escanear/CREDITOS.md
@@ -98,7 +100,6 @@ const HOLD_TO_FINISH_MS = 900;
 const HUD_FADE_IN = FadeIn.duration(250).easing(EASE_OUT);
 const PAUSE_IN = FadeIn.duration(200).easing(EASE_OUT);
 const PAUSE_OUT = FadeOut.duration(160);
-const START_IN = FadeInDown.duration(260).easing(EASE_OUT);
 // Lista "Mis recorridos": al subirse un recorrido sale con un fundido y el resto se acomoda (no se ve un salto).
 const ITEM_OUT = FadeOut.duration(200);
 const ITEM_IN = FadeIn.duration(220).easing(EASE_OUT);
@@ -107,6 +108,24 @@ const LIST_REFLOW = LinearTransition.duration(260).easing(EASE_IN_OUT);
 const COUNT_POP = { from: { transform: [{ scale: 1.18 }] }, to: { transform: [{ scale: 1 }] } };
 
 const auth = firebaseAuth as Auth;
+
+/**
+ * Diagnóstico GPS en la consola (Metro, `adb logcat -s ReactNativeJS`, o Consola de macOS en iOS):
+ * una línea por lectura con lo que recibe el filtro de distancia (services/gpsFilter.ts) y su decisión.
+ * Buscar «[gps]». Ejemplo:
+ *   [gps] #12 ±6m v=0.00(no confiable) desp 3.1/7.5m → rechazada(puerta) · pasos 2 · rech prec 0 puerta 9 salto 0 idavuelta 0 · total 11.4m
+ */
+function logGps(track: GpsTrack, f: { lat: number; lng: number; acc: number | null; speed: number | null; step: number; accepted: boolean }) {
+  const d = track.debug;
+  const n = (v: number | null | undefined, k = 1) => (v == null ? '—' : v.toFixed(k));
+  const speedTxt = f.speed == null || f.speed < 0 ? 'sin dato' : `${n(f.speed, 2)}${d.speedTrusted ? '' : '(no confiable)'}`;
+  const verdict = f.accepted ? (f.step > 0 ? `+${n(f.step)}m` : 'inicio') : `rechazada(${d.lastReason})`;
+  console.log(
+    `[gps] #${d.fixes} ±${n(f.acc, 0)}m v=${speedTxt}${d.still ? ' quieto' : ''} desp ${n(d.lastDist)}/${n(d.lastGate)}m → ${verdict}`
+    + ` · pasos ${d.accepted} · rech prec ${d.rejectedAccuracy} puerta ${d.rejectedGate} salto ${d.rejectedSpike} idavuelta ${d.rejectedReversal}`
+    + ` · total ${n(track.distance)}m · ${f.lat.toFixed(6)},${f.lng.toFixed(6)}`,
+  );
+}
 
 const translations: TranslationResource = {
   title: { es: 'Recorrido inteligente', en: 'Smart field walk' },
@@ -219,8 +238,6 @@ const translations: TranslationResource = {
   netCellular: { es: 'Datos · se sube con WiFi', en: 'Mobile data · uploads on WiFi' },
   netCellularOn: { es: 'Datos · se sube al terminar', en: 'Mobile data · uploads when done' },
   autoCapture: { es: 'Captura automática', en: 'Automatic capture' },
-  captureStarted: { es: 'Captura iniciada', en: 'Capture started' },
-  captureStartedBody: { es: 'Camina normal: las fotos se toman solas.', en: 'Walk normally: photos are taken automatically.' },
   limitReached: { es: 'Llegaste al máximo de imágenes de un recorrido. Termina y empieza otro.', en: 'You reached the image limit for one walk. Finish and start another.' },
   noSpace: { es: 'Tu celular tiene poco espacio libre. Libera espacio antes de grabar.', en: 'Your phone is low on storage. Free some space before recording.' },
   permCamera: { es: 'Necesitamos la cámara para grabar el recorrido.', en: 'We need the camera to record the walk.' },
@@ -332,6 +349,10 @@ export default function RecorridoScreen() {
   const lastFixRef = useRef<{ lat: number; lng: number; acc: number | null; at: number } | null>(null);
   const lastShotRef = useRef<{ lat: number | null; lng: number | null; at: number } | null>(null);
   const useGpsRef = useRef(true);
+  // Field Tracking 3D: solo visualización. Recibe las mismas lecturas GPS (no hay otro observador).
+  const fieldMotionRef = useRef<FieldMotion | null>(null);
+  const [fieldMotion, setFieldMotion] = useState<FieldMotion | null>(null);
+  const [hudBottom, setHudBottom] = useState(0);
   const [paused, setPaused] = useState(false);
   const [stats, setStats] = useState({ elapsed: 0, distance: 0, photos: 0, accuracy: null as number | null, gps: 'searching' as 'ok' | 'searching' | 'lost' });
   const [limitHit, setLimitHit] = useState(false);
@@ -341,7 +362,6 @@ export default function RecorridoScreen() {
   const reducedMotion = useReducedMotion();
   const [holding, setHolding] = useState(false);
   const [holdHint, setHoldHint] = useState(false);
-  const [startBanner, setStartBanner] = useState(false);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── detalle ──
@@ -541,6 +561,8 @@ export default function RecorridoScreen() {
     watchRef.current = null;
     if (tickRef.current) clearInterval(tickRef.current);
     tickRef.current = null;
+    fieldMotionRef.current = null;
+    setFieldMotion(null);
     Promise.resolve(deactivateKeepAwake('recorrido')).catch(() => {});
   }, []);
 
@@ -577,11 +599,21 @@ export default function RecorridoScreen() {
     // ni dispara fotos. Solo los pasos de movimiento real entran a la ruta y a la distancia.
     const track = trackRef.current ?? (trackRef.current = new GpsTrack());
     const step = track.push({ lat, lng, acc: accuracy ?? null, speed: speed ?? null, t: now });
+    logGps(track, { lat, lng, acc: accuracy ?? null, speed: speed ?? null, step: step.step, accepted: step.accepted });
     if (step.accepted && step.point) {
       rec.ruta.push({ lat: step.point.lat, lng: step.point.lng, t: new Date(now).toISOString(), f: 1 });
       if (step.step > 0 && !pausedRef.current) setStats(s => ({ ...s, distance: s.distance + step.step }));
     }
     setStats(s => ({ ...s, accuracy: accuracy ?? null, gps: 'ok' }));
+    const fm = fieldMotionRef.current;
+    if (fm) {
+      try {
+        fm.pushFix({
+          t: now, lat, lng, acc: accuracy ?? null, speed: track.lastSpeed, heading: loc.coords.heading ?? null,
+          accepted: step.accepted, step: step.step, trackMoving: track.isMoving(now),
+        });
+      } catch (e) { console.warn('[recorrido] field tracking', e); }
+    }
     if (pausedRef.current) return;
     // Fotos por distancia solo si de verdad te estás moviendo; la posición es la suavizada.
     const pos = track.position() ?? { lat, lng };
@@ -614,6 +646,10 @@ export default function RecorridoScreen() {
       recRef.current = rec;
       lastFixRef.current = null;
       trackRef.current = new GpsTrack();
+      const fm = new FieldMotion();
+      fm.setGpsEnabled(withGps);
+      fieldMotionRef.current = fm;
+      setFieldMotion(fm);
       lastShotRef.current = null;
       pausedRef.current = false;
       setPaused(false);
@@ -627,9 +663,6 @@ export default function RecorridoScreen() {
       pauseStartRef.current = null;
       setMode('record');
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-      // Aviso breve de que la captura automática ya empezó (el teléfono suele ir ya montado).
-      setStartBanner(true);
-      setTimeout(() => setStartBanner(false), 2600);
       refreshNetwork();
       activateKeepAwakeAsync('recorrido').catch(() => {});
       // El GPS no se espera: si tarda o nunca responde, el reloj y la captura por tiempo ya corren
@@ -649,6 +682,7 @@ export default function RecorridoScreen() {
         const pausedNow = pauseStartRef.current ? now - pauseStartRef.current : 0;
         const fix = lastFixRef.current;
         const gpsLost = !useGpsRef.current || !fix || now - fix.at > 5000;
+        try { fieldMotionRef.current?.tick(now); } catch { /* solo visualización */ }
         setStats(s => ({
           ...s,
           elapsed: now - startedAtRef.current - pausedMsRef.current - pausedNow,
@@ -898,7 +932,11 @@ export default function RecorridoScreen() {
               <Text style={st.recTimerText}>{formatDuration(stats.elapsed)}</Text>
             </View>
           </Reanimated.View>
-          <Reanimated.View entering={HUD_FADE_IN} style={st.pillsRow}>
+          <Reanimated.View
+            entering={HUD_FADE_IN}
+            style={st.pillsRow}
+            onLayout={e => { const { y, height } = e.nativeEvent.layout; setHudBottom(y + height); }}
+          >
             <View style={[st.gpsPill, stats.gps === 'ok' ? st.gpsOk : stats.gps === 'lost' ? st.gpsLost : st.gpsSearch]}>
               <MapPin size={13} color="#fff" />
               <Text style={st.gpsText}>{gpsText}</Text>
@@ -914,14 +952,11 @@ export default function RecorridoScreen() {
           <View style={st.cameraLoading}><ActivityIndicator color="#fff" size="large" /></View>
         )}
 
-        {startBanner && !paused && (
-          <Reanimated.View entering={reducedMotion ? undefined : START_IN} exiting={PAUSE_OUT} style={[st.startBanner, { top: insets.top + 110 }]} pointerEvents="none">
-            <View style={st.startBannerIcon}><CameraIcon size={16} color="#04140F" /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={st.startBannerTitle}>{t('captureStarted')}</Text>
-              <Text style={st.startBannerBody}>{t('captureStartedBody')}</Text>
-            </View>
-          </Reanimated.View>
+        {/* Field Tracking 3D: siempre visible durante el recorrido, debajo de las píldoras, a la derecha. */}
+        {hudBottom > 0 && (
+          <FieldTrackingGuard>
+            <FieldTracking3D motion={fieldMotion} paused={paused} distanceLabel={formatDistance(stats.distance)} top={hudBottom + 12} />
+          </FieldTrackingGuard>
         )}
 
         {paused && (
@@ -1382,10 +1417,6 @@ const st = StyleSheet.create({
   recSecondary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 68, paddingVertical: 17, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
   recSecondaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#fff' },
   recStop: { flex: 1.3, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 68, paddingVertical: 17, borderRadius: 20, backgroundColor: '#b91c1c', overflow: 'hidden' },
-  startBanner: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 18, backgroundColor: 'rgba(4,20,15,0.82)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.45)' },
-  startBannerIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#34D399', alignItems: 'center', justifyContent: 'center' },
-  startBannerTitle: { fontFamily: 'Poppins_700Bold', fontSize: 14.5, color: '#ECFDF5' },
-  startBannerBody: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, color: 'rgba(209,250,229,0.75)' },
   holdFill: { position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, backgroundColor: '#ef4444', transformOrigin: 'left' },
   recStopText: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' },
   summaryHint: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, lineHeight: 16, color: '#64748b' },

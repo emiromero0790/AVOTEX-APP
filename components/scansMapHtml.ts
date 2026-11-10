@@ -56,7 +56,8 @@ export type ScansMapData = {
   focusOrchard: string | null;
   /** Cambia cuando cambia lo que hay que encuadrar (huerta elegida o filtros). */
   fitKey: string;
-  pad: { top: number; right: number; bottom: number; left: number };
+  /** Obsoleto: usar la prop `pad` de ScansMap (no redibuja). */
+  pad?: { top: number; right: number; bottom: number; left: number };
   show: ScansMapShow;
   reduced: boolean;
 };
@@ -89,9 +90,10 @@ export function buildScansMapHtml(): string {
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
 html,body,#map{height:100%;width:100%;margin:0;background:#dfe7e1}
-.leaflet-container{background:#dfe7e1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
-.leaflet-control-attribution{background:rgba(255,255,255,.7)!important;color:#475569!important;font-size:8px;border-radius:6px 0 0 0}
-.leaflet-control-attribution a{color:#334155!important}
+.leaflet-container{background:#080D10;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+.leaflet-control-attribution{background:rgba(8,13,16,.55)!important;color:#AAB5BF!important;font-size:8px;border-radius:6px 0 0 0}
+.leaflet-bottom{transition:bottom .25s cubic-bezier(.23,1,.32,1)}
+.leaflet-control-attribution a{color:#CBD5E1!important}
 .leaflet-control-scale{margin:0 0 10px 12px!important}
 .leaflet-control-scale-line{border:2px solid #fff;border-top:0;color:#fff;background:transparent;font-size:10px;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.8);box-shadow:0 1px 0 rgba(0,0,0,.25)}
 .orch{background:rgba(255,255,255,.9);border:0;border-radius:999px;box-shadow:0 1px 4px rgba(0,0,0,.25);color:#365314;font-size:10.5px;font-weight:700;padding:2px 9px}
@@ -153,6 +155,7 @@ map.createPane('heat').style.zIndex=425;
 map.createPane('route').style.zIndex=440;
 var zoneLayer=L.layerGroup().addTo(map),orchLayer=L.layerGroup().addTo(map),routeLayer=L.layerGroup().addTo(map),scanLayer=L.layerGroup().addTo(map),
     detailLayer=L.layerGroup().addTo(map),photoLayer=L.layerGroup().addTo(map),meLayer=L.layerGroup().addTo(map);
+var PAD={top:0,right:0,bottom:0,left:0};
 var data=null,selected=null,detail=null,pointMarkers={},active=null,lastFitKey=null,loaded=false,pendingFit=false,popped={};
 var I={
  route:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>',
@@ -168,12 +171,12 @@ var I={
 function ll(p){return[p.lat,p.lng];}
 function anim(){return data&&!data.reduced;}
 function show(k){return !data||!data.show||data.show[k]!==false;}
-function padOpts(maxZ){var p=(data&&data.pad)||{top:0,right:0,bottom:0,left:0};return{paddingTopLeft:[p.left+20,p.top+20],paddingBottomRight:[p.right+20,p.bottom+20],maxZoom:maxZ||18};}
+function padOpts(maxZ){var p=PAD;return{paddingTopLeft:[p.left+20,p.top+20],paddingBottomRight:[p.right+20,p.bottom+20],maxZoom:maxZ||18};}
 function minSpan(b,m){if(!b||!b.isValid())return b;var c=b.getCenter(),n=b.getNorthEast(),sw=b.getSouthWest();
   var h=(n.lat-sw.lat)*111320,w=(n.lng-sw.lng)*111320*Math.cos(c.lat*Math.PI/180);if(h>=m||w>=m)return b;
   var dl=m/2/111320,dg=m/2/(111320*Math.cos(c.lat*Math.PI/180));return L.latLngBounds([c.lat-dl,c.lng-dg],[c.lat+dl,c.lng+dg]);}
-function go(b,maxZ){if(!b||!b.isValid())return;var o=padOpts(maxZ);if(anim()&&loaded){map.flyToBounds(b,Object.assign(o,{duration:.8}));}else{map.fitBounds(b,o);}loaded=true;}
-function centerOn(latlng,minZ){var z=Math.max(map.getZoom(),minZ),pd=data.pad,pt=map.project(latlng,z).add([(pd.right-pd.left)/2,(pd.bottom-pd.top)/2]);
+function go(b,maxZ){if(!b||!b.isValid())return;if(curBase===BASES.oscuro)maxZ=Math.min(maxZ||18,18);var o=padOpts(maxZ);if(anim()&&loaded){map.flyToBounds(b,Object.assign(o,{duration:.8}));}else{map.fitBounds(b,o);}loaded=true;}
+function centerOn(latlng,minZ){var z=Math.max(map.getZoom(),minZ),pd=PAD,pt=map.project(latlng,z).add([(pd.right-pd.left)/2,(pd.bottom-pd.top)/2]);
   if(anim())map.flyTo(map.unproject(pt,z),z,{duration:.6});else map.setView(map.unproject(pt,z),z);}
 // Agrupa puntos que en pantalla quedan a menos de "px" píxeles (al zoom actual).
 function cluster(items,px){var out=[];items.forEach(function(it){var p=map.latLngToLayerPoint([it.lat,it.lng]),hit=null;
@@ -192,7 +195,7 @@ function drawZones(){zoneLayer.clearLayers();if(!data)return;
     L.marker(ll(z.at),{icon:L.divIcon({className:'',html:'<div class="zl" style="background:'+c.label+';color:'+c.ink+'">'+z.label+'</div>',iconSize:[0,0]}),interactive:false,keyboard:false}).addTo(zoneLayer);});}
 function drawOrchards(){orchLayer.clearLayers();if(!show('orchards'))return;
   data.orchards.forEach(function(o){if(o.points.length<3)return;var on=data.focusOrchard===o.id,off=data.focusOrchard&&!on;
-    var poly=L.polygon(o.points.map(ll),{color:on?'#d9f99d':'#a3e635',weight:on?3.2:2.4,opacity:off?.45:1,fillColor:'#84cc16',fillOpacity:data.zones.length?0:(on?.16:off?.04:.12),lineJoin:'round',className:anim()?'fade':''});
+    var poly=L.polygon(o.points.map(ll),{color:'#8BF52B',weight:on?3.2:2.4,opacity:off?.45:1,fillColor:'#8BF52B',fillOpacity:data.zones.length?0:(on?.16:off?.04:.12),lineJoin:'round',className:anim()?'fade':''});
     poly.bindTooltip(o.name,{permanent:true,direction:'center',className:'orch',opacity:off?.6:1});
     poly.on('click',function(e){L.DomEvent.stopPropagation(e);post({type:'orchard',id:o.id});});poly.addTo(orchLayer);});}
 function drawRoutes(){routeLayer.clearLayers();if(!show('routes'))return;
@@ -284,7 +287,10 @@ function redrawAll(){if(!data)return;drawZones();drawOrchards();drawRoutes();dra
 map.on('zoomend',function(){if(!data)return;drawScans();drawPhotos();});
 map.on('click',function(){post({type:'clear'});});
 window.avx={
-  setData:function(d){var refit=!data||d.fitKey!==lastFitKey;data=d;lastFitKey=d.fitKey;
+  // Márgenes de lo que tapan el encabezado y el panel: solo se guardan (no redibujan nada) y se usan
+  // al encuadrar. Los controles inferiores de Leaflet (escala, créditos) suben por encima del panel.
+  setPad:function(p){PAD=p||PAD;var els=document.querySelectorAll('.leaflet-bottom');for(var i=0;i<els.length;i++)els[i].style.bottom=(PAD.bottom||0)+'px';},
+  setData:function(d){var refit=!data||d.fitKey!==lastFitKey;data=d;lastFitKey=d.fitKey;if(d.pad)avx.setPad(d.pad);
     document.getElementById('map').classList.toggle('calm',!!d.reduced);
     redrawAll();
     if(refit){if(detail)pendingFit=true;else go(scopeBounds(),18);}},

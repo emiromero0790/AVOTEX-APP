@@ -15,6 +15,8 @@ export type ScansMapProps = {
   point: { kind: 'photo' | 'finding'; id: string } | null;
   user: ScansMapPoint | null;
   layer: ScansMapLayer;
+  /** Lo que tapan encabezado y panel (px). Cambiarlo NO redibuja el mapa: solo afecta al encuadre. */
+  pad?: { top: number; right: number; bottom: number; left: number };
   /** Estilo de la ruta (clásica, velocidad, tiempo o calor). */
   routeStyle?: ScansMapRouteStyle;
   onEvent: (e: ScansMapEvent) => void;

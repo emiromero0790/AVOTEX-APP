@@ -16,6 +16,8 @@ import { CSS_EASE_OUT } from '../scan/motion';
 import { SPEED_COLORS, TIME_COLORS, type ScansMapLayer, type ScansMapRouteStyle } from '../scansMapHtml';
 
 const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+/** Verde menta de selección (paleta oscura de Mis escaneos). */
+const MINT = '#A7F3D0';
 const TEAL = '#0F766E';
 
 const translations: TranslationResource = {
@@ -95,7 +97,7 @@ const Card = memo(function Card({ on, label, sub, onPress, children, width }: { 
     <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${label}${sub ? `, ${sub}` : ''}${on ? `, ${t('selected')}` : ''}`} style={{ width }}>
       {({ pressed }) => (
         <View style={{ alignItems: 'center', gap: 5 }}>
-          <Reanimated.View style={[s.thumbWrap, { width, height: Math.round(width * 0.78), borderColor: on ? TEAL : 'transparent', transform: [{ scale: pressed ? 0.96 : 1 }], transitionProperty: ['borderColor', 'transform'], transitionDuration: 150, transitionTimingFunction: CSS_EASE_OUT } as object]}>
+          <Reanimated.View style={[s.thumbWrap, { width, height: Math.round(width * 0.78), borderColor: on ? MINT : 'transparent', transform: [{ scale: pressed ? 0.96 : 1 }], transitionProperty: ['borderColor', 'transform'], transitionDuration: 150, transitionTimingFunction: CSS_EASE_OUT } as object]}>
             <View style={s.thumb}>{children}</View>
           </Reanimated.View>
           <Text style={[s.label, on && s.labelOn]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{label}</Text>
@@ -140,7 +142,8 @@ const RoutePreview = memo(function RoutePreview({ kind, w, h }: { kind: ScansMap
 });
 
 const LAYERS: ScansMapLayer[] = ['satelite', 'hibrido', 'estandar', 'topo', 'oscuro'];
-const ROUTE_STYLES: ScansMapRouteStyle[] = ['clasica', 'velocidad', 'tiempo', 'calor'];
+// Velocidad y Tiempo usan las horas reales de la ruta; sin ellas la leyenda del mapa lo indica.
+const ROUTE_STYLES: ScansMapRouteStyle[] = ['clasica', 'velocidad', 'tiempo'];
 const ZONE_COLORS = ['#84CC16', '#F59E0B', '#22C55E', '#EF4444'];
 
 /** Tarjeta de un tipo de mapa. `onPick` es estable, así que al elegir solo se repintan dos tarjetas. */
@@ -265,13 +268,13 @@ export default function MapStylePicker({ layer, routeStyle, zonesAvailable, cent
 }
 
 const s = StyleSheet.create({
-  section: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#0F172A', letterSpacing: -0.2 },
+  section: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#FFFFFF', letterSpacing: -0.2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   thumbWrap: { borderRadius: 16, borderWidth: 2.5, padding: 2 },
-  thumb: { flex: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: '#CBD5E1' },
-  label: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#334155' },
-  labelOn: { fontFamily: 'Poppins_700Bold', color: TEAL },
-  sub: { fontFamily: 'Poppins_400Regular', fontSize: 10.5, color: '#64748B', marginTop: -4 },
+  thumb: { flex: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: '#1E2A30' },
+  label: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#AAB5BF' },
+  labelOn: { fontFamily: 'Poppins_700Bold', color: MINT },
+  sub: { fontFamily: 'Poppins_400Regular', fontSize: 10.5, color: '#7C8A96', marginTop: -4 },
   loading: { alignItems: 'center', justifyContent: 'center' },
   zones: { flexDirection: 'row', flexWrap: 'wrap', opacity: 0.45 },
   zone: { width: '50%', height: '50%', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.8)' },

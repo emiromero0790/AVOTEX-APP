@@ -8,6 +8,7 @@ type Avx = {
   setDetail: (d: unknown, fit: boolean) => void;
   point: (kind: string | null, id: string | null) => void;
   setLayer: (l: string) => void;
+  setPad: (p: unknown) => void;
   setRouteStyle: (s: string) => void;
   zoom: (d: number) => void;
   showUser: (lat: number, lng: number, fly: boolean) => void;
@@ -15,7 +16,7 @@ type Avx = {
 };
 
 const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
-  { data, selectedId, detail, point, user, layer, routeStyle = 'clasica', onEvent, onError },
+  { data, selectedId, detail, point, user, layer, pad, routeStyle = 'clasica', onEvent, onError },
   ref,
 ) {
   const frame = useRef<HTMLIFrameElement>(null);
@@ -45,6 +46,7 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
 
   useEffect(() => { if (ready) avx()?.setLayer(layer); }, [ready, layer]);
   useEffect(() => { if (ready) avx()?.setRouteStyle(routeStyle); }, [ready, routeStyle]);
+  useEffect(() => { if (ready && pad) avx()?.setPad(pad); }, [ready, pad]);
   useEffect(() => { if (ready) avx()?.setData(data); }, [ready, data]);
   useEffect(() => { if (ready) avx()?.select(selectedId); }, [ready, selectedId]);
   useEffect(() => { if (ready) avx()?.setDetail(detail, true); }, [ready, detail]);
@@ -56,7 +58,7 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
       ref={frame}
       title="Mapa de mis escaneos"
       srcDoc={html}
-      style={{ border: 0, width: '100%', height: '100%', display: 'block', background: '#dfe7e1' }}
+      style={{ border: 0, width: '100%', height: '100%', display: 'block', background: '#080D10' }}
     />
   );
 });

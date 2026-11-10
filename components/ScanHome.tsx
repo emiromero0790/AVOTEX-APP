@@ -3,8 +3,11 @@
  *
  * Orden (el celular es la forma principal de escanear):
  * 1. Héroe con foto de la huerta al atardecer: marca, anillo de tokens, título y lema.
- * 2. Celular destacado (tarjeta más grande) → Iniciar recorrido → Ver mis escaneos. (La foto individual se
- *    toma dentro del recorrido con «Tomar foto».)
+ * 2. Celular destacado (tarjeta más grande) y su acción:
+ *    - Con cuenta: Iniciar recorrido + Ver mis escaneos (la foto individual se toma con «Tomar foto» dentro
+ *      del recorrido).
+ *    - Invitado: Tomar fotografía (foto individual) y «Recorrido inteligente» con candado; al tocarlo se
+ *      explica que se desbloquea al crear una cuenta o suscribirse a un plan de pago.
  * 3. Abajo, Dron y GoPro/cámara de acción: cada tarjeta abre directamente la importación de fotos
  *    (no hay conexión directa con ningún fabricante; ver services/importar.ts).
  *
@@ -19,7 +22,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import Reanimated, { FadeIn, FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
-import { ArrowRight, Check, ChevronRight, Footprints, History, Lock, Plane, ScanLine, Smartphone, Video } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { ArrowRight, Camera, Check, ChevronRight, Footprints, History, Lock, Plane, ScanLine, Smartphone, Video } from 'lucide-react-native';
 import { TranslationResource, useTranslations } from '../context/LanguageContext';
 import ScanHeader from './scan/ScanHeader';
 import { CSS_EASE_OUT, EASE_OUT, PressableScale } from './scan/motion';
@@ -66,6 +70,10 @@ const translations: TranslationResource = {
   ctaPhoto: { es: 'Tomar fotografía', en: 'Take photo' },
   ctaImport: { es: 'Importar capturas', en: 'Import captures' },
   locked: { es: 'Crea una cuenta para usarlo', en: 'Create an account to use it' },
+  unlockTitle: { es: 'Recorrido inteligente bloqueado', en: 'Smart walk is locked' },
+  unlockBody: { es: 'Se desbloquea al crear una cuenta o al suscribirte a un plan de pago. Con él caminas tu huerta y el celular toma las fotos solo.', en: 'Unlock it by creating an account or subscribing to a paid plan. Walk your orchard and the phone takes the photos for you.' },
+  account: { es: 'Crear cuenta', en: 'Create account' },
+  plans: { es: 'Ver planes', en: 'See plans' },
   myScans: { es: 'Ver mis escaneos', en: 'View my scans' },
   pending: { es: '{count} sin subir', en: '{count} not uploaded' },
   selected: { es: 'seleccionado', en: 'selected' },
@@ -79,7 +87,7 @@ type Props = {
   email?: string | null;
   /** Escaneos guardados en el celular que aún no se suben. */
   pendingCount: number;
-  /** Ya no se usa: la foto individual se toma dentro del recorrido. */
+  /** Foto individual: solo para invitados (con cuenta se toma dentro del recorrido). */
   onPhoto?: () => void;
   onWalk: () => void;
   onImport: (fuente: 'dron' | 'camara') => void;
@@ -135,7 +143,7 @@ function SourceCard({ kind, icon, title, desc, featured, locked, onPress, a11y, 
   );
 }
 
-export default function ScanHome({ isGuest, tokensRemaining, email = null, pendingCount, onWalk, onImport, onOpenScans, busyLabel = null }: Props) {
+export default function ScanHome({ isGuest, tokensRemaining, email = null, pendingCount, onPhoto, onWalk, onImport, onOpenScans, busyLabel = null }: Props) {
   const t = useTranslations(translations);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -158,17 +166,22 @@ export default function ScanHome({ isGuest, tokensRemaining, email = null, pendi
   useEffect(() => { cardsShown = true; }, []);
 
   const [lockedTap, setLockedTap] = useState(false);
+  // Invitado: tocó «Recorrido inteligente» (bloqueado) → se explica cómo desbloquearlo.
+  const [walkInfo, setWalkInfo] = useState(false);
 
-  // Solo recorrido: la foto individual ahora se toma con el botón «Tomar foto» dentro del recorrido.
-  // El recorrido requiere cuenta.
-  const locked = isGuest;
-  const ctaLabel = t('ctaWalk');
-  const caption = t('capWalk');
+  // Con cuenta: solo recorrido (la foto individual se toma con «Tomar foto» dentro del recorrido).
+  // Invitado: solo foto individual; el recorrido aparece con candado.
+  const ctaLabel = isGuest ? t('ctaPhoto') : t('ctaWalk');
+  const caption = isGuest ? t('capPhoto') : t('capWalk');
 
   const start = () => {
-    if (locked || busyLabel) return;
+    if (busyLabel) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    onWalk();
+    (isGuest ? onPhoto : onWalk)?.();
+  };
+  const tapLockedWalk = () => {
+    Haptics.selectionAsync().catch(() => {});
+    setWalkInfo(v => !v);
   };
   const importFrom = (fuente: 'dron' | 'camara') => {
     if (isGuest) { Haptics.selectionAsync().catch(() => {}); setLockedTap(true); return; }
@@ -226,17 +239,43 @@ export default function ScanHome({ isGuest, tokensRemaining, email = null, pendi
           />
 
           <Text style={[s.caption, { marginTop: 14 }]} maxFontSizeMultiplier={1.15}>{caption}</Text>
-          {/* ── Acción principal ── */}
-          <PressableScale onPress={start} disabled={locked} accessibilityRole="button" accessibilityLabel={locked ? t('locked') : busyLabel ?? `${ctaLabel}. ${caption}`} accessibilityState={{ disabled: locked, busy: !!busyLabel }} style={s.ctaWrap}>
-            <LinearGradient colors={locked ? ['#E2E8F0', '#CBD5E1'] : [...LIME_GRADIENT]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.cta}>
-              {locked ? <Lock size={20} color={SCAN.inkSoft} /> : busyLabel ? <ActivityIndicator color={C.ink} /> : <Footprints size={22} color={C.ink} />}
-              <Reanimated.Text key={locked ? 'locked' : busyLabel ? 'busy' : 'walk'} entering={reduced ? undefined : TEXT_IN}
-                style={[s.ctaText, locked && { color: SCAN.inkSoft }, !!busyLabel && { fontSize: 16 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.15}>
-                {locked ? t('locked') : busyLabel ?? ctaLabel}
+          {/* ── Acción principal: recorrido (con cuenta) o foto individual (invitado) ── */}
+          <PressableScale onPress={start} accessibilityRole="button" accessibilityLabel={busyLabel ?? `${ctaLabel}. ${caption}`} accessibilityState={{ busy: !!busyLabel }} style={s.ctaWrap}>
+            <LinearGradient colors={[...LIME_GRADIENT]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.cta}>
+              {busyLabel ? <ActivityIndicator color={C.ink} /> : isGuest ? <Camera size={22} color={C.ink} /> : <Footprints size={22} color={C.ink} />}
+              <Reanimated.Text key={busyLabel ? 'busy' : isGuest ? 'photo' : 'walk'} entering={reduced ? undefined : TEXT_IN}
+                style={[s.ctaText, !!busyLabel && { fontSize: 16 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.15}>
+                {busyLabel ?? ctaLabel}
               </Reanimated.Text>
-              {!locked && <ChevronRight size={22} color={C.ink} />}
+              <ChevronRight size={22} color={C.ink} />
             </LinearGradient>
           </PressableScale>
+
+          {/* Invitado: el recorrido inteligente se ve, con candado; al tocarlo se explica cómo desbloquearlo. */}
+          {isGuest && (
+            <>
+              <PressableScale onPress={tapLockedWalk} accessibilityRole="button" accessibilityState={{ expanded: walkInfo }}
+                accessibilityLabel={`${t('modeWalk')}, ${t('needsAccount')}`} style={s.lockedBtn}>
+                <Footprints size={18} color={SCAN.muted} />
+                <Text style={s.lockedText} numberOfLines={1} maxFontSizeMultiplier={1.2}>{t('modeWalk')}</Text>
+                <View style={s.lockBadge}><Lock size={13} color="#FFFFFF" /></View>
+              </PressableScale>
+              {walkInfo && (
+                <Reanimated.View entering={reduced ? undefined : FadeInDown.duration(200).easing(EASE_OUT)} style={s.unlock}>
+                  <Text style={s.unlockTitle}>{t('unlockTitle')}</Text>
+                  <Text style={s.unlockBody}>{t('unlockBody')}</Text>
+                  <View style={s.unlockRow}>
+                    <PressableScale onPress={() => router.replace('/(auth)')} accessibilityRole="button" style={[s.unlockBtn, s.unlockPrimary]}>
+                      <Text style={s.unlockPrimaryText}>{t('account')}</Text>
+                    </PressableScale>
+                    <PressableScale onPress={() => router.push('/(app)/plans')} accessibilityRole="button" style={s.unlockBtn}>
+                      <Text style={s.unlockBtnText}>{t('plans')}</Text>
+                    </PressableScale>
+                  </View>
+                </Reanimated.View>
+              )}
+            </>
+          )}
 
           {!isGuest && (
             <PressableScale onPress={onOpenScans} accessibilityRole="button" accessibilityLabel={t('myScans')} style={s.secondary}>
@@ -316,6 +355,20 @@ const s = StyleSheet.create({
   ctaWrap: { marginTop: 12, borderRadius: 22, shadowColor: '#65A30D', shadowOpacity: 0.3, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 5 },
   cta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, height: 58, borderRadius: 22, paddingHorizontal: 20 },
   ctaText: { flex: 1, textAlign: 'center', fontFamily: 'Poppins_700Bold', fontSize: 18, color: C.ink },
+  lockedBtn: {
+    marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 50,
+    borderRadius: 18, borderWidth: 1, borderStyle: 'dashed', borderColor: '#CBD5E1', backgroundColor: SCAN.surface,
+  },
+  lockedText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: SCAN.muted },
+  lockBadge: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#64748B' },
+  unlock: { marginTop: 10, padding: 14, gap: 6, borderRadius: 18, backgroundColor: '#F7FEE7', borderWidth: 1, borderColor: '#D9F99D' },
+  unlockTitle: { fontFamily: 'Poppins_700Bold', fontSize: 14.5, color: C.deep },
+  unlockBody: { fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 19, color: SCAN.inkSoft },
+  unlockRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
+  unlockBtn: { flex: 1, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: SCAN.line },
+  unlockPrimary: { backgroundColor: C.deep, borderColor: C.deep },
+  unlockPrimaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: '#FFFFFF' },
+  unlockBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: C.ink },
   secondary: {
     marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 46,
     borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: C.white,

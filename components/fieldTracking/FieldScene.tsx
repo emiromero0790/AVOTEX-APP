@@ -66,6 +66,12 @@ const M_PER_CYCLE = FARMER.metersPerCycle;
 const IDLE_PERIOD_S = 2.6;
 /** Por debajo de esta velocidad visual el suelo deja de desplazarse y el paso se cierra hacia idle. */
 const SCROLL_MIN = 0.15;
+/**
+ * El agricultor siempre camina (desde el inicio, aunque el GPS aún no confirme movimiento): esta es su
+ * velocidad base en m/s. Si el usuario camina más rápido, el paso se acelera con su velocidad real.
+ * Solo es animación: la distancia mostrada sigue siendo la del GPS.
+ */
+const BASE_WALK = 0.55;
 
 // Muestras de distancia (m) para el camino y la trayectoria: densas cerca, espaciadas lejos.
 const Z_ROAD = [2.6, 3.2, 4, 5, 6.5, 8.5, 11, 15, 20, 28, 40, 60, 100] as const;
@@ -128,7 +134,7 @@ function FieldSceneImpl({ targetSpeed, targetCurvature, running, quality, onJank
     s.acc = 0;
 
     // Velocidad visual: se acerca suavemente a la velocidad real (arranque y frenado sin saltos).
-    const target = targetSpeed.get();
+    const target = Math.max(BASE_WALK, targetSpeed.get());
     const tau = target > s.v ? 0.6 : 0.45;
     s.v += (target - s.v) * (1 - Math.exp(-dt / tau));
     if (target === 0 && s.v < 0.03) s.v = 0;
@@ -222,28 +228,28 @@ function FieldSceneImpl({ targetSpeed, targetCurvature, running, quality, onJank
       <Svg width={VIEW_W} height={VIEW_H} style={StyleSheet.absoluteFill}>
         <Defs>
           <SvgGradient id="traj" x1="0" y1={HORIZON_Y} x2="0" y2={VIEW_H} gradientUnits="userSpaceOnUse">
-            <Stop offset="0" stopColor="#3dffa8" stopOpacity="0" />
-            <Stop offset="0.45" stopColor="#3dffa8" stopOpacity="0.55" />
-            <Stop offset="1" stopColor="#7dffc8" stopOpacity="1" />
+            <Stop offset="0" stopColor="#3e6ae1" stopOpacity="0" />
+            <Stop offset="0.45" stopColor="#3e6ae1" stopOpacity="0.6" />
+            <Stop offset="1" stopColor="#3e6ae1" stopOpacity="1" />
           </SvgGradient>
           <SvgGradient id="road" x1="0" y1={HORIZON_Y} x2="0" y2={VIEW_H} gradientUnits="userSpaceOnUse">
-            <Stop offset="0" stopColor="#1d5141" stopOpacity="0.2" />
-            <Stop offset="1" stopColor="#173f31" stopOpacity="0.95" />
+            <Stop offset="0" stopColor="#ffffff" stopOpacity="0.25" />
+            <Stop offset="1" stopColor="#ffffff" stopOpacity="0.9" />
           </SvgGradient>
           <SvgGradient id="grid" x1="0" y1={HORIZON_Y} x2="0" y2={VIEW_H} gradientUnits="userSpaceOnUse">
-            <Stop offset="0" stopColor="#4fffc0" stopOpacity="0" />
-            <Stop offset="1" stopColor="#4fffc0" stopOpacity="0.32" />
+            <Stop offset="0" stopColor="#8a939d" stopOpacity="0" />
+            <Stop offset="1" stopColor="#8a939d" stopOpacity="0.45" />
           </SvgGradient>
         </Defs>
         <APath animatedProps={roadProps} fill="url(#road)" stroke="url(#grid)" strokeWidth={0.8} />
         <APath animatedProps={gridProps} fill="none" stroke="url(#grid)" strokeWidth={0.6} />
         <APath animatedProps={crossProps} fill="none" stroke="url(#grid)" strokeWidth={0.6} />
-        <APath animatedProps={glowProps} fill="url(#traj)" opacity={0.28} />
+        <APath animatedProps={glowProps} fill="url(#traj)" opacity={0.18} />
         <APath animatedProps={coreProps} fill="url(#traj)" />
-        <APath animatedProps={flowProps} fill="#d9fff0" opacity={0.85} />
-        <Ellipse cx={CX} cy={FOOT_Y} rx={FOOT_RX * 0.62} ry={FOOT_RY * 0.62} fill="#000" opacity={0.35} />
-        <Ellipse cx={CX} cy={FOOT_Y} rx={FOOT_RX * 1.25} ry={FOOT_RY * 1.25} fill="none" stroke="#3dffa8" strokeOpacity={0.25} strokeWidth={3} />
-        <Ellipse cx={CX} cy={FOOT_Y} rx={FOOT_RX} ry={FOOT_RY} fill="none" stroke="#5dffb6" strokeWidth={1.4} />
+        <APath animatedProps={flowProps} fill="#ffffff" opacity={0.9} />
+        <Ellipse cx={CX} cy={FOOT_Y} rx={FOOT_RX * 0.62} ry={FOOT_RY * 0.62} fill="#1f2328" opacity={0.18} />
+        <Ellipse cx={CX} cy={FOOT_Y} rx={FOOT_RX * 1.25} ry={FOOT_RY * 1.25} fill="none" stroke="#3e6ae1" strokeOpacity={0.18} strokeWidth={3} />
+        <Ellipse cx={CX} cy={FOOT_Y} rx={FOOT_RX} ry={FOOT_RY} fill="none" stroke="#3e6ae1" strokeWidth={1.4} />
       </Svg>
       {slots.map(s => (
         <TreeSlot key={s.key} row={s.row} side={s.side} slot={s.slot} travel={travel} curv={curv} onError={onAssetError} />
@@ -251,9 +257,9 @@ function FieldSceneImpl({ targetSpeed, targetCurvature, running, quality, onJank
       <View style={styles.sprite}>
         <Reanimated.Image source={SHEET} style={[styles.sheet, spriteStyle]} onError={onAssetError} fadeDuration={0} />
       </View>
-      {/* Bruma del horizonte y oscurecido superior para leer la distancia. */}
+      {/* Bruma suave del horizonte. */}
       <LinearGradient
-        colors={['rgba(4,16,13,0.85)', 'rgba(4,16,13,0)']}
+        colors={['rgba(244,245,247,0.7)', 'rgba(244,245,247,0)']}
         style={styles.topShade}
       />
     </View>
@@ -315,11 +321,11 @@ const TreeSlot = memo(function TreeSlot({ row, side, slot, travel, curv, onError
 });
 
 const styles = StyleSheet.create({
-  root: { width: VIEW_W, height: VIEW_H, overflow: 'hidden', backgroundColor: '#0b211a' },
+  root: { width: VIEW_W, height: VIEW_H, overflow: 'hidden', backgroundColor: '#e9ecef' },
   bg: { position: 'absolute', left: 0, top: 0, width: VIEW_W, height: VIEW_H },
   sprite: { position: 'absolute', left: FARMER.x, top: FARMER.y, width: FW, height: FH, overflow: 'hidden' },
   sheet: { width: FW * COLS, height: FH * FARMER.sheetRows },
-  topShade: { position: 'absolute', left: 0, right: 0, top: 0, height: 54 },
+  topShade: { position: 'absolute', left: 0, right: 0, top: 0, height: 36 },
 });
 
 export default memo(FieldSceneImpl);

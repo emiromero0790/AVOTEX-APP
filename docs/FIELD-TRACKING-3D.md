@@ -64,22 +64,32 @@ En el hilo de UI, la velocidad visual se acerca a la objetivo con constante de t
 | Estado | Escena |
 |---|---|
 | Grabando y caminando | Personaje caminando, suelo y árboles avanzando, trayectoria con destellos que fluyen. |
-| Grabando y quieto | Idle; suelo y árboles inmóviles. La captura automática sigue sus reglas de siempre. |
+| Grabando y quieto | Sigue caminando a velocidad base (0.55 m/s). La distancia no cambia: solo cuenta el GPS. |
 | Pausado | Escena congelada (el bucle de animación se apaga) + chip «Pausado». |
 | GPS débil | Chip «GPS débil»; sin movimiento ficticio, se conserva la última escena válida. |
 | Sin GPS / sin permiso | Escena estática + chip «Sin ubicación». |
 | Terminado | El panel se desmonta con la pantalla de grabación y `FieldMotion` se libera en `stopSensors()`. |
 
-## Interacción
+## Pantalla de grabación (estilo Tesla)
 
-- **Siempre visible** durante el recorrido: no se puede minimizar ni ocultar, y no intercepta toques
-  (`pointerEvents="none"`), así que nunca bloquea la cámara ni los botones.
-- Posición: a la derecha, debajo de las píldoras de GPS/red (se mide con `onLayout`).
-- Si las imágenes no cargan o el render falla, el panel queda con la distancia y el estado (sin escena) y el
-  recorrido continúa.
+![Horizontal](field-tracking/tesla-horizontal.jpg)
 
-Animaciones de interfaz (skill `animate-expo`): aparición 260 ms con salida suave y chips de estado 180/140 ms.
-Con «Reducir movimiento» el camino no se curva (los giros no mueven la escena) y la aparición es un fundido corto.
+![Vertical y aviso «Gira tu celular»](field-tracking/tesla-vertical.jpg)
+
+- Inspirada en la pantalla de los Tesla: la **cámara es el «mapa»** (panel grande con tarjetas blancas encima:
+  estado y tiempo, GPS, red) y el **agricultor 3D es el «auto»** (panel claro con la distancia grande, las
+  imágenes y los botones blancos). Superficies claras (`#f2f3f5`), tipografía **Inter**, un solo acento rojo
+  (agricultor, botón Terminar) y la ruta en azul (`#3e6ae1`).
+- **Horizontal:** como en el Tesla, el agricultor ocupa **todo el alto y el 40 % del ancho**, con la distancia y
+  las imágenes arriba; la cámara ocupa el 60 % con el consejo y los botones Pausar/Terminar abajo.
+- **Vertical:** cámara arriba; abajo el agricultor en tamaño compacto (~124 × 170 dp) junto a los datos, y los
+  botones.
+- **«Gira tu celular»:** al iniciar el recorrido en vertical aparece una animación de un teléfono que gira con
+  «Rota el dispositivo para una mejor experiencia». Se va sola al girar a horizontal, con «Continuar en
+  vertical» o a los 10 s. La captura ya está corriendo detrás.
+- El agricultor **siempre camina** desde el inicio (velocidad base 0.55 m/s) y acelera con la velocidad real del
+  usuario. En pausa se congela. No se puede minimizar ni ocultar, y no intercepta toques.
+- Si las imágenes no cargan o el render falla, el panel queda con el estado (sin escena) y el recorrido sigue.
 
 ## Rendimiento
 

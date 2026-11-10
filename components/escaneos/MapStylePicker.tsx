@@ -6,7 +6,7 @@
  * Elegir aplica al instante (Haptics.selectionAsync); el borde y el texto de la tarjeta elegida cambian
  * con una transición corta.
  */
-import React from 'react';
+import React, { memo, startTransition, useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
 import Reanimated from 'react-native-reanimated';
@@ -47,20 +47,45 @@ function tileOf(lat: number, lng: number, z: number) {
   return { x, y };
 }
 
-function tiles(layer: ScansMapLayer, c: { lat: number; lng: number }): string[] {
-  const z = layer === 'oscuro' ? 15 : 16;
-  const { x, y } = tileOf(c.lat, c.lng, z);
-  const at = (svc: string) => `${ESRI}${svc}/MapServer/tile/${z}/${y}/${x}`;
+type TileSpec = { svc: string; z: number; base: boolean };
+
+function tiles(layer: ScansMapLayer): TileSpec[] {
+  const b = (svc: string, z = 16): TileSpec => ({ svc, z, base: true });
+  const ref = (svc: string, z = 16): TileSpec => ({ svc, z, base: false });
   switch (layer) {
-    case 'estandar': return [at('World_Street_Map')];
-    case 'topo': return [at('World_Topo_Map')];
-    case 'oscuro': return [at('Canvas/World_Dark_Gray_Base'), at('Canvas/World_Dark_Gray_Reference')];
-    case 'hibrido': return [at('World_Imagery'), at('Reference/World_Transportation'), at('Reference/World_Boundaries_and_Places')];
-    default: return [at('World_Imagery')];
+    case 'estandar': return [b('World_Street_Map')];
+    case 'topo': return [b('World_Topo_Map')];
+    case 'oscuro': return [b('Canvas/World_Dark_Gray_Base', 15), ref('Canvas/World_Dark_Gray_Reference', 15)];
+    case 'hibrido': return [b('World_Imagery'), ref('Reference/World_Transportation'), ref('Reference/World_Boundaries_and_Places')];
+    default: return [b('World_Imagery')];
   }
 }
 
-function Card({ on, label, sub, onPress, children, width }: { on: boolean; label: string; sub?: string; onPress: () => void; children: React.ReactNode; width: number }) {
+/**
+ * Un mosaico de la miniatura. Si la descarga falla (red lenta, o el servicio no tiene ese mosaico a
+ * ese zoom), reintenta una vez y luego baja de zoom hasta 3 niveles: el mosaico padre cubre la misma
+ * zona. Las capas de referencia (calles, rótulos) no reintentan: un 404 ahí es un mosaico vacío.
+ */
+const Tile = memo(function Tile({ spec, lat, lng, opacity }: { spec: TileSpec; lat: number; lng: number; opacity?: number }) {
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => { setAttempt(0); }, [spec.svc, lat, lng]);
+  if (attempt > 4) return null;
+  const z = spec.z - Math.max(0, attempt - 1);
+  const { x, y } = tileOf(lat, lng, z);
+  const uri = `${ESRI}${spec.svc}/MapServer/tile/${z}/${y}/${x}${attempt === 1 ? '?r=1' : ''}`;
+  return (
+    <Image
+      source={{ uri }}
+      style={[StyleSheet.absoluteFill, opacity != null && { opacity }]}
+      resizeMode="cover"
+      fadeDuration={120}
+      onError={() => setAttempt(a => (spec.base ? a + 1 : 99))}
+      accessibilityIgnoresInvertColors
+    />
+  );
+});
+
+const Card = memo(function Card({ on, label, sub, onPress, children, width }: { on: boolean; label: string; sub?: string; onPress: () => void; children: React.ReactNode; width: number }) {
   const t = useTranslations(translations);
   return (
     <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={`${label}${sub ? `, ${sub}` : ''}${on ? `, ${t('selected')}` : ''}`} style={{ width }}>
@@ -75,11 +100,11 @@ function Card({ on, label, sub, onPress, children, width }: { on: boolean; label
       )}
     </Pressable>
   );
-}
+});
 
 const ROUTE_D = 'M6 52 C 18 22, 34 58, 48 34 S 78 14, 94 40';
 
-function RoutePreview({ kind, w, h }: { kind: ScansMapRouteStyle; w: number; h: number }) {
+const RoutePreview = memo(function RoutePreview({ kind, w, h }: { kind: ScansMapRouteStyle; w: number; h: number }) {
   const stroke = kind === 'velocidad' ? 'url(#spd)' : kind === 'tiempo' ? 'url(#tim)' : '#14B8A6';
   return (
     <Svg width={w} height={h} viewBox="0 0 100 64" preserveAspectRatio="xMidYMid slice" style={StyleSheet.absoluteFill}>
@@ -108,7 +133,37 @@ function RoutePreview({ kind, w, h }: { kind: ScansMapRouteStyle; w: number; h: 
       )}
     </Svg>
   );
-}
+});
+
+const LAYERS: ScansMapLayer[] = ['satelite', 'hibrido', 'estandar', 'topo', 'oscuro'];
+const ROUTE_STYLES: ScansMapRouteStyle[] = ['clasica', 'velocidad', 'tiempo', 'calor'];
+const ZONE_COLORS = ['#84CC16', '#F59E0B', '#22C55E', '#EF4444'];
+
+/** Tarjeta de un tipo de mapa. `onPick` es estable, así que al elegir solo se repintan dos tarjetas. */
+const LayerCard = memo(function LayerCard({ l, on, label, width, lat, lng, onPick }: { l: ScansMapLayer; on: boolean; label: string; width: number; lat: number; lng: number; onPick: (l: ScansMapLayer) => void }) {
+  return (
+    <Card on={on} label={label} onPress={() => onPick(l)} width={width}>
+      {tiles(l === 'zonas' ? 'satelite' : l).map((sp, i) => (
+        <Tile key={sp.svc} spec={sp} lat={lat} lng={lng} opacity={i > 0 ? 0.95 : undefined} />
+      ))}
+      {l === 'zonas' && (
+        <View style={[StyleSheet.absoluteFill, s.zones]}>
+          {ZONE_COLORS.map(c => <View key={c} style={[s.zone, { backgroundColor: c }]} />)}
+        </View>
+      )}
+    </Card>
+  );
+});
+
+const RouteCard = memo(function RouteCard({ r, on, label, sub, width, lat, lng, onPick }: { r: ScansMapRouteStyle; on: boolean; label: string; sub: string; width: number; lat: number; lng: number; onPick: (r: ScansMapRouteStyle) => void }) {
+  return (
+    <Card on={on} label={label} sub={sub} onPress={() => onPick(r)} width={width}>
+      <Tile spec={tiles(r === 'calor' ? 'oscuro' : 'satelite')[0]} lat={lat} lng={lng} opacity={r === 'calor' ? 1 : 0.85} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: r === 'calor' ? 'rgba(0,0,0,0.25)' : 'rgba(15,23,42,0.18)' }]} />
+      <RoutePreview kind={r} w={width - 9} h={Math.round(width * 0.78) - 9} />
+    </Card>
+  );
+});
 
 type Props = {
   layer: ScansMapLayer;
@@ -126,39 +181,46 @@ export default function MapStylePicker({ layer, routeStyle, zonesAvailable, cent
   const cols = 3;
   const gap = 12;
   const cardW = Math.floor((width - gap * (cols - 1)) / cols);
-  const layers: ScansMapLayer[] = ['satelite', 'hibrido', 'estandar', 'topo', 'oscuro', ...(zonesAvailable ? ['zonas' as const] : [])];
-  const styles: ScansMapRouteStyle[] = ['clasica', 'velocidad', 'tiempo', 'calor'];
-  const pickLayer = (l: ScansMapLayer) => { if (l !== layer) Haptics.selectionAsync().catch(() => {}); onLayer(l); };
-  const pickStyle = (r: ScansMapRouteStyle) => { if (r !== routeStyle) Haptics.selectionAsync().catch(() => {}); onRouteStyle(r); };
+  const layers = zonesAvailable ? [...LAYERS, 'zonas' as const] : LAYERS;
+
+  // La elección se marca aquí al instante; la pantalla (mapa + lista, un render pesado) se actualiza
+  // en una transición para no congelar el toque ni la animación de la tarjeta.
+  const [selLayer, setSelLayer] = useState(layer);
+  const [selStyle, setSelStyle] = useState(routeStyle);
+  useEffect(() => { setSelLayer(layer); }, [layer]);
+  useEffect(() => { setSelStyle(routeStyle); }, [routeStyle]);
+  // El centro se fija al abrir: así las miniaturas no se vuelven a descargar mientras eliges.
+  const [{ lat, lng }] = useState(center);
+
+  const cur = useRef({ layer: selLayer, style: selStyle });
+  cur.current = { layer: selLayer, style: selStyle };
+
+  const pickLayer = useCallback((l: ScansMapLayer) => {
+    if (cur.current.layer === l) return;
+    Haptics.selectionAsync().catch(() => {});
+    setSelLayer(l);
+    startTransition(() => onLayer(l));
+  }, [onLayer]);
+  const pickStyle = useCallback((r: ScansMapRouteStyle) => {
+    if (cur.current.style === r) return;
+    Haptics.selectionAsync().catch(() => {});
+    setSelStyle(r);
+    startTransition(() => onRouteStyle(r));
+  }, [onRouteStyle]);
 
   return (
     <View style={{ gap: 14 }}>
       <Text style={s.section} accessibilityRole="header">{t('mapTypes')}</Text>
       <View style={[s.grid, { gap }]} accessibilityRole="radiogroup">
         {layers.map(l => (
-          <Card key={l} on={layer === l} label={t(l)} onPress={() => pickLayer(l)} width={cardW}>
-            {tiles(l === 'zonas' ? 'satelite' : l, center).map((u, i) => (
-              <Image key={u} source={{ uri: u }} style={[StyleSheet.absoluteFill, i > 0 && { opacity: 0.95 }]} resizeMode="cover" accessibilityIgnoresInvertColors />
-            ))}
-            {l === 'zonas' && (
-              <View style={[StyleSheet.absoluteFill, s.zones]}>
-                {['#84CC16', '#F59E0B', '#22C55E', '#EF4444'].map(c => <View key={c} style={[s.zone, { backgroundColor: c }]} />)}
-              </View>
-            )}
-          </Card>
+          <LayerCard key={l} l={l} on={selLayer === l} label={t(l)} width={cardW} lat={lat} lng={lng} onPick={pickLayer} />
         ))}
       </View>
 
       <Text style={[s.section, { marginTop: 4 }]} accessibilityRole="header">{t('routeStyles')}</Text>
       <View style={[s.grid, { gap }]} accessibilityRole="radiogroup">
-        {styles.map(r => (
-          <Card key={r} on={routeStyle === r} label={t(r)} sub={t(`${r}Sub`)} onPress={() => pickStyle(r)} width={cardW}>
-            {tiles(r === 'calor' ? 'oscuro' : 'satelite', center).slice(0, 1).map(u => (
-              <Image key={u} source={{ uri: u }} style={[StyleSheet.absoluteFill, { opacity: r === 'calor' ? 1 : 0.85 }]} resizeMode="cover" accessibilityIgnoresInvertColors />
-            ))}
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: r === 'calor' ? 'rgba(0,0,0,0.25)' : 'rgba(15,23,42,0.18)' }]} />
-            <RoutePreview kind={r} w={cardW - 9} h={Math.round(cardW * 0.78) - 9} />
-          </Card>
+        {ROUTE_STYLES.map(r => (
+          <RouteCard key={r} r={r} on={selStyle === r} label={t(r)} sub={t(`${r}Sub`)} width={cardW} lat={lat} lng={lng} onPick={pickStyle} />
         ))}
       </View>
     </View>

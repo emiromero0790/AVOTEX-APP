@@ -49,8 +49,9 @@ Cómo funciona la opción elegida:
 | Qué | Cómo |
 |---|---|
 | Caminar / quieto | Histéresis: arranca con 2 lecturas seguidas de velocidad Doppler ≥ 0.5 m/s (o un paso aceptado por `GpsTrack`); se detiene tras 2.5 s con < 0.3 m/s. Con precisión > 20 m el Doppler solo no basta. |
+| Velocidad confiable | Se usa `GpsTrack.lastSpeed`: la velocidad del teléfono solo cuenta después de que demostró medir movimiento (Android manda `speed = 0` en lecturas sin velocidad). Sin ella, se usan los pasos aceptados. |
 | Velocidad | Doppler suavizado (o la de los pasos aceptados si el teléfono no la da), limitada a 0.45–1.9 m/s: caminar rápido acelera el paso pero **nunca** se convierte en carrera. |
-| Precisión | ≤ 12 m: buena · 12–25 m: «GPS débil» · > 25 m: se ignora para decidir movimiento. |
+| Precisión | ≤ 12 m: buena · 12–50 m: «GPS débil» · > 50 m: se ignora (mismo límite que la distancia). |
 | Lecturas que dejan de llegar | 4 s → se detiene · 9 s → «Sin ubicación». No se sigue avanzando indefinidamente. |
 | Rumbo | Solo si es fiable (Doppler ≥ 0.6 m/s y precisión ≤ 15 m, o rumbo entre pasos aceptados de ≥ 3 m). Se convierte en curvatura del camino (radio mínimo ≈ 17 m) y se suaviza; si no es fiable, se relaja a recto. No se usa el magnetómetro. |
 | Distancia | **No la calcula.** El panel muestra `stats.distance` (la de `GpsTrack`), igual que la tarjeta «Distancia». El desplazamiento visual del suelo es solo animación. |
@@ -132,9 +133,10 @@ Ver «Pruebas pendientes en dispositivo».
 
 ```bash
 node --experimental-transform-types scripts/field-tracking/simulate-motion.test.ts
+node --experimental-transform-types scripts/gps-distance.test.ts
 ```
 
-Simulaciones con ruido gaussiano que pasan por el filtro real (`GpsTrack`) y luego por `FieldMotion` — 14/14:
+Simulaciones con ruido gaussiano que pasan por el filtro real (`GpsTrack`) y luego por `FieldMotion` — 16/16 (los dos últimos: Android con `speed = 0` caminando y quieto):
 
 1. Quieto con ruido ±5 m y Doppler bajo: nunca camina.
 2. Quieto sin Doppler: < 3 % del tiempo en movimiento.

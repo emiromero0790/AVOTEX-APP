@@ -23,7 +23,8 @@ export type MotionFix = {
   lat: number;
   lng: number;
   acc: number | null;
-  /** Velocidad Doppler del teléfono (m/s); null o negativa si no la informa. */
+  /** Velocidad confiable (m/s) según GpsTrack.lastSpeed; null si el teléfono no da una utilizable
+   *  (p. ej. Android manda 0 cuando la lectura no trae velocidad). */
   speed: number | null;
   /** Rumbo de desplazamiento (grados, 0 = norte); null o negativo si no es válido. */
   heading: number | null;
@@ -57,7 +58,8 @@ export const FIELD_MOTION = {
   MIN_WALK: 0.45,
   MAX_WALK: 1.9,
   GOOD_ACC: 12,
-  MAX_ACC: 25,
+  /** Igual que GpsTrack (MAX_ACCURACY_M): lo que el filtro de distancia acepta, la escena también. */
+  MAX_ACC: 50,
   HEADING_ACC: 15,
   HEADING_MIN_SPEED: 0.6,
   MAX_TURN_RATE: 0.5, // rad/s
@@ -118,8 +120,12 @@ export class FieldMotion {
     const doppler = typeof f.speed === 'number' && Number.isFinite(f.speed) && f.speed >= 0 ? f.speed : null;
 
     if (f.accepted && f.step > 0) {
-      if (this.lastStepAt > 0) {
-        const dt = Math.max(0.5, (f.t - this.lastStepAt) / 1000);
+      // Primer paso: se mide desde la primera lectura aceptada (sin velocidad del teléfono, si no, el
+      // personaje tardaba dos pasos —~15 s— en arrancar).
+      // Un desplazamiento que tardó más de 10 s en cruzar la puerta parece deriva, no un paso.
+      const ref = this.lastStepAt > 0 ? this.lastStepAt : this.lastAccepted?.t ?? 0;
+      if (this.lastStepAt > 0 || (this.lastAccepted && f.t - ref <= 10000)) {
+        const dt = Math.max(0.5, (f.t - ref) / 1000);
         this.lastStepSpeed = clamp(f.step / dt, 0, 3);
       }
       this.lastStepAt = f.t;

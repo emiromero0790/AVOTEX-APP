@@ -16,7 +16,7 @@ import { MapPinOff, Pause, SignalLow } from 'lucide-react-native';
 import { useTranslations, type TranslationResource } from '../../context/LanguageContext';
 import type { FieldMotion, GpsQuality } from '../../services/fieldMotion';
 import { EASE_OUT } from '../scan/motion';
-import FieldScene from './FieldScene';
+import FieldScene, { type Companion } from './FieldScene';
 import { FARMER, VIEW_H, VIEW_W } from './projection';
 import { DOWNGRADE, initialQuality, type FieldQuality } from './quality';
 
@@ -41,14 +41,20 @@ type Props = {
   height: number;
   /** Altura del panel (0–1) donde queda el centro del agricultor. Por omisión, la escena se centra. */
   focus?: number;
+  /** Modo Dron o GoPro: el agricultor lanza un dron que lo sigue, o se pone un casco con GoPro. */
+  companion?: Companion;
 };
+
+// Inicio de la secuencia del acompañante por recorrido: al girar el celular o bajar la calidad la escena se
+// vuelve a montar, y la secuencia no debe repetirse.
+const introStart = new WeakMap<object, number>();
 
 /**
  * Siempre visible durante el recorrido: no se puede minimizar ni ocultar. El agricultor camina siempre
  * (velocidad base) y acelera con la velocidad real del usuario. Para cuidar la cámara y la captura, la calidad
  * puede bajar sola hasta «light», pero nunca se apaga por rendimiento.
  */
-function FieldTracking3DImpl({ motion, paused, distanceLabel, width, height, focus }: Props) {
+function FieldTracking3DImpl({ motion, paused, distanceLabel, width, height, focus, companion = 'none' }: Props) {
   const t = useTranslations(translations);
   const reduced = useReducedMotion();
 
@@ -97,6 +103,14 @@ function FieldTracking3DImpl({ motion, paused, distanceLabel, width, height, foc
     return () => sub.remove();
   }, []);
 
+  // Segundos ya vistos de la secuencia (con «Reducir movimiento» se salta: el dron ya vuela, el casco ya está puesto).
+  const introElapsed = (() => {
+    if (reduced) return 99;
+    if (!motion) return 0;
+    if (!introStart.has(motion)) introStart.set(motion, Date.now());
+    return (Date.now() - (introStart.get(motion) ?? Date.now())) / 1000;
+  })();
+
   const status: 'paused' | 'gpsNone' | 'gpsWeak' | null = paused ? 'paused' : gps === 'none' ? 'gpsNone' : gps === 'weak' ? 'gpsWeak' : null;
 
   return (
@@ -118,6 +132,8 @@ function FieldTracking3DImpl({ motion, paused, distanceLabel, width, height, foc
               quality={quality}
               onJank={onJank}
               onAssetError={onFail}
+              companion={companion}
+              introElapsed={introElapsed}
             />
           </View>
         </SceneBoundary>

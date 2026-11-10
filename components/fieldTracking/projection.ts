@@ -26,6 +26,8 @@ export const F_PX = CY / Math.tan(((cam.fovDeg / 2) * Math.PI) / 180);
 export const HORIZON_Y = CY - F_PX * Math.tan(PITCH);
 
 export const FARMER = scene.farmer;
+/** Acompañantes prerenderizados (dron y GoPro en casco): hojas, recortes y anclas. */
+export const COMPANIONS = scene.companions;
 export const TREES = scene.trees;
 export const TREE_ROWS_X = cam.treeRowsX;
 export const TREE_SPACING = cam.treeSpacing;

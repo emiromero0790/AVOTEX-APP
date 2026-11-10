@@ -49,6 +49,7 @@ import {
   Signal,
   Smartphone,
   RotateCcw,
+  X,
   Camera as CameraIcon,
 } from 'lucide-react-native';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
@@ -220,6 +221,7 @@ const translations: TranslationResource = {
   rec3: { es: 'Limpia la lente con un paño suave.', en: 'Clean the lens with a soft cloth.' },
   rotateTitle: { es: 'Gira tu celular', en: 'Turn your phone' },
   rotateBody: { es: 'Rota el dispositivo para una mejor experiencia.', en: 'Rotate your device for a better experience.' },
+  close: { es: 'Cerrar', en: 'Close' },
   rotateSkip: { es: 'Continuar en vertical', en: 'Continue in portrait' },
   rec4: { es: 'Lleva batería suficiente: la cámara y el GPS gastan más de lo normal.', en: 'Bring enough battery: camera and GPS use more power than usual.' },
   prepStart: { es: 'Comenzar recorrido', en: 'Start walk' },
@@ -353,7 +355,9 @@ export default function RecorridoScreen() {
   const insets = useSafeAreaInsets();
   const { width, height: winH } = useWindowDimensions();
   const isTablet = width >= 768;
-  const params = useLocalSearchParams<{ id?: string; open?: 'prepare' | 'home'; n?: string; from?: string }>();
+  const params = useLocalSearchParams<{ id?: string; open?: 'prepare' | 'home'; n?: string; from?: string; modo?: string }>();
+  // Modo elegido en Escanear: solo cambia la animación (Dron: lanza un dron que lo sigue; GoPro: casco con GoPro).
+  const [companion, setCompanion] = useState<'none' | 'dron' | 'gopro'>(params.modo === 'dron' ? 'dron' : params.modo === 'gopro' ? 'gopro' : 'none');
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold, Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
 
   const [user, setUser] = useState<User | null>(auth.currentUser);
@@ -450,6 +454,7 @@ export default function RecorridoScreen() {
   useEffect(() => {
     if (!params.n || params.id || modeRef.current === 'record') return;
     if (params.open === 'prepare') {
+      setCompanion(params.modo === 'dron' ? 'dron' : params.modo === 'gopro' ? 'gopro' : 'none');
       setPrep({ camera: null, location: null, freeBytes: null, networkChecked: false });
       setMode('prepare');
     } else if (params.open === 'home') {
@@ -1209,7 +1214,7 @@ export default function RecorridoScreen() {
     const compactH = Math.round(compactW * 1.375);
     const viz = (w: number, h: number, focus?: number) => (
       <FieldTrackingGuard>
-        <FieldTracking3D motion={fieldMotion} paused={paused} distanceLabel={formatDistance(stats.distance)} width={w} height={h} focus={focus} />
+        <FieldTracking3D motion={fieldMotion} paused={paused} distanceLabel={formatDistance(stats.distance)} width={w} height={h} focus={focus} companion={companion} />
       </FieldTrackingGuard>
     );
     const tip = (
@@ -1275,6 +1280,10 @@ export default function RecorridoScreen() {
         {rotateHint && !landscape && (
           <Reanimated.View entering={ROTATE_IN} style={st.rotateOverlay}>
             <View style={st.rotateCard}>
+              {/* Cerrar: a veces el celular tarda unos segundos en detectar que ya está en horizontal. */}
+              <PressableScale style={st.rotateClose} onPress={() => setRotateHint(false)} accessibilityRole="button" accessibilityLabel={t('close')} hitSlop={10}>
+                <X size={18} color="#171a20" strokeWidth={2.4} />
+              </PressableScale>
               <View style={st.rotateIconWrap}>
                 <RotatingPhone reduced={reducedMotion} />
                 <View style={st.rotateArrow}><RotateCcw size={18} color="#3e6ae1" strokeWidth={2.2} /></View>
@@ -1605,6 +1614,7 @@ const st = StyleSheet.create({
   rotateArrow: { position: 'absolute', right: 4, top: 6 },
   rotateTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 19, color: '#171a20' },
   rotateBody: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20, color: '#5c5e62', textAlign: 'center' },
+  rotateClose: { position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f2f3f5', zIndex: 1 },
   rotateBtn: { marginTop: 10, alignSelf: 'stretch', minHeight: 50, borderRadius: 14, backgroundColor: '#f2f3f5', alignItems: 'center', justifyContent: 'center' },
   rotateBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: '#171a20' },
   vizRow: { flexDirection: 'row', gap: 14, alignItems: 'center' },

@@ -4,6 +4,7 @@
  *
  * Uso:
  *   node scripts/field-tracking/render.mjs --three <ruta a node_modules/three> --models <carpeta con los .glb> [--preview <png>]
+ *   … --companions   solo los acompañantes (dron y GoPro en casco); no toca los demás recursos.
  *
  * Requisitos (solo en la máquina que genera los recursos, NO en la app):
  *   - three@0.170.0 instalado en cualquier carpeta (npm i three@0.170.0).
@@ -52,7 +53,9 @@ await page.route('http://fieldtracking.local/**', route => {
 });
 await page.goto('http://fieldtracking.local/render.html');
 await page.waitForFunction('window.READY === true', null, { timeout: 60000 });
-const res = await page.evaluate(() => window.run());
+const companionsOnly = process.argv.includes('--companions');
+const res = companionsOnly ? null : await page.evaluate(() => window.run());
+const comp = await page.evaluate(() => window.runCompanions());
 await browser.close();
 
 const write = (name, dataUrl) => {
@@ -60,6 +63,19 @@ const write = (name, dataUrl) => {
   fs.writeFileSync(path.join(outDir, name), Buffer.from(b64, 'base64'));
 };
 fs.mkdirSync(outDir, { recursive: true });
+write('drone.png', comp.drone.png);
+write('farmer-drone-intro.png', comp.droneIntro.png);
+write('farmer-gopro.png', comp.goproWalk.png);
+write('farmer-gopro-intro.png', comp.goproIntro.png);
+const companions = { drone: comp.drone.meta, droneIntro: comp.droneIntro.meta, goproWalk: comp.goproWalk.meta, goproIntro: comp.goproIntro.meta };
+if (companionsOnly) {
+  const metaPath = path.join(outDir, 'field-scene.json');
+  const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+  meta.companions = companions;
+  fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2) + '\n');
+  console.log(JSON.stringify(companions, null, 2));
+  process.exit(0);
+}
 write('farmer-walk.png', res.character.sheet);
 if (previewOut) write(path.relative(outDir, path.resolve(previewOut)), res.character.preview);
 res.trees.forEach((t, i) => write(`tree-${i + 1}.png`, t.png));
@@ -72,6 +88,7 @@ const meta = {
   camera: cfg,
   farmer: res.character.meta,
   trees: res.trees.map(t => t.meta),
+  companions,
 };
 fs.writeFileSync(path.join(outDir, 'field-scene.json'), JSON.stringify(meta, null, 2) + '\n');
 console.log(JSON.stringify(meta, null, 2));

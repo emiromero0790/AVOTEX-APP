@@ -3,7 +3,7 @@
   "camera": {
     "viewW": 128,
     "viewH": 176,
-    "renderScale": 3,
+    "renderScale": 6,
     "camHeight": 2.5,
     "pitchDeg": 15,
     "fovDeg": 50,
@@ -26,37 +26,37 @@
     ]
   },
   "farmer": {
-    "frameW": 24.333333333333332,
-    "frameH": 81,
+    "frameW": 23.166666666666668,
+    "frameH": 79.5,
     "sheetCols": 8,
     "sheetRows": 3,
     "walkFrames": 16,
     "idleFrames": 8,
-    "x": 51,
-    "y": 61.666666666666664,
+    "x": 51.666666666666664,
+    "y": 62.5,
     "metersPerCycle": 1.213
   },
   "trees": [
     {
-      "w": 379,
-      "h": 314,
-      "anchorX": 167,
-      "anchorY": 300.9,
-      "metersPerPx": 0.00962
+      "w": 568,
+      "h": 469,
+      "anchorX": 250,
+      "anchorY": 450.3,
+      "metersPerPx": 0.00641
     },
     {
-      "w": 346,
-      "h": 326,
-      "anchorX": 134,
-      "anchorY": 311.9,
-      "metersPerPx": 0.00962
+      "w": 517,
+      "h": 487,
+      "anchorX": 199,
+      "anchorY": 466.3,
+      "metersPerPx": 0.00641
     },
     {
-      "w": 363,
-      "h": 314,
-      "anchorX": 151,
-      "anchorY": 301.9,
-      "metersPerPx": 0.00962
+      "w": 543,
+      "h": 469,
+      "anchorX": 225,
+      "anchorY": 451.3,
+      "metersPerPx": 0.00641
     }
   ]
 }

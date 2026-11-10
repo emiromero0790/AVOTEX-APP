@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Dimensions,
   Platform,
   RefreshControl,
   ScrollView,
@@ -25,14 +26,13 @@ import { StatusBar } from 'expo-status-bar';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import Reanimated, { FadeIn, FadeOut, LinearTransition, useReducedMotion } from 'react-native-reanimated';
+import Reanimated, { FadeIn, FadeOut, LinearTransition, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import {
   ChevronLeft,
   CloudOff,
   CloudUpload,
   Footprints,
   Lock,
-  MapPin,
   Pause,
   Play,
   Square,
@@ -41,7 +41,6 @@ import {
   Sparkles,
   Bell,
   Route,
-  Camera as CameraIcon,
   CheckCircle2,
   AlertTriangle,
   Info,
@@ -49,8 +48,11 @@ import {
   Wifi,
   Signal,
   Smartphone,
+  RotateCcw,
+  Camera as CameraIcon,
 } from 'lucide-react-native';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
+import { Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { auth as firebaseAuth } from '../../firebaseConfig';
 import { useGuest } from '../../context/GuestContext';
@@ -109,6 +111,8 @@ const ITEM_IN = FadeIn.duration(220).easing(EASE_OUT);
 const LIST_REFLOW = LinearTransition.duration(260).easing(EASE_IN_OUT);
 // El número de fotos "late" una vez cada vez que se guarda una imagen nueva.
 const COUNT_POP = { from: { transform: [{ scale: 1.18 }] }, to: { transform: [{ scale: 1 }] } };
+const ROTATE_HINT_MS = 10000;
+const ROTATE_IN = FadeIn.duration(220).easing(EASE_OUT);
 
 const auth = firebaseAuth as Auth;
 
@@ -214,6 +218,9 @@ const translations: TranslationResource = {
   rec1: { es: 'Sujeta bien el teléfono al pecho o casco, con la cámara hacia los árboles.', en: 'Attach the phone firmly to your chest or helmet, camera facing the trees.' },
   rec2: { es: 'Que ninguna correa, ropa o rama tape la cámara.', en: 'Make sure no strap, clothing or branch covers the camera.' },
   rec3: { es: 'Limpia la lente con un paño suave.', en: 'Clean the lens with a soft cloth.' },
+  rotateTitle: { es: 'Gira tu celular', en: 'Turn your phone' },
+  rotateBody: { es: 'Rota el dispositivo para una mejor experiencia.', en: 'Rotate your device for a better experience.' },
+  rotateSkip: { es: 'Continuar en vertical', en: 'Continue in portrait' },
   rec4: { es: 'Lleva batería suficiente: la cámara y el GPS gastan más de lo normal.', en: 'Bring enough battery: camera and GPS use more power than usual.' },
   prepStart: { es: 'Comenzar recorrido', en: 'Start walk' },
   prepReady: { es: 'Todo listo para grabar', en: 'Ready to record' },
@@ -254,7 +261,18 @@ const translations: TranslationResource = {
   discardBody: { es: 'Se borrarán todas sus fotos del celular y no se procesará.', en: 'All its photos will be deleted from the phone and it will not be processed.' },
   discardYes: { es: 'Descartar', en: 'Discard' },
   discarded: { es: 'Recorrido descartado.', en: 'Walk discarded.' },
+  distWaitGps: { es: 'Esperando señal GPS', en: 'Waiting for GPS signal' },
+  distEvery: { es: 'Suma cada ~{m} m', en: 'Adds every ~{m} m' },
+  distLeft: { es: 'Avanza ~{m} m más para sumar', en: 'Walk ~{m} m more to add' },
   emptyWalk: { es: 'No se tomó ninguna imagen; el recorrido no se guardó.', en: 'No images were taken; the walk was not saved.' },
+  processTitle: { es: '¿Procesar este recorrido?', en: 'Process this walk?' },
+  processBody: {
+    es: '{count} imágenes. Si lo procesas, se sube y la IA analiza las imágenes. Si lo borras, se elimina del celular y no se analiza.',
+    en: '{count} images. If you process it, it is uploaded and AI analyzes the images. If you delete it, it is removed from the phone and not analyzed.',
+  },
+  processYes: { es: 'Procesar', en: 'Process' },
+  processDelete: { es: 'Borrar', en: 'Delete' },
+  deletedWalk: { es: 'Recorrido borrado. No se subió ni se analizó.', en: 'Walk deleted. It was not uploaded or analyzed.' },
   // detalle
   detailTitle: { es: 'Recorrido del {date}', en: 'Walk of {date}' },
   analyzed: { es: 'imágenes analizadas', en: 'images analyzed' },
@@ -290,6 +308,23 @@ function formatDuration(ms: number): string {
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
+/**
+ * Leyenda bajo la distancia: el contador sube por tramos (el filtro solo suma cuando el avance supera el ruido
+ * del GPS). Muestra cuánto falta para el siguiente tramo, con el mínimo real del filtro, no un número fijo.
+ */
+function distanceHint(
+  s: { gps: 'ok' | 'searching' | 'lost'; gate: number; pending: number },
+  paused: boolean,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  if (paused) return t('savedOnPhone');
+  if (s.gps !== 'ok' || s.gate <= 0) return t('distWaitGps');
+  const left = Math.ceil(s.gate - s.pending);
+  // Con algo de avance acumulado (≥ 1 m) se dice cuánto falta; quieto, cada cuánto suma.
+  if (s.pending >= 1 && left >= 1) return t('distLeft', { m: left });
+  return t('distEvery', { m: Math.max(1, Math.round(s.gate)) });
+}
+
 function formatDistance(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
 }
@@ -316,10 +351,10 @@ export default function RecorridoScreen() {
   const { language, locale } = useLanguage();
   const { isGuest } = useGuest();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height: winH } = useWindowDimensions();
   const isTablet = width >= 768;
   const params = useLocalSearchParams<{ id?: string; open?: 'prepare' | 'home'; n?: string; from?: string }>();
-  const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
+  const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold, Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
 
   const [user, setUser] = useState<User | null>(auth.currentUser);
   const email = user?.email ?? '';
@@ -364,9 +399,23 @@ export default function RecorridoScreen() {
   // Field Tracking 3D: solo visualización. Recibe las mismas lecturas GPS (no hay otro observador).
   const fieldMotionRef = useRef<FieldMotion | null>(null);
   const [fieldMotion, setFieldMotion] = useState<FieldMotion | null>(null);
-  const [hudBottom, setHudBottom] = useState(0);
+  // Tamaño del panel del agricultor (se mide: depende de la pantalla y la orientación).
+  const [vizSize, setVizSize] = useState({ w: 0, h: 0 });
+  // Aviso «Gira tu celular» al iniciar el recorrido: se va solo al girar a horizontal, con el botón o a los 10 s.
+  const [rotateHint, setRotateHint] = useState(false);
+  // Orientación medida con el diseño real de la pantalla (onLayout). useWindowDimensions a veces llega tarde al
+  // girar en Android: el aviso «Gira tu celular» se quedaba aunque el teléfono ya estuviera horizontal.
+  const [screenBox, setScreenBox] = useState<{ w: number; h: number } | null>(null);
+  const isLandscape = screenBox ? screenBox.w > screenBox.h : width > winH;
+  useEffect(() => { if (isLandscape) setRotateHint(false); }, [isLandscape]);
+  useEffect(() => {
+    if (!rotateHint) return;
+    const id = setTimeout(() => setRotateHint(false), ROTATE_HINT_MS);
+    return () => clearTimeout(id);
+  }, [rotateHint]);
   const [paused, setPaused] = useState(false);
-  const [stats, setStats] = useState({ elapsed: 0, distance: 0, photos: 0, accuracy: null as number | null, gps: 'searching' as 'ok' | 'searching' | 'lost' });
+  // gate/pending: mínimo para sumar el siguiente tramo y lo avanzado hacia él (del filtro GpsTrack, en metros).
+  const [stats, setStats] = useState({ elapsed: 0, distance: 0, photos: 0, accuracy: null as number | null, gps: 'searching' as 'ok' | 'searching' | 'lost', gate: 0, pending: 0 });
   const [limitHit, setLimitHit] = useState(false);
   const startedAtRef = useRef(0);
   const pausedMsRef = useRef(0);
@@ -620,7 +669,13 @@ export default function RecorridoScreen() {
       rec.ruta.push({ lat: step.point.lat, lng: step.point.lng, t: new Date(now).toISOString(), f: 1 });
       if (step.step > 0 && !pausedRef.current) setStats(s => ({ ...s, distance: s.distance + step.step }));
     }
-    setStats(s => ({ ...s, accuracy: accuracy ?? null, gps: 'ok' }));
+    // Al arrancar, el teléfono puede repetir la última posición conocida: hasta que haya lecturas frescas
+    // se muestra «Buscando GPS…» (todavía no se puede medir distancia).
+    const warming = track.frozen && track.debug.accepted === 0;
+    // Tras sumar un tramo, lo pendiente vuelve a 0 (el filtro deja el ancla en el punto aceptado).
+    const pending = step.accepted ? 0 : track.debug.lastDist;
+    const gate = track.debug.lastGate;
+    setStats(s => ({ ...s, accuracy: accuracy ?? null, gps: warming ? 'searching' : 'ok', gate: gate > 0 ? gate : s.gate, pending }));
     const fm = fieldMotionRef.current;
     if (fm) {
       try {
@@ -673,11 +728,12 @@ export default function RecorridoScreen() {
       setHoldHint(false);
       setCameraReady(false);
       cameraReadyRef.current = false;
-      setStats({ elapsed: 0, distance: 0, photos: 0, accuracy: null, gps: withGps ? 'searching' : 'lost' });
+      setStats({ elapsed: 0, distance: 0, photos: 0, accuracy: null, gps: withGps ? 'searching' : 'lost', gate: 0, pending: 0 });
       startedAtRef.current = Date.now();
       pausedMsRef.current = 0;
       pauseStartRef.current = null;
       setMode('record');
+      { const d = Dimensions.get('window'); setRotateHint(d.height >= d.width); }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       refreshNetwork();
       activateKeepAwakeAsync('recorrido').catch(() => {});
@@ -702,7 +758,8 @@ export default function RecorridoScreen() {
         setStats(s => ({
           ...s,
           elapsed: now - startedAtRef.current - pausedMsRef.current - pausedNow,
-          gps: !useGpsRef.current ? 'lost' : (!fix ? (now - startedAtRef.current > 8000 ? 'lost' : 'searching') : gpsLost ? 'lost' : 'ok'),
+          gps: !useGpsRef.current ? 'lost' : (!fix ? (now - startedAtRef.current > 8000 ? 'lost' : 'searching') : gpsLost ? 'lost'
+            : trackRef.current?.frozen && trackRef.current.debug.accepted === 0 ? 'searching' : 'ok'),
         }));
         // Sin GPS: una imagen cada pocos segundos para no perder el recorrido.
         const shot = lastShotRef.current;
@@ -764,22 +821,44 @@ export default function RecorridoScreen() {
     stopSensors();
     const rec = recRef.current;
     recRef.current = null;
-    setMode('home');
-    if (!rec) return;
+    // La pantalla de grabación se queda hasta decidir: si se mostrara la lista, su carga recuperaría el
+    // recorrido («grabando» → guardado) y lo subiría antes de que el usuario elija.
+    if (!rec) { setMode('home'); return; }
     // Espera a que termine una captura en curso.
     for (let i = 0; i < 20 && busyRef.current; i++) await new Promise(r => setTimeout(r, 100));
     if (!rec.fotos.length) {
+      setMode('home');
       await deleteLocal(rec);
       Alert.alert(t('title'), t('emptyWalk'));
       await loadHome();
       uploadAll();
       return;
     }
-    // Se guarda ya (si la app se cierra aquí, no se pierde nada) y se pasa a elegir qué fotos analizar.
-    // Queda «grabando» mientras se eligen: así nada lo sube antes de tiempo. Si la app se cierra aquí,
-    // recoverInterrupted lo guarda con todas sus fotos.
+    // Se guarda ya (si la app se cierra aquí, no se pierde nada). Queda «grabando» mientras se decide y se
+    // eligen fotos: así nada lo sube antes de tiempo. Si la app se cierra aquí, recoverInterrupted lo guarda
+    // con todas sus fotos.
     rec.terminadoAt = new Date().toISOString();
     await saveLocal(rec);
+    // Antes de subir (y gastar en el análisis) se pregunta si se procesa o se borra.
+    const choice = await new Promise<'process' | 'delete'>(resolve => {
+      Alert.alert(
+        t('processTitle'),
+        t('processBody', { count: rec.fotos.length }),
+        [
+          { text: t('processDelete'), style: 'destructive', onPress: () => resolve('delete') },
+          { text: t('processYes'), onPress: () => resolve('process') },
+        ],
+        { cancelable: false },
+      );
+    });
+    if (choice === 'delete') {
+      await deleteLocal(rec);
+      setMode('home');
+      await loadHome();
+      Alert.alert(t('title'), t('deletedWalk'));
+      return;
+    }
+    // «Procesar»: se eligen las fotos que se analizan (todas marcadas al inicio).
     reviewRef.current = rec;
     setReviewFotos(rec.fotos.slice());
     setMode('review');
@@ -993,9 +1072,12 @@ export default function RecorridoScreen() {
       : network === 'cellular' ? (mobileData ? t('netCellularOn') : t('netCellular'))
       : t('savedOnPhone');
     const NetIcon = network === 'offline' ? WifiOff : network === 'wifi' ? Wifi : network === 'cellular' ? Signal : Smartphone;
-    return (
-      <View style={st.recordScreen}>
-        <StatusBar style="light" />
+    const landscape = isLandscape;
+    const gpsDot = stats.gps === 'ok' ? '#22a06b' : stats.gps === 'lost' ? '#e8a317' : '#9aa1ab';
+    // Diseño tipo Tesla: la cámara es el «mapa» (panel grande con tarjetas blancas) y el agricultor 3D es el
+    // «auto» (panel claro con los datos grandes y los botones). Vertical: cámara arriba; horizontal: lado a lado.
+    const cameraPane = (bottom: React.ReactNode) => (
+      <View style={[st.camPane, landscape ? st.camPaneLand : null, Platform.OS === 'android' ? st.camPaneNoClip : null]}>
         <CameraView
           ref={cameraRef}
           style={StyleSheet.absoluteFill}
@@ -1004,131 +1086,207 @@ export default function RecorridoScreen() {
           pictureSize={pictureSize}
           onCameraReady={onCameraReady}
         />
-        <LinearGradient colors={['rgba(0,0,0,0.7)', 'transparent']} style={[st.recordTop, { paddingTop: insets.top + 10 }]}>
-          <Reanimated.View entering={HUD_FADE_IN} style={st.recTopRow}>
-            <View style={[st.recBadge, paused && st.recBadgePaused]}>
-              <View style={st.recDotWrap}>
-                {/* Único bucle de la pantalla: late mientras se graba y se detiene en pausa. */}
-                <PulseRing size={20} color={paused ? '#facc15' : '#f87171'} paused={paused} />
-                <View style={[st.recDot, paused && st.recDotPaused]} />
-              </View>
-              <Text style={st.recTitle}>{paused ? t('paused') : t('recording')}</Text>
-            </View>
-            <View style={st.recTimer} accessibilityLabel={`${t('time')} ${formatDuration(stats.elapsed)}`}>
-              <Text style={st.recTimerText}>{formatDuration(stats.elapsed)}</Text>
-            </View>
-          </Reanimated.View>
-          <Reanimated.View
-            entering={HUD_FADE_IN}
-            style={st.pillsRow}
-            onLayout={e => { const { y, height } = e.nativeEvent.layout; setHudBottom(y + height); }}
-          >
-            <View style={[st.gpsPill, stats.gps === 'ok' ? st.gpsOk : stats.gps === 'lost' ? st.gpsLost : st.gpsSearch]}>
-              <MapPin size={13} color="#fff" />
-              <Text style={st.gpsText}>{gpsText}</Text>
-            </View>
-            <View style={[st.gpsPill, st.netPill]}>
-              <NetIcon size={13} color="#fff" />
-              <Text style={st.gpsText}>{netText}</Text>
-            </View>
-          </Reanimated.View>
-        </LinearGradient>
-
         {!cameraReady && (
           <View style={st.cameraLoading}><ActivityIndicator color="#fff" size="large" /></View>
         )}
-
-        {/* Field Tracking 3D: siempre visible durante el recorrido, debajo de las píldoras, a la derecha. */}
-        {hudBottom > 0 && (
-          <FieldTrackingGuard>
-            <FieldTracking3D motion={fieldMotion} paused={paused} distanceLabel={formatDistance(stats.distance)} top={hudBottom + 12} />
-          </FieldTrackingGuard>
-        )}
-
-        {paused && (
-          <Reanimated.View entering={PAUSE_IN} exiting={PAUSE_OUT} style={st.pauseOverlay} pointerEvents="none">
-            <View style={st.pauseIcon}><Pause size={30} color="#0f172a" fill="#0f172a" /></View>
-            <Text style={st.pauseTitle}>{t('paused')}</Text>
-            <Text style={st.pauseBody}>{t('pausedHint')}</Text>
-          </Reanimated.View>
-        )}
-
-        {/* Destello y aviso al tomar una foto manual */}
+        {/* En Android la vista previa se pone negra si su contenedor recorta (overflow + borderRadius):
+            las esquinas redondeadas se pintan encima con el color del fondo. */}
+        {Platform.OS === 'android' && <View style={st.camCornerMask} pointerEvents="none" />}
+        <Reanimated.View entering={HUD_FADE_IN} style={st.camTop} pointerEvents="none">
+          <View style={st.tCard} accessibilityLabel={`${paused ? t('paused') : t('recording')} · ${t('time')} ${formatDuration(stats.elapsed)}`}>
+            <View style={st.recDotWrap}>
+              {/* Único bucle de la pantalla: late mientras se graba y se detiene en pausa. */}
+              <PulseRing size={18} color={paused ? '#e8a317' : '#e82127'} paused={paused} />
+              <View style={[st.recDot, paused && st.recDotPaused]} />
+            </View>
+            <Text style={st.tCardTitle}>{paused ? t('paused') : t('recording')}</Text>
+            <View style={st.tSep} />
+            <Text style={st.tTimer}>{formatDuration(stats.elapsed)}</Text>
+          </View>
+          <View style={st.tChips}>
+            <View style={st.tChip}>
+              <View style={[st.tDot, { backgroundColor: gpsDot }]} />
+              <Text style={st.tChipText}>{gpsText}</Text>
+            </View>
+            {landscape && (
+              <View style={st.tChip}>
+                <NetIcon size={13} color="#171a20" />
+                <Text style={st.tChipText}>{netText}</Text>
+              </View>
+            )}
+          </View>
+        </Reanimated.View>
+        {/* Aviso al tomar una foto manual */}
         {flash > 0 && (
           <Reanimated.View key={flash} entering={FadeIn.duration(60)} exiting={FadeOut.duration(200)} pointerEvents="none" style={st.shotToast}>
-            <CheckCircle2 size={16} color="#BEF264" />
+            <CheckCircle2 size={16} color="#4ADE80" />
             <Text style={st.shotToastText}>{t('photoTaken')}</Text>
           </Reanimated.View>
         )}
-        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={[st.recordBottom, { paddingBottom: insets.bottom + 18 }]}>
-          {limitHit && <Text style={st.limitText}>{t('limitReached')}</Text>}
-          <View style={st.statsRow}>
-            <View style={[st.statBox, st.statMain]}>
-              <View style={st.statHead}>
-                <CameraIcon size={13} color="#6ee7b7" />
-                <Text style={st.statLabel}>{t('images')}</Text>
-              </View>
-              <Reanimated.Text
-                key={stats.photos}
-                style={[
-                  st.statValueBig,
-                  stats.photos > 0 && !reducedMotion
-                    ? { animationName: COUNT_POP, animationDuration: 180, animationTimingFunction: CSS_EASE_OUT }
-                    : null,
-                ]}
-              >
-                {stats.photos}
-              </Reanimated.Text>
-              <Text style={st.statFoot}>{t('autoCapture')}</Text>
+        {bottom}
+        {paused && (
+          <Reanimated.View entering={PAUSE_IN} exiting={PAUSE_OUT} style={st.pauseOverlay} pointerEvents="none">
+            <View style={st.pauseCard}>
+              <View style={st.pauseIcon}><Pause size={22} color="#171a20" fill="#171a20" /></View>
+              <Text style={st.pauseTitle}>{t('paused')}</Text>
+              <Text style={st.pauseBody}>{t('pausedHint')}</Text>
             </View>
-            <View style={st.statBox}>
-              <View style={st.statHead}>
-                <Footprints size={13} color="#6ee7b7" />
-                <Text style={st.statLabel}>{t('distance')}</Text>
-              </View>
-              <Text style={st.statValue}>{formatDistance(stats.distance)}</Text>
-              <Text style={st.statFoot}>{t('savedOnPhone')}</Text>
-            </View>
-          </View>
-          <Text style={st.recordTip}>{holdHint ? t('holdToFinish') : t('tips')}</Text>
-          <View style={st.recordActions}>
-            <PressableScale style={st.recSecondary} onPress={togglePause} accessibilityRole="button" accessibilityLabel={paused ? t('resume') : t('pause')}>
-              {paused ? <Play size={19} color="#fff" fill="#fff" /> : <Pause size={19} color="#fff" fill="#fff" />}
-              <Text style={st.recSecondaryText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{paused ? t('resume') : t('pause')}</Text>
-            </PressableScale>
-            <PressableScale style={st.recShot} onPress={takePhotoNow} disabled={!cameraReady} accessibilityRole="button" accessibilityLabel={t('takePhoto')}>
-              <CameraIcon size={20} color="#14231A" />
-              <Text style={st.recShotText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t('takePhoto')}</Text>
-            </PressableScale>
-            <PressableScale
-              style={st.recStop}
-              onPressIn={startHold}
-              onPressOut={cancelHold}
-              onPress={() => { if (!holdTimerRef.current) setHoldHint(true); }}
-              accessibilityRole="button"
-              accessibilityLabel={t('finish')}
-              accessibilityHint={t('holdToFinish')}
-              accessibilityActions={[{ name: 'activate' }]}
-              onAccessibilityAction={e => { if (e.nativeEvent.actionName === 'activate') finishRecording(); }}
-            >
-              {/* Relleno que avanza mientras se mantiene presionado; al soltar antes, regresa rápido. */}
-              <Reanimated.View
-                pointerEvents="none"
-                style={[
-                  st.holdFill,
-                  {
-                    transform: [{ scaleX: holding ? 1 : 0 }],
-                    transitionProperty: 'transform',
-                    transitionDuration: holding ? HOLD_TO_FINISH_MS : 200,
-                    transitionTimingFunction: holding ? 'linear' : CSS_EASE_OUT,
-                  },
-                ]}
-              />
-              <Square size={16} color="#fff" fill="#fff" />
-              <Text style={st.recStopText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t('finish')}</Text>
-            </PressableScale>
-          </View>
+          </Reanimated.View>
+        )}
+      </View>
+    );
+
+    const dataPane = (
+      <View style={[st.dataCol, landscape && st.dataColLand]} pointerEvents="none">
+        <View style={landscape ? st.dataItemLand : null}>
+          <Text style={st.dLabel}>{t('distance')}</Text>
+          <Text style={st.dBig} numberOfLines={1} adjustsFontSizeToFit>{formatDistance(stats.distance)}</Text>
+          <Text style={st.dHint}>{distanceHint(stats, paused, t)}</Text>
+        </View>
+        {!landscape && <View style={st.dDivider} />}
+        <View style={landscape ? st.dataItemLandSmall : null}>
+          <Text style={st.dLabel}>{t('images')}</Text>
+          <Reanimated.Text
+            key={stats.photos}
+            style={[
+              st.dMid,
+              stats.photos > 0 && !reducedMotion
+                ? { animationName: COUNT_POP, animationDuration: 180, animationTimingFunction: CSS_EASE_OUT }
+                : null,
+            ]}
+          >
+            {stats.photos}
+          </Reanimated.Text>
+          <Text style={st.dHint}>{t('autoCapture')}</Text>
+        </View>
+      </View>
+    );
+
+    const actions = (
+      <View style={st.recordActions}>
+        <PressableScale style={st.recSecondary} onPress={togglePause} accessibilityRole="button" accessibilityLabel={paused ? t('resume') : t('pause')}>
+          {paused ? <Play size={18} color="#171a20" fill="#171a20" /> : <Pause size={18} color="#171a20" fill="#171a20" />}
+          <Text style={st.recSecondaryText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{paused ? t('resume') : t('pause')}</Text>
+        </PressableScale>
+        {/* Foto manual en la posición actual: entra a las fotos que se procesan. */}
+        <PressableScale style={st.recShot} onPress={takePhotoNow} disabled={!cameraReady} accessibilityRole="button" accessibilityLabel={t('takePhoto')}>
+          <CameraIcon size={19} color="#ffffff" />
+          <Text style={st.recShotText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t('takePhoto')}</Text>
+        </PressableScale>
+        <PressableScale
+          style={st.recStop}
+          onPressIn={startHold}
+          onPressOut={cancelHold}
+          onPress={() => { if (!holdTimerRef.current) setHoldHint(true); }}
+          accessibilityRole="button"
+          accessibilityLabel={t('finish')}
+          accessibilityHint={t('holdToFinish')}
+          accessibilityActions={[{ name: 'activate' }]}
+          onAccessibilityAction={e => { if (e.nativeEvent.actionName === 'activate') finishRecording(); }}
+        >
+          {/* Relleno que avanza mientras se mantiene presionado; al soltar antes, regresa rápido. */}
+          <Reanimated.View
+            pointerEvents="none"
+            style={[
+              st.holdFill,
+              {
+                transform: [{ scaleX: holding ? 1 : 0 }],
+                transitionProperty: 'transform',
+                transitionDuration: holding ? HOLD_TO_FINISH_MS : 200,
+                transitionTimingFunction: holding ? 'linear' : CSS_EASE_OUT,
+              },
+            ]}
+          />
+          <Square size={15} color="#e82127" fill="#e82127" />
+          <Text style={st.recStopText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t('finish')}</Text>
+        </PressableScale>
+      </View>
+    );
+
+    // Agricultor 3D. Vertical: tamaño compacto (el mismo del panel flotante anterior, ~124 × 170 dp) junto a los
+    // datos. Horizontal: como el Tesla, todo el alto y el 40 % del ancho, con datos y botones encima.
+    const compactW = Math.round(Math.min(136, Math.max(112, width * 0.31)) * (winH < 680 ? 0.9 : 1));
+    const compactH = Math.round(compactW * 1.375);
+    const viz = (w: number, h: number, focus?: number) => (
+      <FieldTrackingGuard>
+        <FieldTracking3D motion={fieldMotion} paused={paused} distanceLabel={formatDistance(stats.distance)} width={w} height={h} focus={focus} />
+      </FieldTrackingGuard>
+    );
+    const tip = (
+      <>
+        {limitHit && <Text style={st.limitText}>{t('limitReached')}</Text>}
+        <Text style={st.recordTip}>{holdHint ? t('holdToFinish') : t('tips')}</Text>
+      </>
+    );
+    // Claves distintas por orientación: al girar se monta de nuevo y su onLayout mide el tamaño nuevo (si se
+    // reutilizara el mismo contenedor, el evento no llega y el agricultor no aparecía tras girar).
+    const vehiclePane = landscape ? (
+      <View
+        key="veh-land"
+        style={st.vehPaneLand}
+        onLayout={e => {
+          const { width: w, height: h } = e.nativeEvent.layout;
+          setVizSize(prev => (Math.abs(prev.w - w) < 1 && Math.abs(prev.h - h) < 1 ? prev : { w: Math.round(w), h: Math.round(h) }));
+        }}
+      >
+        {vizSize.w > 0 && viz(vizSize.w, vizSize.h, 0.64)}
+        <LinearGradient
+          colors={['rgba(242,243,245,0.96)', 'rgba(242,243,245,0.82)', 'rgba(242,243,245,0)']}
+          locations={[0, 0.6, 1]}
+          style={st.landOverlay}
+          pointerEvents="none"
+        >
+          {dataPane}
         </LinearGradient>
+      </View>
+    ) : (
+      <View key="veh-port" style={st.vehPane}>
+        <View style={st.vizRow}>
+          <View style={{ width: compactW, height: compactH }}>{viz(compactW, compactH)}</View>
+          {dataPane}
+        </View>
+        {tip}
+        {actions}
+      </View>
+    );
+
+    return (
+      <View
+        style={[st.recordScreen, landscape && st.recordScreenLand, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 12, paddingLeft: insets.left + 10, paddingRight: insets.right + 10 }]}
+        onLayout={e => {
+          const { width: w, height: h } = e.nativeEvent.layout;
+          setScreenBox(prev => (prev && prev.w === Math.round(w) && prev.h === Math.round(h) ? prev : { w: Math.round(w), h: Math.round(h) }));
+        }}
+      >
+        <StatusBar style="dark" />
+        {/* La cámara va siempre primero (no se vuelve a montar al girar); en horizontal la fila va invertida
+            para que el agricultor quede a la izquierda, como en el Tesla. */}
+        {cameraPane(landscape
+          ? <View style={st.camActions}><View style={st.tipCard}>{tip}</View>{actions}</View>
+          : (
+            <Reanimated.View entering={HUD_FADE_IN} style={st.camBottom} pointerEvents="none">
+              <View style={st.tChip}>
+                <NetIcon size={13} color="#171a20" />
+                <Text style={st.tChipText}>{netText}</Text>
+              </View>
+            </Reanimated.View>
+          ))}
+        {vehiclePane}
+        {rotateHint && !landscape && (
+          <Reanimated.View entering={ROTATE_IN} style={st.rotateOverlay}>
+            <View style={st.rotateCard}>
+              <View style={st.rotateIconWrap}>
+                <RotatingPhone reduced={reducedMotion} />
+                <View style={st.rotateArrow}><RotateCcw size={18} color="#3e6ae1" strokeWidth={2.2} /></View>
+              </View>
+              <Text style={st.rotateTitle}>{t('rotateTitle')}</Text>
+              <Text style={st.rotateBody}>{t('rotateBody')}</Text>
+              <PressableScale style={st.rotateBtn} onPress={() => setRotateHint(false)} accessibilityRole="button">
+                <Text style={st.rotateBtnText}>{t('rotateSkip')}</Text>
+              </PressableScale>
+            </View>
+          </Reanimated.View>
+        )}
       </View>
     );
   }
@@ -1379,7 +1537,99 @@ export default function RecorridoScreen() {
   );
 }
 
+/**
+ * Teléfono que gira a horizontal, se sostiene y regresa (bucle) para el aviso «Gira tu celular».
+ * Es la explicación misma del aviso, así que se anima aunque el sistema pida reducir movimiento (p. ej. con
+ * ahorro de batería en Android): en ese caso, en vez de girar, cruza suavemente entre vertical y horizontal.
+ */
+function RotatingPhone({ reduced }: { reduced: boolean }) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    const cfg = { duration: 650, easing: EASE_IN_OUT, reduceMotion: ReduceMotion.Never };
+    p.set(withRepeat(withSequence(withDelay(350, withTiming(1, cfg)), withDelay(700, withTiming(0, cfg))), -1, false));
+  }, [p]);
+  const spin = useAnimatedStyle(() => ({ transform: [{ rotate: `${-90 * p.get()}deg` }] }));
+  const portrait = useAnimatedStyle(() => ({ opacity: 1 - p.get() }));
+  const land = useAnimatedStyle(() => ({ opacity: p.get() }));
+  if (!reduced) {
+    return <Reanimated.View style={spin}><Smartphone size={54} color="#171a20" strokeWidth={1.6} /></Reanimated.View>;
+  }
+  return (
+    <View style={{ width: 60, height: 60, alignItems: 'center', justifyContent: 'center' }}>
+      <Reanimated.View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }, portrait]}>
+        <Smartphone size={54} color="#171a20" strokeWidth={1.6} />
+      </Reanimated.View>
+      <Reanimated.View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-90deg' }] }, land]}>
+        <Smartphone size={54} color="#171a20" strokeWidth={1.6} />
+      </Reanimated.View>
+    </View>
+  );
+}
+
 const st = StyleSheet.create({
+  // ── Grabación (diseño tipo Tesla: superficies claras, tarjetas blancas, tipografía Inter) ──
+  recordScreen: { flex: 1, backgroundColor: '#f2f3f5', gap: 10 },
+  recordScreenLand: { flexDirection: 'row-reverse' },
+  camPane: { flex: 1, borderRadius: 24, overflow: 'hidden', backgroundColor: '#0b0d10' },
+  camPaneLand: { flex: 1 },
+  camPaneNoClip: { overflow: 'visible', borderRadius: 0 },
+  // Marco con borde grueso: su borde interior tiene el radio de las esquinas (2R − R = R) y tapa lo que sobra.
+  camCornerMask: { position: 'absolute', top: -24, left: -24, right: -24, bottom: -24, borderRadius: 48, borderWidth: 24, borderColor: '#f2f3f5' },
+  camTop: { position: 'absolute', top: 10, left: 10, right: 10, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  camBottom: { position: 'absolute', left: 10, bottom: 10, right: 10, flexDirection: 'row' },
+  tCard: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingLeft: 12, paddingRight: 14, paddingVertical: 9, borderRadius: 14, backgroundColor: '#ffffff', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+  tCardTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 13.5, color: '#171a20' },
+  tSep: { width: 1, height: 14, backgroundColor: '#d0d1d2' },
+  tTimer: { fontFamily: 'Inter_500Medium', fontSize: 13.5, color: '#5c5e62', fontVariant: ['tabular-nums'] },
+  tChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 999, backgroundColor: '#ffffff', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 3, flexShrink: 1 },
+  tChipText: { fontFamily: 'Inter_500Medium', fontSize: 12, color: '#171a20', flexShrink: 1 },
+  tDot: { width: 8, height: 8, borderRadius: 4 },
+  recDotWrap: { width: 10, height: 10, alignItems: 'center', justifyContent: 'center' },
+  recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#e82127' },
+  recDotPaused: { backgroundColor: '#e8a317' },
+  cameraLoading: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  pauseOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(23,26,32,0.35)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
+  pauseCard: { alignItems: 'center', gap: 6, paddingVertical: 18, paddingHorizontal: 22, borderRadius: 20, backgroundColor: '#ffffff', maxWidth: 320 },
+  pauseIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#f2f3f5', alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  pauseTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 18, color: '#171a20' },
+  pauseBody: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 19, color: '#5c5e62', textAlign: 'center' },
+  vehPane: { gap: 10 },
+  vehPaneLand: { width: '40%', borderRadius: 24, overflow: 'hidden', backgroundColor: '#e9ecef' },
+  landOverlay: { position: 'absolute', top: 0, left: 0, right: 0, padding: 16, paddingBottom: 44 },
+  camActions: { position: 'absolute', left: 12, right: 12, bottom: 12, gap: 8 },
+  tChips: { alignItems: 'flex-end', gap: 6, flexShrink: 1 },
+  tipCard: { alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.92)' },
+  rotateOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(242,243,245,0.92)', alignItems: 'center', justifyContent: 'center', padding: 28 },
+  rotateCard: { alignItems: 'center', gap: 8, paddingVertical: 26, paddingHorizontal: 24, borderRadius: 24, backgroundColor: '#ffffff', maxWidth: 340, width: '100%', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
+  rotateIconWrap: { width: 96, height: 96, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  rotateArrow: { position: 'absolute', right: 4, top: 6 },
+  rotateTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 19, color: '#171a20' },
+  rotateBody: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20, color: '#5c5e62', textAlign: 'center' },
+  rotateBtn: { marginTop: 10, alignSelf: 'stretch', minHeight: 50, borderRadius: 14, backgroundColor: '#f2f3f5', alignItems: 'center', justifyContent: 'center' },
+  rotateBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: '#171a20' },
+  vizRow: { flexDirection: 'row', gap: 14, alignItems: 'center' },
+  dataCol: { flex: 1, justifyContent: 'center', gap: 12, paddingVertical: 4 },
+  dataColLand: { flex: 0, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-start', gap: 16 },
+  dataItemLand: { flex: 1.5, minWidth: 0 },
+  dataItemLandSmall: { flex: 1, minWidth: 0 },
+  dLabel: { fontFamily: 'Inter_500Medium', fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase', color: '#8e8e93' },
+  dBig: { fontFamily: 'Inter_300Light', fontSize: 50, lineHeight: 58, color: '#171a20', fontVariant: ['tabular-nums'], letterSpacing: -1 },
+  dMid: { fontFamily: 'Inter_400Regular', fontSize: 30, lineHeight: 36, color: '#171a20', fontVariant: ['tabular-nums'], alignSelf: 'flex-start' },
+  dHint: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 16, color: '#5c5e62' },
+  dDivider: { height: 1, backgroundColor: '#dfe1e4' },
+  limitText: { fontFamily: 'Inter_500Medium', fontSize: 12.5, color: '#b45309', textAlign: 'center' },
+  recordTip: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 17, color: '#5c5e62', textAlign: 'center' },
+  recordActions: { flexDirection: 'row', gap: 8 },
+  // Tres botones del mismo tamaño (más chicos): icono arriba y texto abajo, para que quepan en pantallas angostas.
+  recSecondary: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2, minHeight: 52, paddingVertical: 6, paddingHorizontal: 4, borderRadius: 16, backgroundColor: '#ffffff', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  recSecondaryText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#171a20' },
+  recShot: { flex: 1.15, alignItems: 'center', justifyContent: 'center', gap: 2, minHeight: 52, paddingVertical: 6, paddingHorizontal: 4, borderRadius: 16, backgroundColor: '#3e6ae1', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  recShotText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#ffffff' },
+  shotToast: { position: 'absolute', alignSelf: 'center', top: '44%', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 36, borderRadius: 18, backgroundColor: 'rgba(23,26,32,0.85)' },
+  shotToastText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#ffffff' },
+  recStop: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2, minHeight: 52, paddingVertical: 6, paddingHorizontal: 4, borderRadius: 16, backgroundColor: '#ffffff', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  holdFill: { position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, backgroundColor: 'rgba(232,33,39,0.14)', transformOrigin: 'left' },
+  recStopText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#e82127' },
   screen: { flex: 1, backgroundColor: '#FFFFFF' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
@@ -1476,51 +1726,6 @@ const st = StyleSheet.create({
   prepBackText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#0f766e' },
   prepStartBtn: { flex: 2, borderRadius: 18, overflow: 'hidden' },
   // grabación
-  recordScreen: { flex: 1, backgroundColor: '#000' },
-  recordTop: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 16, paddingBottom: 32, gap: 10 },
-  recTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  recBadge: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 12, paddingRight: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: 'rgba(127,29,29,0.55)', borderWidth: 1, borderColor: 'rgba(248,113,113,0.45)' },
-  recBadgePaused: { backgroundColor: 'rgba(113,63,18,0.6)', borderColor: 'rgba(250,204,21,0.5)' },
-  recDotWrap: { width: 12, height: 12 },
-  recDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#ef4444' },
-  recDotPaused: { backgroundColor: '#facc15' },
-  recTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#fff' },
-  recTimer: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14, backgroundColor: 'rgba(15,23,42,0.6)' },
-  recTimerText: { fontFamily: 'Poppins_700Bold', fontSize: 20, color: '#fff', fontVariant: ['tabular-nums'] },
-  pillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  gpsPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
-  gpsOk: { backgroundColor: 'rgba(22,163,74,0.85)' },
-  gpsSearch: { backgroundColor: 'rgba(100,116,139,0.85)' },
-  gpsLost: { backgroundColor: 'rgba(202,138,4,0.9)' },
-  netPill: { backgroundColor: 'rgba(15,23,42,0.65)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
-  gpsText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#fff' },
-  cameraLoading: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  pauseOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(2,6,23,0.55)', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 40 },
-  pauseIcon: { width: 68, height: 68, borderRadius: 34, backgroundColor: '#facc15', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  pauseTitle: { fontFamily: 'Poppins_700Bold', fontSize: 22, color: '#fff' },
-  pauseBody: { fontFamily: 'Poppins_400Regular', fontSize: 13.5, lineHeight: 20, color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
-  recordBottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 48, gap: 12 },
-  limitText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#fde68a', textAlign: 'center' },
-  statsRow: { flexDirection: 'row', gap: 8 },
-  statBox: { flex: 1, backgroundColor: 'rgba(15,23,42,0.62)', borderRadius: 18, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', gap: 2 },
-  statMain: { flex: 1.15, borderColor: 'rgba(110,231,183,0.35)' },
-  statHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  statValue: { fontFamily: 'Poppins_700Bold', fontSize: 24, color: '#fff' },
-  statValueBig: { fontFamily: 'Poppins_700Bold', fontSize: 30, lineHeight: 36, color: '#fff', alignSelf: 'flex-start', fontVariant: ['tabular-nums'] },
-  statLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: 0.6 },
-  statFoot: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: 'rgba(255,255,255,0.6)' },
-  recordTip: { fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 17, color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
-  recordActions: { flexDirection: 'row', gap: 10 },
-  // Tres botones del mismo tamaño: icono arriba y texto abajo, para que quepan en pantallas angostas.
-  recSecondary: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, minHeight: 58, paddingVertical: 8, paddingHorizontal: 6, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
-  recSecondaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#fff' },
-  recShot: { flex: 1.15, alignItems: 'center', justifyContent: 'center', gap: 3, minHeight: 58, paddingVertical: 8, paddingHorizontal: 6, borderRadius: 18, backgroundColor: '#A3E635' },
-  recShotText: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#14231A' },
-  shotToast: { position: 'absolute', alignSelf: 'center', top: '42%', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 36, borderRadius: 18, backgroundColor: 'rgba(15,23,42,0.82)' },
-  shotToastText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#fff' },
-  recStop: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, minHeight: 58, paddingVertical: 8, paddingHorizontal: 6, borderRadius: 18, backgroundColor: '#b91c1c', overflow: 'hidden' },
-  holdFill: { position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, backgroundColor: '#ef4444', transformOrigin: 'left' },
-  recStopText: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#fff' },
   summaryHint: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, lineHeight: 16, color: '#64748b' },
   summaryOk: { backgroundColor: '#f0fdf4' },
   summaryBad: { backgroundColor: '#fef2f2' },

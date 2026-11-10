@@ -47,6 +47,7 @@ import {
 } from '../../components/scansMapHtml';
 import HistorySheet, { sheetJustDragged, type HistorySheetHandle } from '../../components/escaneos/HistorySheet';
 import SatThumb from '../../components/escaneos/SatThumb';
+import { fruitImage, isHealthyLabel } from '../../components/fruitImage';
 import MapStylePicker from '../../components/escaneos/MapStylePicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -880,7 +881,7 @@ export default function MisEscaneos() {
             accessibilityLabel={`${findingLabel(h)}, ${catText(c)}, ${t('confidence', { pct: Math.round(h.confianza * 100) })}`}
             style={({ pressed }) => [st.card, on && st.cardOn, pressed && st.pressed]}>
             <View style={st.fThumb}>
-              {h.miniatura_path ? <Image source={storageImage(h.miniatura_path)} style={StyleSheet.absoluteFill} resizeMode="cover" /> : <Bug size={22} color={FINDING_COLOR[c]} />}
+              {h.miniatura_path ? <Image source={storageImage(h.miniatura_path)} style={StyleSheet.absoluteFill} resizeMode="cover" /> : <FruitThumb fruit={h.fruto} label={h.estado} size={58} />}
             </View>
             <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
               <View style={[st.rowCenter, { gap: 6 }]}><FindingGlyph cat={c} /><Text style={st.cardTitle} numberOfLines={1}>{findingLabel(h)}</Text></View>
@@ -923,7 +924,7 @@ export default function MisEscaneos() {
       return (
         <View style={st.pointRow}>
           <View style={st.pointThumb}>
-            {h.miniatura_path ? <Image source={storageImage(h.miniatura_path)} style={StyleSheet.absoluteFill} resizeMode="cover" /> : <Bug size={20} color={FINDING_COLOR[c]} />}
+            {h.miniatura_path ? <Image source={storageImage(h.miniatura_path)} style={StyleSheet.absoluteFill} resizeMode="cover" /> : <FruitThumb fruit={h.fruto} label={h.estado} size={50} radius={12} />}
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <View style={[st.rowCenter, { gap: 6 }]}><FindingGlyph cat={c} /><Text style={st.pointTitle} numberOfLines={1}>{findingLabel(h)}</Text></View>
@@ -1263,10 +1264,25 @@ function ItemThumb({ item, size, outline, preferPhoto }: { item: ScanItem; size:
   if (preferPhoto && photo) return photo;
   if (geo) return <SatThumb route={item.route} points={item.localPhotos} outline={outlinePts} size={size} radius={14} />;
   if (photo) return photo;
-  const Icon = item.kind === 'foto' ? Leaf : item.fuente === 'dron' ? Plane : item.fuente === 'camara' ? Video : Route;
+  // Foto individual sin foto guardada (se borran tras el análisis): la misma imagen que en Actividad
+  // (aguacate sano con pesas o aguacate enfermo; otras frutas, su imagen).
+  if (item.kind === 'foto') return <FruitThumb fruit={item.result?.fruto ?? null} label={item.result?.label ?? null} size={size} />;
+  const Icon = item.fuente === 'dron' ? Plane : item.fuente === 'camara' ? Video : Route;
   return (
     <View style={[st.thumb, st.center, { width: size, height: size, backgroundColor: '#1A252B' }]}>
-      <Icon size={size * 0.36} color={item.kind === 'foto' ? D.lime : D.muted} />
+      <Icon size={size * 0.36} color={D.muted} />
+    </View>
+  );
+}
+
+/** Imagen ilustrativa del fruto según su diagnóstico (la de Actividad); si una remota no carga, el aguacate. */
+function FruitThumb({ fruit, label, size, radius = 14 }: { fruit: string | null; label: string | null; size: number; radius?: number }) {
+  const sano = isHealthyLabel(label ?? '');
+  const [failed, setFailed] = useState(false);
+  const source = failed ? fruitImage('Aguacate', sano) : fruitImage(fruit, sano);
+  return (
+    <View style={{ width: size, height: size, borderRadius: radius, overflow: 'hidden', backgroundColor: '#1A252B' }}>
+      <Image source={source} style={StyleSheet.absoluteFill} resizeMode="cover" onError={() => setFailed(true)} accessibilityIgnoresInvertColors />
     </View>
   );
 }

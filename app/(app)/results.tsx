@@ -28,6 +28,7 @@ import { auth } from '../../firebaseConfig';
 import { supabase } from '../../supabaseConfig';
 import { useAccessibility } from '../../context/AccessibilityContext';
 import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
+import { fruitImage, isHealthyLabel } from '../../components/fruitImage';
 
 type Scan = { id: number; created_at: string; user_id: string; label: string; score: number; fruto?: string; huerta_id?: string | null };
 type Period = PeriodKey;
@@ -37,15 +38,6 @@ type Task = { id: number; title: string; detail?: string; completed: boolean; us
 type Section = 'summary' | 'history' | 'plan';
 type Recommendation = { title: string; text: string; tone: 'positive' | 'info' | 'warning' };
 const TASK_DATE_PATTERN = /^\[avotex-date:(\d{4}-\d{2}-\d{2})\]\n?/;
-const FRUIT_REMOTE_IMAGES: Record<string, string> = {
-  limon: 'https://cdn.aarp.net/content/dam/aarpe/es/home/cocina/dieta-y-nutricion/info-10-2013/fotos-limon-beneficios/_jcr_content/root/container_main/container_body_main/list_container_body2/container_body_cf/body_two_cf_listicle_ten/cfimage.coreimg.50.932.jpeg/content/dam/aarp/food/diet_nutrition/2017/12/1140-lime-juice-lemon-benefits-esp.jpg',
-  mango: 'https://cdn.myikas.com/images/0fc5e2e6-3ea7-443f-a09e-daf74b83e708/8ff8ba6b-d866-4e48-88c7-44e07abc07e2/3840/mango.webp',
-  guayaba: 'https://clickabasto.com/cdn/shop/products/IMG_1458_665x462.jpg?v=1655783207',
-  granada: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQoNOSa7eeyMktiOgpxYd8BV95f3PTgPnzHcg&s',
-  cafe: 'https://cdn.alsuper.com/products/420910_p.webp',
-};
-const HEALTHY_FALLBACK = require('../../assets/images/avotexSano.png');
-const REVIEW_FALLBACK = require('../../assets/images/avotexEnfermo.png');
 const translations: TranslationResource = {
   activity: { es: 'Actividad', en: 'Activity' },
   loginToSee: { es: 'Inicia sesión para ver tu actividad', en: 'Sign in to see your activity' },
@@ -133,18 +125,8 @@ const translations: TranslationResource = {
 /** Primera letra en mayúscula (las clases del modelo llegan en minúsculas). */
 const cap = (v: string) => (v ? v.charAt(0).toUpperCase() + v.slice(1) : v);
 const normalize = (value = '') => value.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
-const healthy = (label = '') => {
-  const normalized = normalize(label);
-  if (/\b(no|not|sin)\s+(saludable|healthy|sano|fresh|fresco)\b/.test(normalized)) return false;
-  return ['saludable', 'healthy', 'sano', 'fresh', 'fresco'].some(word => normalized.includes(word));
-};
+const healthy = isHealthyLabel;
 const diagnosisName = (label = '') => healthy(label) ? 'Saludable' : label.trim() || 'Sin diagnóstico';
-const fruitImage = (fruit = 'Aguacate', isHealthy = true) => {
-  const key = normalize(fruit);
-  if (!fruit || key === 'aguacate') return isHealthy ? HEALTHY_FALLBACK : REVIEW_FALLBACK;
-  const remoteImage = FRUIT_REMOTE_IMAGES[key];
-  return remoteImage ? { uri: remoteImage } : (isHealthy ? HEALTHY_FALLBACK : REVIEW_FALLBACK);
-};
 const dateText = (value: string, locale: string) => new Date(value).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
 const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const taskDate = (task: Task) => task.scheduled_at ? dateKey(new Date(task.scheduled_at)) : task.detail?.match(TASK_DATE_PATTERN)?.[1] ?? null;

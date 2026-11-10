@@ -34,8 +34,19 @@ export const DOWNGRADE: Record<FieldQuality, FieldQuality> = { high: 'reduced', 
 
 const GB = 1024 ** 3;
 
-/** Nivel inicial según memoria, año del equipo y batería. Nunca lanza: ante la duda, «reduced». */
-export async function initialQuality(): Promise<FieldQuality> {
+let cached: Promise<FieldQuality> | null = null;
+
+/**
+ * Nivel inicial según memoria, año del equipo y batería. Nunca lanza: ante la duda, «reduced».
+ * Se calcula una vez por sesión: al girar el teléfono el panel se vuelve a montar y no debe esperar otra vez a la
+ * batería (hasta 1.5 s) para dibujar al agricultor.
+ */
+export function initialQuality(): Promise<FieldQuality> {
+  if (!cached) cached = computeInitialQuality();
+  return cached;
+}
+
+async function computeInitialQuality(): Promise<FieldQuality> {
   let q: FieldQuality = 'high';
   try {
     const mem = Device.totalMemory;

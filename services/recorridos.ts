@@ -21,6 +21,8 @@ const UPLOAD_PREF_KEY = 'avotex_recorridos_datos_moviles';
 export const CAPTURE_EVERY_M = 2.5;
 /** Sin GPS, una foto cada tantos segundos. */
 export const CAPTURE_EVERY_S_WITHOUT_GPS = 3;
+/** Si en tantos segundos no avanzas (no se tomó foto por distancia), se toma una foto donde estás. */
+export const IDLE_CAPTURE_S = 10;
 /** Tope por recorrido (~3 km caminando). */
 export const MAX_PHOTOS = 1200;
 

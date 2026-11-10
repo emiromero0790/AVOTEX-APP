@@ -59,6 +59,8 @@ import { listOrchards, Orchard } from '../../services/orchards';
 import {
   CAPTURE_EVERY_M,
   CAPTURE_EVERY_S_WITHOUT_GPS,
+  FotoLocal,
+  IDLE_CAPTURE_S,
   MAX_PHOTOS,
   Hallazgo,
   RecorridoLocal,
@@ -92,6 +94,7 @@ import RecorridoMap from '../../components/RecorridoMap';
 const IMG_MOUNT_HELMET = require('../../assets/images/escanear/montaje-casco.jpg');
 import { CSS_EASE_OUT, EASE_IN_OUT, EASE_OUT, PressableScale, PulseRing } from '../../components/scan/motion';
 import WalkPrepare from '../../components/scan/WalkPrepare';
+import WalkReview from '../../components/scan/WalkReview';
 import OrchardPickerSheet from '../../components/scan/OrchardPickerSheet';
 import { resolveScanHuerta, type HuertaResolution } from '../../services/huertaResolver';
 
@@ -245,6 +248,12 @@ const translations: TranslationResource = {
   recordAnyway: { es: 'Grabar sin GPS', en: 'Record without GPS' },
   savedTitle: { es: 'Recorrido guardado', en: 'Walk saved' },
   savedBody: { es: '{count} imágenes guardadas en el celular.', en: '{count} images saved on the phone.' },
+  takePhoto: { es: 'Tomar foto', en: 'Take photo' },
+  photoTaken: { es: 'Foto guardada', en: 'Photo saved' },
+  discardTitle: { es: '¿Descartar el recorrido?', en: 'Discard the walk?' },
+  discardBody: { es: 'Se borrarán todas sus fotos del celular y no se procesará.', en: 'All its photos will be deleted from the phone and it will not be processed.' },
+  discardYes: { es: 'Descartar', en: 'Discard' },
+  discarded: { es: 'Recorrido descartado.', en: 'Walk discarded.' },
   emptyWalk: { es: 'No se tomó ninguna imagen; el recorrido no se guardó.', en: 'No images were taken; the walk was not saved.' },
   // detalle
   detailTitle: { es: 'Recorrido del {date}', en: 'Walk of {date}' },
@@ -268,7 +277,7 @@ const translations: TranslationResource = {
   notifyOff: { es: 'Activa las notificaciones para saber cuándo está listo tu análisis.', en: 'Turn on notifications to know when your analysis is ready.' },
 };
 
-type Mode = 'home' | 'prepare' | 'record' | 'detail';
+type Mode = 'home' | 'prepare' | 'record' | 'review' | 'detail';
 type PermState = 'granted' | 'ask' | 'denied' | null;
 
 function formatDuration(ms: number): string {
@@ -348,6 +357,9 @@ export default function RecorridoScreen() {
   const trackRef = useRef<GpsTrack | null>(null);
   const lastFixRef = useRef<{ lat: number; lng: number; acc: number | null; at: number } | null>(null);
   const lastShotRef = useRef<{ lat: number | null; lng: number | null; at: number } | null>(null);
+  // Recorrido terminado, esperando a que se elijan las fotos.
+  const reviewRef = useRef<RecorridoLocal | null>(null);
+  const [reviewFotos, setReviewFotos] = useState<FotoLocal[]>([]);
   const useGpsRef = useRef(true);
   // Field Tracking 3D: solo visualización. Recibe las mismas lecturas GPS (no hay otro observador).
   const fieldMotionRef = useRef<FieldMotion | null>(null);
@@ -566,23 +578,27 @@ export default function RecorridoScreen() {
     Promise.resolve(deactivateKeepAwake('recorrido')).catch(() => {});
   }, []);
 
-  const shoot = useCallback(async (coords: { lat: number; lng: number; precision: number | null } | null) => {
+  /** manual: botón «Tomar foto» (también en pausa; espera a que termine una captura en curso). */
+  const shoot = useCallback(async (coords: { lat: number; lng: number; precision: number | null } | null, manual = false): Promise<boolean> => {
+    if (manual) for (let i = 0; i < 25 && busyRef.current; i++) await new Promise(r => setTimeout(r, 60));
     const rec = recRef.current;
     const cam = cameraRef.current;
-    if (!rec || !cam || !cameraReadyRef.current || busyRef.current || pausedRef.current) return;
-    if (rec.fotos.length >= MAX_PHOTOS) { setLimitHit(true); return; }
+    if (!rec || !cam || !cameraReadyRef.current || busyRef.current || (pausedRef.current && !manual)) return false;
+    if (rec.fotos.length >= MAX_PHOTOS) { setLimitHit(true); return false; }
     busyRef.current = true;
     try {
       const photo = await cam.takePictureAsync({ quality: 0.6, shutterSound: false });
-      if (!photo?.uri || !recRef.current) return;
+      if (!photo?.uri || !recRef.current) return false;
       const foto = await storePhoto(rec, photo.uri, coords);
       rec.fotos.push(foto);
       lastShotRef.current = { lat: coords?.lat ?? null, lng: coords?.lng ?? null, at: Date.now() };
       setStats(s => ({ ...s, photos: rec.fotos.length }));
       // Se guarda seguido: si la app se cierra, el recorrido no se pierde.
       if (rec.fotos.length % 5 === 0) await saveLocal(rec);
+      return true;
     } catch (e) {
       console.warn('[recorrido] no se pudo tomar la imagen', e);
+      return false;
     } finally {
       busyRef.current = false;
     }
@@ -690,6 +706,11 @@ export default function RecorridoScreen() {
         }));
         // Sin GPS: una imagen cada pocos segundos para no perder el recorrido.
         const shot = lastShotRef.current;
+        // Con GPS pero sin avanzar: si en IDLE_CAPTURE_S no hubo foto por distancia, se toma una donde estás.
+        if (!gpsLost && !pausedRef.current && fix && now - (shot?.at ?? startedAtRef.current) >= IDLE_CAPTURE_S * 1000) {
+          const pos = trackRef.current?.position() ?? { lat: fix.lat, lng: fix.lng };
+          shoot({ lat: pos.lat, lng: pos.lng, precision: fix.acc });
+        }
         if (gpsLost && (now - startedAtRef.current > 8000 || !useGpsRef.current) && (!shot || now - shot.at >= CAPTURE_EVERY_S_WITHOUT_GPS * 1000)) {
           shoot(null);
         }
@@ -750,15 +771,68 @@ export default function RecorridoScreen() {
     if (!rec.fotos.length) {
       await deleteLocal(rec);
       Alert.alert(t('title'), t('emptyWalk'));
-    } else {
-      rec.estado = 'guardado';
-      rec.terminadoAt = new Date().toISOString();
-      await saveLocal(rec);
-      Alert.alert(t('savedTitle'), t('savedBody', { count: rec.fotos.length }));
+      await loadHome();
+      uploadAll();
+      return;
     }
+    // Se guarda ya (si la app se cierra aquí, no se pierde nada) y se pasa a elegir qué fotos analizar.
+    // Queda «grabando» mientras se eligen: así nada lo sube antes de tiempo. Si la app se cierra aquí,
+    // recoverInterrupted lo guarda con todas sus fotos.
+    rec.terminadoAt = new Date().toISOString();
+    await saveLocal(rec);
+    reviewRef.current = rec;
+    setReviewFotos(rec.fotos.slice());
+    setMode('review');
+  }, [stopSensors, loadHome, uploadAll, t]);
+
+  // Elegir fotos: solo las marcadas se quedan y se suben; las demás se borran del celular.
+  const confirmReview = useCallback(async (keep: string[]) => {
+    const rec = reviewRef.current;
+    reviewRef.current = null;
+    setMode('home');
+    setReviewFotos([]);
+    if (!rec) return;
+    const keepSet = new Set(keep);
+    const drop = rec.fotos.filter(f => !keepSet.has(f.id));
+    rec.fotos = rec.fotos.filter(f => keepSet.has(f.id));
+    await Promise.all(drop.map(f => FileSystem.deleteAsync(f.uri, { idempotent: true }).catch(() => {})));
+    rec.estado = 'guardado';
+    await saveLocal(rec);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    Alert.alert(t('savedTitle'), t('savedBody', { count: rec.fotos.length }));
     await loadHome();
     uploadAll();
-  }, [stopSensors, loadHome, uploadAll, t]);
+  }, [loadHome, uploadAll, t]);
+  const discardReview = useCallback(() => {
+    Alert.alert(t('discardTitle'), t('discardBody'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('discardYes'), style: 'destructive', onPress: async () => {
+          const rec = reviewRef.current;
+          reviewRef.current = null;
+          setMode('home');
+          setReviewFotos([]);
+          if (rec) await deleteLocal(rec);
+          await loadHome();
+        },
+      },
+    ]);
+  }, [loadHome, t]);
+
+  // «Tomar foto»: foto manual en la posición actual; entra a las fotos del recorrido.
+  const [flash, setFlash] = useState(0);
+  useEffect(() => {
+    if (!flash) return;
+    const id = setTimeout(() => setFlash(0), 1300);
+    return () => clearTimeout(id);
+  }, [flash]);
+  const takePhotoNow = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    const fix = lastFixRef.current;
+    const pos = trackRef.current?.position() ?? (fix ? { lat: fix.lat, lng: fix.lng } : null);
+    const ok = await shoot(pos ? { lat: pos.lat, lng: pos.lng, precision: fix?.acc ?? null } : null, true);
+    if (ok) setFlash(n => n + 1);
+  }, [shoot]);
 
   // Terminar: se mantiene presionado; soltar antes cancela. Lectores de pantalla usan la acción directa.
   const cancelHold = useCallback(() => {
@@ -788,6 +862,9 @@ export default function RecorridoScreen() {
       rec.terminadoAt = new Date().toISOString();
       if (rec.fotos.length) saveLocal(rec); else deleteLocal(rec);
     }
+    // Si se sale mientras elegía fotos: se guarda con todas (nada se pierde).
+    const pending = reviewRef.current;
+    if (pending) { pending.estado = 'guardado'; saveLocal(pending); }
   }, [stopSensors]);
 
   const onCameraReady = useCallback(async () => {
@@ -900,6 +977,15 @@ export default function RecorridoScreen() {
     );
   }
 
+  if (mode === 'review') {
+    return (
+      <>
+        <StatusBar style="dark" />
+        <WalkReview fotos={reviewFotos} onConfirm={confirmReview} onDiscard={discardReview} />
+      </>
+    );
+  }
+
   if (mode === 'record') {
     const gpsText = stats.gps === 'ok' ? t('gpsOk', { m: Math.max(1, Math.round(stats.accuracy ?? 0)) }) : stats.gps === 'searching' ? t('gpsSearching') : t('gpsLost');
     const netText = network === 'offline' ? t('netOffline')
@@ -967,6 +1053,13 @@ export default function RecorridoScreen() {
           </Reanimated.View>
         )}
 
+        {/* Destello y aviso al tomar una foto manual */}
+        {flash > 0 && (
+          <Reanimated.View key={flash} entering={FadeIn.duration(60)} exiting={FadeOut.duration(200)} pointerEvents="none" style={st.shotToast}>
+            <CheckCircle2 size={16} color="#BEF264" />
+            <Text style={st.shotToastText}>{t('photoTaken')}</Text>
+          </Reanimated.View>
+        )}
         <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={[st.recordBottom, { paddingBottom: insets.bottom + 18 }]}>
           {limitHit && <Text style={st.limitText}>{t('limitReached')}</Text>}
           <View style={st.statsRow}>
@@ -1000,8 +1093,12 @@ export default function RecorridoScreen() {
           <Text style={st.recordTip}>{holdHint ? t('holdToFinish') : t('tips')}</Text>
           <View style={st.recordActions}>
             <PressableScale style={st.recSecondary} onPress={togglePause} accessibilityRole="button" accessibilityLabel={paused ? t('resume') : t('pause')}>
-              {paused ? <Play size={22} color="#fff" fill="#fff" /> : <Pause size={22} color="#fff" fill="#fff" />}
-              <Text style={st.recSecondaryText}>{paused ? t('resume') : t('pause')}</Text>
+              {paused ? <Play size={19} color="#fff" fill="#fff" /> : <Pause size={19} color="#fff" fill="#fff" />}
+              <Text style={st.recSecondaryText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{paused ? t('resume') : t('pause')}</Text>
+            </PressableScale>
+            <PressableScale style={st.recShot} onPress={takePhotoNow} disabled={!cameraReady} accessibilityRole="button" accessibilityLabel={t('takePhoto')}>
+              <CameraIcon size={20} color="#14231A" />
+              <Text style={st.recShotText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t('takePhoto')}</Text>
             </PressableScale>
             <PressableScale
               style={st.recStop}
@@ -1027,8 +1124,8 @@ export default function RecorridoScreen() {
                   },
                 ]}
               />
-              <Square size={18} color="#fff" fill="#fff" />
-              <Text style={st.recStopText}>{t('finish')}</Text>
+              <Square size={16} color="#fff" fill="#fff" />
+              <Text style={st.recStopText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t('finish')}</Text>
             </PressableScale>
           </View>
         </LinearGradient>
@@ -1414,11 +1511,16 @@ const st = StyleSheet.create({
   statFoot: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: 'rgba(255,255,255,0.6)' },
   recordTip: { fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 17, color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
   recordActions: { flexDirection: 'row', gap: 10 },
-  recSecondary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 68, paddingVertical: 17, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
-  recSecondaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#fff' },
-  recStop: { flex: 1.3, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 68, paddingVertical: 17, borderRadius: 20, backgroundColor: '#b91c1c', overflow: 'hidden' },
+  // Tres botones del mismo tamaño: icono arriba y texto abajo, para que quepan en pantallas angostas.
+  recSecondary: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, minHeight: 58, paddingVertical: 8, paddingHorizontal: 6, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  recSecondaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#fff' },
+  recShot: { flex: 1.15, alignItems: 'center', justifyContent: 'center', gap: 3, minHeight: 58, paddingVertical: 8, paddingHorizontal: 6, borderRadius: 18, backgroundColor: '#A3E635' },
+  recShotText: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#14231A' },
+  shotToast: { position: 'absolute', alignSelf: 'center', top: '42%', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 36, borderRadius: 18, backgroundColor: 'rgba(15,23,42,0.82)' },
+  shotToastText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#fff' },
+  recStop: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, minHeight: 58, paddingVertical: 8, paddingHorizontal: 6, borderRadius: 18, backgroundColor: '#b91c1c', overflow: 'hidden' },
   holdFill: { position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, backgroundColor: '#ef4444', transformOrigin: 'left' },
-  recStopText: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' },
+  recStopText: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#fff' },
   summaryHint: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, lineHeight: 16, color: '#64748b' },
   summaryOk: { backgroundColor: '#f0fdf4' },
   summaryBad: { backgroundColor: '#fef2f2' },

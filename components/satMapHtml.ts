@@ -46,7 +46,7 @@ export { safeJson };
 export function buildSatMapHtml(): string {
   const palette = safeJson(ZONE_PALETTE);
   return `<!doctype html>
-<html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
 html,body,#map{height:100%;width:100%;margin:0;background:#0b1f17}
@@ -159,6 +159,13 @@ window.avx={
     if(!n||!n.image||!n.bounds)return;
     var b=n.bounds;
     ndvi=L.imageOverlay('data:image/png;base64,'+n.image,[[b.south,b.west],[b.north,b.east]],{pane:'ndvi',opacity:.88,interactive:false,className:'ndvi',attribution:'Vigor: Copernicus Sentinel-2'});
+    // La imagen llega a 10 m por píxel y sin recortar: el navegador la estira con interpolación suave y aquí se
+    // recorta al contorno con clip-path (porcentajes en Web Mercator dentro de la caja: borde nítido).
+    ndvi.on('add',function(){var el=ndvi&&ndvi.getElement();if(!el||!data||data.outline.length<3)return;
+      var X=function(lng){return lng*Math.PI/180;},Y=function(lat){return Math.log(Math.tan(Math.PI/4+lat*Math.PI/360));};
+      var x0=X(b.west),x1=X(b.east),y0=Y(b.north),y1=Y(b.south);
+      var pts=data.outline.map(function(p){return((X(p.lng)-x0)/(x1-x0)*100).toFixed(3)+'% '+((y0-Y(p.lat))/(y0-y1)*100).toFixed(3)+'%';}).join(',');
+      el.style.clipPath='polygon('+pts+')';el.style.webkitClipPath='polygon('+pts+')';el.style.imageRendering='auto';});
     applyLayer();
   },
   zoom:function(d){d>0?map.zoomIn():map.zoomOut();},

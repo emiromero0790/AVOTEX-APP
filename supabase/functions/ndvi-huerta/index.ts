@@ -1,35 +1,32 @@
 /**
- * ndvi-huerta — mapa de vigor (NDVI) de una huerta con Sentinel-2 (Copernicus Data Space Ecosystem).
+ * ndvi-huerta — mapa de vigor (NDVI) de una huerta con Sentinel-2 L2A de Microsoft Planetary Computer.
+ *
+ * No necesita cuenta ni claves: usa la API pública STAC y la Data API (TiTiler) de Planetary Computer.
  *
  * POST { outline: [{ lat, lng }, ...] }
  *   → { ok: true, date, image (PNG base64), bounds, stats: { mean, min, max, validPct }, source }
- *   → { ok: false, reason: 'not-configured' | 'bad-request' | 'too-large' | 'no-clear-image' | 'upstream' }
+ *   → { ok: false, reason: 'bad-request' | 'too-large' | 'no-clear-image' | 'upstream' }
  *
- * Cómo funciona (2 llamadas a Copernicus, ambas recortadas al contorno de la huerta):
- *  1. Statistical API, últimos 75 días por día: NDVI medio/mín/máx y cuántos píxeles se vieron despejados
- *     (sin nubes, sombras ni nieve según la capa SCL). Se elige la fecha más reciente con ≥ 60 % de la huerta
- *     despejada (si ninguna llega, la de mayor cobertura con ≥ 30 %).
- *  2. Process API de esa fecha: PNG coloreado con la misma escala de NDVI de la app; fuera del contorno y en
- *     nubes queda transparente. Se pide a 1.25 m por píxel (máx. 512 px) con remuestreo bicúbico para que se vea suave
- *     (el dato real sigue siendo de 10 m por píxel).
+ * Cómo funciona:
+ *  1. STAC: imágenes Sentinel-2 de los últimos 75 días que cubren la huerta, de la más reciente a la más vieja.
+ *  2. Estadística dentro del contorno (por imagen, en lotes): qué parte de la huerta se vio despejada según la
+ *     capa SCL (4 vegetación, 5 sin vegetación, 6 agua, 7 sin clasificar; fuera nubes, sombras, nieve) y el NDVI
+ *     medio de los píxeles despejados. Se elige la más reciente con ≥ 60 % despejado (si ninguna, la mejor ≥ 30 %).
+ *  3. PNG de esa imagen a su resolución real (10 m por píxel), de la caja de la huerta más un margen de 15 m, SIN
+ *     recortar: NDVI coloreado con la escala de la app y nubes transparentes. La app la estira con interpolación
+ *     suave (gradientes entre píxeles en vez de cuadros) y la recorta al contorno con un clip-path nítido.
  *
- * Todo se pide en EPSG:3857 (Web Mercator), el mismo sistema del mapa de la app: la imagen encaja exacta con
- * L.imageOverlay sobre sus esquinas.
- *
- * Secretos (supabase secrets set …): CDSE_CLIENT_ID, CDSE_CLIENT_SECRET (cliente OAuth de
- * https://shapps.dataspace.copernicus.eu/dashboard → User settings → OAuth clients).
- * Datos: Copernicus Sentinel-2, libres y gratuitos incluso para uso comercial (atribución «Copernicus Sentinel data»).
+ * Datos: Copernicus Sentinel-2 (libres, también para uso comercial), servidos por Microsoft Planetary Computer.
+ * Planetary Computer no tiene acuerdo de servicio: si falla, la app muestra «No se pudo cargar el mapa de vigor».
  */
 import { encodeBase64 } from '@std/encoding/base64';
 
-const TOKEN_URL = 'https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token';
-const STATS_URL = 'https://sh.dataspace.copernicus.eu/api/v1/statistics';
-const PROCESS_URL = 'https://sh.dataspace.copernicus.eu/api/v1/process';
-const CRS_3857 = 'http://www.opengis.net/def/crs/EPSG/0/3857';
-const R = 6378137;
+const PC = 'https://planetarycomputer.microsoft.com/api';
+const COLLECTION = 'sentinel-2-l2a';
 const DAYS = 75;
 const MAX_POINTS = 600;
 const MAX_AREA_HA = 3000;
+const MAX_CANDIDATES = 8;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -37,58 +34,66 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// Píxel «despejado»: datos válidos y clase SCL de superficie (4 vegetación, 5 sin vegetación, 6 agua, 7 sin
-// clasificar). Fuera: 0 sin datos, 1 saturado, 2 áreas oscuras, 3 sombra de nube, 8–10 nubes/cirros, 11 nieve.
-const CLEAR = 's.dataMask===1&&(s.SCL===4||s.SCL===5||s.SCL===6||s.SCL===7)';
-
-const STATS_SCRIPT = `//VERSION=3
-function setup(){return{input:[{bands:["B04","B08","SCL","dataMask"]}],output:[{id:"ndvi",bands:1,sampleType:"FLOAT32"},{id:"dataMask",bands:1}]};}
-function evaluatePixel(s){var clear=${CLEAR};var d=s.B08+s.B04;var v=d>0?(s.B08-s.B04)/d:0;return{ndvi:[v],dataMask:[clear?1:0]};}`;
+const CLEAR = '(SCL==4)|(SCL==5)|(SCL==6)|(SCL==7)';
+const NDVI = '(B08-B04)/(B08+B04)';
+// Estadística: [despejado (0/1), NDVI·despejado] → media de lo primero = fracción despejada;
+// media de lo segundo ÷ fracción = NDVI medio de los píxeles despejados.
+const STATS_EXPR = `where(${CLEAR},1,0);where(${CLEAR},${NDVI},0)`;
+// Imagen: nubes = −2 → al reescalar −1..1 → 0..255 caen en 0, que la paleta deja transparente.
+const IMG_EXPR = `where(${CLEAR},${NDVI},-2)`;
 
 // Misma escala que services/indices.ts (NDVI): rojo suelo desnudo → verde vegetación densa.
-const VIS_SCRIPT = `//VERSION=3
-function setup(){return{input:["B04","B08","SCL","dataMask"],output:{bands:4}};}
-var viz=new ColorRampVisualizer([[0.0,0xE5533F],[0.2,0xF08A32],[0.4,0xD9D24A],[0.6,0x86D45A],[0.8,0x2BBF6A],[0.9,0x0F8F4E]]);
-function evaluatePixel(s){if(!(${CLEAR}))return[0,0,0,0];var d=s.B08+s.B04;var v=d>0?(s.B08-s.B04)/d:0;var c=viz.process(v);return[c[0],c[1],c[2],1];}`;
+const STOPS: [number, [number, number, number]][] = [
+  [0.0, [0xe5, 0x53, 0x3f]], [0.2, [0xf0, 0x8a, 0x32]], [0.4, [0xd9, 0xd2, 0x4a]],
+  [0.6, [0x86, 0xd4, 0x5a]], [0.8, [0x2b, 0xbf, 0x6a]], [1.0, [0x0f, 0x8f, 0x4e]],
+];
+function rampColor(v: number): [number, number, number] {
+  for (let i = 0; i < STOPS.length - 1; i++) {
+    const [a, ca] = STOPS[i], [b, cb] = STOPS[i + 1];
+    if (v <= b) { const f = Math.max(0, (v - a) / (b - a)); return [0, 1, 2].map(j => Math.round(ca[j] + (cb[j] - ca[j]) * f)) as [number, number, number]; }
+  }
+  return STOPS[STOPS.length - 1][1];
+}
+// Paleta por intervalos (una paleta de 256 colores hace la URL demasiado larga: error 414).
+// 0 = nube/sin dato (transparente) · 1–127 = NDVI < 0 (gris) · 128–255 = NDVI 0..1 en 32 tramos.
+const COLORMAP = JSON.stringify([
+  [[0, 1], [0, 0, 0, 0]],
+  [[1, 128], [0x64, 0x74, 0x8b, 255]],
+  ...Array.from({ length: 32 }, (_, k) => {
+    const lo = 128 + k * 4, hi = k < 31 ? lo + 4 : 256;
+    const v = ((lo + hi) / 2 - 127.5) / 127.5;
+    return [[lo, hi], [...rampColor(Math.min(1, Math.max(0, v))), 255]];
+  }),
+]);
 
 type LatLng = { lat: number; lng: number };
+type Stat = { mean?: number; min?: number; max?: number; valid_percent?: number };
+type Candidate = { id: string; date: string; clear: number; mean: number; min: number | null; max: number | null };
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
-const toMerc = (p: LatLng): [number, number] => [
-  (R * p.lng * Math.PI) / 180,
-  R * Math.log(Math.tan(Math.PI / 4 + (p.lat * Math.PI) / 360)),
-];
-const toLatLng = (x: number, y: number): LatLng => ({
-  lat: ((2 * Math.atan(Math.exp(y / R)) - Math.PI / 2) * 180) / Math.PI,
-  lng: ((x / R) * 180) / Math.PI,
-});
-
-// Token OAuth en memoria mientras la función siga viva (dura ~10 min).
-let token: { value: string; until: number } | null = null;
-async function getToken(id: string, secret: string): Promise<string> {
-  if (token && Date.now() < token.until) return token.value;
-  const res = await fetch(TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ grant_type: 'client_credentials', client_id: id, client_secret: secret }),
+async function statsFor(item: { id: string; date: string }, feature: unknown): Promise<Candidate | null> {
+  const q = new URLSearchParams({ collection: COLLECTION, item: item.id, expression: STATS_EXPR, asset_as_band: 'true' });
+  const res = await fetch(`${PC}/data/v1/item/statistics?${q}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(feature),
   });
-  if (!res.ok) throw new Error(`token ${res.status}`);
+  if (!res.ok) return null;
   const j = await res.json();
-  token = { value: j.access_token, until: Date.now() + Math.max(60, (j.expires_in ?? 600) - 60) * 1000 };
-  return token.value;
+  const st = Object.values((j?.properties?.statistics ?? {}) as Record<string, Stat>);
+  if (st.length < 2) return null;
+  const [clearSt, ndviSt] = st;
+  // Si la imagen no cubre toda la huerta (borde de la franja), valid_percent < 100.
+  const clear = (clearSt.mean ?? 0) * ((clearSt.valid_percent ?? 100) / 100);
+  if (!(clear > 0) || !Number.isFinite(ndviSt.mean)) return null;
+  const mean = (ndviSt.mean as number) / (clearSt.mean as number);
+  const all = (clearSt.mean ?? 0) >= 0.999;
+  return { id: item.id, date: item.date, clear: Math.min(1, clear), mean, min: all ? ndviSt.min ?? null : null, max: all ? ndviSt.max ?? null : null };
 }
-
-type DayStat = { date: string; mean: number; min: number; max: number; valid: number };
 
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ ok: false, reason: 'bad-request' }, 405);
-
-  const id = Deno.env.get('CDSE_CLIENT_ID');
-  const secret = Deno.env.get('CDSE_CLIENT_SECRET');
-  if (!id || !secret) return json({ ok: false, reason: 'not-configured' });
 
   let outline: LatLng[];
   try {
@@ -101,96 +106,73 @@ Deno.serve(async req => {
   }
   if (outline.length < 3 || outline.length > MAX_POINTS) return json({ ok: false, reason: 'bad-request' }, 400);
 
-  // Contorno en Web Mercator (anillo cerrado) y su caja.
-  const ring = outline.map(toMerc);
-  const [fx, fy] = ring[0];
-  const [lx, ly] = ring[ring.length - 1];
+  const ring = outline.map(p => [p.lng, p.lat]);
+  const [fx, fy] = ring[0], [lx, ly] = ring[ring.length - 1];
   if (fx !== lx || fy !== ly) ring.push([fx, fy]);
-  const xs = ring.map(p => p[0]), ys = ring.map(p => p[1]);
-  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-  let areaMerc = 0;
-  for (let i = 0; i < ring.length - 1; i++) areaMerc += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
-  areaMerc = Math.abs(areaMerc) / 2;
-  const lat0 = outline.reduce((a, p) => a + p.lat, 0) / outline.length;
-  const k = Math.cos((lat0 * Math.PI) / 180);
-  const areaHa = (areaMerc * k * k) / 10000;
+  const lats = outline.map(p => p.lat), lngs = outline.map(p => p.lng);
+  const south = Math.min(...lats), north = Math.max(...lats), west = Math.min(...lngs), east = Math.max(...lngs);
+  const k = Math.cos((((south + north) / 2) * Math.PI) / 180);
+  const mPerDeg = 111320;
+  let area = 0;
+  for (let i = 0; i < ring.length - 1; i++) area += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+  const areaHa = (Math.abs(area) / 2) * mPerDeg * mPerDeg * k / 10000;
   if (areaHa > MAX_AREA_HA) return json({ ok: false, reason: 'too-large' });
   const geometry = { type: 'Polygon', coordinates: [ring] };
-  // Píxeles de 10 m reales dentro del contorno (en unidades de Mercator el píxel mide 10/k).
-  const res10 = 10 / k;
-  const expected = Math.max(1, areaMerc / (res10 * res10));
+  const feature = { type: 'Feature', properties: {}, geometry };
 
   try {
-    const auth = { Authorization: `Bearer ${await getToken(id, secret)}`, 'Content-Type': 'application/json' };
-
-    // 1) Estadística diaria → fecha despejada más reciente.
-    const to = new Date();
-    const from = new Date(to.getTime() - DAYS * 86400000);
-    const statsRes = await fetch(STATS_URL, {
+    // 1) Imágenes recientes sobre la huerta.
+    const to = new Date(), from = new Date(to.getTime() - DAYS * 86400000);
+    const search = await fetch(`${PC}/stac/v1/search`, {
       method: 'POST',
-      headers: auth,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        input: {
-          bounds: { geometry, properties: { crs: CRS_3857 } },
-          data: [{ type: 'sentinel-2-l2a', dataFilter: { maxCloudCoverage: 80 } }],
-        },
-        aggregation: {
-          timeRange: { from: from.toISOString(), to: to.toISOString() },
-          aggregationInterval: { of: 'P1D' },
-          evalscript: STATS_SCRIPT,
-          resx: res10,
-          resy: res10,
-        },
-        calculations: { default: {} },
+        collections: [COLLECTION],
+        intersects: geometry,
+        datetime: `${from.toISOString()}/${to.toISOString()}`,
+        query: { 'eo:cloud_cover': { lt: 85 } },
+        sortby: [{ field: 'datetime', direction: 'desc' }],
+        limit: 20,
       }),
     });
-    if (!statsRes.ok) return json({ ok: false, reason: 'upstream', detail: `stats ${statsRes.status}` });
-    const stats = await statsRes.json();
-    const days: DayStat[] = [];
-    for (const d of stats?.data ?? []) {
-      const st = d?.outputs?.ndvi?.bands?.B0?.stats;
-      if (!st || d?.error) continue;
-      const valid = (st.sampleCount ?? 0) - (st.noDataCount ?? 0);
-      if (valid <= 0 || !Number.isFinite(st.mean)) continue;
-      days.push({ date: String(d.interval.from).slice(0, 10), mean: st.mean, min: st.min, max: st.max, valid: Math.min(1, valid / expected) });
+    if (!search.ok) return json({ ok: false, reason: 'upstream', detail: `stac ${search.status}` });
+    const found = (await search.json())?.features ?? [];
+    const items: { id: string; date: string }[] = found
+      .map((f: { id: string; properties?: { datetime?: string } }) => ({ id: f.id, date: String(f.properties?.datetime ?? '').slice(0, 10) }))
+      .filter((x: { id: string; date: string }) => x.id && x.date)
+      .slice(0, MAX_CANDIDATES);
+    if (!items.length) return json({ ok: false, reason: 'no-clear-image' });
+
+    // 2) Estadística en lotes de 4 (de la más reciente a la más vieja), hasta hallar una despejada.
+    let pick: Candidate | null = null;
+    const seen: Candidate[] = [];
+    for (let i = 0; i < items.length && !pick; i += 4) {
+      const batch = await Promise.all(items.slice(i, i + 4).map(it => statsFor(it, feature).catch(() => null)));
+      for (const c of batch) { if (c) seen.push(c); if (!pick && c && c.clear >= 0.6) pick = c; }
     }
-    days.sort((a, b) => (a.date < b.date ? 1 : -1));
-    const pick = days.find(d => d.valid >= 0.6) ?? [...days].sort((a, b) => b.valid - a.valid).find(d => d.valid >= 0.3);
+    if (!pick) pick = [...seen].sort((a, b) => b.clear - a.clear).find(c => c.clear >= 0.3) ?? null;
     if (!pick) return json({ ok: false, reason: 'no-clear-image' });
 
-    // 2) Imagen coloreada de esa fecha.
-    const wM = (maxX - minX) * k, hM = (maxY - minY) * k;
-    const scale = Math.min(512 / Math.max(wM / 1.25, hM / 1.25, 1), 1);
-    const width = Math.max(32, Math.round((wM / 1.25) * scale));
-    const height = Math.max(32, Math.round((hM / 1.25) * scale));
-    const dayFrom = `${pick.date}T00:00:00Z`;
-    const dayTo = `${pick.date}T23:59:59Z`;
-    const imgRes = await fetch(PROCESS_URL, {
-      method: 'POST',
-      headers: { ...auth, Accept: 'image/png' },
-      body: JSON.stringify({
-        input: {
-          bounds: { bbox: [minX, minY, maxX, maxY], geometry, properties: { crs: CRS_3857 } },
-          data: [{
-            type: 'sentinel-2-l2a',
-            dataFilter: { timeRange: { from: dayFrom, to: dayTo }, mosaickingOrder: 'mostRecent' },
-            processing: { upsampling: 'BICUBIC' },
-          }],
-        },
-        output: { width, height, responses: [{ identifier: 'default', format: { type: 'image/png' } }] },
-        evalscript: VIS_SCRIPT,
-      }),
+    // 3) Imagen de la caja de la huerta + 15 m de margen, a ~10 m por píxel (resolución real del dato).
+    const padLat = 15 / mPerDeg, padLng = 15 / (mPerDeg * k);
+    const bS = south - padLat, bN = north + padLat, bW = west - padLng, bE = east + padLng;
+    const wM = (bE - bW) * mPerDeg * k, hM = (bN - bS) * mPerDeg;
+    const width = Math.min(512, Math.max(4, Math.round(wM / 10)));
+    const height = Math.min(512, Math.max(4, Math.round(hM / 10)));
+    const q = new URLSearchParams({
+      collection: COLLECTION, item: pick.id, expression: IMG_EXPR, asset_as_band: 'true',
+      rescale: '-1,1', colormap: COLORMAP,
     });
-    if (!imgRes.ok) return json({ ok: false, reason: 'upstream', detail: `process ${imgRes.status}` });
-    const image = encodeBase64(new Uint8Array(await imgRes.arrayBuffer()));
-    const sw = toLatLng(minX, minY), ne = toLatLng(maxX, maxY);
+    const img = await fetch(`${PC}/data/v1/item/bbox/${bW},${bS},${bE},${bN}/${width}x${height}.png?${q}`);
+    if (!img.ok) return json({ ok: false, reason: 'upstream', detail: `image ${img.status}` });
+    const image = encodeBase64(new Uint8Array(await img.arrayBuffer()));
     return json({
       ok: true,
       date: pick.date,
       image,
-      bounds: { south: sw.lat, west: sw.lng, north: ne.lat, east: ne.lng },
-      stats: { mean: pick.mean, min: pick.min, max: pick.max, validPct: Math.round(pick.valid * 100) },
-      source: 'Copernicus Sentinel-2 L2A',
+      bounds: { south: bS, west: bW, north: bN, east: bE },
+      stats: { mean: pick.mean, min: pick.min, max: pick.max, validPct: Math.round(pick.clear * 100) },
+      source: 'Copernicus Sentinel-2 L2A · Microsoft Planetary Computer',
     });
   } catch (e) {
     return json({ ok: false, reason: 'upstream', detail: String((e as Error)?.message ?? e) });

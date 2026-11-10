@@ -3,7 +3,7 @@
  *
  * - Selector con las huertas reales del usuario (tabla huertas).
  * - Mapa satelital con el perímetro real y zonas ILUSTRATIVAS estables (services/satZones.ts).
- * - Capa «Satélite»: mapa de vigor NDVI real de Sentinel-2 (services/ndviMap.ts → función ndvi-huerta).
+ * - Capa «Satélite»: mapa de vigor NDVI real de Sentinel-2 (Planetary Computer; services/ndviMap.ts → función ndvi-huerta).
  * - Reportes de la huerta elegida (reportes.huerta_id), su historial y sus índices.
  * Las zonas no llevan índices: los reportes se calculan para toda la huerta.
  */

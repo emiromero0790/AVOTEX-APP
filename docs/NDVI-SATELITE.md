@@ -1,53 +1,51 @@
 # Mapa de vigor (NDVI) en Satélite
 
 En la pantalla **Satélite**, la capa **«Satélite»** pinta dentro del contorno de la huerta el NDVI real de
-**Sentinel-2** (Copernicus, Unión Europea): verde = vegetación vigorosa; amarillo/naranja = vigor bajo;
-rojo = suelo desnudo. La capa «Zonas» no cambia (zonas ilustrativas A–D).
+**Sentinel-2**: verde = vegetación vigorosa; amarillo/naranja = vigor bajo; rojo = suelo desnudo.
+La capa «Zonas» no cambia (zonas ilustrativas A–D).
+
+Fuente: **Microsoft Planetary Computer** (API pública, sin cuenta ni claves), que sirve las imágenes
+Copernicus Sentinel-2 L2A.
 
 ## Cómo funciona
 
 ```
-App (services/ndviMap.ts) ──POST contorno──▶ Supabase Edge Function ndvi-huerta ──▶ Copernicus Data Space
-   ◀── PNG coloreado + fecha + NDVI medio ──                (claves OAuth solo en el servidor)
+App (services/ndviMap.ts) ──POST contorno──▶ Supabase Edge Function ndvi-huerta ──▶ Planetary Computer
+   ◀── PNG + fecha + NDVI medio ──
 ```
 
-1. **Statistical API** (últimos 75 días, por día): NDVI medio/mín/máx y qué parte de la huerta se vio
-   despejada (sin nubes, sombras ni nieve, capa SCL). Se elige la fecha más reciente con ≥ 60 % despejado.
-2. **Process API** de esa fecha: PNG recortado al contorno, con la misma escala de color que la app; nubes
-   y exterior transparentes. Todo en EPSG:3857 para encajar exacto en el mapa.
-3. La app guarda el resultado **24 h por huerta** (y 6 h si no hubo imagen despejada) y solo lo pide al abrir
+1. **STAC**: imágenes Sentinel-2 de los últimos 75 días que cubren la huerta (de la más reciente a la más vieja).
+2. **Estadística** dentro del contorno, por imagen: parte de la huerta despejada según la capa SCL (sin nubes,
+   sombras ni nieve) y NDVI medio de esos píxeles. Se elige la más reciente con ≥ 60 % despejado.
+3. **Imagen** de esa fecha a su resolución real (10 m por píxel, < 1 KB para una huerta típica), de la caja de
+   la huerta + 15 m, con nubes transparentes. El mapa la estira con interpolación suave (gradientes en vez de
+   cuadros) y la recorta al contorno con un clip-path nítido.
+4. La app guarda el resultado **24 h por huerta** (6 h si no hubo imagen despejada) y solo lo pide al abrir
    la capa «Satélite».
 
-Limitaciones reales: píxel de **10 m** (una huerta de 1 ha son ~100 píxeles; la imagen se suaviza pero no
-muestra árboles individuales), una pasada cada ~5 días y fechas nubladas descartadas.
+Probado contra el servicio real: ~3 s por huerta (búsqueda + estadística + imagen).
 
-## Puesta en marcha (una vez)
+Limitaciones: píxel de **10 m** (una huerta de 1 ha son ~100 píxeles; se ven zonas de más y menos vigor, no
+árboles individuales), una pasada cada ~5 días, fechas nubladas descartadas. Planetary Computer no tiene
+acuerdo de servicio: si falla, la app muestra «No se pudo cargar el mapa de vigor» con «Reintentar».
 
-1. Crea una cuenta gratuita en <https://dataspace.copernicus.eu/>.
-2. En el **Sentinel Hub Dashboard** (<https://shapps.dataspace.copernicus.eu/dashboard/>) → *User settings* →
-   *OAuth clients* → crea un cliente y copia su **ID** y **secret** (el secret solo se muestra una vez).
-3. Guarda los secretos en Supabase y despliega la función (con la CLI de Supabase enlazada al proyecto):
+## Puesta en marcha
 
-   ```bash
-   supabase secrets set CDSE_CLIENT_ID=tu-id CDSE_CLIENT_SECRET=tu-secret
-   supabase functions deploy ndvi-huerta
-   ```
+Solo hay que desplegar la función (no lleva secretos):
 
-Mientras la función no esté desplegada o sin claves, la app muestra «Mapa de vigor no disponible por ahora»
-y todo lo demás funciona igual.
+```bash
+supabase functions deploy ndvi-huerta
+```
 
-## Cuota
-
-Copernicus Data Space da un cupo gratuito mensual de *processing units* y peticiones (revisa los límites
-vigentes en tu Dashboard). Cada carga usa 2 peticiones pequeñas (estadística + imagen de una huerta) y se
-guarda 24 h en el celular.
+Mientras no esté desplegada, la capa «Satélite» muestra «Mapa de vigor no disponible por ahora» y lo demás
+funciona igual.
 
 ## Datos y atribución
 
 Datos Copernicus Sentinel-2, libres y gratuitos incluso para uso comercial. El mapa muestra
 «Vigor: Copernicus Sentinel-2» en la atribución cuando la capa está visible.
 
-## Probar la función en local
+## Revisar la función en local
 
 ```bash
 cd supabase/functions/ndvi-huerta

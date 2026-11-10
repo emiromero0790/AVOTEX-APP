@@ -3,10 +3,9 @@
  *
  * Orden (el celular es la forma principal de escanear):
  * 1. Héroe con foto de la huerta al atardecer: marca, anillo de tokens, título y lema.
- * 2. Selector de cámara: Celular (la principal, tarjeta más grande), Dron y GoPro. Se elige una y luego se pulsa
- *    el botón: las tres inician el mismo recorrido inteligente; Dron y GoPro solo cambian la animación del
- *    agricultor (lanza un dron que lo sigue, o se pone un casco con GoPro).
- * 3. Botón principal y Ver mis escaneos.
+ * 2. Selector de cámara: Celular (la principal, tarjeta más grande) y, justo debajo, el botón principal y
+ *    Ver mis escaneos; después Dron y GoPro. Se elige una y luego se pulsa el botón: las tres inician el mismo
+ *    recorrido inteligente; Dron y GoPro solo cambian la animación del agricultor.
  *    Invitado: Tomar fotografía (foto individual) y «Recorrido inteligente» con candado; al tocarlo se explica
  *    que se desbloquea al crear una cuenta o suscribirse a un plan de pago. Dron y GoPro aparecen con candado.
  *
@@ -190,6 +189,25 @@ export default function ScanHome({ isGuest, tokensRemaining, email = null, pendi
   };
 
 
+  const SOURCES = [
+    { key: 'celular' as const, Icon: Smartphone, title: t('srcPhone'), desc: t('descPhone') },
+    { key: 'dron' as const, Icon: Plane, title: t('srcDrone'), desc: t('descDrone') },
+    { key: 'camara' as const, Icon: Video, title: t('srcAction'), desc: t('descAction') },
+  ];
+  const renderCard = (src: (typeof SOURCES)[number], i: number) => {
+    const on = source === src.key;
+    const locked = isGuest && src.key !== 'celular';
+    const large = src.key === 'celular';
+    return (
+      <SourceCard
+        key={src.key} kind={src.key} index={i} animateIn={animateIn} large={large} selected={on} locked={locked}
+        height={large ? phoneH : cardH} title={src.title} desc={src.desc} onPress={() => pick(src.key)}
+        icon={sel => <src.Icon size={large ? 22 : 18} color={sel ? C.ink : C.white} />}
+        a11y={`${src.title}. ${src.desc}${locked ? `, ${t('needsAccount')}` : ''}${on ? `, ${t('selected')}` : ''}`}
+      />
+    );
+  };
+
   // Barra de pestañas flotante + botón central que sobresale.
   const bottomSpace = (isTablet ? 82 + 24 : 72 + 18) + 28 + insets.bottom;
 
@@ -231,27 +249,8 @@ export default function ScanHome({ isGuest, tokensRemaining, email = null, pendi
           </View>
           <View style={{ height: fade - 30 }} />
 
-          {/* ── Cámara: Celular (la principal, más grande), Dron o GoPro. Se elige y luego se inicia. ── */}
-          <View style={s.cards} accessibilityRole="radiogroup">
-            {([
-              { key: 'celular' as const, Icon: Smartphone, title: t('srcPhone'), desc: t('descPhone') },
-              { key: 'dron' as const, Icon: Plane, title: t('srcDrone'), desc: t('descDrone') },
-              { key: 'camara' as const, Icon: Video, title: t('srcAction'), desc: t('descAction') },
-            ]).map((src, i) => {
-              const on = source === src.key;
-              const locked = isGuest && src.key !== 'celular';
-              const large = src.key === 'celular';
-              return (
-                <SourceCard
-                  key={src.key} kind={src.key} index={i} animateIn={animateIn} large={large} selected={on} locked={locked}
-                  height={large ? phoneH : cardH} title={src.title} desc={src.desc} onPress={() => pick(src.key)}
-                  icon={sel => <src.Icon size={large ? 22 : 18} color={sel ? C.ink : C.white} />}
-                  a11y={`${src.title}. ${src.desc}${locked ? `, ${t('needsAccount')}` : ''}${on ? `, ${t('selected')}` : ''}`}
-                />
-              );
-            })}
-          </View>
-          {isGuest && lockedTap && <Text style={[s.caption, { color: SCAN.inkSoft }]} maxFontSizeMultiplier={1.15}>{t('locked')}</Text>}
+          {/* ── Cámara: Celular (la principal, más grande) arriba; Dron y GoPro debajo de los botones. ── */}
+          <View accessibilityRole="radiogroup">{renderCard(SOURCES[0], 0)}</View>
 
           <Text style={[s.caption, { marginTop: 14 }]} maxFontSizeMultiplier={1.15}>{caption}</Text>
           {/* ── Acción principal: recorrido (con cuenta) o foto individual (invitado) ── */}
@@ -302,6 +301,12 @@ export default function ScanHome({ isGuest, tokensRemaining, email = null, pendi
             </PressableScale>
           )}
 
+
+          {/* Dron y GoPro: también se eligen aquí y se inician con el botón de arriba. */}
+          <View style={[s.cards, { marginTop: 16 }]} accessibilityRole="radiogroup">
+            {SOURCES.slice(1).map((src, i) => renderCard(src, i + 1))}
+          </View>
+          {isGuest && lockedTap && <Text style={[s.caption, { color: SCAN.inkSoft }]} maxFontSizeMultiplier={1.15}>{t('locked')}</Text>}
         </View>
       </ScrollView>
     </View>

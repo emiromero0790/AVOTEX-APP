@@ -1,72 +1,102 @@
-# Mis escaneos: MapLibre
+# Mis escaneos: mapa MapLibre (semi-3D)
 
-Rama: `feat/maplibre-recorridos`, creada desde `main`.
+Rama: `feat/maplibre-recorridos` (incluye `main` hasta PR #28).
 
-## Arquitectura y alcance
+## Arquitectura
 
-`app/(app)/escaneos.tsx` conserva autenticación, navegación, filtros, estadísticas,
-detalle y lecturas reales de huertas, recorridos, recorrido_fotos, hallazgos y scans.
-`ScansMap.native` mantiene un WebView estable; web mantiene un iframe estable.
-La API `avx` y los mensajes de selección conservan su contrato anterior.
+- **Motor:** MapLibre GL JS 5.6.2 (WebGL, vectorial). Va dentro del `WebView` (Android/iOS) o de un
+  iframe (web) que ya usaba la pantalla.
+  - **No hay módulo nativo nuevo ni plugin de Expo:** funciona en el build actual y en Expo Go.
+  - **Requisitos del dispositivo:** WebGL en su WebView y conexión. Sin ellos, aparece "No se pudo cargar el mapa".
+  - **`@maplibre/maplibre-react-native`** (nativo puro) daría más FPS, pero exige un development build
+    (`expo prebuild` + plugin), y no funcionaría en Expo Go. Queda como siguiente paso si se mide que el WebView no alcanza.
+- **Contrato sin cambios:** `window.avx.*` (setData, select, setDetail, point, setLayer, setRouteStyle,
+  setPerspective, setPad, zoom, showUser, fit) y los mensajes `ready / select / orchard / point / clear / error`.
+  Navegación, autenticación y lecturas de Supabase (huertas, recorridos, recorrido_fotos, hallazgos, scans) no cambian.
+- **Web:** el iframe se carga con una URL `blob:` y ya no con `srcDoc`. Con `srcDoc` el mapa nunca
+  terminaba de cargar: los mosaicos vectoriales se quedaban pendientes y el mapa salía negro.
 
-El renderer Leaflet de esta pantalla se sustituye por MapLibre GL JS 5.6.2 (versión
-fijada, JS y CSS por CDN). No se migra el editor de delimitación ni otros mapas de
-la app. No se añade un módulo nativo ni un plugin Expo: se reutiliza
-react-native-webview. No requiere un nuevo dev client por este cambio. El dispositivo
-sí necesita WebGL en su WebView; hay aviso de error si falla el motor o los recursos.
+## Qué se ve
 
-## Implementación
+| Elemento | Cómo se dibuja |
+| --- | --- |
+| Base Oscuro (predeterminada) | Vectores OpenFreeMap, colores AVOTEX, etiquetas atenuadas y sin flechas de sentido. Nítida a cualquier zoom. |
+| Satélite / Híbrido | Fotos Esri (hasta z19; más cerca se amplían) + calles/etiquetas vectoriales en Híbrido. |
+| Estándar | Vectores OpenFreeMap Liberty. |
+| Zonas | Base oscura + zonas ilustrativas de la huerta. |
+| Huerta | Relleno neón suave, contorno neón con brillo. Las demás huertas se atenúan al elegir un recorrido. |
+| Árboles 3D | Copas en dos niveles (`fill-extrusion`), solo en 3D y en Oscuro/Estándar. |
+| Recorrido elegido | Línea con degradado (`line-gradient`) + brillo + flechas de sentido de cerca. |
+| Inicio / Fin | Pin verde con ▶ / pin violeta con bandera. La punta es la coordenada GPS. |
+| Hallazgos | Pin de alerta por categoría (rojo enfermo, ámbar revisar, verde sano, gris otro). |
+| Fotos | Punto teal sobre la ruta; desde z18, insignia con cámara. |
+| Otros escaneos | Pines por estado (recorrido / foto) con agrupación (clusters) al alejar. |
+| Usuario | Punto azul con halo. |
 
-- Base oscura predeterminada, satélite Esri, híbrido con etiquetas/calles, estándar
-  Esri y zonas ilustrativas sobre fondo oscuro. Zonas no representa diagnósticos.
-- Las bases se conmutan por visibilidad, sin `setStyle` ni reconstrucción de overlays.
-  Los mosaicos siguen siendo raster: MapLibre no inventa detalle satelital adicional.
-- Fuentes GeoJSON independientes: huertas, zonas, rutas, detalle, velocidad, extremos,
-  fotos, hallazgos, usuario y selección activa. Se agrupan fotos y scans en workers.
-- Se descartan coordenadas no finitas/fuera de rango y se cierran anillos de polígonos.
-- Inicio verde, fin violeta, hallazgos por categoría, capturas teal y selección con halo.
-  Ruta con degradado; velocidad usa tiempos GPS y colores de la leyenda existente.
-- Actualizaciones agrupadas por frame; las fuentes sin cambios no reciben `setData`.
-  No se crean cientos de marcadores DOM; los overlays se dibujan en WebGL.
-- Selector compacto sin miniaturas ni precargas de red; preserva switches de overlays.
-- Se conserva el panel de tres alturas y FlatList virtualizada. Se coordina explícitamente
-  el gesto de lista con el gesto nativo de scroll y se recorta el contenido a sus esquinas.
-  Se elimina el emblema del encabezado, manteniendo controles y diseño oscuro flotante.
+**Los árboles son ilustrativos:** se reparten en cuadrícula (~9 m) dentro del contorno real. **No** son
+posiciones medidas de árboles. En Satélite e Híbrido no se dibujan, porque ahí ya se ven los reales.
 
-## Límites y validación móvil pendiente
+**Estilos de ruta:**
+- **Avance:** degradado de inicio a fin.
+- **Tiempo:** colores según la hora GPS de cada punto.
+- **Velocidad:** colores según la rapidez real entre puntos (km/h), con la leyenda que ya existía.
 
-Los recursos CDN y los proveedores de tiles requieren conexión. No hay caché offline
-persistente. Las atribuciones están visibles; revisar términos/cuotas de Esri y Esri
-antes de producción de alto volumen. `topo`, conservado por compatibilidad con
-preferencias guardadas, usa estándar y ya no se ofrece como opción nueva.
+Los degradados se calculan una vez por recorrido y estilo.
 
-Validar en Android/iOS reales: soporte WebGL, memoria con historiales grandes,
-gestos del panel en todas sus alturas y rotación, safe areas, permisos de ubicación,
-selección foto/hallazgo y navegación autenticada. No se dispone aquí de sesión de
-usuario ni de simuladores móviles. No se ha medido FPS ni se garantiza fluidez móvil
-por una prueba de escritorio.
+## Cámara
 
-Siguiente mejora recomendada: migrar las bases raster a un proveedor vectorial con
-licencia y estilos propios; empaquetar el runtime localmente y añadir caché offline.
-Si WebView no satisface los perfiles de rendimiento medidos, evaluar MapLibre Native
-con un development build Expo en una iteración posterior.
+- **3D (predeterminada):** inclinación de 55° y giro de -12°. El botón 2D/3D cambia de vista sin recargar nada.
+- **Encuadre del recorrido:** se encuadran la ruta, las fotos y los hallazgos. La huerta entra también si
+  mide menos de unos 700 m de diagonal (así se ve la relación ruta ↔ huerta).
+- **Cálculo propio:** el encuadre se calcula a mano (Mercator) porque `fitBounds` / `cameraForBounds` de
+  MapLibre 5 alejaba unos 3 niveles de zoom de más con la cámara inclinada y márgenes.
 
-## Comprobaciones realizadas
+## Rendimiento
 
-- Transpilación de los TS/TSX modificados y chequeo estricto aislado de scansMapHtml.
-- Chromium/Playwright con WebGL: carga del motor, fuentes de ruta/hallazgos/extremos,
-  cambios de bases/estilos, foco de hallazgo, usuario y atribuciones.
-- No se ejecutó un build Expo completo: el checkout no trae sus dependencias instaladas.
+- **Fuentes y capas:** se crean una sola vez. Cambiar de base solo alterna visibilidades (sin `setStyle`).
+- **Actualizaciones:** se agrupan por cuadro (`requestAnimationFrame`). Una fuente cuyo contenido no
+  cambió no recibe `setData`, y las propiedades de pintura tampoco se reescriben si son iguales.
+- **Datos que llegan antes de cargar el mapa:** se dibujan al terminar la carga.
+- **Márgenes:** los del panel (`setPad`) no redibujan nada.
+- **Marcadores:** todo es WebGL, sin cientos de nodos DOM.
+- **Árboles:** se generan una vez por huerta, con un tope de ~1 600.
 
-Prueba reproducible (requiere esbuild, Python Playwright y Chromium):
+## Interfaz de la pantalla
+
+- **Mapa a pantalla completa** con encabezado de cristal: regresar, título y filtros.
+- **Selector de capas:** la barra de capas del encabezado y el modal se reemplazaron por un panel flotante
+  ligero junto al botón Capas. Tiene tipo de mapa (5 opciones), estilo de ruta y qué mostrar. Cada toque
+  cambia el mapa al instante; tocar fuera lo cierra.
+- **Panel inferior:** el de tres alturas existente, sin cambios (huerta, métricas, historial, selección).
+
+## Limitaciones
+
+- **Conexión:** requiere red para el motor (CDN unpkg), los mosaicos y las tipografías. No hay caché offline.
+- **Satélite:** la nitidez depende de Esri; más allá de z19, la imagen se amplía.
+- **Validación:** no se probó en teléfonos reales (FPS, memoria, gestos). Se validó en Chromium con WebGL por
+  software y con el build Android de Expo (`expo export`).
+- **Licencias:** revisar los términos de OpenFreeMap y Esri antes de un uso de alto volumen
+  (atribución visible en el mapa; ver `docs/licenses`).
+
+## Prueba
 
 ```sh
-mkdir -p work
-npx esbuild components/scansMapHtml.ts --bundle --platform=node --outfile=work/map.cjs
-node -e "require('fs').writeFileSync('work/map.html',require('./work/map.cjs').buildScansMapHtml())"
-python scripts/test-scans-map.py work/map.html
+node scripts/test-scans-map.mjs                  # requiere red y playwright con Chromium
+MAP_TEST_SCREENSHOT=/tmp/mapa node scripts/test-scans-map.mjs
 ```
 
-`CHROMIUM_PATH` permite elegir el ejecutable. Solo para un proxy de pruebas con CA
-no reconocida por Chromium, `MAP_TEST_IGNORE_HTTPS_ERRORS=1` omite ese chequeo en el
-contexto del test, sin cambiar el comportamiento TLS de la app.
+La prueba comprueba:
+- que los datos se dibujan aunque lleguen antes de la carga;
+- base vectorial y que en Oscuro no quede ninguna capa raster visible;
+- árboles en 3D y ocultos en 2D;
+- degradados de los tres estilos;
+- que cambiar de base no recrea fuentes;
+- el zoom del encuadre;
+- que tocar un hallazgo o una foto responde.
+
+## Siguientes mejoras
+
+1. Empaquetar MapLibre localmente (sin CDN) y añadir caché de mosaicos para trabajar en campo sin señal.
+2. Si en gama baja no alcanza el rendimiento, migrar a `@maplibre/maplibre-react-native` con un development build.
+3. Usar posiciones reales de árboles cuando existan (p. ej., conteo por dron) en lugar de la cuadrícula ilustrativa.
+4. Relieve del terreno (DEM) para huertas en ladera.

@@ -8,6 +8,7 @@ type Avx = {
   setDetail: (d: unknown, fit: boolean) => void;
   point: (kind: string | null, id: string | null) => void;
   setLayer: (l: string) => void;
+  setPerspective: (on: boolean) => void;
   setPad: (p: unknown) => void;
   setRouteStyle: (s: string) => void;
   zoom: (d: number) => void;
@@ -16,12 +17,15 @@ type Avx = {
 };
 
 const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
-  { data, selectedId, detail, point, user, layer, pad, routeStyle = 'clasica', onEvent, onError },
+  { data, selectedId, detail, point, user, layer, pad, routeStyle = 'clasica', perspective = true, onEvent, onError },
   ref,
 ) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
-  const html = useMemo(() => buildScansMapHtml(), []);
+  // URL blob (no srcDoc): un iframe srcDoc puede quedar con origen «null» y MapLibre no logra arrancar su
+  // worker, así que los mosaicos vectoriales nunca cargan. La URL blob hereda el origen de la app.
+  const src = useMemo(() => URL.createObjectURL(new Blob([buildScansMapHtml()], { type: 'text/html' })), []);
+  useEffect(() => () => URL.revokeObjectURL(src), [src]);
   const avx = () => (frame.current?.contentWindow as (Window & { avx?: Avx }) | null | undefined)?.avx;
 
   useEffect(() => {
@@ -44,6 +48,7 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
     flyToUser: () => { if (user) avx()?.showUser(user.lat, user.lng, true); },
   }), [user]);
 
+  useEffect(() => { if (ready) avx()?.setPerspective(perspective); }, [ready, perspective]);
   useEffect(() => { if (ready) avx()?.setLayer(layer); }, [ready, layer]);
   useEffect(() => { if (ready) avx()?.setRouteStyle(routeStyle); }, [ready, routeStyle]);
   useEffect(() => { if (ready && pad) avx()?.setPad(pad); }, [ready, pad]);
@@ -57,7 +62,7 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
     <iframe
       ref={frame}
       title="Mapa de mis escaneos"
-      srcDoc={html}
+      src={src}
       style={{ border: 0, width: '100%', height: '100%', display: 'block', background: '#080D10' }}
     />
   );

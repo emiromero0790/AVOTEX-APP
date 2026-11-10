@@ -29,7 +29,6 @@ import * as Haptics from 'expo-haptics';
 import Reanimated, { FadeIn, FadeOut, LinearTransition, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import {
   ChevronLeft,
-  CloudOff,
   CloudUpload,
   Footprints,
   Lock,
@@ -43,7 +42,6 @@ import {
   Route,
   CheckCircle2,
   AlertTriangle,
-  Info,
   HardDrive,
   Wifi,
   Signal,
@@ -57,7 +55,7 @@ import { Inter_300Light, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, I
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { auth as firebaseAuth } from '../../firebaseConfig';
 import { useGuest } from '../../context/GuestContext';
-import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
+import { TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 import { listOrchards, Orchard } from '../../services/orchards';
 import {
   CAPTURE_EVERY_M,
@@ -65,17 +63,13 @@ import {
   FotoLocal,
   IDLE_CAPTURE_S,
   MAX_PHOTOS,
-  Hallazgo,
   RecorridoLocal,
   RecorridoRemoto,
   createLocal,
   deleteLocal,
   distanceMeters,
   getMobileDataAllowed,
-  getRemote,
-  isHealthy,
   isUploading,
-  listHallazgos,
   listLocal,
   listRemote,
   recoverInterrupted,
@@ -91,7 +85,6 @@ import { GpsTrack } from '../../services/gpsFilter';
 import { FieldMotion } from '../../services/fieldMotion';
 import FieldTracking3D, { FieldTrackingGuard } from '../../components/fieldTracking/FieldTracking3D';
 import { cleanRoute, routeMeters } from '../../services/escaneos';
-import RecorridoMap from '../../components/RecorridoMap';
 // Fotos reales de montaje (Flickr, CC BY 2.0 y CC BY-SA 2.0). Ver assets/images/escanear/CREDITOS.md
 // (La foto del arnés de pecho se usa en la importación de GoPro; cada foto aparece en una sola pantalla.)
 const IMG_MOUNT_HELMET = require('../../assets/images/escanear/montaje-casco.jpg');
@@ -299,7 +292,7 @@ const translations: TranslationResource = {
   notifyOff: { es: 'Activa las notificaciones para saber cuándo está listo tu análisis.', en: 'Turn on notifications to know when your analysis is ready.' },
 };
 
-type Mode = 'home' | 'prepare' | 'record' | 'review' | 'detail';
+type Mode = 'home' | 'prepare' | 'record' | 'review';
 type PermState = 'granted' | 'ask' | 'denied' | null;
 
 function formatDuration(ms: number): string {
@@ -352,7 +345,7 @@ function choosePictureSize(sizes: string[]): string | undefined {
 
 export default function RecorridoScreen() {
   const t = useTranslations(translations);
-  const { language, locale } = useLanguage();
+  const { locale } = useLanguage();
   const { isGuest } = useGuest();
   const insets = useSafeAreaInsets();
   const { width, height: winH } = useWindowDimensions();
@@ -364,7 +357,7 @@ export default function RecorridoScreen() {
 
   const [user, setUser] = useState<User | null>(auth.currentUser);
   const email = user?.email ?? '';
-  const [mode, setMode] = useState<Mode>(params.id ? 'detail' : params.open === 'prepare' ? 'prepare' : 'home');
+  const [mode, setMode] = useState<Mode>(params.open === 'prepare' ? 'prepare' : 'home');
   const modeRef = useRef(mode);
   useEffect(() => { modeRef.current = mode; }, [mode]);
   // Se llegó desde el botón «Iniciar recorrido» de Escanear: «Regresar» vuelve allí.
@@ -474,23 +467,15 @@ export default function RecorridoScreen() {
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── detalle ──
-  const [detail, setDetail] = useState<RecorridoRemoto | null>(null);
-  const [hallazgos, setHallazgos] = useState<Hallazgo[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState(false);
-  const detailScrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
-  const cardY = useRef<Record<string, number>>({});
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
 
+  // Ya no hay pantalla de detalle del recorrido: sus resultados se ven en Mis escaneos (mapa + historial).
+  // Un enlace antiguo con ?id= (p. ej. una notificación) se redirige allá con ese recorrido enfocado.
   useEffect(() => {
-    if (params.id) {
-      setMode('detail');
-      openDetail(params.id);
-    }
+    if (params.id) openOnMap(params.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.id, params.n, email]);
+  }, [params.id, params.n]);
 
   // La pantalla sigue montada entre visitas (vive dentro de las pestañas): cada pulsación de
   // «Iniciar recorrido» o «Mis recorridos» en Escanear trae un `n` nuevo y abre la vista pedida.
@@ -608,25 +593,10 @@ export default function RecorridoScreen() {
     return () => clearInterval(id);
   }, [mode, email, remotes]);
 
-  const openDetail = useCallback(async (id: string) => {
-    if (!email) return;
-    setMode('detail');
-    setDetail(null);
-    setHallazgos([]);
-    setSelected(null);
-    setDetailError(false);
-    setDetailLoading(true);
-    try {
-      const rec = await getRemote(id, email);
-      setDetail(rec);
-      if (rec && rec.estado === 'listo') setHallazgos(await listHallazgos(id, email));
-      if (rec?.huerta_id && !orchards.length) listOrchards(email).then(setOrchards).catch(() => {});
-    } catch {
-      setDetailError(true);
-    } finally {
-      setDetailLoading(false);
-    }
-  }, [email, orchards.length]);
+  // Resultados de un recorrido: en Mis escaneos, con el recorrido cargado en el mapa.
+  const openOnMap = useCallback((id: string) => {
+    router.navigate({ pathname: '/(app)/escaneos', params: { focus: `remote:${id}`, n: String(Date.now()) } });
+  }, []);
 
   // ───────────────────────── preparación ─────────────────────────
 
@@ -1027,31 +997,6 @@ export default function RecorridoScreen() {
 
   const orchardName = (id: string | null) => orchards.find(o => o.id === id)?.nombre ?? null;
 
-  // ───────────────────────── detalle: datos del mapa ─────────────────────────
-
-  const detailRoute = useMemo(() => (detail?.ruta ?? []).map(p => ({ lat: p.lat, lng: p.lng })), [detail]);
-  const detailMarkers = useMemo(
-    () => hallazgos
-      .filter(h => h.lat != null && h.lng != null)
-      .map(h => ({
-        id: h.id,
-        lat: h.lat as number,
-        lng: h.lng as number,
-        healthy: isHealthy(h.estado),
-        label: localizeDomainLabel(h.estado, language),
-      })),
-    [hallazgos, language],
-  );
-  const detailPolygon = useMemo(() => {
-    const o = orchards.find(x => x.id === detail?.huerta_id);
-    return o ? o.coordinates.map(c => ({ lat: c.latitude, lng: c.longitude })) : [];
-  }, [orchards, detail]);
-  const onSelectMarker = useCallback((id: string) => {
-    setSelected(id);
-    const y = cardY.current[id];
-    if (y != null) detailScrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
-  }, []);
-
   if (!fontsLoaded) return null;
 
   // ───────────────────────── vistas ─────────────────────────
@@ -1351,101 +1296,6 @@ export default function RecorridoScreen() {
     );
   }
 
-  if (mode === 'detail') {
-    const info = detail ? statusInfo(detail.estado) : null;
-    const healthy = hallazgos.filter(h => isHealthy(h.estado)).length;
-    return (
-      <View style={[st.screen, { paddingTop: insets.top }]}>
-        <StatusBar style="dark" />
-        <View style={st.header}>
-          <TouchableOpacity
-            style={st.backBtn}
-            onPress={() => {
-              // Abierto desde Mis escaneos: se regresa al mapa.
-              if (params.from === 'escaneos' && router.canGoBack()) { router.setParams({ id: undefined, from: undefined }); router.back(); return; }
-              if (params.id) router.setParams({ id: undefined });
-              setMode('home');
-            }}
-            accessibilityLabel={t('back')}
-          >
-            <ChevronLeft size={24} color="#0f172a" />
-          </TouchableOpacity>
-          <Text style={st.headerTitle} numberOfLines={1}>
-            {detail ? t('detailTitle', { date: fmtDate(detail.iniciado_at) }) : t('title')}
-          </Text>
-        </View>
-        {detailLoading ? (
-          <View style={st.center}><ActivityIndicator color="#0f766e" size="large" /></View>
-        ) : detailError || !detail ? (
-          <View style={st.center}><CloudOff size={36} color="#94a3b8" /><Text style={st.muted}>{t('loadError')}</Text></View>
-        ) : (
-          <ScrollView ref={detailScrollRef} contentContainerStyle={[st.scroll, isTablet && st.scrollTablet, { paddingBottom: insets.bottom + 40 }]}>
-            <View style={st.card}>
-              <View style={st.rowBetween}>
-                <Text style={st.cardTitle}>{orchardName(detail.huerta_id) ?? t('title')}</Text>
-                {info && <View style={[st.chip, { backgroundColor: info.bg }]}><Text style={[st.chipText, { color: info.color }]}>{info.label}</Text></View>}
-              </View>
-              {detail.estado === 'listo' ? (
-                <>
-                  <View style={st.summaryRow}>
-                    <View style={st.summaryBox}><Text style={st.summaryValue}>{detail.fotos_total}</Text><Text style={st.summaryLabel}>{t('capturedLabel')}</Text></View>
-                    <View style={st.summaryBox}><Text style={[st.summaryValue, { color: '#0f766e' }]}>{detail.fotos_analizadas}</Text><Text style={st.summaryLabel}>{t('analyzedShort')}</Text></View>
-                    <View style={st.summaryBox}><Text style={[st.summaryValue, { color: '#64748b' }]}>{Math.max(0, detail.fotos_total - detail.fotos_analizadas)}</Text><Text style={st.summaryLabel}>{t('discardedLabel')}</Text></View>
-                  </View>
-                  {detail.fotos_total > detail.fotos_analizadas && <Text style={st.summaryHint}>{t('discardedHint')}</Text>}
-                  <View style={st.summaryRow}>
-                    <View style={[st.summaryBox, st.summaryOk]}><Text style={[st.summaryValue, { color: '#15803d' }]}>{healthy}</Text><Text style={st.summaryLabel}>{t('healthyLabel')}</Text></View>
-                    <View style={[st.summaryBox, st.summaryBad]}><Text style={[st.summaryValue, { color: '#b91c1c' }]}>{hallazgos.length - healthy}</Text><Text style={st.summaryLabel}>{t('issuesLabel')}</Text></View>
-                  </View>
-                </>
-              ) : (
-                <Text style={st.muted}>{detail.estado === 'error' ? t('errorProcessing') : t('stillProcessing')}</Text>
-              )}
-            </View>
-
-            {(detailRoute.length > 1 || detailMarkers.length > 0) && (
-              <View style={[st.mapCard, isTablet && st.mapCardTablet]}>
-                <RecorridoMap route={detailRoute} markers={detailMarkers} polygon={detailPolygon} selectedId={selected} onSelect={onSelectMarker} />
-              </View>
-            )}
-
-            {detail.estado === 'listo' && !hallazgos.length && <Text style={[st.muted, st.padded]}>{t('noFindings')}</Text>}
-
-            {hallazgos.map(h => {
-              const ok = isHealthy(h.estado);
-              return (
-                <TouchableOpacity
-                  key={h.id}
-                  activeOpacity={0.85}
-                  onLayout={e => { cardY.current[h.id] = e.nativeEvent.layout.y; }}
-                  onPress={() => { setSelected(h.id); router.push({ pathname: '/(app)/hallazgo', params: { id: h.id, n: String(Date.now()) } }); }}
-                  style={[st.findCard, selected === h.id && st.findCardSelected]}
-                >
-                  {h.miniatura_path ? (
-                    <Image source={thumbnailSource(h.miniatura_path)} style={st.findThumb} />
-                  ) : (
-                    <View style={[st.findThumb, st.center]}><Sparkles size={20} color="#94a3b8" /></View>
-                  )}
-                  <View style={st.findBody}>
-                    <View style={[st.chip, { backgroundColor: ok ? '#dcfce7' : '#fee2e2', alignSelf: 'flex-start' }]}>
-                      <Text style={[st.chipText, { color: ok ? '#15803d' : '#b91c1c' }]}>{localizeDomainLabel(h.estado, language)}</Text>
-                    </View>
-                    <Text style={st.findTitle}>{localizeDomainLabel(h.fruto, language)}</Text>
-                    <Text style={st.findMeta}>{t('confidence', { pct: Math.round(h.confianza * 100) })}{h.fotos_en_grupo > 1 ? ` · ${t('groupOf', { count: h.fotos_en_grupo })}` : ''}</Text>
-                    <Text style={st.findMeta}>
-                      {new Date(h.tomada_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
-                      {h.lat == null ? ` · ${t('noLocation')}` : ''}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
-      </View>
-    );
-  }
-
   // Inicio: lo que está guardado en el celular, su sincronización y los resultados.
   const uploading = Object.keys(progress).length > 0;
   const syncState = uploading ? 'uploading' : !locals.length ? 'clear' : network === 'offline' ? 'offline' : network === 'cellular' && !mobileData ? 'wifi' : 'ready';
@@ -1565,7 +1415,7 @@ export default function RecorridoScreen() {
             const info = statusInfo(r.estado);
             return (
               <Reanimated.View key={r.id} entering={reducedMotion ? undefined : ITEM_IN} layout={reducedMotion ? undefined : LIST_REFLOW}>
-              <PressableScale style={[hm.item, i > 0 && pp.rowBorder]} onPress={() => openDetail(r.id)} accessibilityRole="button">
+              <PressableScale style={[hm.item, i > 0 && pp.rowBorder]} onPress={() => openOnMap(r.id)} accessibilityRole="button">
                 <View style={[hm.itemIcon, { backgroundColor: info.bg }]}><Sparkles size={18} color={info.color} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={hm.itemTitle}>{orchardName(r.huerta_id) ?? fmtDate(r.iniciado_at)}</Text>

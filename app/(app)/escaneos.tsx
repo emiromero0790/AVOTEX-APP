@@ -558,8 +558,8 @@ export default function MisEscaneos() {
     setPoint(null);
     if (id) tick();
     setSelectedId(id);
-    // Desde el historial completo se baja a intermedio para ver el mapa volar al escaneo.
-    setSheetIdx(i => (i === 2 ? 1 : i));
+    // Al elegir un escaneo, el panel baja a su altura contraída para ver el mapa volar a él.
+    if (id) setSheetIdx(0);
   }, []);
 
 
@@ -584,9 +584,11 @@ export default function MisEscaneos() {
     else if (e.type === 'clear') { if (point) setPoint(null); }
   }, [select, selectedId, point]);
 
+  // Flechita de un escaneo. Recorrido: se muestra en el mapa (ya no hay pantalla aparte de resultados del
+  // recorrido) y el panel baja para verlo. Foto: sus resultados. Pendiente de subir: se sube.
   const openResults = (it: ScanItem) => {
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    if (it.kind === 'remoto' && it.remoteId) router.push({ pathname: '/(app)/recorrido', params: { id: it.remoteId, from: 'escaneos', n: String(Date.now()) } });
+    if (it.kind === 'remoto') { setPoint(null); setSelectedId(it.id); setSheetIdx(0); }
     else if (it.kind === 'foto') router.navigate('/(app)/results');
     else sync(true);
   };

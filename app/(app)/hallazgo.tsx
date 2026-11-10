@@ -429,7 +429,7 @@ export default function HallazgoScreen() {
           {rec && (
             <Reanimated.View entering={enter(7)}>
               <SectionTitle icon={<Route size={18} color={DEEP} />} title={t('walk')} />
-              <Pressable onPress={() => { tick(); router.push({ pathname: '/(app)/recorrido', params: { id: rec.id, from: 'escaneos', n: String(Date.now()) } }); }}
+              <Pressable onPress={() => { tick(); router.navigate({ pathname: '/(app)/escaneos', params: { focus: `remote:${rec.id}`, n: String(Date.now()) } }); }}
                 accessibilityRole="button" style={({ pressed }) => [st.walkCard, pressed && { opacity: 0.9 }]}>
                 <View style={st.walkTop}>
                   {route.length > 1 || point ? (

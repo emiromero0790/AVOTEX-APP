@@ -225,12 +225,16 @@ export default function WalkPrepare(props: Props) {
       status: (battery === null ? 'pending' : battery === 'na' ? 'info' : battery.level < 0.2 && !battery.charging ? 'warn' : 'ok') as Status,
       value: battery === null ? '…' : battery === 'na' ? t('na') : `${Math.round(battery.level * 100)}%`,
       help: battery && battery !== 'na' && battery.level < 0.2 && !battery.charging ? t('lowBatteryHelp') : null,
+      // Solo informativa: con poca batería se ve en amarillo y con su nota, pero no impide estar listo.
+      advisory: true,
     },
-  ];
+  ] as { key: string; icon: React.ReactNode; label: string; status: Status; value: string; help: string | null; advisory?: boolean }[];
+  // Una revisión informativa cuenta como lista en cuanto se conoce su valor (sin importar cuál sea).
+  const isReady = (c: { status: Status; advisory?: boolean }) => c.status === 'ok' || (!!c.advisory && c.status !== 'pending');
   const total = checks.length;
-  const okCount = checks.filter(c => c.status === 'ok').length;
+  const okCount = checks.filter(isReady).length;
   const pending = checks.some(c => c.status === 'pending');
-  const warn = checks.some(c => c.status === 'warn');
+  const warn = checks.some(c => c.status === 'warn' && !c.advisory);
   const allOk = okCount === total;
   const helps = checks.map(c => c.help).filter(Boolean) as string[];
   const headline = pending ? t('checking') : allOk ? t('ready') : t('almost');

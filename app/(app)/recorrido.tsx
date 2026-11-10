@@ -49,6 +49,7 @@ import {
   Wifi,
   Signal,
   Smartphone,
+  Rotate3d,
 } from 'lucide-react-native';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
@@ -83,6 +84,9 @@ import {
 import { registerForPush } from '../../services/push';
 import { withTimeout } from '../../services/timeout';
 import { GpsTrack } from '../../services/gpsFilter';
+import { FieldMotion } from '../../services/fieldMotion';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import FieldTracking3D, { FieldTrackingGuard, type FieldTrackingView } from '../../components/fieldTracking/FieldTracking3D';
 import { cleanRoute, routeMeters } from '../../services/escaneos';
 import RecorridoMap from '../../components/RecorridoMap';
 // Fotos reales de montaje (Flickr, CC BY 2.0 y CC BY-SA 2.0). Ver assets/images/escanear/CREDITOS.md
@@ -93,6 +97,8 @@ import WalkPrepare from '../../components/scan/WalkPrepare';
 import OrchardPickerSheet from '../../components/scan/OrchardPickerSheet';
 import { resolveScanHuerta, type HuertaResolution } from '../../services/huertaResolver';
 
+// Preferencia del panel Field Tracking 3D (expandido, minimizado u oculto); el recorrido no depende de ella.
+const FIELD_VIEW_KEY = 'avotex.fieldTracking.view';
 // Duración de "mantén presionado para terminar": evita cortar un recorrido por un toque accidental.
 const HOLD_TO_FINISH_MS = 900;
 const HUD_FADE_IN = FadeIn.duration(250).easing(EASE_OUT);
@@ -209,6 +215,8 @@ const translations: TranslationResource = {
   gpsSearching: { es: 'Buscando GPS…', en: 'Searching GPS…' },
   gpsLost: { es: 'Sin GPS: imágenes por tiempo', en: 'No GPS: images by time' },
   pause: { es: 'Pausar', en: 'Pause' },
+  fieldShow: { es: 'Mostrar visualización 3D', en: 'Show 3D view' },
+  fieldHide: { es: 'Ocultar visualización 3D', en: 'Hide 3D view' },
   resume: { es: 'Seguir', en: 'Resume' },
   finish: { es: 'Terminar', en: 'Finish' },
   holdToFinish: { es: 'Mantén presionado para terminar', en: 'Press and hold to finish' },
@@ -332,6 +340,20 @@ export default function RecorridoScreen() {
   const lastFixRef = useRef<{ lat: number; lng: number; acc: number | null; at: number } | null>(null);
   const lastShotRef = useRef<{ lat: number | null; lng: number | null; at: number } | null>(null);
   const useGpsRef = useRef(true);
+  // Field Tracking 3D: solo visualización. Recibe las mismas lecturas GPS (no hay otro observador).
+  const fieldMotionRef = useRef<FieldMotion | null>(null);
+  const [fieldMotion, setFieldMotion] = useState<FieldMotion | null>(null);
+  const [fieldView, setFieldView] = useState<FieldTrackingView>('expanded');
+  const [hudBottom, setHudBottom] = useState(0);
+  useEffect(() => {
+    AsyncStorage.getItem(FIELD_VIEW_KEY)
+      .then(v => { if (v === 'expanded' || v === 'minimized' || v === 'hidden') setFieldView(v); })
+      .catch(() => {});
+  }, []);
+  const changeFieldView = useCallback((v: FieldTrackingView) => {
+    setFieldView(v);
+    AsyncStorage.setItem(FIELD_VIEW_KEY, v).catch(() => {});
+  }, []);
   const [paused, setPaused] = useState(false);
   const [stats, setStats] = useState({ elapsed: 0, distance: 0, photos: 0, accuracy: null as number | null, gps: 'searching' as 'ok' | 'searching' | 'lost' });
   const [limitHit, setLimitHit] = useState(false);
@@ -541,6 +563,8 @@ export default function RecorridoScreen() {
     watchRef.current = null;
     if (tickRef.current) clearInterval(tickRef.current);
     tickRef.current = null;
+    fieldMotionRef.current = null;
+    setFieldMotion(null);
     Promise.resolve(deactivateKeepAwake('recorrido')).catch(() => {});
   }, []);
 
@@ -582,6 +606,15 @@ export default function RecorridoScreen() {
       if (step.step > 0 && !pausedRef.current) setStats(s => ({ ...s, distance: s.distance + step.step }));
     }
     setStats(s => ({ ...s, accuracy: accuracy ?? null, gps: 'ok' }));
+    const fm = fieldMotionRef.current;
+    if (fm) {
+      try {
+        fm.pushFix({
+          t: now, lat, lng, acc: accuracy ?? null, speed: speed ?? null, heading: loc.coords.heading ?? null,
+          accepted: step.accepted, step: step.step, trackMoving: track.isMoving(now),
+        });
+      } catch (e) { console.warn('[recorrido] field tracking', e); }
+    }
     if (pausedRef.current) return;
     // Fotos por distancia solo si de verdad te estás moviendo; la posición es la suavizada.
     const pos = track.position() ?? { lat, lng };
@@ -614,6 +647,10 @@ export default function RecorridoScreen() {
       recRef.current = rec;
       lastFixRef.current = null;
       trackRef.current = new GpsTrack();
+      const fm = new FieldMotion();
+      fm.setGpsEnabled(withGps);
+      fieldMotionRef.current = fm;
+      setFieldMotion(fm);
       lastShotRef.current = null;
       pausedRef.current = false;
       setPaused(false);
@@ -649,6 +686,7 @@ export default function RecorridoScreen() {
         const pausedNow = pauseStartRef.current ? now - pauseStartRef.current : 0;
         const fix = lastFixRef.current;
         const gpsLost = !useGpsRef.current || !fix || now - fix.at > 5000;
+        try { fieldMotionRef.current?.tick(now); } catch { /* solo visualización */ }
         setStats(s => ({
           ...s,
           elapsed: now - startedAtRef.current - pausedMsRef.current - pausedNow,
@@ -898,7 +936,11 @@ export default function RecorridoScreen() {
               <Text style={st.recTimerText}>{formatDuration(stats.elapsed)}</Text>
             </View>
           </Reanimated.View>
-          <Reanimated.View entering={HUD_FADE_IN} style={st.pillsRow}>
+          <Reanimated.View
+            entering={HUD_FADE_IN}
+            style={st.pillsRow}
+            onLayout={e => { const { y, height } = e.nativeEvent.layout; setHudBottom(y + height); }}
+          >
             <View style={[st.gpsPill, stats.gps === 'ok' ? st.gpsOk : stats.gps === 'lost' ? st.gpsLost : st.gpsSearch]}>
               <MapPin size={13} color="#fff" />
               <Text style={st.gpsText}>{gpsText}</Text>
@@ -907,6 +949,14 @@ export default function RecorridoScreen() {
               <NetIcon size={13} color="#fff" />
               <Text style={st.gpsText}>{netText}</Text>
             </View>
+            <PressableScale
+              style={[st.gpsPill, st.netPill, st.fieldToggle, fieldView !== 'hidden' && st.fieldToggleOn]}
+              onPress={() => changeFieldView(fieldView === 'hidden' ? 'expanded' : 'hidden')}
+              accessibilityRole="button"
+              accessibilityLabel={fieldView === 'hidden' ? t('fieldShow') : t('fieldHide')}
+            >
+              <Rotate3d size={14} color={fieldView === 'hidden' ? '#fff' : '#5dffb6'} />
+            </PressableScale>
           </Reanimated.View>
         </LinearGradient>
 
@@ -922,6 +972,20 @@ export default function RecorridoScreen() {
               <Text style={st.startBannerBody}>{t('captureStartedBody')}</Text>
             </View>
           </Reanimated.View>
+        )}
+
+        {/* Field Tracking 3D: aparece cuando termina el aviso de inicio, debajo de las píldoras, a la derecha. */}
+        {!startBanner && hudBottom > 0 && (
+          <FieldTrackingGuard>
+            <FieldTracking3D
+              motion={fieldMotion}
+              paused={paused}
+              distanceLabel={formatDistance(stats.distance)}
+              view={fieldView}
+              onViewChange={changeFieldView}
+              top={hudBottom + 12}
+            />
+          </FieldTrackingGuard>
         )}
 
         {paused && (
@@ -1361,6 +1425,8 @@ const st = StyleSheet.create({
   gpsSearch: { backgroundColor: 'rgba(100,116,139,0.85)' },
   gpsLost: { backgroundColor: 'rgba(202,138,4,0.9)' },
   netPill: { backgroundColor: 'rgba(15,23,42,0.65)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
+  fieldToggle: { paddingHorizontal: 8, minWidth: 30, justifyContent: 'center' },
+  fieldToggleOn: { borderColor: 'rgba(94,234,212,0.6)' },
   gpsText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#fff' },
   cameraLoading: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   pauseOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(2,6,23,0.55)', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 40 },

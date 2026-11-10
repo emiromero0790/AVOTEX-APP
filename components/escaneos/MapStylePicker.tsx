@@ -7,9 +7,9 @@
  * con una transición corta.
  */
 import React, { memo, startTransition, useCallback, useEffect, useRef, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient as SvgGradient, Path, Stop } from 'react-native-svg';
-import Reanimated from 'react-native-reanimated';
+import Reanimated, { FadeOut } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { TranslationResource, useTranslations } from '../../context/LanguageContext';
 import { CSS_EASE_OUT } from '../scan/motion';
@@ -66,10 +66,13 @@ function tiles(layer: ScansMapLayer): TileSpec[] {
  * ese zoom), reintenta una vez y luego baja de zoom hasta 3 niveles: el mosaico padre cubre la misma
  * zona. Las capas de referencia (calles, rótulos) no reintentan: un 404 ahí es un mosaico vacío.
  */
-const Tile = memo(function Tile({ spec, lat, lng, opacity }: { spec: TileSpec; lat: number; lng: number; opacity?: number }) {
+const Tile = memo(function Tile({ spec, lat, lng, opacity, onDone }: { spec: TileSpec; lat: number; lng: number; opacity?: number; onDone?: () => void }) {
   const [attempt, setAttempt] = useState(0);
   useEffect(() => { setAttempt(0); }, [spec.svc, lat, lng]);
-  if (attempt > 4) return null;
+  const dead = attempt > 4;
+  // Sin mosaico tras todos los intentos: se avisa igual, para que el indicador de carga no gire para siempre.
+  useEffect(() => { if (dead) onDone?.(); }, [dead, onDone]);
+  if (dead) return null;
   const z = spec.z - Math.max(0, attempt - 1);
   const { x, y } = tileOf(lat, lng, z);
   const uri = `${ESRI}${spec.svc}/MapServer/tile/${z}/${y}/${x}${attempt === 1 ? '?r=1' : ''}`;
@@ -79,6 +82,7 @@ const Tile = memo(function Tile({ spec, lat, lng, opacity }: { spec: TileSpec; l
       style={[StyleSheet.absoluteFill, opacity != null && { opacity }]}
       resizeMode="cover"
       fadeDuration={120}
+      onLoad={onDone}
       onError={() => setAttempt(a => (spec.base ? a + 1 : 99))}
       accessibilityIgnoresInvertColors
     />
@@ -141,29 +145,62 @@ const ZONE_COLORS = ['#84CC16', '#F59E0B', '#22C55E', '#EF4444'];
 
 /** Tarjeta de un tipo de mapa. `onPick` es estable, así que al elegir solo se repintan dos tarjetas. */
 const LayerCard = memo(function LayerCard({ l, on, label, width, lat, lng, onPick }: { l: ScansMapLayer; on: boolean; label: string; width: number; lat: number; lng: number; onPick: (l: ScansMapLayer) => void }) {
+  const [ready, setReady] = useState(false);
+  const done = useCallback(() => setReady(true), []);
   return (
     <Card on={on} label={label} onPress={() => onPick(l)} width={width}>
       {tiles(l === 'zonas' ? 'satelite' : l).map((sp, i) => (
-        <Tile key={sp.svc} spec={sp} lat={lat} lng={lng} opacity={i > 0 ? 0.95 : undefined} />
+        <Tile key={sp.svc} spec={sp} lat={lat} lng={lng} opacity={i > 0 ? 0.95 : undefined} onDone={i === 0 ? done : undefined} />
       ))}
       {l === 'zonas' && (
         <View style={[StyleSheet.absoluteFill, s.zones]}>
           {ZONE_COLORS.map(c => <View key={c} style={[s.zone, { backgroundColor: c }]} />)}
         </View>
       )}
+      {!ready && <ThumbLoading />}
     </Card>
   );
 });
 
 const RouteCard = memo(function RouteCard({ r, on, label, sub, width, lat, lng, onPick }: { r: ScansMapRouteStyle; on: boolean; label: string; sub: string; width: number; lat: number; lng: number; onPick: (r: ScansMapRouteStyle) => void }) {
+  const [ready, setReady] = useState(false);
+  const done = useCallback(() => setReady(true), []);
   return (
     <Card on={on} label={label} sub={sub} onPress={() => onPick(r)} width={width}>
-      <Tile spec={tiles(r === 'calor' ? 'oscuro' : 'satelite')[0]} lat={lat} lng={lng} opacity={r === 'calor' ? 1 : 0.85} />
+      <Tile spec={tiles(r === 'calor' ? 'oscuro' : 'satelite')[0]} lat={lat} lng={lng} opacity={r === 'calor' ? 1 : 0.85} onDone={done} />
       <View style={[StyleSheet.absoluteFill, { backgroundColor: r === 'calor' ? 'rgba(0,0,0,0.25)' : 'rgba(15,23,42,0.18)' }]} />
+      {!ready && <ThumbLoading dark />}
       <RoutePreview kind={r} w={width - 9} h={Math.round(width * 0.78) - 9} />
     </Card>
   );
 });
+
+/**
+ * Descarga por adelantado las miniaturas de esa zona (se llama al entrar a «Mis escaneos»), para que
+ * al abrir el panel ya estén en la caché de imágenes y no haya que esperarlas.
+ */
+export function prefetchStyleThumbs(center: { lat: number; lng: number }) {
+  const seen = new Set<string>();
+  for (const layer of LAYERS) {
+    for (const sp of tiles(layer)) {
+      const { x, y } = tileOf(center.lat, center.lng, sp.z);
+      const uri = `${ESRI}${sp.svc}/MapServer/tile/${sp.z}/${y}/${x}`;
+      if (seen.has(uri)) continue;
+      seen.add(uri);
+      Image.prefetch(uri).catch(() => {});
+    }
+  }
+}
+
+/** Indicador mientras baja la miniatura: se desvanece al llegar la imagen. */
+function ThumbLoading({ dark }: { dark?: boolean }) {
+  return (
+    <Reanimated.View exiting={FadeOut.duration(160)} pointerEvents="none"
+      style={[StyleSheet.absoluteFill, s.loading, { backgroundColor: dark ? '#94A3B8' : '#E2E8F0' }]}>
+      <ActivityIndicator size="small" color={dark ? '#FFFFFF' : TEAL} />
+    </Reanimated.View>
+  );
+}
 
 type Props = {
   layer: ScansMapLayer;
@@ -235,6 +272,7 @@ const s = StyleSheet.create({
   label: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#334155' },
   labelOn: { fontFamily: 'Poppins_700Bold', color: TEAL },
   sub: { fontFamily: 'Poppins_400Regular', fontSize: 10.5, color: '#64748B', marginTop: -4 },
+  loading: { alignItems: 'center', justifyContent: 'center' },
   zones: { flexDirection: 'row', flexWrap: 'wrap', opacity: 0.45 },
   zone: { width: '50%', height: '50%', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.8)' },
 });

@@ -21,6 +21,8 @@ export type ScansMapProps = {
   pad?: { top: number; right: number; bottom: number; left: number };
   /** Estilo de la ruta (clásica, velocidad, tiempo o calor). */
   routeStyle?: ScansMapRouteStyle;
+  /** Centra el mapa en la ubicación del usuario cuando llega (mapa de Inicio). */
+  centerOnUser?: boolean;
   onEvent: (e: ScansMapEvent) => void;
   onError?: () => void;
 };

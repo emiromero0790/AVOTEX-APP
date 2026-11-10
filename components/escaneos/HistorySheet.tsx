@@ -81,15 +81,18 @@ function HistorySheetInner<T>(props: Props<T>, ref: React.Ref<HistorySheetHandle
   const dragEnded = useSharedValue(false);
   const list = useRef<React.ComponentRef<typeof Reanimated.FlatList>>(null);
   const [scrollEnabled, setScrollEnabled] = useState(index === 2);
-  // Si la altura la eligió el propio gesto, el resorte ya va en camino: no se reinicia.
-  const fromGesture = useRef(false);
+  // Altura que eligió el propio gesto (su resorte ya va en camino: no se reinicia). Se guarda CUÁL fue, no un
+  // sí/no: con una bandera booleana que se quedaba puesta, el siguiente cambio pedido por la pantalla (p. ej.
+  // al tocar un recorrido con el panel arriba) se ignoraba y el panel no bajaba.
+  const fromGesture = useRef<number | null>(null);
 
   // Altura pedida desde fuera (botones, selección, cambio de tamaño de pantalla).
   useEffect(() => {
     idx.set(index);
     const target = full - snaps[index];
-    if (fromGesture.current) fromGesture.current = false;
-    else y.set(reduced ? withTiming(target, { duration: 0 }) : withSpring(target, SPRING));
+    const byGesture = fromGesture.current === index;
+    fromGesture.current = null;
+    if (!byGesture) y.set(reduced ? withTiming(target, { duration: 0 }) : withSpring(target, SPRING));
     setScrollEnabled(index === 2);
     // Al contraer, la lista vuelve a su inicio para que el próximo arrastre no la encuentre a medias.
     if (index !== 2) list.current?.scrollToOffset({ offset: 0, animated: false });
@@ -105,7 +108,7 @@ function HistorySheetInner<T>(props: Props<T>, ref: React.Ref<HistorySheetHandle
   const changeTo = (i: number) => {
     if (i !== index) {
       if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      fromGesture.current = true;
+      fromGesture.current = i;
       onIndexChange(i as 0 | 1 | 2);
     } else {
       setScrollEnabled(i === 2);

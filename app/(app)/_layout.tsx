@@ -109,13 +109,13 @@ export default function TabLayout() {
 
   const [fontsLoaded] = useFonts({ Poppins_600SemiBold, Poppins_400Regular, Poppins_700Bold });
 
-  // Notificación "Tu recorrido está listo": al tocarla se abren sus resultados.
+  // Notificación "Tu recorrido está listo": al tocarla se abre Mis escaneos con ese recorrido en el mapa.
   useEffect(() => {
     if (Platform.OS === 'web') return;
     configureNotifications();
     const open = (response: Notifications.NotificationResponse | null) => {
       const id = recorridoIdFrom(response);
-      if (id) router.push({ pathname: '/(app)/recorrido', params: { id } });
+      if (id) router.navigate({ pathname: '/(app)/escaneos', params: { focus: `remote:${id}`, n: String(Date.now()) } });
     };
     Notifications.getLastNotificationResponseAsync().then(open).catch(() => {});
     const sub = Notifications.addNotificationResponseReceivedListener(open);

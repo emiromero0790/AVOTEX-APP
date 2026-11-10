@@ -17,10 +17,11 @@ sí necesita WebGL en su WebView; hay aviso de error si falla el motor o los rec
 
 ## Implementación
 
-- Base oscura predeterminada, satélite Esri, híbrido con etiquetas/calles, estándar
-  Esri y zonas ilustrativas sobre fondo oscuro. Zonas no representa diagnósticos.
+- Base oscura vectorial OpenFreeMap predeterminada, satélite Esri, híbrido con etiquetas/calles vectoriales, estándar
+  OpenFreeMap y zonas ilustrativas sobre fondo oscuro. Zonas no representa diagnósticos.
 - Las bases se conmutan por visibilidad, sin `setStyle` ni reconstrucción de overlays.
-  Los mosaicos siguen siendo raster: MapLibre no inventa detalle satelital adicional.
+  Oscuro, estándar y zonas usan vectores OpenMapTiles; el satélite sigue usando
+  fotografías raster, cuya resolución depende de Esri.
 - Fuentes GeoJSON independientes: huertas, zonas, rutas, detalle, velocidad, extremos,
   fotos, hallazgos, usuario y selección activa. Se agrupan fotos y scans en workers.
 - Se descartan coordenadas no finitas/fuera de rango y se cierran anillos de polígonos.
@@ -36,7 +37,7 @@ sí necesita WebGL en su WebView; hay aviso de error si falla el motor o los rec
 ## Límites y validación móvil pendiente
 
 Los recursos CDN y los proveedores de tiles requieren conexión. No hay caché offline
-persistente. Las atribuciones están visibles; revisar términos/cuotas de Esri y Esri
+persistente. Las atribuciones están visibles; revisar términos de OpenFreeMap y Esri
 antes de producción de alto volumen. `topo`, conservado por compatibilidad con
 preferencias guardadas, usa estándar y ya no se ofrece como opción nueva.
 
@@ -46,8 +47,7 @@ selección foto/hallazgo y navegación autenticada. No se dispone aquí de sesi�
 usuario ni de simuladores móviles. No se ha medido FPS ni se garantiza fluidez móvil
 por una prueba de escritorio.
 
-Siguiente mejora recomendada: migrar las bases raster a un proveedor vectorial con
-licencia y estilos propios; empaquetar el runtime localmente y añadir caché offline.
+Siguiente mejora recomendada: empaquetar el runtime localmente y añadir caché offline.
 Si WebView no satisface los perfiles de rendimiento medidos, evaluar MapLibre Native
 con un development build Expo en una iteración posterior.
 
@@ -70,3 +70,29 @@ python scripts/test-scans-map.py work/map.html
 `CHROMIUM_PATH` permite elegir el ejecutable. Solo para un proxy de pruebas con CA
 no reconocida por Chromium, `MAP_TEST_IGNORE_HTTPS_ERRORS=1` omite ese chequeo en el
 contexto del test, sin cambiar el comportamiento TLS de la app.
+
+## Corrección de nitidez y vista 2.5D
+
+La primera versión seguía ampliando imágenes de Esri en el mapa oscuro (zoom máximo
+nativo 16). Se eliminaron esas bases raster de Oscuro/Estándar y las referencias raster
+de Híbrido. Las definiciones de estilo vectorial se incluyen en scansVectorStyle.ts:
+OpenFreeMap Dark y Liberty, con raster de relieve omitido y ajustes de contraste.
+Los vectores conservan contornos nítidos al ampliar, aunque la cobertura y el detalle
+geográfico dependen de los datos OSM disponibles. No se requiere clave para este endpoint.
+Licencias y procedencia: docs/licenses; estilos adaptados con contraste AVOTEX,
+capas agrupadas por modo y relieve raster eliminado.
+
+La vista predeterminada tiene inclinación de 48 grados. El botón 2D/3D cambia la
+perspectiva sin recrear el mapa ni las fuentes. Edificios con volumen a partir de
+render_height/render_min_height de OpenMapTiles; donde no hay alturas, no se inventan.
+No hay elevación de terreno DEM ni árboles 3D. El seguimiento automático giro a giro
+no forma parte de esta pantalla de historial.
+
+Los iconos usan trazos geométricos rasterizados a 3× y registrados con pixelRatio=3,
+sin emojis ni fuentes de símbolos. Permanecen verticales respecto de la pantalla.
+Las fotos se muestran a la derecha y los extremos debajo de su ancla GPS mediante
+pequeñas líneas guía, para distinguirlos cuando coinciden con un hallazgo.
+La prueba de Chromium verifica fuente vectorial, ausencia de raster visible en Oscuro,
+renderizado de geometría real, densidad de iconos, alternancia 2D/3D, encuadre con
+perspectiva y separación de las áreas de interacción de fotos y hallazgos/extremos. Se prueba DPR configurable
+(MAP_TEST_DPR, predeterminado 3) y capturas opcionales (MAP_TEST_SCREENSHOT=prefijo).

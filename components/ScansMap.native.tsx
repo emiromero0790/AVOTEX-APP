@@ -9,7 +9,7 @@ const WebView = RNWebView<object>;
 type WebView = RNWebView<object>;
 
 const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
-  { data, selectedId, detail, point, user, layer, pad, routeStyle = 'clasica', onEvent, onError },
+  { data, selectedId, detail, point, user, layer, pad, routeStyle = 'clasica', perspective = true, onEvent, onError },
   ref,
 ) {
   const web = useRef<WebView>(null);
@@ -25,6 +25,7 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
     flyToUser: () => { if (user) run(`avx.showUser(${user.lat},${user.lng},true)`); },
   }), [run, user]);
 
+  useEffect(() => { if (ready) run(`avx.setPerspective(${perspective})`); }, [ready, perspective, run]);
   useEffect(() => { if (ready) run(`avx.setLayer(${safeJson(layer)})`); }, [ready, layer, run]);
   useEffect(() => { if (ready) run(`avx.setRouteStyle(${safeJson(routeStyle)})`); }, [ready, routeStyle, run]);
   useEffect(() => { if (ready && pad) run(`avx.setPad(${safeJson(pad)})`); }, [ready, pad, run]);

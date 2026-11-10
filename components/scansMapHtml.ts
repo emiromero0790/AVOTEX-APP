@@ -1,3 +1,4 @@
+import { scansVectorStyle } from "./scansVectorStyle";
 import { safeJsonValue } from "./safeJson";
 
 export type ScansMapPoint = { lat: number; lng: number };
@@ -99,7 +100,7 @@ export const FINDING_COLOR: Record<FindingCat, string> = {
 export const safeJson = safeJsonValue;
 
 export function buildScansMapHtml(): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css"><style>html,body,#map{margin:0;width:100%;height:100%;background:#080D10}.maplibregl-ctrl-attrib{font:9px sans-serif;background:#10171bd9;color:#cbd5e1}.maplibregl-ctrl-attrib a{color:#cbd5e1}</style></head><body><div id="map"></div><script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js" onerror="var m=JSON.stringify({type:'error'});if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(m);else parent.postMessage(m,'*')"></script><script>const STATUS=${safeJson(SCAN_STATUS_COLOR)};const SPEED=${safeJson(SPEED_COLORS)};
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css"><style>html,body,#map{margin:0;width:100%;height:100%;background:#080D10}.maplibregl-ctrl-attrib{font:9px sans-serif;background:#10171be8!important;color:#cbd5e1!important}.maplibregl-ctrl-attrib a{color:#cbd5e1}</style></head><body><div id="map"></div><script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js" onerror="var m=JSON.stringify({type:'error'});if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(m);else parent.postMessage(m,'*')"></script><script>const VECTOR_STYLES=${safeJson(scansVectorStyle)};const STATUS=${safeJson(SCAN_STATUS_COLOR)};const SPEED=${safeJson(SPEED_COLORS)};
 (function () {
   const post = (m) => {
     const s = JSON.stringify(m);
@@ -141,18 +142,9 @@ export function buildScansMapHtml(): string {
     svc +
     "/MapServer/tile/{z}/{y}/{x}";
   const sources = {
-    dark: {
-      type: "raster",
-      tiles: [tile("Canvas/World_Dark_Gray_Base")],
-      maxzoom: 16,
-      tileSize: 256,
-      attribution: "Tiles © Esri, HERE, Garmin, OpenStreetMap contributors",
-    },
-    standard: {
-      type: "raster",
-      tiles: [tile("World_Street_Map")],
-      tileSize: 256,
-      attribution: "Tiles © Esri, HERE, Garmin, OpenStreetMap contributors",
+    openmaptiles: {
+      type: "vector",
+      url: "https://tiles.openfreemap.org/planet",
     },
     sat: {
       type: "raster",
@@ -161,56 +153,114 @@ export function buildScansMapHtml(): string {
       attribution:
         "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, GIS User Community",
     },
-    labels: {
-      type: "raster",
-      tiles: [tile("Reference/World_Boundaries_and_Places")],
-      tileSize: 256,
-      attribution: "© Esri",
-    },
-    roads: {
-      type: "raster",
-      tiles: [tile("Reference/World_Transportation")],
-      tileSize: 256,
-      attribution: "© Esri",
-    },
   };
+  function darkPaint(l) {
+    const paint = { ...l.paint };
+    if (l.type === "background") paint["background-color"] = "#0b1216";
+    if (l.type === "line")
+      paint["line-color"] =
+        l["source-layer"] === "transportation" ? "#41555f" : "#293e48";
+    if (l.type === "fill") {
+      const source = l["source-layer"];
+      paint["fill-color"] =
+        source === "water"
+          ? "#123947"
+          : source === "building"
+            ? "#1e3039"
+            : source === "park" || source === "landcover"
+              ? "#152d27"
+              : "#101d23";
+    }
+    if (l.type === "symbol" && l.layout?.["text-field"])
+      Object.assign(paint, {
+        "text-color": "#bfd0d5",
+        "text-halo-color": "#0b1216",
+        "text-halo-width": 1.5,
+      });
+    return paint;
+  }
+  // Both base styles share a vector tile cache. Hybrid uses the same sharp roads/labels.
+  const baseLayers = Object.entries(VECTOR_STYLES).flatMap(([group, layers]) =>
+    layers.map((l) => ({
+      ...l,
+      paint: group === "dark" ? darkPaint(l) : l.paint || {},
+      id: group + "-" + l.id,
+      layout: {
+        ...l.layout,
+        visibility: group === "dark" ? "visible" : "none",
+      },
+    })),
+  );
+  const hybridLayers = VECTOR_STYLES.standard
+    .filter((l) => ["line", "symbol"].includes(l.type))
+    .map((l) => ({
+      ...l,
+      id: "hybrid-" + l.id,
+      layout: { ...l.layout, visibility: "none" },
+    }));
+
   const map = new maplibregl.Map({
     container: "map",
     style: {
       version: 8,
       sources,
+      glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+      sprite: "https://tiles.openfreemap.org/sprites/ofm_f384/ofm",
       layers: [
         {
           id: "background",
           type: "background",
           paint: { "background-color": "#080D10" },
         },
-        ...Object.keys(sources).map((id) => ({
-          id,
+        {
+          id: "sat",
           type: "raster",
-          source: id,
-          paint: id === "dark" ? {"raster-brightness-max": .7, "raster-saturation": -.4} : {},
-          layout: { visibility: id === "dark" ? "visible" : "none" },
-        })),
+          source: "sat",
+          layout: { visibility: "none" },
+          paint: { "raster-fade-duration": 150 },
+        },
+        ...baseLayers,
+        ...hybridLayers,
+        {
+          id: "avx-buildings",
+          type: "fill-extrusion",
+          source: "openmaptiles",
+          "source-layer": "building",
+          minzoom: 15,
+          paint: {
+            "fill-extrusion-color": "#324d5b",
+            "fill-extrusion-height": ["coalesce", ["get", "render_height"], 0],
+            "fill-extrusion-base": [
+              "coalesce",
+              ["get", "render_min_height"],
+              0,
+            ],
+            "fill-extrusion-opacity": 0.8,
+          },
+        },
       ],
     },
     center: [-102, 23],
     zoom: 4,
+    pitch: 48,
+    maxPitch: 60,
     maxZoom: 21,
+    pixelRatio: Math.min(window.devicePixelRatio || 1, 3),
     attributionControl: { compact: true },
   });
   map.on("styleimagemissing", (e) => {
     if (!e.id.startsWith("count-")) return;
     const c = document.createElement("canvas");
-    c.width = 96;
-    c.height = 48;
+    c.width = 192;
+    c.height = 96;
     const ctx = c.getContext("2d");
+    ctx.scale(3, 3);
     ctx.fillStyle = "#fff";
-    ctx.font = "bold 26px sans-serif";
+    ctx.font = "bold 14px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(e.id.slice(6), 48, 24);
-    map.addImage(e.id, ctx.getImageData(0, 0, 96, 48));
+    ctx.fillText(e.id.slice(6), 32, 16);
+    map.addImage(e.id, ctx.getImageData(0, 0, 192, 96), { pixelRatio: 3 });
   });
   let data = null,
     detail = null,
@@ -221,7 +271,8 @@ export function buildScansMapHtml(): string {
     pad = { top: 110, bottom: 220, left: 24, right: 72 },
     lastKey,
     loaded = false,
-    queued = false;
+    queued = false,
+    perspective = true;
   const colors = {
     enfermo: "#F2545B",
     revisar: "#F59E0B",
@@ -248,14 +299,18 @@ export function buildScansMapHtml(): string {
     map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
   }
   function bases() {
-    ["dark", "standard", "sat", "labels", "roads"].forEach((id) =>
-      visible(
-        id,
-        (id === "dark" && (layer === "oscuro" || layer === "zonas")) ||
-          (id === "standard" && (layer === "estandar" || layer === "topo")) ||
-          (id === "sat" && (layer === "satelite" || layer === "hibrido")) ||
-          ((id === "labels" || id === "roads") && layer === "hibrido"),
-      ),
+    visible("avx-buildings", perspective && layer !== "satelite");
+    visible("sat", layer === "satelite" || layer === "hibrido");
+    const group =
+      layer === "oscuro" || layer === "zonas"
+        ? "dark"
+        : layer === "hibrido"
+          ? "hybrid"
+          : layer === "estandar" || layer === "topo"
+            ? "standard"
+            : null;
+    [...baseLayers, ...hybridLayers].forEach((l) =>
+      visible(l.id, l.id.startsWith(group + "-")),
     );
   }
   function speedColor(v, range) {
@@ -414,6 +469,11 @@ export function buildScansMapHtml(): string {
             }),
           ),
     );
+    map.setPaintProperty(
+      "active-ring",
+      "circle-translate",
+      active && active.kind === "photo" ? [32, 0] : [0, 0],
+    );
     source(
       "active",
       !detail || !active
@@ -424,7 +484,10 @@ export function buildScansMapHtml(): string {
     );
   }
   function allPoints() {
-    if (!detail && selected && data) { const p=data.scans.find(s=>s.id===selected);if(p)return [p]; }
+    if (!detail && selected && data) {
+      const p = data.scans.find((s) => s.id === selected);
+      if (p) return [p];
+    }
     return detail
       ? [
           ...detail.route,
@@ -455,6 +518,7 @@ export function buildScansMapHtml(): string {
     };
     map.fitBounds(bounds, {
       padding: safe,
+      pitch: perspective ? 48 : 0,
       maxZoom: 19,
       duration: data && data.reduced ? 0 : 650,
     });
@@ -465,6 +529,7 @@ export function buildScansMapHtml(): string {
         center: xy(p),
         zoom: Math.max(18, map.getZoom()),
         padding: pad,
+        pitch: perspective ? 48 : 0,
         duration: data && data.reduced ? 0 : 500,
       });
   }
@@ -539,13 +604,17 @@ export function buildScansMapHtml(): string {
         "circle",
         id,
         {
-          "circle-radius":
-            id === "findings" ? 12 : id === "endpoints" ? 15 : 10,
+          "circle-radius": id === "endpoints" ? 3 : id === "user" ? 8 : id === "scans" ? 16 : 18,
           "circle-color":
             id === "user"
               ? "#38bdf8"
               : ["coalesce", ["get", "color"], "#14b8a6"],
-          "circle-stroke-width": 2,
+          "circle-translate":
+            id === "photos" ? [32, 0] : [0, 0],
+          "circle-translate-anchor": "viewport",
+          "circle-pitch-alignment": "viewport",
+          "circle-pitch-scale": "viewport",
+          "circle-stroke-width": 2.5,
           "circle-stroke-color":
             id === "scans"
               ? [
@@ -566,6 +635,8 @@ export function buildScansMapHtml(): string {
           "circle",
           id,
           {
+            "circle-translate": id === "photos" ? [32, 0] : [0, 0],
+            "circle-translate-anchor": "viewport",
             "circle-color": "#0f766e",
             "circle-radius": [
               "step",
@@ -583,6 +654,10 @@ export function buildScansMapHtml(): string {
         );
         map.addLayer({
           id: id + "-count",
+          paint: {
+            "icon-translate": id === "photos" ? [32, 0] : [0, 0],
+            "icon-translate-anchor": "viewport",
+          },
           type: "symbol",
           source: id,
           filter: ["has", "point_count"],
@@ -592,54 +667,106 @@ export function buildScansMapHtml(): string {
               "count-",
               ["to-string", ["get", "point_count_abbreviated"]],
             ],
-            "icon-size": 0.5,
+            "icon-size": 1,
             "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+            "icon-pitch-alignment": "viewport",
+            "icon-rotation-alignment": "viewport",
           },
         });
       }
     });
-    // Canvas sprites keep symbols legible without relying on a remote glyph server.
-    [
-      ["camera", "▣"],
-      ["alert", "!"],
-      ["start", "▶"],
-      ["end", "⚑"],
-    ].forEach(([id, text]) => {
+    // Stroke paths are rasterized at 3x and registered with their true pixelRatio.
+    // No emoji/font fallback: each marker has a recognisable, consistent symbol.
+    const iconPaths = {
+      camera:
+        "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z M16 13a4 4 0 1 1-8 0a4 4 0 0 1 8 0",
+      alert: "M12 3L2 21h20z M12 9v5 M12 17v.1",
+      start: "M7 3l14 9-14 9z",
+      end: "M5 22V3 M5 3h14l-3 5 3 5H5",
+      scan: "M5 20V6a3 3 0 0 1 6 0v12a3 3 0 0 0 6 0V4 M3 20h4 M15 4h4",
+    };
+    Object.entries(iconPaths).forEach(([id, path]) => {
       const c = document.createElement("canvas");
-      c.width = c.height = 48;
-      const ctx = c.getContext("2d");
-      ctx.fillStyle = "#081318";
-      ctx.font = "bold 34px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      if(id === 'camera') { ctx.lineWidth=4;ctx.strokeStyle='#081318';ctx.strokeRect(7,14,34,24);ctx.beginPath();ctx.arc(24,26,8,0,Math.PI*2);ctx.stroke();ctx.fillRect(15,9,16,5); }
-      else if(id === 'start') {ctx.beginPath();ctx.moveTo(13,8);ctx.lineTo(39,24);ctx.lineTo(13,40);ctx.closePath();ctx.fill();}
-      else if(id === 'end') {ctx.fillRect(12,8,4,34);ctx.fillRect(16,8,24,17);}
-      else ctx.fillText(text, 24, 25);
-      map.addImage(id, ctx.getImageData(0, 0, 48, 48));
+      const endpoint=id==='start'||id==='end';
+      c.width=endpoint?144:72;c.height=endpoint?216:72;
+      const ctx=c.getContext('2d');ctx.scale(3,3);
+      if(endpoint) {
+        ctx.strokeStyle='#cbded9';ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.moveTo(24,0);ctx.lineTo(24,30);ctx.stroke();
+        ctx.fillStyle=id==='start'?'#65a30d':'#7c3aed';
+        ctx.beginPath();ctx.arc(24,48,18,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle='#ecfdf5';ctx.lineWidth=2;ctx.stroke();
+        ctx.translate(12,36);
+      }
+      ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.lineJoin='round';ctx.lineCap='round';
+      ctx.stroke(new Path2D(path));
+      map.addImage(id,ctx.getImageData(0,0,c.width,c.height),{pixelRatio:3});
     });
     [
       ["photos", "camera"],
       ["findings", "alert"],
       ["endpoints", "start"],
+      ["scans", "scan"],
     ].forEach(([src, icon]) =>
       map.addLayer({
         id: src + "-icon",
+        paint: {
+          "icon-translate":
+            src === "photos" ? [32, 0] : [0, 0],
+          "icon-translate-anchor": "viewport",
+        },
         type: "symbol",
         source: src,
         filter: ["!", ["has", "point_count"]],
         layout: {
+          "icon-anchor":src==="endpoints"?"top":"center",
           "icon-image":
             src === "endpoints"
               ? ["match", ["get", "label"], "⚑", "end", "start"]
               : icon,
-          "icon-size": 0.5,
+          "icon-size": 1,
           "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "icon-pitch-alignment": "viewport",
+          "icon-rotation-alignment": "viewport",
         },
       }),
     );
+    // Thin stems preserve the actual GPS anchor when badges share coordinates.
+    for (const src of ["photos"]) {
+      const c = document.createElement("canvas");
+      c.width = c.height = 96;
+      const ctx = c.getContext("2d");
+      ctx.scale(3, 3);
+      ctx.strokeStyle = "#e2f2ee";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(src === "photos" ? 14 : 0, src === "photos" ? 0 : 14);
+      ctx.stroke();
+      map.addImage("stem-" + src, ctx.getImageData(0, 0, 96, 96), {
+        pixelRatio: 3,
+      });
+      map.addLayer({
+        id: src + "-stem",
+        type: "symbol",
+        source: src,
+        layout: {
+          "icon-image": "stem-" + src,
+          "icon-anchor": "top-left",
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
+      });
+      add(src + "-anchor", "circle", src, {
+        "circle-radius": 2.5,
+        "circle-color": "#e2f2ee",
+      });
+    }
     add("active-ring", "circle", "active", {
-      "circle-radius": 19,
+      "circle-radius": 23,
+      "circle-translate": active && active.kind === "photo" ? [32, 0] : [0, 0],
       "circle-color": "#fff",
       "circle-opacity": 0.1,
       "circle-stroke-width": 3,
@@ -683,8 +810,19 @@ export function buildScansMapHtml(): string {
     });
     post({ type: "ready" });
   });
-  map.on("error", () => post({ type: "error" }));
+  map.on("error", (e) => {
+    console.error(e.error);
+    post({ type: "error" });
+  });
   window.avx = {
+    setPerspective(on) {
+      perspective = !!on;
+      if (loaded) bases();
+      map.easeTo({
+        pitch: perspective ? 48 : 0,
+        duration: data && data.reduced ? 0 : 500,
+      });
+    },
     setData(d) {
       const refit = !data || lastKey !== d.fitKey;
       data = d;

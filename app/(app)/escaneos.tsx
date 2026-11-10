@@ -99,6 +99,8 @@ const T: TranslationResource = {
   subtitle: { es: 'Explora tus recorridos y diagnósticos', en: 'Explore your walks and diagnoses' },
   back: { es: 'Regresar', en: 'Back' },
   mapUnavailable: { es: 'No se pudo cargar el mapa. Revisa tu conexión y compatibilidad con WebGL.', en: 'Map unavailable. Check your connection and WebGL support.' },
+  view2D: { es: 'Cambiar a vista 2D', en: 'Switch to 2D view' },
+  view3D: { es: 'Cambiar a vista 3D', en: 'Switch to 3D view' },
   layerDark: { es: 'Oscuro', en: 'Dark' },
   seeHistory: { es: 'Ver historial', en: 'See history' },
   expand: { es: 'Expandir historial', en: 'Expand history' },
@@ -303,6 +305,7 @@ export default function MisEscaneos() {
   useEffect(() => { if (picker) setLastPicker(picker); }, [picker]);
   const sheetKind = picker ?? lastPicker;
   // Mapa oscuro por defecto; la elección del usuario se guarda en el celular (AsyncStorage).
+  const [perspective, setPerspective] = useState(true);
   const [layer, setLayer] = useState<ScansMapLayer>('oscuro');
   const [routeStyle, setRouteStyle] = useState<ScansMapRouteStyle>('velocidad');
   // Tipo de mapa y estilo de ruta se recuerdan entre visitas.
@@ -1006,7 +1009,7 @@ export default function MisEscaneos() {
       {/* Mapa a pantalla completa: MapLibre se monta una sola vez; todo lo demás flota encima. */}
       <View style={StyleSheet.absoluteFill}>
         <ScansMap ref={mapRef} data={mapData} selectedId={selected?.loc || mapDetail ? selectedId : null} detail={mapDetail}
-          point={point} user={me} layer={layer} pad={mapPad} routeStyle={routeStyle} onEvent={onMapEvent} onError={() => setNotice(t('mapUnavailable'))} />
+          point={point} user={me} layer={layer} perspective={perspective} pad={mapPad} routeStyle={routeStyle} onEvent={onMapEvent} onError={() => setNotice(t('mapUnavailable'))} />
       </View>
 
       {top}
@@ -1019,6 +1022,9 @@ export default function MisEscaneos() {
           <View style={st.ctrlSep} />
           <CtrlBtn grouped label={t('zoomOut')} onPress={() => mapRef.current?.zoom(-1)}><Minus size={20} color={D.text} /></CtrlBtn>
         </View>
+        <CtrlBtn label={perspective ? t('view2D') : t('view3D')} onPress={() => { tick(); setPerspective(p => !p); }}>
+          <Text style={{color:D.text,fontSize:14,fontWeight:'700'}}>{perspective ? '2D' : '3D'}</Text>
+        </CtrlBtn>
         <CtrlBtn label={fullscreen ? t('exitFull') : t('full')} onPress={() => { tick(); setFullscreen(f => !f); setSheetIdx(0); }}>
           {fullscreen ? <Minimize2 size={18} color={D.text} /> : <Maximize2 size={18} color={D.text} />}
         </CtrlBtn>

@@ -72,16 +72,13 @@ En el hilo de UI, la velocidad visual se acerca a la objetivo con constante de t
 
 ## Interacción
 
-- **Tocar el panel** → se minimiza a una píldora con la distancia (y un punto de estado). La escena se desmonta.
-- **Tocar la píldora** → se expande.
-- **✕** → se oculta. El botón 3D (`Rotate3d`) junto a las píldoras de GPS/red lo vuelve a mostrar.
-- La preferencia se guarda (`AsyncStorage`, clave `avotex.fieldTracking.view`).
-- Posición: a la derecha, debajo de las píldoras de GPS/red (se mide con `onLayout`), aparece al terminar el
-  aviso «Captura iniciada». No cubre los botones ni el centro de la cámara. La cámara no tiene gestos propios,
-  así que no hay conflicto de toques.
+- **Siempre visible** durante el recorrido: no se puede minimizar ni ocultar, y no intercepta toques
+  (`pointerEvents="none"`), así que nunca bloquea la cámara ni los botones.
+- Posición: a la derecha, debajo de las píldoras de GPS/red (se mide con `onLayout`).
+- Si las imágenes no cargan o el render falla, el panel queda con la distancia y el estado (sin escena) y el
+  recorrido continúa.
 
-Animaciones de interfaz (skill `animate-expo`): aparición 260 ms con salida suave, salida 160 ms, chips de
-estado 180/140 ms, botones con `PressableScale` (escala 0.97, 120 ms), háptica de selección al cambiar de vista.
+Animaciones de interfaz (skill `animate-expo`): aparición 260 ms con salida suave y chips de estado 180/140 ms.
 Con «Reducir movimiento» el camino no se curva (los giros no mueven la escena) y la aparición es un fundido corto.
 
 ## Rendimiento
@@ -93,7 +90,7 @@ Con «Reducir movimiento» el camino no se curva (los giros no mueven la escena)
 - Árboles en **ranuras fijas por profundidad**: el orden de pintado siempre es correcto sin `zIndex`; la variedad
   (tamaño, espejo) sale de un hash del árbol, sin cambiar imágenes.
 - Recursos locales y pequeños (≈ 90 KB), sin descargas durante el recorrido.
-- Se detiene por completo en pausa, en segundo plano (`AppState`), minimizado u oculto.
+- Se detiene por completo en pausa y en segundo plano (`AppState`).
 - `FieldMotion` corre dentro del `onPosition` existente en un `try/catch`: un fallo nunca afecta la captura.
 
 ### Calidad adaptativa (`components/fieldTracking/quality.ts`)
@@ -103,12 +100,12 @@ Con «Reducir movimiento» el camino no se curva (los giros no mueven la escena)
 | high | 20 | 2 filas de árboles por lado (28), cuadrícula completa, destellos de trayectoria |
 | reduced | 15 | 1 fila por lado (12), sin destellos |
 | light | 10 | Sin árboles dinámicos (quedan las filas lejanas del fondo), camino y trayectoria |
-| off | — | Sin renderizador: píldora con distancia y estado |
+| off | — | No se usa por rendimiento: la degradación automática se detiene en «light». Solo si fallan las imágenes o el render, el panel queda sin escena. |
 
 - Nivel inicial: < 2.5 GB de RAM → light; < 3.5 GB → reduced; equipo anterior a 2017 → reduced; modo de ahorro
   de energía o batería < 15 % sin cargar → light.
 - En marcha: si el hilo de UI cae por debajo de ~25 FPS de media en dos ventanas seguidas de 3 s, baja un nivel
-  (nunca sube solo, para no oscilar).
+  (nunca sube solo, para no oscilar) y nunca por debajo de «light»: la animación siempre está activa.
 - Si una imagen no carga → off. Si el render lanza una excepción, dos barreras de errores (`SceneBoundary` y
   `FieldTrackingGuard`) desactivan el panel y **el recorrido continúa**.
 
@@ -217,3 +214,10 @@ Si cambia `scene.config.json`, hay que regenerar: la proyección en vivo lee los
 | `components/fieldTracking/quality.ts` | Niveles de calidad. |
 | `assets/field-tracking/*` | Sprite, árboles, fondo, metadatos y créditos. |
 | `scripts/field-tracking/*` | Prerender, optimización y simulaciones. |
+
+## Diagnóstico GPS
+
+En la pantalla de grabación, **mantener presionada la píldora de GPS** muestra lo que recibe el filtro de
+distancia: lecturas, precisión, velocidad que informa el teléfono y si es confiable, desplazamiento frente a la
+puerta de movimiento, pasos aceptados y rechazos (por precisión, puerta, salto o ida-vuelta). Sirve para saber
+en campo por qué un recorrido suma o no metros.

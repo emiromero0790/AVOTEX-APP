@@ -528,7 +528,9 @@ export default function ResultsScreen() {
           contenido se desplaza encima. Los degradados dan legibilidad al encabezado y al título. */}
       {plan && (
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          <Image source={PLAN_BG} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={0} />
+          {/* Ancho y alto explícitos: con solo absoluteFill la imagen tomaba su tamaño original (900×1599)
+              y se veía acercada (solo la esquina de las hojas). Así cubre la pantalla completa sin deformarse. */}
+          <Image source={PLAN_BG} style={pl.bg} resizeMode="cover" fadeDuration={0} />
           <LinearGradient colors={['rgba(255,255,255,0.86)', 'rgba(255,255,255,0.55)', 'rgba(255,255,255,0)']} locations={[0, 0.55, 1]}
             style={[pl.topFade, { height: insets.top + 190 }]} />
           <LinearGradient colors={['rgba(8,24,16,0)', 'rgba(8,24,16,0.18)', 'rgba(8,24,16,0.32)']} locations={[0, 0.5, 1]} style={pl.bottomFade} />
@@ -976,6 +978,7 @@ function Metric({ value, label }: { value: string; label: string }) { return <Vi
 function Empty({ text }: { text: string }) { const t = useTranslations(translations); return <View style={styles.empty}><Text style={styles.emptyTitle}>{text}</Text><Text style={styles.muted}>{t('goScan')}</Text></View>; }
 // Plan de trabajo (rediseño: huerta de fondo + tarjetas glassmorphism).
 const pl = StyleSheet.create({
+  bg: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   topFade: { position: 'absolute', left: 0, right: 0, top: 0 },
   bottomFade: { position: 'absolute', left: 0, right: 0, bottom: 0, top: '35%' },
   navigator: { backgroundColor: 'rgba(255,255,255,0.78)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)' },

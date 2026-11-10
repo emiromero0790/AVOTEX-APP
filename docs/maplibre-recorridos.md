@@ -82,7 +82,7 @@ geográfico dependen de los datos OSM disponibles. No se requiere clave para est
 Licencias y procedencia: docs/licenses; estilos adaptados con contraste AVOTEX,
 capas agrupadas por modo y relieve raster eliminado.
 
-La vista predeterminada tiene inclinación de 48 grados. El botón 2D/3D cambia la
+La vista predeterminada tiene inclinación de 65 grados. El botón 2D/3D cambia la
 perspectiva sin recrear el mapa ni las fuentes. Edificios con volumen a partir de
 render_height/render_min_height de OpenMapTiles; donde no hay alturas, no se inventan.
 No hay elevación de terreno DEM ni árboles 3D. El seguimiento automático giro a giro
@@ -96,3 +96,17 @@ La prueba de Chromium verifica fuente vectorial, ausencia de raster visible en O
 renderizado de geometría real, densidad de iconos, alternancia 2D/3D, encuadre con
 perspectiva y separación de las áreas de interacción de fotos y hallazgos/extremos. Se prueba DPR configurable
 (MAP_TEST_DPR, predeterminado 3) y capturas opcionales (MAP_TEST_SCREENSHOT=prefijo).
+
+### Profundidad visible en recorridos agrícolas
+
+La cámara anterior inclinada a 48° resultaba visualmente plana en zonas rurales sin
+edificios. Ahora usa 65°, se orienta según el primer tramo distinto de la ruta y enfoca
+los puntos del recorrido, sin forzar que la huerta completa quepa en pantalla. El
+zoom de detalle puede llegar a 21 con base vectorial.
+
+En 3D, la huerta se representa como una plataforma translúcida de 1.8 m y la ruta
+como una banda elevada de 1.4 m de ancho y 2.6 m de altura gráfica. Son recursos
+visuales de ilustración: NO son elevación del terreno, anchura medida del sendero ni
+altimetría GPS. El contorno real y la línea central GPS no se modifican. La banda
+se calcula una vez por detalle y se reutiliza al cambiar estilos o selección de punto.
+En 2D se ocultan estas extrusiones y se conserva la línea con su leyenda de colores.

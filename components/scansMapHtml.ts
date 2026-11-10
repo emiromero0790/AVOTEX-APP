@@ -242,8 +242,9 @@ export function buildScansMapHtml(): string {
     },
     center: [-102, 23],
     zoom: 4,
-    pitch: 48,
-    maxPitch: 60,
+    bearing: -25,
+    pitch: 65,
+    maxPitch: 70,
     maxZoom: 21,
     pixelRatio: Math.min(window.devicePixelRatio || 1, 3),
     attributionControl: { compact: true },
@@ -299,6 +300,9 @@ export function buildScansMapHtml(): string {
     map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
   }
   function bases() {
+    if (map.getLayer("orchards-volume"))
+      visible("orchards-volume", perspective);
+    if (map.getLayer("route-volume")) visible("route-volume", perspective);
     visible("avx-buildings", perspective && layer !== "satelite");
     visible("sat", layer === "satelite" || layer === "hibrido");
     const group =
@@ -389,6 +393,7 @@ export function buildScansMapHtml(): string {
     );
     const r = detail ? detail.route.filter(valid) : [];
     source("detail", show.routes === false ? [] : [line(r, {})]);
+    source("route-ribbon", show.routes === false ? [] : routeRibbon(r));
     map.setPaintProperty(
       "detail-line",
       "line-gradient",
@@ -414,6 +419,48 @@ export function buildScansMapHtml(): string {
             "#14b8a6",
           ],
     );
+    let volumeColor = [
+      "interpolate",
+      ["linear"],
+      ["get", "progress"],
+      0,
+      "#84cc16",
+      1,
+      "#14b8a6",
+    ];
+    if (routeStyle === "tiempo")
+      volumeColor = [
+        "interpolate",
+        ["linear"],
+        ["get", "progress"],
+        0,
+        "#84cc16",
+        0.5,
+        "#2dd4bf",
+        1,
+        "#a78bfa",
+      ];
+    if (routeStyle === "calor") volumeColor = "#fb923c";
+    if (routeStyle === "velocidad" && detail?.speedRange) {
+      const lo = detail.speedRange[0],
+        hi = Math.max(lo + 0.1, detail.speedRange[1]);
+      const stops = SPEED.flatMap((color, i) => [
+        lo + ((hi - lo) * i) / (SPEED.length - 1),
+        color,
+      ]);
+      volumeColor = [
+        "case",
+        ["==", ["get", "speed"], null],
+        "#94a3b8",
+        [
+          "interpolate",
+          ["linear"],
+          ["coalesce", ["get", "speed"], 0],
+          ...stops,
+        ],
+      ];
+    }
+    map.setPaintProperty("route-volume", "fill-extrusion-color", volumeColor);
     let segments = [];
     if (routeStyle === "velocidad" && detail && detail.speedRange) {
       for (let i = 1; i < r.length; i++) {
@@ -493,7 +540,11 @@ export function buildScansMapHtml(): string {
           ...detail.route,
           ...detail.photos,
           ...detail.findings,
-          ...detail.orchard,
+          ...(!detail.route.some(valid) &&
+          !detail.photos.some(valid) &&
+          !detail.findings.some(valid)
+            ? detail.orchard
+            : []),
         ]
       : data
         ? [
@@ -502,6 +553,69 @@ export function buildScansMapHtml(): string {
             ...data.orchards.flatMap((o) => o.points),
           ]
         : [];
+  }
+  // Orient the route away from the viewer, as in an oblique navigation camera.
+  // Use the first distinct leg, so a closed route still has a meaningful heading.
+  function routeBearing() {
+    const r = detail?.route?.filter(valid) || [];
+    if (r.length < 2) return -25;
+    const a = r[0],
+      b = r.find(
+        (p) => Math.abs(p.lat - a.lat) + Math.abs(p.lng - a.lng) > 0.000015,
+      );
+    if (!b) return -25;
+    const rad = Math.PI / 180,
+      dl = (b.lng - a.lng) * rad;
+    return (
+      Math.atan2(
+        Math.sin(dl) * Math.cos(b.lat * rad),
+        Math.cos(a.lat * rad) * Math.sin(b.lat * rad) -
+          Math.sin(a.lat * rad) * Math.cos(b.lat * rad) * Math.cos(dl),
+      ) / rad
+    );
+  }
+  // A narrow illustrative ribbon, not a measured path width or terrain elevation.
+  let ribbonDetail = null,
+    ribbonCache = [];
+  function routeRibbon(route) {
+    if (detail === ribbonDetail) return ribbonCache;
+    ribbonDetail = detail;
+    const out = [];
+    for (let i = 1; i < route.length; i++) {
+      const a = route[i - 1],
+        b = route[i];
+      const sy = 111320,
+        sx = sy * Math.max(0.01, Math.cos(((a.lat + b.lat) * Math.PI) / 360));
+      const dx = (b.lng - a.lng) * sx,
+        dy = (b.lat - a.lat) * sy,
+        len = Math.hypot(dx, dy);
+      if (len < 0.05) continue;
+      const ox = ((-dy / len) * 0.7) / sx,
+        oy = ((dx / len) * 0.7) / sy;
+      out.push(
+        feature(
+          "Polygon",
+          [
+            [
+              [a.lng + ox, a.lat + oy],
+              [b.lng + ox, b.lat + oy],
+              [b.lng - ox, b.lat - oy],
+              [a.lng - ox, a.lat - oy],
+              [a.lng + ox, a.lat + oy],
+            ],
+          ],
+          {
+            progress: (i - 0.5) / (route.length - 1),
+            speed:
+              a.t && b.t && b.t > a.t
+                ? (len / ((b.t - a.t) / 1000)) * 3.6
+                : null,
+          },
+        ),
+      );
+    }
+    ribbonCache = out;
+    return out;
   }
   function fit() {
     const pts = allPoints().filter(valid);
@@ -518,8 +632,9 @@ export function buildScansMapHtml(): string {
     };
     map.fitBounds(bounds, {
       padding: safe,
-      pitch: perspective ? 48 : 0,
-      maxZoom: 19,
+      pitch: perspective ? 65 : 0,
+      bearing: perspective ? routeBearing() : 0,
+      maxZoom: detail ? 21 : 19,
       duration: data && data.reduced ? 0 : 650,
     });
   }
@@ -529,7 +644,8 @@ export function buildScansMapHtml(): string {
         center: xy(p),
         zoom: Math.max(18, map.getZoom()),
         padding: pad,
-        pitch: perspective ? 48 : 0,
+        pitch: perspective ? 65 : 0,
+        bearing: perspective ? routeBearing() : 0,
         duration: data && data.reduced ? 0 : 500,
       });
   }
@@ -538,6 +654,7 @@ export function buildScansMapHtml(): string {
     bases();
     [
       "orchards",
+      "route-ribbon",
       "zones",
       "routes",
       "detail",
@@ -568,6 +685,19 @@ export function buildScansMapHtml(): string {
       "fill-color": ["get", "color"],
       "fill-opacity": ["get", "opacity"],
     });
+    add(
+      "orchards-volume",
+      "fill-extrusion",
+      "orchards",
+      {
+        "fill-extrusion-color": "#3b6732",
+        "fill-extrusion-height": 1.8,
+        "fill-extrusion-base": 0,
+        "fill-extrusion-opacity": 0.55,
+        "fill-extrusion-vertical-gradient": true,
+      },
+      { layout: { visibility: perspective ? "visible" : "none" } },
+    );
     add("orchards-border", "line", "orchards", {
       "line-color": "#8BF52B",
       "line-width": 2,
@@ -594,6 +724,19 @@ export function buildScansMapHtml(): string {
       { "line-width": 5 },
       { layout: { "line-cap": "round", "line-join": "round" } },
     );
+    add(
+      "route-volume",
+      "fill-extrusion",
+      "route-ribbon",
+      {
+        "fill-extrusion-color": "#2dd4bf",
+        "fill-extrusion-base": 1.9,
+        "fill-extrusion-height": 2.6,
+        "fill-extrusion-opacity": 0.95,
+        "fill-extrusion-vertical-gradient": true,
+      },
+      { layout: { visibility: perspective ? "visible" : "none" } },
+    );
     add("speed-line", "line", "speed", {
       "line-color": ["get", "color"],
       "line-width": 5,
@@ -604,13 +747,19 @@ export function buildScansMapHtml(): string {
         "circle",
         id,
         {
-          "circle-radius": id === "endpoints" ? 3 : id === "user" ? 8 : id === "scans" ? 16 : 18,
+          "circle-radius":
+            id === "endpoints"
+              ? 3
+              : id === "user"
+                ? 8
+                : id === "scans"
+                  ? 16
+                  : 18,
           "circle-color":
             id === "user"
               ? "#38bdf8"
               : ["coalesce", ["get", "color"], "#14b8a6"],
-          "circle-translate":
-            id === "photos" ? [32, 0] : [0, 0],
+          "circle-translate": id === "photos" ? [32, 0] : [0, 0],
           "circle-translate-anchor": "viewport",
           "circle-pitch-alignment": "viewport",
           "circle-pitch-scale": "viewport",
@@ -688,20 +837,35 @@ export function buildScansMapHtml(): string {
     };
     Object.entries(iconPaths).forEach(([id, path]) => {
       const c = document.createElement("canvas");
-      const endpoint=id==='start'||id==='end';
-      c.width=endpoint?144:72;c.height=endpoint?216:72;
-      const ctx=c.getContext('2d');ctx.scale(3,3);
-      if(endpoint) {
-        ctx.strokeStyle='#cbded9';ctx.lineWidth=1.5;
-        ctx.beginPath();ctx.moveTo(24,0);ctx.lineTo(24,30);ctx.stroke();
-        ctx.fillStyle=id==='start'?'#65a30d':'#7c3aed';
-        ctx.beginPath();ctx.arc(24,48,18,0,Math.PI*2);ctx.fill();
-        ctx.strokeStyle='#ecfdf5';ctx.lineWidth=2;ctx.stroke();
-        ctx.translate(12,36);
+      const endpoint = id === "start" || id === "end";
+      c.width = endpoint ? 144 : 72;
+      c.height = endpoint ? 216 : 72;
+      const ctx = c.getContext("2d");
+      ctx.scale(3, 3);
+      if (endpoint) {
+        ctx.strokeStyle = "#cbded9";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(24, 0);
+        ctx.lineTo(24, 30);
+        ctx.stroke();
+        ctx.fillStyle = id === "start" ? "#65a30d" : "#7c3aed";
+        ctx.beginPath();
+        ctx.arc(24, 48, 18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#ecfdf5";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.translate(12, 36);
       }
-      ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.lineJoin='round';ctx.lineCap='round';
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
       ctx.stroke(new Path2D(path));
-      map.addImage(id,ctx.getImageData(0,0,c.width,c.height),{pixelRatio:3});
+      map.addImage(id, ctx.getImageData(0, 0, c.width, c.height), {
+        pixelRatio: 3,
+      });
     });
     [
       ["photos", "camera"],
@@ -712,15 +876,14 @@ export function buildScansMapHtml(): string {
       map.addLayer({
         id: src + "-icon",
         paint: {
-          "icon-translate":
-            src === "photos" ? [32, 0] : [0, 0],
+          "icon-translate": src === "photos" ? [32, 0] : [0, 0],
           "icon-translate-anchor": "viewport",
         },
         type: "symbol",
         source: src,
         filter: ["!", ["has", "point_count"]],
         layout: {
-          "icon-anchor":src==="endpoints"?"top":"center",
+          "icon-anchor": src === "endpoints" ? "top" : "center",
           "icon-image":
             src === "endpoints"
               ? ["match", ["get", "label"], "⚑", "end", "start"]
@@ -819,7 +982,8 @@ export function buildScansMapHtml(): string {
       perspective = !!on;
       if (loaded) bases();
       map.easeTo({
-        pitch: perspective ? 48 : 0,
+        pitch: perspective ? 65 : 0,
+        bearing: perspective ? routeBearing() : 0,
         duration: data && data.reduced ? 0 : 500,
       });
     },

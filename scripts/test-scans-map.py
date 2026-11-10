@@ -33,14 +33,15 @@ async def main():
   if os.environ.get('MAP_TEST_SCREENSHOT'):
    await page.screenshot(path=os.environ['MAP_TEST_SCREENSHOT']+'-base.png')
   result=await page.evaluate('''async()=>{
-   const p=(lat,lng)=>({lat,lng});const route=[p(19.40,-102.1),p(19.401,-102.101),p(19.402,-102.102)];
-   const orchard=[...route,p(19.402,-102.1)];
+   const p=(lat,lng)=>({lat,lng});const route=[p(19.40,-102.1),p(19.40008,-102.10002),p(19.40014,-102.10010),p(19.40023,-102.10013)];
+   route.forEach((p,i)=>p.t=1700000000000+i*5000);
+   const orchard=[p(19.39998,-102.10019),p(19.40026,-102.10019),p(19.40026,-102.09994),p(19.39998,-102.09994)];
    const data={orchards:[{id:'o',points:orchard}],routes:[{id:'r',points:route}],scans:[{id:'r',...route[0],status:'listo'}],zones:[],show:{orchards:true,routes:true,photos:true,findings:true},fitKey:'one',reduced:true};
-   avx.setData(data);avx.select('r');avx.setDetail({id:'r',route,orchard,photos:[{id:'p',...route[1]}],findings:[{id:'f',cat:'enfermo',...route[2]}]},true);
+   avx.setData(data);avx.select('r');avx.setDetail({id:'r',route,orchard,speedRange:[0,6],photos:[{id:'p',...route[1]}],findings:[{id:'f',cat:'enfermo',...route[3]}]},true);
    await new Promise(r=>setTimeout(r,500));
    for(const layer of ['satelite','hibrido','estandar','zonas','oscuro'])avx.setLayer(layer);
-   for(const style of ['tiempo','velocidad','calor','clasica'])avx.setRouteStyle(style);
-   avx.point('finding','f');avx.showUser(19.401,-102.1,false);avx.setPad({top:100,bottom:250,left:20,right:70});avx.fit();
+   for(const style of ['tiempo','velocidad','calor','clasica']){avx.setRouteStyle(style);await new Promise(r=>setTimeout(r,50));}
+   avx.point('finding','f');avx.showUser(19.40010,-102.09999,false);avx.setPad({top:100,bottom:250,left:20,right:70});avx.fit();
    await new Promise(r=>setTimeout(r,800));
    if(__testMap.getSource('detail')._data.features.length!==1)throw Error('Route missing');
    if(__testMap.getSource('findings')._data.features.length!==1)throw Error('Finding missing');
@@ -59,16 +60,26 @@ async def main():
    avx.setPerspective(false);
    await new Promise(r=>setTimeout(r,50));
    if(__testMap.getPitch()!==0)throw Error('2D toggle failed');
+   if(__testMap.getLayoutProperty('route-volume','visibility')!=='none')throw Error('Raised route remains in 2D');
    avx.setPerspective(true);avx.fit();
    await new Promise(r=>setTimeout(r,100));
-   if(Math.abs(__testMap.getPitch()-48)>.1)throw Error('Perspective lost on fit');
+   if(Math.abs(__testMap.getPitch()-65)>.1)throw Error('Perspective lost on fit');
    if(__testMap.getLayoutProperty('avx-buildings','visibility')!=='visible')throw Error('3D buildings missing');
-   const location=__testMap.project([-102.101,19.401]);
+   const location=__testMap.project([-102.10002,19.40008]);
    const photoHits=__testMap.queryRenderedFeatures([location.x+32,location.y],{layers:['photos-circle']});
    if(!photoHits.length)throw Error('Photo callout hit target missing');
-   const end=__testMap.project([-102.102,19.402]);
-   if(!__testMap.queryRenderedFeatures([end.x,end.y+48],{layers:['endpoints-icon']}).length)throw Error('End callout missing');
+   const end=__testMap.project([-102.10013,19.40023]);
+   let endHit=false;
+   for(let i=0;i<100;i++) {
+     endHit=__testMap.queryRenderedFeatures([end.x,end.y+48],{layers:['endpoints-icon']}).length>0;
+     if(endHit)break;
+     await new Promise(r=>setTimeout(r,50));
+   }
+   if(!endHit)throw Error('End callout missing');
    if(!__testMap.queryRenderedFeatures([end.x,end.y],{layers:['findings-circle']}).length)throw Error('Finding at endpoint hidden');
+   if(Math.abs(__testMap.getBearing())<10)throw Error('Route orientation missing');
+   if(__testMap.getLayoutProperty('orchards-volume','visibility')!=='visible')throw Error('Orchard depth missing');
+   if(!__testMap.getSource('route-ribbon')._data.features.length)throw Error('Raised route missing');
    if(mapErrors.length)throw Error(mapErrors.join(';'));
    return {canvas:!!document.querySelector('canvas.maplibregl-canvas'),attribution:!!document.querySelector('.maplibregl-ctrl-attrib')};
   }''')

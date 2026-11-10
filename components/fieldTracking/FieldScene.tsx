@@ -73,6 +73,8 @@ const D_RAISE = 1.1, D_ON = 1.5, D_LIFT0 = 2.0, D_LIFT1 = 3.4, D_LOWER0 = 2.15, 
 /** GoPro (s): sube el casco, lo baja hasta la cabeza y el brazo vuelve; luego camina con él. */
 const G_END = 2.6;
 const REF_DEPTH = depthOf(DR.ref.z, DR.ref.y);
+/** Fotogramas de giro de las hélices (el último de la hoja es el dron apagado). */
+const DRONE_SPIN = DR.frames - 1;
 const BG = require('../../assets/field-tracking/field-bg.jpg');
 const TREE_IMG = [
   require('../../assets/field-tracking/tree-1.png'),
@@ -142,7 +144,7 @@ function FieldSceneImpl({ targetSpeed, targetCurvature, running, quality, onJank
   const introEnd = companion === 'dron' ? D_LIFT1 : companion === 'gopro' ? G_END : 0;
   const introT = useSharedValue(Math.min(introElapsed, introEnd));
   const introFrame = useSharedValue(0);
-  const drone = useSharedValue({ x: DR.ref.x, y: DR.ref.y, z: DR.ref.z, f: 4 });
+  const drone = useSharedValue({ x: DR.ref.x, y: DR.ref.y, z: DR.ref.z, f: DRONE_SPIN });
 
   const callback = useFrameCallback(info => {
     'worklet';
@@ -178,7 +180,7 @@ function FieldSceneImpl({ targetSpeed, targetCurvature, running, quality, onJank
         : it < D_LOWER0 ? DI_LAST
         : it < D_LOWER1 ? DI_LAST - Math.floor(((it - D_LOWER0) / (D_LOWER1 - D_LOWER0)) * DI_LAST) : 0;
       introFrame.set(fi);
-      // Flota sobre el agricultor con un vaivén suave; en la mano antes de despegar.
+      // Vuela a su derecha con un vaivén suave; en la mano antes de despegar.
       const hx = DR.ref.x + 0.05 * Math.sin(it * 0.8), hy = DR.ref.y + 0.035 * Math.sin(it * 2.3), hz = DR.ref.z;
       const d = drone.get();
       if (it < D_LIFT0) {
@@ -190,7 +192,7 @@ function FieldSceneImpl({ targetSpeed, targetCurvature, running, quality, onJank
         const h = DI.hand[DI_LAST];
         d.x = h.x + (hx - h.x) * e; d.y = h.y + (hy - h.y) * e; d.z = h.z + (hz - h.z) * e;
       } else { d.x = hx; d.y = hy; d.z = hz; }
-      d.f = it >= D_ON ? Math.floor(it * 24) % 4 : 4; // hélices girando (4 fotogramas) o apagado
+      d.f = it >= D_ON ? Math.floor(it * 30) % DRONE_SPIN : DRONE_SPIN; // hélices girando o apagado (último)
       drone.set({ ...d });
     }
 

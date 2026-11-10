@@ -471,11 +471,17 @@ function buildDrone(spin = 0, on = true) {
     led.position.set(sx * S, -0.006, sz * S); g.add(led);
     if (on) {
       // hélice en movimiento: disco translúcido (desenfoque) + aspas a distinto ángulo por fotograma
-      const disc = new THREE.Mesh(new THREE.CircleGeometry(0.105, 32), new THREE.MeshBasicMaterial({ color: '#cfd5db', transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false }));
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(0.105, 32), new THREE.MeshBasicMaterial({ color: '#cfd5db', transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false }));
       disc.rotation.x = -Math.PI / 2; disc.position.set(sx * S, 0.046, sz * S); g.add(disc);
     }
-    const blade = new THREE.Mesh(new RoundedBoxGeometry(0.2, 0.006, 0.022, 2, 0.003), on ? new THREE.MeshStandardMaterial({ color: '#2a2e33', transparent: true, opacity: 0.55 }) : dark);
-    blade.position.set(sx * S, 0.045, sz * S); blade.rotation.y = (on ? spin * (i % 2 ? -1 : 1) : 0.6) + i * 0.7; g.add(blade);
+    // Aspa nítida y, girando, dos «estelas» detrás de ella para que se lea el giro.
+    const ang = (on ? spin * (i % 2 ? -1 : 1) : 0.6) + i * 0.7;
+    const blade = new THREE.Mesh(new RoundedBoxGeometry(0.21, 0.007, 0.026, 2, 0.003), on ? new THREE.MeshStandardMaterial({ color: '#1f2328', transparent: true, opacity: 0.9 }) : dark);
+    blade.position.set(sx * S, 0.045, sz * S); blade.rotation.y = ang; g.add(blade);
+    if (on) for (const [k, op] of [[1, 0.35], [2, 0.15]]) {
+      const trail = new THREE.Mesh(new RoundedBoxGeometry(0.21, 0.006, 0.026, 2, 0.003), new THREE.MeshStandardMaterial({ color: '#1f2328', transparent: true, opacity: op, depthWrite: false }));
+      trail.position.set(sx * S, 0.044, sz * S); trail.rotation.y = ang - (i % 2 ? -1 : 1) * k * 0.28; g.add(trail);
+    }
   }
   g.scale.setScalar(1.7); // más grande que un dron real para que se lea en el panel
   return g;
@@ -560,19 +566,22 @@ async function renderCompanions() {
   const cam = sceneCamera();
   renderer.setClearColor(0x000000, 0);
 
-  // 1) Dron solo, en su posición de referencia sobre el agricultor: 4 fotogramas con aspas girando + 1 apagado.
-  const DRONE_REF = { x: 0.12, y: 2.12, z: CFG.charZ + 0.15 }; // ~25 cm sobre el sombrero
+  // 1) Dron solo, en su posición de referencia junto al agricultor: 8 fotogramas con aspas girando (media vuelta:
+  //    el aspa de dos palas se repite cada 180°) + 1 apagado.
+  // A la derecha del agricultor, a la altura del hombro (no lo tapa el panel de datos ni el agricultor).
+  const DRONE_REF = { x: 0.72, y: 1.85, z: CFG.charZ + 0.1 };
   const droneFrames = [];
-  for (let i = 0; i < 5; i++) {
+  const SPIN = 8;
+  for (let i = 0; i <= SPIN; i++) {
     const scene = new THREE.Scene(); lights(scene);
-    const d = i < 4 ? buildDrone((i / 4) * (Math.PI / 2), true) : buildDrone(0, false);
+    const d = i < SPIN ? buildDrone((i / SPIN) * Math.PI, true) : buildDrone(0, false);
     d.rotation.y = Math.PI;
     d.position.set(DRONE_REF.x, DRONE_REF.y, -DRONE_REF.z);
     scene.add(d);
     renderer.render(scene, cam);
     droneFrames.push(grab());
   }
-  const drone = packSheet(droneFrames, 5);
+  const drone = packSheet(droneFrames, SPIN + 1);
   // Centro del dron en el recorte (dp), para colocarlo en cualquier punto proyectado.
   const pv = new THREE.Vector3(DRONE_REF.x, DRONE_REF.y, -DRONE_REF.z).project(cam);
   const sx = (pv.x * 0.5 + 0.5) * CFG.viewW, sy = (-pv.y * 0.5 + 0.5) * CFG.viewH;

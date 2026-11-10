@@ -30,8 +30,10 @@ import ScanHeader from './ScanHeader';
 import { EASE_IN_OUT, EASE_OUT, PressableScale } from './motion';
 import { CARD_SHADOW, SCAN } from './theme';
 
-// Foto del héroe proporcionada por AVOTEX; vista aérea de Pexels (ver CREDITOS.md).
-const IMG_HERO = require('../../assets/images/escanear/hero-recorrido.jpg');
+// Foto del héroe (aguacates al atardecer) proporcionada por AVOTEX; vista aérea de Pexels (ver CREDITOS.md).
+const IMG_HERO = require('../../assets/images/escanear/hero-recorrido-aguacates.jpg');
+// Hoja (PNG con transparencia) que decora el recuadro «Dispositivo listo».
+const IMG_LEAF = require('../../assets/images/escanear/hoja.png');
 const IMG_AERIAL = require('../../assets/images/escanear/recorrido-aereo.jpg');
 
 const AnimatedCircle = Reanimated.createAnimatedComponent(Circle);
@@ -45,7 +47,8 @@ type Status = 'ok' | 'warn' | 'info' | 'pending';
 const translations: TranslationResource = {
   back: { es: 'Regresar', en: 'Go back' },
   chip: { es: 'Recorrido inteligente', en: 'Smart walk' },
-  title: { es: 'Explora tu huerta con IA', en: 'Explore your orchard with AI' },
+  title: { es: 'Explora tu huerta con', en: 'Explore your orchard with' },
+  ai: { es: 'IA', en: 'AI' },
   subtitle: { es: 'Recorre, captura y analiza tus cultivos automáticamente.', en: 'Walk, capture and analyze your crops automatically.' },
   orchardTitle: { es: 'Huerta seleccionada', en: 'Selected orchard' },
   orchardAuto: { es: 'Detectar por GPS', en: 'Detect by GPS' },
@@ -278,7 +281,12 @@ export default function WalkPrepare(props: Props) {
               <PressableScale style={s.back} onPress={onBack} accessibilityRole="button" accessibilityLabel={t('back')}><ChevronLeft size={22} color={SCAN.ink} /></PressableScale>
               <View style={{ flex: 1 }}><ScanHeader remaining={tokens != null ? tokens * 100 : null} email={email} onImage /></View>
             </View>
-            <Text style={[s.title, isTablet && s.titleTablet]} accessibilityRole="header">{t('title')}</Text>
+            <Text style={[s.title, isTablet && s.titleTablet]} accessibilityRole="header">
+              {t('title')} <Text style={s.titleAi}>{t('ai')}</Text>
+            </Text>
+            <Svg width={120} height={12} viewBox="0 0 120 12" style={s.swoosh}>
+              <Path d="M3 9 C 30 2, 80 1, 117 5" stroke="#A3E635" strokeWidth={4} strokeLinecap="round" fill="none" />
+            </Svg>
             <Text style={s.subtitle}>{t('subtitle')}</Text>
           </View>
         </View>
@@ -314,6 +322,7 @@ export default function WalkPrepare(props: Props) {
 
           {/* ── Dispositivo ── */}
           <LinearGradient colors={['#1E5A3C', '#14432C', '#0F3523']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.deviceCard}>
+            <Image source={IMG_LEAF} style={s.leaf} resizeMode="contain" accessibilityIgnoresInvertColors pointerEvents="none" />
             <View style={s.deviceHead}>
               <View style={s.ring}>
                 <Svg width={76} height={76} viewBox="0 0 76 76">
@@ -329,13 +338,9 @@ export default function WalkPrepare(props: Props) {
                     : warn ? <AlertTriangle size={24} color="#FCD34D" /> : <Text style={s.ringCount}>{okCount}/{total}</Text>}
                 </View>
               </View>
-              <View style={{ flex: 1, gap: 2, paddingRight: 58 }}>
+              <View style={{ flex: 1, gap: 2, paddingRight: 78 }}>
                 <Reanimated.Text key={headline} entering={reduced ? undefined : FadeIn.duration(200)} style={s.deviceTitle}>{headline}</Reanimated.Text>
                 <Text style={s.deviceSub}>{sub}</Text>
-              </View>
-              <View style={[s.countPill, allOk ? s.countOk : s.countWait]}>
-                <Text style={[s.countText, allOk && { color: '#052e16' }]}>{okCount}/{total}</Text>
-                {allOk && <Check size={13} color="#052e16" strokeWidth={3} />}
               </View>
             </View>
             <View style={s.cells}>
@@ -462,6 +467,8 @@ const s = StyleSheet.create({
   title: { fontFamily: 'Poppins_700Bold', fontSize: 34, lineHeight: 40, letterSpacing: -0.9, color: '#ffffff', maxWidth: 300, marginTop: 4 },
   titleTablet: { fontSize: 44, lineHeight: 50, maxWidth: 460 },
   subtitle: { fontFamily: 'Poppins_400Regular', fontSize: 15, lineHeight: 22, color: 'rgba(255,255,255,0.92)', maxWidth: 280 },
+  titleAi: { color: '#C8F560', fontStyle: 'italic' },
+  swoosh: { marginTop: -2, marginLeft: 2 },
   body: { alignSelf: 'center', paddingHorizontal: 16, gap: 14 },
   orchardCard: { padding: 14, gap: 12, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.97)', ...CARD_SHADOW },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -478,16 +485,14 @@ const s = StyleSheet.create({
   changeBtnIcon: { width: 40, paddingHorizontal: 0, justifyContent: 'center' },
   changeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: SCAN.ink },
   deviceCard: { borderRadius: 26, padding: 14, gap: 14, ...CARD_SHADOW, shadowOpacity: 0.2 },
+  // La hoja asoma por la esquina superior derecha (fuera del borde), como en la referencia.
+  leaf: { position: 'absolute', top: -34, right: -12, width: 106, height: 104, transform: [{ rotate: '8deg' }] },
   deviceHead: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   ring: { width: 76, height: 76, alignItems: 'center', justifyContent: 'center' },
   ringCenter: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   ringCount: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#ECFDF5' },
   deviceTitle: { fontFamily: 'Poppins_700Bold', fontSize: 19, color: '#ffffff' },
   deviceSub: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 18, color: 'rgba(236,253,245,0.82)' },
-  countPill: { position: 'absolute', top: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, height: 28, borderRadius: 14 },
-  countOk: { backgroundColor: '#4ADE80' },
-  countWait: { backgroundColor: 'rgba(255,255,255,0.14)' },
-  countText: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#ECFDF5' },
   cells: { flexDirection: 'row', alignItems: 'stretch', paddingVertical: 12, paddingHorizontal: 4, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.18)' },
   sep: { width: 1, backgroundColor: 'rgba(255,255,255,0.12)', marginVertical: 6 },
   cell: { flex: 1, alignItems: 'center', gap: 3 },

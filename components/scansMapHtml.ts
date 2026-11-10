@@ -437,17 +437,47 @@ const RUNTIME = String.raw`(function () {
     return { top: Math.min(pad.top + 40, h * 0.35), bottom: Math.min(pad.bottom, h * 0.55), left: Math.min(pad.left, w * 0.2), right: Math.min(pad.right, w * 0.25) };
   }
   function camera() { return { pitch: perspective ? PITCH : 0, bearing: perspective ? -12 : 0 }; }
+  // Ajuste fino con la cámara final: se colocan los puntos reales en pantalla y se corrigen zoom y centro
+  // (con inclinación, lo cercano se ve más grande y una estimación en plano deja la ruta cortada).
+  // Los saltos de prueba ocurren en el mismo cuadro y se deshacen: no se ven.
+  function refine(pts, center, zoom, c, padding, maxZoom) {
+    var before = { center: map.getCenter(), zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing(), padding: map.getPadding() };
+    var el = map.getContainer(), W = el.clientWidth, H = el.clientHeight;
+    var aw = Math.max(60, W - padding.left - padding.right), ah = Math.max(60, H - padding.top - padding.bottom);
+    var step = Math.max(1, Math.floor(pts.length / 400));
+    for (var it = 0; it < 4; it++) {
+      map.jumpTo({ center: center, zoom: zoom, pitch: c.pitch, bearing: c.bearing, padding: padding });
+      var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (var i = 0; i < pts.length; i += step) {
+        var q = map.project(xy(pts[i]));
+        x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y);
+      }
+      if (!isFinite(x0)) break;
+      var k = Math.min(aw / Math.max(1, x1 - x0), ah / Math.max(1, y1 - y0));
+      var mid = map.unproject([(x0 + x1) / 2, (y0 + y1) / 2]);
+      var tx = padding.left + aw / 2, ty = padding.top + ah / 2;
+      var here = map.unproject([tx, ty]);
+      center = [center[0] + (mid.lng - here.lng), center[1] + (mid.lat - here.lat)];
+      var nz = Math.min(maxZoom, zoom + Math.log2(k) * 0.92);
+      if (Math.abs(nz - zoom) < 0.02 && it > 0) { zoom = nz; break; }
+      zoom = nz;
+    }
+    map.jumpTo(before);
+    return { center: center, zoom: zoom };
+  }
   function fit() {
-    var b = bbox(focusPoints());
+    var pts = focusPoints().filter(valid);
+    var b = bbox(pts);
     if (!b) return;
     var c = camera();
     var single = b[0] === b[2] && b[1] === b[3];
     var opts = { padding: safePad(), pitch: c.pitch, bearing: c.bearing, duration: data && data.reduced ? 0 : 700, essential: true };
-    if (single) map.easeTo(Object.assign(opts, { center: [b[0], b[1]], zoom: Math.max(17, Math.min(map.getZoom(), 18.5)) }));
-    else {
-      var z = zoomFor(b, opts.padding, c.bearing, detail ? 19.6 : 18.5, c.pitch);
-      map.easeTo(Object.assign(opts, { center: [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2], zoom: z + 0.1 }));
-    }  }
+    if (single) { map.easeTo(Object.assign(opts, { center: [b[0], b[1]], zoom: Math.max(17, Math.min(map.getZoom(), 18.5)) })); return; }
+    var maxZoom = detail ? 19.6 : 18.5;
+    var z = zoomFor(b, opts.padding, c.bearing, maxZoom, c.pitch);
+    var cam = refine(pts, [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2], z, c, opts.padding, maxZoom);
+    map.easeTo(Object.assign(opts, { center: cam.center, zoom: cam.zoom }));
+  }
   function go(p) {
     if (!valid(p)) return;
     var c = camera();

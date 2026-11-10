@@ -40,7 +40,6 @@ import {
   categoria, cleanRoute, listRecorridoFotos, listSingleScans, listUserHallazgos, routeMeters, storageImage,
   validCoord, type CategoriaHallazgo, type FotoPunto, type HallazgoMapa, type LatLng, type SingleScan,
 } from '../../services/escaneos';
-import { buildOrchardGeometry } from '../../services/satZones';
 import ScansMap, { type ScansMapEvent, type ScansMapHandle } from '../../components/ScansMap';
 import {
   FINDING_COLOR, SCAN_STATUS_COLOR, type ScanStatus, type ScansMapData, type ScansMapDetail, type ScansMapLayer, type ScansMapRouteStyle, type ScansMapShow, SPEED_COLORS, TIME_COLORS,
@@ -524,31 +523,22 @@ export default function MisEscaneos() {
   // Lo que tapa el panel abajo (para encuadrar el mapa); expandido, el mapa no se ve: se usa el intermedio.
   const coverH = snaps[Math.min(sheetIdx, 1)];
 
-  const zones = useMemo<ScansMapZone[]>(() => {
-    if (layer !== 'zonas') return NO_ZONES;
-    const scope = orchards.filter(o => orchardFilter === 'all' || o.id === orchardFilter);
-    return scope.flatMap(o => {
-      const g = buildOrchardGeometry(o.coordinates, o.id);
-      return g.ok ? g.zones.map(z => ({ key: `${o.id}:${z.id}`, label: `Zona ${z.id}`, color: z.color, ring: z.ring, at: z.label })) : [];
-    });
-  }, [layer, orchards, orchardFilter]);
+
   const onPickLayer = useCallback((l: ScansMapLayer) => { tick(); setLayer(l); }, []);
   const onPickRoute = useCallback((r: ScansMapRouteStyle) => { tick(); setRouteStyle(r); }, []);
   const onPickShow = useCallback((k: keyof ScansMapShow, v: boolean) => { tick(); setShow(prev => ({ ...prev, [k]: v })); }, []);
-  const zonesAvailable = useMemo(() => orchards.some(o => { const g = buildOrchardGeometry(o.coordinates, o.id); return g.ok && g.zones.length > 0; }), [orchards]);
-
   const mapData = useMemo<ScansMapData>(() => ({
     orchards: orchards
       .filter(o => Array.isArray(o.coordinates) && o.coordinates.length >= 3)
       .map(o => ({ id: o.id, name: o.nombre, points: o.coordinates.filter(c => validCoord(c.latitude, c.longitude)).map(c => ({ lat: c.latitude, lng: c.longitude })) })),
     scans: visible.filter(it => it.loc).map(it => ({ id: it.id, kind: it.kind === 'foto' ? 'foto' : 'recorrido', status: it.status, lat: it.loc!.lat, lng: it.loc!.lng })),
     routes: visible.filter(it => it.route.length > 1).map(it => ({ id: it.id, points: it.route })),
-    zones,
+    zones: NO_ZONES,
     focusOrchard: orchardFilter !== 'all' && orchardFilter !== 'none' ? orchardFilter : null,
     fitKey: `${scopeKey}|${orchards.length}`,
     show,
     reduced,
-  }), [orchards, visible, zones, orchardFilter, scopeKey, show, reduced]);
+  }), [orchards, visible, orchardFilter, scopeKey, show, reduced]);
   const hasLegend = routeStyle !== 'clasica' && routeStyle !== 'calor' && !!selected && selected.kind !== 'foto' && selected.route.length > 1;
   // Encuadre: lo que tapan encabezado y panel. Se manda aparte, sin redibujar el mapa.
   const mapPad = useMemo(() => ({ top: fullscreen ? insets.top + 12 : insets.top + (hasLegend ? 104 : 68), right: 68, bottom: coverH + 8, left: 12 }), [fullscreen, insets.top, coverH, hasLegend]);
@@ -1038,7 +1028,7 @@ export default function MisEscaneos() {
       {layersOpen && (
         <>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setLayersOpen(false)} accessibilityRole="button" accessibilityLabel={t('close')} />
-          <MapStylePicker layer={layer} routeStyle={routeStyle} show={show} zonesAvailable={zonesAvailable} style={[st.layersPanel, { top: ctrlTop }]}
+          <MapStylePicker layer={layer} routeStyle={routeStyle} show={show} style={[st.layersPanel, { top: ctrlTop }]}
             onLayer={onPickLayer} onRouteStyle={onPickRoute} onShow={onPickShow} />
         </>
       )}

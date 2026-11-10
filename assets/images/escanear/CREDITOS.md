@@ -11,11 +11,6 @@ uso gratuito, también comercial, sin atribución obligatoria. Se recortaron y c
 | `fuente-gopro.jpg` | [Persona sosteniendo una cámara GoPro — Pexels 3718747](https://www.pexels.com/photo/a-person-holding-gopro-camera-3718747/) |
 | `fuente-celular.jpg` | [Manos con un celular grabando un campo de cultivo — Pexels 4149466](https://www.pexels.com/photo/person-holding-black-iphone-5-taking-photo-of-green-grass-field-4149466/) |
 
-## Video
-| Archivo | Original |
-|---|---|
-| `assets/videos/huerta-dron.mp4` y `huerta-dron-poster.jpg` (primer cuadro) | [Vista aérea de una huerta de manzanos — Pexels video 13779417](https://www.pexels.com/video/drone-footage-of-an-apple-orchard-13779417/), licencia de Pexels. Versión 1920×1080 sin audio. |
-
 ## Creative Commons (requieren atribución)
 Fotos de Flickr encontradas con [Openverse](https://openverse.org/). Se ajustó el color/contraste y se comprimieron.
 
@@ -38,3 +33,7 @@ El mapa de Mis escaneos usa imágenes satelitales de Esri (atribución visible e
 ## Datos Satelitales
 `assets/images/satelite/relieve.jpg` (ilustración del relieve en el panel de capas) es una imagen propia de AVOTEX,
 renderizada a partir de una superficie generada (no corresponde a datos reales de ninguna huerta).
+
+`hero-escanear.jpg` (huerta de aguacate al atardecer, hileras) y `hero-recorrido-aguacates.jpg` (aguacates en el árbol)
+las proporcionó AVOTEX para los héroes de Escanear y de "Antes de empezar"; se redimensionaron y comprimieron.
+`hoja.png` (hoja con transparencia del recuadro "Dispositivo listo") es un dibujo vectorial hecho para la app.

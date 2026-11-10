@@ -50,6 +50,9 @@ Los degradados se calculan una vez por recorrido y estilo.
   mide menos de unos 700 m de diagonal (así se ve la relación ruta ↔ huerta).
 - **Cálculo propio:** el encuadre se calcula a mano (Mercator) porque `fitBounds` / `cameraForBounds` de
   MapLibre 5 alejaba unos 3 niveles de zoom de más con la cámara inclinada y márgenes.
+- **Ajuste fino:** después se colocan los puntos reales con la cámara final y se corrigen zoom y centro
+  (con inclinación, lo cercano se ve más grande). Al cambiar de recorrido, el mapa vuela al nuevo y lo
+  encuadra completo.
 
 ## Rendimiento
 
@@ -65,7 +68,8 @@ Los degradados se calculan una vez por recorrido y estilo.
 
 - **Mapa a pantalla completa** con encabezado de cristal: regresar, título y filtros.
 - **Selector de capas:** la barra de capas del encabezado y el modal se reemplazaron por un panel flotante
-  ligero junto al botón Capas. Tiene tipo de mapa (5 opciones), estilo de ruta y qué mostrar. Cada toque
+  ligero junto al botón Capas. Tiene tipo de mapa (solo Oscuro y Estándar), estilo de ruta y qué mostrar.
+  El motor aún soporta Satélite, Híbrido y Zonas, pero la pantalla ya no los ofrece. Cada toque
   cambia el mapa al instante; tocar fuera lo cierra.
 - **Panel inferior:** el de tres alturas existente, sin cambios (huerta, métricas, historial, selección).
 

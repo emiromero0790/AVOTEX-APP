@@ -1,6 +1,6 @@
 /**
  * Selector de capas de Mis escaneos: panel flotante ligero (no es un modal) que sale junto al botón Capas.
- * - Tipo de mapa: Oscuro (predeterminado), Satélite, Híbrido, Zonas (si hay huertas con zonas) y Estándar.
+ * - Tipo de mapa: Oscuro (predeterminado) y Estándar.
  * - Estilo de ruta: Clásica (degradado por avance), Velocidad y Tiempo.
  * - Qué se dibuja: rutas, fotos, hallazgos y huertas.
  * Cada toque cambia el mapa al instante: el mapa solo alterna visibilidad de capas, no se recarga.
@@ -8,7 +8,7 @@
 import React, { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Reanimated, { FadeIn, FadeOut, useReducedMotion } from 'react-native-reanimated';
-import { Bug, Camera, LayoutGrid, Leaf, Map as MapIcon, Moon, Route, Satellite, Signpost } from 'lucide-react-native';
+import { Bug, Camera, Leaf, Moon, Route, Signpost } from 'lucide-react-native';
 import { TranslationResource, useTranslations } from '../../context/LanguageContext';
 import type { ScansMapLayer, ScansMapRouteStyle, ScansMapShow } from '../scansMapHtml';
 
@@ -22,9 +22,6 @@ const translations: TranslationResource = {
   routeStyles: { es: 'Ruta', en: 'Route' },
   showTitle: { es: 'Mostrar', en: 'Show' },
   oscuro: { es: 'Oscuro', en: 'Dark' },
-  satelite: { es: 'Satélite', en: 'Satellite' },
-  hibrido: { es: 'Híbrido', en: 'Hybrid' },
-  zonas: { es: 'Zonas', en: 'Zones' },
   estandar: { es: 'Estándar', en: 'Standard' },
   clasica: { es: 'Avance', en: 'Progress' },
   velocidad: { es: 'Velocidad', en: 'Speed' },
@@ -35,7 +32,8 @@ const translations: TranslationResource = {
   orchards: { es: 'Huertas', en: 'Orchards' },
 };
 
-const LAYER_ICON = { oscuro: Moon, satelite: Satellite, hibrido: MapIcon, zonas: LayoutGrid, estandar: Signpost } as const;
+const LAYER_ICON = { oscuro: Moon, estandar: Signpost } as const;
+const LAYERS = ['oscuro', 'estandar'] as const;
 const ROUTE_STYLES: ScansMapRouteStyle[] = ['clasica', 'velocidad', 'tiempo'];
 const SHOW_ICON = { routes: Route, photos: Camera, findings: Bug, orchards: Leaf } as const;
 
@@ -43,23 +41,21 @@ type Props = {
   layer: ScansMapLayer;
   routeStyle: ScansMapRouteStyle;
   show: ScansMapShow;
-  zonesAvailable: boolean;
   onLayer: (l: ScansMapLayer) => void;
   onRouteStyle: (r: ScansMapRouteStyle) => void;
   onShow: (k: keyof ScansMapShow, v: boolean) => void;
   style?: object;
 };
 
-function MapStylePicker({ layer, routeStyle, show, zonesAvailable, onLayer, onRouteStyle, onShow, style }: Props) {
+function MapStylePicker({ layer, routeStyle, show, onLayer, onRouteStyle, onShow, style }: Props) {
   const t = useTranslations(translations);
   const reduced = useReducedMotion();
-  const layers: (keyof typeof LAYER_ICON)[] = ['oscuro', 'satelite', 'hibrido', ...(zonesAvailable ? ['zonas' as const] : []), 'estandar'];
-  const current = layer === 'topo' ? 'estandar' : layer;
+  const current = layer === 'oscuro' ? 'oscuro' : 'estandar';
   return (
     <Reanimated.View entering={FadeIn.duration(reduced ? 0 : 140)} exiting={FadeOut.duration(reduced ? 0 : 110)} style={[s.panel, style]} accessibilityViewIsModal>
       <Text style={s.section}>{t('mapTypes')}</Text>
-      <View style={s.grid} accessibilityRole="radiogroup">
-        {layers.map(l => {
+      <View style={s.tiles} accessibilityRole="radiogroup">
+        {LAYERS.map(l => {
           const on = current === l;
           const Icon = LAYER_ICON[l];
           return (
@@ -110,8 +106,9 @@ const s = StyleSheet.create({
   },
   section: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, letterSpacing: 0.6, color: C.muted, textTransform: 'uppercase', marginTop: 2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  tiles: { flexDirection: 'row', gap: 6 },
   row: { flexDirection: 'row', gap: 6 },
-  tile: { width: 66, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 3, backgroundColor: C.chip, borderWidth: 1, borderColor: C.border },
+  tile: { flex: 1, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 3, backgroundColor: C.chip, borderWidth: 1, borderColor: C.border },
   tileOn: { backgroundColor: C.mint, borderColor: C.mint },
   tileText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: C.text },
   textOn: { color: C.ink },

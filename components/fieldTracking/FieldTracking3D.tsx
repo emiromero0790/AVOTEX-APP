@@ -9,7 +9,7 @@
  * la barrera de errores deja el panel con la distancia y el estado, y el recorrido sigue igual.
  */
 import React, { Component, memo, useCallback, useEffect, useState, type ReactNode } from 'react';
-import { AppState, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AppState, StyleSheet, Text, View } from 'react-native';
 import Reanimated, { FadeIn, FadeOut, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { MapPinOff, Pause, SignalLow } from 'lucide-react-native';
 
@@ -17,11 +17,10 @@ import { useTranslations, type TranslationResource } from '../../context/Languag
 import type { FieldMotion, GpsQuality } from '../../services/fieldMotion';
 import { EASE_OUT } from '../scan/motion';
 import FieldScene from './FieldScene';
-import { VIEW_H, VIEW_W } from './projection';
+import { FARMER, VIEW_H, VIEW_W } from './projection';
 import { DOWNGRADE, initialQuality, type FieldQuality } from './quality';
 
 const translations: TranslationResource = {
-  title: { es: 'Recorrido', en: 'Walk' },
   paused: { es: 'Pausado', en: 'Paused' },
   gpsWeak: { es: 'GPS débil', en: 'Weak GPS' },
   gpsNone: { es: 'Sin ubicación', en: 'No location' },
@@ -35,25 +34,31 @@ const CHIP_OUT = FadeOut.duration(140);
 type Props = {
   motion: FieldMotion | null;
   paused: boolean;
-  /** Distancia real del recorrido, ya formateada (la misma que la tarjeta «Distancia»). */
+  /** Distancia real del recorrido, ya formateada (para lectores de pantalla). */
   distanceLabel: string;
-  /** Distancia desde el borde superior de la pantalla (debajo de las píldoras de GPS/red). */
-  top: number;
+  /** Tamaño del espacio que ocupa (dp). La escena lo llena recortando al centro, sin deformarse. */
+  width: number;
+  height: number;
+  /** Altura del panel (0–1) donde queda el centro del agricultor. Por omisión, la escena se centra. */
+  focus?: number;
 };
 
 /**
- * Siempre visible durante el recorrido: no se puede minimizar ni ocultar. Para cuidar la cámara y la
- * captura, la calidad puede bajar sola hasta «light», pero nunca se apaga por rendimiento.
+ * Siempre visible durante el recorrido: no se puede minimizar ni ocultar. El agricultor camina siempre
+ * (velocidad base) y acelera con la velocidad real del usuario. Para cuidar la cámara y la captura, la calidad
+ * puede bajar sola hasta «light», pero nunca se apaga por rendimiento.
  */
-function FieldTracking3DImpl({ motion, paused, distanceLabel, top }: Props) {
+function FieldTracking3DImpl({ motion, paused, distanceLabel, width, height, focus }: Props) {
   const t = useTranslations(translations);
   const reduced = useReducedMotion();
-  const { width, height } = useWindowDimensions();
 
-  // Tamaño del panel: ~124 × 170 dp, adaptado a la pantalla (ancho 115–136 dp).
-  const panelW = Math.round(Math.min(136, Math.max(112, width * 0.31)) * (height < 680 ? 0.9 : 1));
-  const scale = panelW / VIEW_W;
-  const panelH = Math.round(VIEW_H * scale);
+  // Escena de VIEW_W × VIEW_H escalada para cubrir el espacio («cover»), centrada.
+  const scale = Math.max(width / VIEW_W, height / VIEW_H);
+  const offX = (width - VIEW_W * scale) / 2;
+  // Con «focus» se desplaza la escena para dejar al agricultor a esa altura, sin dejar huecos (sigue cubriendo).
+  const charCY = (FARMER.y + FARMER.frameH / 2) * scale;
+  const minOffY = height - VIEW_H * scale;
+  const offY = focus == null ? minOffY / 2 : Math.min(0, Math.max(minOffY, focus * height - charCY));
 
   // Estado de movimiento → valores compartidos (se escriben ~1 vez por lectura GPS, no por fotograma).
   const targetSpeed = useSharedValue(0);
@@ -67,7 +72,6 @@ function FieldTracking3DImpl({ motion, paused, distanceLabel, top }: Props) {
       setGps(prev => (prev === s.gps ? prev : s.gps));
     });
   }, [motion, reduced, targetSpeed, targetCurvature]);
-  useEffect(() => { if (paused) targetSpeed.set(0); else if (motion) targetSpeed.set(motion.current.speed); }, [paused, motion, targetSpeed]);
 
   // Calidad: inicial según el equipo; con tirones baja de nivel, pero nunca por debajo de «light».
   const [quality, setQuality] = useState<Exclude<FieldQuality, 'off'> | null>(null);
@@ -82,7 +86,7 @@ function FieldTracking3DImpl({ motion, paused, distanceLabel, top }: Props) {
     const next = DOWNGRADE[q];
     return next === 'off' ? 'light' : next;
   }), []);
-  // Solo si las imágenes no cargan o el render falla queda el panel sin escena (con distancia y estado).
+  // Solo si las imágenes no cargan o el render falla queda el panel sin escena (con el estado).
   const [failed, setFailed] = useState(false);
   const onFail = useCallback(() => setFailed(true), []);
 
@@ -98,14 +102,14 @@ function FieldTracking3DImpl({ motion, paused, distanceLabel, top }: Props) {
   return (
     <Reanimated.View
       entering={reduced ? FadeIn.duration(200) : PANEL_IN}
-      style={[styles.panel, { top, width: panelW, height: panelH }]}
+      style={[styles.panel, { width, height }]}
       pointerEvents="none"
       accessible
       accessibilityLabel={t('a11y', { d: distanceLabel })}
     >
-      {quality && !failed && (
+      {quality && !failed && width > 0 && height > 0 && (
         <SceneBoundary onError={onFail}>
-          <View style={{ width: VIEW_W, height: VIEW_H, transform: [{ scale }], transformOrigin: 'left top' }}>
+          <View style={{ position: 'absolute', left: offX, top: offY, width: VIEW_W, height: VIEW_H, transform: [{ scale }], transformOrigin: 'left top' }}>
             <FieldScene
               key={quality}
               targetSpeed={targetSpeed}
@@ -118,17 +122,10 @@ function FieldTracking3DImpl({ motion, paused, distanceLabel, top }: Props) {
           </View>
         </SceneBoundary>
       )}
-      <View style={styles.header}>
-        <View style={styles.headBar} />
-        <View style={{ flexShrink: 1 }}>
-          <Text style={styles.headLabel}>{t('title')}</Text>
-          <Text style={styles.headValue} numberOfLines={1} adjustsFontSizeToFit>{distanceLabel}</Text>
-        </View>
-      </View>
       {status && (
-        <Reanimated.View key={status} entering={CHIP_IN} exiting={CHIP_OUT} style={[styles.chip, status === 'paused' ? styles.chipPaused : status === 'gpsNone' ? styles.chipNone : styles.chipWeak]}>
-          {status === 'paused' ? <Pause size={10} color="#0f172a" fill="#0f172a" /> : status === 'gpsNone' ? <MapPinOff size={10} color="#fff" /> : <SignalLow size={12} color="#0f172a" strokeWidth={2.6} />}
-          <Text style={[styles.chipText, status === 'gpsNone' && { color: '#fff' }]}>{t(status)}</Text>
+        <Reanimated.View key={status} entering={CHIP_IN} exiting={CHIP_OUT} style={styles.chip}>
+          {status === 'paused' ? <Pause size={10} color="#171a20" fill="#171a20" /> : status === 'gpsNone' ? <MapPinOff size={11} color="#e82127" /> : <SignalLow size={12} color="#b7791f" strokeWidth={2.6} />}
+          <Text style={styles.chipText}>{t(status)}</Text>
         </Reanimated.View>
       )}
     </Reanimated.View>
@@ -155,27 +152,13 @@ export class FieldTrackingGuard extends Component<{ children: ReactNode }, { fai
 }
 
 const styles = StyleSheet.create({
-  panel: {
-    position: 'absolute',
-    right: 12,
-    borderRadius: 26,
-    overflow: 'hidden',
-    backgroundColor: '#07150f',
-    borderWidth: 1.5,
-    borderColor: 'rgba(94,234,212,0.55)',
-  },
-  header: { position: 'absolute', left: 12, top: 10, right: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  headBar: { width: 3, height: 26, borderRadius: 2, backgroundColor: '#3dffa8' },
-  headLabel: { fontFamily: 'Poppins_400Regular', fontSize: 9.5, color: 'rgba(236,253,245,0.85)', lineHeight: 12 },
-  headValue: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: '#ecfdf5', lineHeight: 21 },
+  panel: { borderRadius: 22, overflow: 'hidden', backgroundColor: '#e9ecef' },
   chip: {
-    position: 'absolute', bottom: 9, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999,
+    position: 'absolute', bottom: 10, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: '#ffffff',
+    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
-  chipPaused: { backgroundColor: '#facc15' },
-  chipWeak: { backgroundColor: '#fbbf24' },
-  chipNone: { backgroundColor: 'rgba(220,38,38,0.92)' },
-  chipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 9.5, color: '#0f172a', lineHeight: 13 },
+  chipText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: '#171a20' },
 });
 
 export default memo(FieldTracking3DImpl);

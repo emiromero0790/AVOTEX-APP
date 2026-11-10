@@ -64,12 +64,13 @@ function alphaBox(c) {
   return { x0, y0, x1, y1 };
 }
 
-function lights(scene, { rim = true, ambient = 1.25 } = {}) {
-  scene.add(new THREE.HemisphereLight('#dff5ff', '#1b3a22', ambient));
-  const key = new THREE.DirectionalLight('#fff6e8', 2.4); // sol detrás de la cámara, a la derecha
+// Paleta tipo Tesla: mundo claro en grises mate, el agricultor como único acento (rojo), ruta azul.
+function lights(scene, { rim = true, ambient = 1.7 } = {}) {
+  scene.add(new THREE.HemisphereLight('#ffffff', '#b9bfc7', ambient));
+  const key = new THREE.DirectionalLight('#ffffff', 2.2); // luz de estudio detrás de la cámara, a la derecha
   key.position.set(3, 6, 4); scene.add(key);
   if (rim) {
-    const r = new THREE.DirectionalLight('#5effc0', 0.7); // contraluz teal: borde luminoso tipo HUD
+    const r = new THREE.DirectionalLight('#ffffff', 0.9); // contraluz blanco: separa la silueta del fondo claro
     r.position.set(-2, 3, -6); scene.add(r);
   }
 }
@@ -81,7 +82,7 @@ async function buildFarmer() {
   const g = await loader.loadAsync('/models/Farmer.glb');
   const root = g.scene;
   // Colores cercanos al boceto: camisa clara, pantalón oscuro, sombrero/botas cafés.
-  const recolor = { Beige: '#e9ece6', LightBlue: '#2a3138', Brown: '#e4e9e6', Brown2: '#4a3220', Red: '#1e8f5a' };
+  const recolor = { Beige: '#f3f4f2', LightBlue: '#34383e', Brown: '#d42b2b', Brown2: '#2a2d31', Red: '#1c1e21' };
   root.traverse(o => {
     if (!o.isMesh) return;
     o.frustumCulled = false;
@@ -90,9 +91,9 @@ async function buildFarmer() {
     if (isFeet) o.material = Array.isArray(o.material) ? o.material.map(m => m.clone()) : o.material.clone();
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     for (const m of mats) {
-      if (isFeet && m.name === 'Brown') m.color.set('#5b3a20');
+      if (isFeet && m.name === 'Brown') m.color.set('#2b2e33');
       else if (recolor[m.name]) m.color.set(recolor[m.name]);
-      m.roughness = 0.75; m.metalness = 0;
+      m.roughness = 0.55; m.metalness = 0.05;
     }
   });
   const bones = {};
@@ -106,9 +107,9 @@ async function buildFarmer() {
   // Mochila ligera (verde AVOTEX) con tirantes, unida al pecho para que siga el torso.
   const chest = bones.Chest;
   const chestW = chest.getWorldPosition(new THREE.Vector3());
-  const packMat = new THREE.MeshStandardMaterial({ color: '#21a35e', roughness: 0.6 });
-  const darkMat = new THREE.MeshStandardMaterial({ color: '#126b3c', roughness: 0.7 });
-  const strapMat = new THREE.MeshStandardMaterial({ color: '#1a1f1c', roughness: 0.8 });
+  const packMat = new THREE.MeshStandardMaterial({ color: '#eceef1', roughness: 0.5 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: '#c9cdd3', roughness: 0.55 });
+  const strapMat = new THREE.MeshStandardMaterial({ color: '#2a2d31', roughness: 0.7 });
   const pack = new THREE.Group();
   const body = new THREE.Mesh(new RoundedBoxGeometry(0.30, 0.36, 0.15, 4, 0.05), packMat);
   const pocket = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.15, 0.05, 3, 0.02), darkMat);
@@ -132,7 +133,7 @@ async function buildFarmer() {
   const hand = bones.HandR;
   const phone = new THREE.Group();
   const shell = new THREE.Mesh(new RoundedBoxGeometry(0.075, 0.15, 0.011, 3, 0.006), new THREE.MeshStandardMaterial({ color: '#15191c', roughness: 0.35, metalness: 0.2 }));
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.066, 0.138), new THREE.MeshBasicMaterial({ color: '#46f0a8' }));
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.066, 0.138), new THREE.MeshBasicMaterial({ color: '#3e6ae1' }));
   screen.position.z = -0.0062; screen.rotation.y = Math.PI;
   phone.add(shell, screen);
   return { root, bones, rest, phone, hand };
@@ -342,7 +343,7 @@ async function renderCharacter() {
 // ---------------------------------------------------------------------------------------------
 // Árboles
 // ---------------------------------------------------------------------------------------------
-const LEAF = ['#2f7f2c', '#3a8f33', '#2b762a'];
+const LEAF = ['#b2c1b5', '#bccabf', '#a8b8ab'];
 async function loadTree(name, vi) {
   const g = await loader.loadAsync(`/models/${name}.glb`);
   g.scene.traverse(o => {
@@ -350,8 +351,8 @@ async function loadTree(name, vi) {
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     for (const m of mats) {
       const isLeaf = m.color.g > m.color.r * 1.15;
-      m.color.set(isLeaf ? LEAF[vi % LEAF.length] : '#5b3d27');
-      m.roughness = 0.9; m.metalness = 0; m.flatShading = true; m.needsUpdate = true;
+      m.color.set(isLeaf ? LEAF[vi % LEAF.length] : '#9ba0a7');
+      m.roughness = 0.95; m.metalness = 0; m.flatShading = true; m.needsUpdate = true;
     }
   });
   const box = new THREE.Box3().setFromObject(g.scene);
@@ -374,10 +375,10 @@ async function renderTrees() {
     const k = TREES[i].h / t.height;
     t.obj.scale.set(k * AVO_WIDEN, k * AVO_SQUASH, k * AVO_WIDEN);
     const scene = new THREE.Scene();
-    lights(scene, { ambient: 0.8 });
+    lights(scene, { ambient: 1.5 });
     scene.add(t.obj);
     // Ortográfica con la misma inclinación: escala uniforme y conocida (metros por píxel).
-    const PX = 480, PY = 520; // píxeles de salida (2× para árboles cercanos nítidos)
+    const PX = 720, PY = 780; // píxeles de salida (3×: nítidos también en el panel horizontal ampliado)
     const mpp = 5.0 / PY; // 5 m de alto en el cuadro
     const cam = new THREE.OrthographicCamera(-PX * mpp / 2, PX * mpp / 2, PY * mpp / 2, -PY * mpp / 2, 0.1, 100);
     const th = CFG.pitchDeg * DEG;
@@ -411,18 +412,18 @@ async function renderTrees() {
 // ---------------------------------------------------------------------------------------------
 async function renderBackground() {
   const scene = new THREE.Scene();
-  const fogColor = new THREE.Color('#163f33');
-  scene.fog = new THREE.Fog(fogColor, 14, 78);
+  const fogColor = new THREE.Color('#e7eaed');
+  scene.fog = new THREE.Fog(fogColor, 12, 75);
   // Cielo con degradado vertical.
   const sky = document.createElement('canvas'); sky.width = 4; sky.height = 256;
   const sg = sky.getContext('2d');
   const grd = sg.createLinearGradient(0, 0, 0, 256);
-  grd.addColorStop(0, '#061512'); grd.addColorStop(0.55, '#0f2e26'); grd.addColorStop(1, '#1d5241');
+  grd.addColorStop(0, '#f6f7f9'); grd.addColorStop(0.55, '#eef0f2'); grd.addColorStop(1, '#e5e8eb');
   sg.fillStyle = grd; sg.fillRect(0, 0, 4, 256);
   const skyTex = new THREE.CanvasTexture(sky); skyTex.colorSpace = THREE.SRGBColorSpace;
   scene.background = skyTex;
   lights(scene, { rim: false });
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: '#0d2a1d', roughness: 1 }));
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: '#d9dde1', roughness: 1 }));
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
   // Filas lejanas: mismas especies que las dinámicas, más allá de donde estas se desvanecen.

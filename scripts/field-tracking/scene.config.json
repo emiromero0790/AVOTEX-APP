@@ -1,0 +1,17 @@
+{
+  "comment": "Cámara virtual compartida por el prerender (render.html) y la proyección en vivo (components/fieldTracking/projection.ts). Unidades: metros y dp.",
+  "viewW": 128,
+  "viewH": 176,
+  "renderScale": 3,
+  "camHeight": 2.5,
+  "pitchDeg": 15,
+  "fovDeg": 50,
+  "charZ": 4.4,
+  "walkFrames": 16,
+  "idleFrames": 8,
+  "idlePeriodS": 2.6,
+  "treeRowsX": [2.7, 5.4],
+  "treeSpacing": 4.5,
+  "dynamicTreeZ": [2.2, 34],
+  "farTreeZ": [34, 150]
+}

@@ -1,0 +1,486 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>AVOTEX Field Tracking — prerender</title></head>
+<body style="margin:0;background:#222">
+<!--
+  Prerender de AVOTEX Field Tracking 3D (se ejecuta fuera de la app, con render.mjs + Chromium headless).
+
+  Produce, desde la MISMA cámara virtual que usa la proyección en vivo (scene.config.json):
+  - farmer-walk.png: hoja de sprites del agricultor (ciclo de caminata + idle) visto desde atrás.
+  - tree-*.png: árboles low-poly vistos con la inclinación de la cámara (cámara ortográfica → escala exacta).
+  - field-bg.png: cielo, suelo y filas de árboles lejanas (no cambian al caminar: paralaje casi nulo).
+  - field-scene.json: metadatos (recortes, anclas, metros por ciclo de caminata, etc.).
+
+  El personaje es «Farmer» del Ultimate Modular Men Pack de Quaternius (CC0 1.0) con su esqueleto original de
+  49 huesos. El modelo no trae clips, así que la caminata y el idle se crean aquí con cinemática directa
+  (rotación de cada hueso por fotograma) y apoyo automático de los pies en el suelo.
+-->
+<script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+const CFG = await (await fetch('/cfg/scene.config.json')).json();
+const W = CFG.viewW * CFG.renderScale;
+const H = CFG.viewH * CFG.renderScale;
+const SS = 2; // supermuestreo: se renderiza al doble y se reduce
+const DEG = Math.PI / 180;
+const loader = new GLTFLoader();
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(SS);
+renderer.setSize(W, H);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+
+/** Cámara de la escena: detrás y por encima del agricultor, inclinada hacia el horizonte. */
+function sceneCamera(w = W, h = H) {
+  const cam = new THREE.PerspectiveCamera(CFG.fovDeg, w / h, 0.05, 400);
+  cam.rotation.order = 'YXZ';
+  cam.position.set(0, CFG.camHeight, 0);
+  cam.rotation.x = -CFG.pitchDeg * DEG;
+  return cam;
+}
+
+/** Copia el canvas WebGL (2×) a un canvas 2D del tamaño final. */
+function grab(w = W, h = H) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  g.drawImage(renderer.domElement, 0, 0, w, h);
+  return c;
+}
+
+function alphaBox(c) {
+  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+  let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+  for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
+    if (d[(y * c.width + x) * 4 + 3] > 6) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  return { x0, y0, x1, y1 };
+}
+
+function lights(scene, { rim = true, ambient = 1.25 } = {}) {
+  scene.add(new THREE.HemisphereLight('#dff5ff', '#1b3a22', ambient));
+  const key = new THREE.DirectionalLight('#fff6e8', 2.4); // sol detrás de la cámara, a la derecha
+  key.position.set(3, 6, 4); scene.add(key);
+  if (rim) {
+    const r = new THREE.DirectionalLight('#5effc0', 0.7); // contraluz teal: borde luminoso tipo HUD
+    r.position.set(-2, 3, -6); scene.add(r);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Personaje
+// ---------------------------------------------------------------------------------------------
+async function buildFarmer() {
+  const g = await loader.loadAsync('/models/Farmer.glb');
+  const root = g.scene;
+  // Colores cercanos al boceto: camisa clara, pantalón oscuro, sombrero/botas cafés.
+  const recolor = { Beige: '#e9ece6', LightBlue: '#2a3138', Brown: '#e4e9e6', Brown2: '#4a3220', Red: '#1e8f5a' };
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    o.frustumCulled = false;
+    // Las botas (malla Feet) comparten material con la camisa: se clona para dejarlas cafés.
+    const isFeet = /Feet/.test(o.name);
+    if (isFeet) o.material = Array.isArray(o.material) ? o.material.map(m => m.clone()) : o.material.clone();
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of mats) {
+      if (isFeet && m.name === 'Brown') m.color.set('#5b3a20');
+      else if (recolor[m.name]) m.color.set(recolor[m.name]);
+      m.roughness = 0.75; m.metalness = 0;
+    }
+  });
+  const bones = {};
+  root.traverse(o => { if (o.isBone) bones[o.name.replace(/\./g, '')] = o; });
+  root.updateMatrixWorld(true);
+  const rest = {};
+  for (const [n, b] of Object.entries(bones)) {
+    rest[n] = { local: b.quaternion.clone(), world: b.getWorldQuaternion(new THREE.Quaternion()), pos: b.position.clone() };
+  }
+
+  // Mochila ligera (verde AVOTEX) con tirantes, unida al pecho para que siga el torso.
+  const chest = bones.Chest;
+  const chestW = chest.getWorldPosition(new THREE.Vector3());
+  const packMat = new THREE.MeshStandardMaterial({ color: '#21a35e', roughness: 0.6 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: '#126b3c', roughness: 0.7 });
+  const strapMat = new THREE.MeshStandardMaterial({ color: '#1a1f1c', roughness: 0.8 });
+  const pack = new THREE.Group();
+  const body = new THREE.Mesh(new RoundedBoxGeometry(0.30, 0.36, 0.15, 4, 0.05), packMat);
+  const pocket = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.15, 0.05, 3, 0.02), darkMat);
+  pocket.position.set(0, -0.08, -0.085);
+  const lid = new THREE.Mesh(new RoundedBoxGeometry(0.31, 0.08, 0.16, 3, 0.03), darkMat);
+  lid.position.set(0, 0.16, -0.005);
+  pack.add(body, pocket, lid);
+  for (const sx of [-1, 1]) {
+    const strap = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.016, 6, 16, Math.PI * 1.1), strapMat);
+    strap.rotation.set(0, Math.PI / 2, Math.PI * 0.95);
+    strap.position.set(sx * 0.09, 0.1, 0.1);
+    pack.add(strap);
+  }
+  // El modelo mira a +Z: la espalda está en -Z.
+  pack.position.set(chestW.x, chestW.y - 0.07, chestW.z - 0.135);
+  root.add(pack);
+  root.updateMatrixWorld(true);
+  chest.attach(pack);
+
+  // Celular en la mano derecha, con la cámara hacia los árboles.
+  const hand = bones.HandR;
+  const phone = new THREE.Group();
+  const shell = new THREE.Mesh(new RoundedBoxGeometry(0.075, 0.15, 0.011, 3, 0.006), new THREE.MeshStandardMaterial({ color: '#15191c', roughness: 0.35, metalness: 0.2 }));
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.066, 0.138), new THREE.MeshBasicMaterial({ color: '#46f0a8' }));
+  screen.position.z = -0.0062; screen.rotation.y = Math.PI;
+  phone.add(shell, screen);
+  return { root, bones, rest, phone, hand };
+}
+
+const tmpQ = new THREE.Quaternion();
+const euler = new THREE.Euler();
+/**
+ * Rota un hueso con un giro expresado en el espacio del personaje en reposo (X lateral, Y arriba, Z al frente),
+ * encadenado con el de su padre (cinemática directa): local = q0 · W0⁻¹ · D · W0.
+ */
+function setBone(f, name, x = 0, y = 0, z = 0, order = 'XYZ') {
+  const key = name.replace(/\./g, '');
+  const b = f.bones[key]; if (!b) return;
+  const r = f.rest[key];
+  euler.set(x * DEG, y * DEG, z * DEG, order);
+  const D = tmpQ.setFromEuler(euler);
+  const w0 = r.world, w0i = w0.clone().invert();
+  b.quaternion.copy(r.local).multiply(w0i).multiply(D).multiply(w0);
+}
+
+function resetPose(f) {
+  for (const [n, b] of Object.entries(f.bones)) { b.quaternion.copy(f.rest[n].local); b.position.copy(f.rest[n].pos); }
+}
+
+const FINGERS = ['Index', 'Middle', 'Ring', 'Pinky'];
+function relaxHands(f, curlL = 28, curlR = 55) {
+  for (const s of ['L', 'R']) {
+    const curl = s === 'L' ? curlL : curlR;
+    const sign = s === 'L' ? -1 : 1;
+    for (const fi of FINGERS) for (let k = 2; k <= 4; k++) setBone(f, `${fi}${k}.${s}`, 0, 0, sign * curl * (k === 2 ? 0.6 : 0.8));
+    setBone(f, `Thumb2.${s}`, 0, sign * 20, sign * 10);
+  }
+}
+
+const smooth = (t) => t * t * (3 - 2 * t);
+/** Ciclo de caminata (fase 0..1). Pierna izquierda adelante en fase 0.25. */
+function poseWalk(f, ph) {
+  resetPose(f);
+  const a = ph * Math.PI * 2;
+  const s = Math.sin(a), c = Math.cos(a);
+  const LEG = 25;
+  // Rodilla: flexión fuerte en el balanceo (la pierna avanza), leve en el apoyo.
+  const knee = (sw) => 7 + 52 * Math.pow(Math.max(0, sw), 1.6);
+  const swingL = Math.sin(a + 0.55), swingR = Math.sin(a + Math.PI + 0.55);
+  // Cadera: giro y báscula suaves.
+  setBone(f, 'Hips', 2, -5 * s, 2.5 * c);
+  setBone(f, 'Abdomen', 3, 2.5 * s, -1.2 * c);
+  setBone(f, 'Torso', 2, 2.5 * s, -0.8 * c);
+  setBone(f, 'Chest', 1, 1.5 * s, 0);
+  setBone(f, 'Neck', -3, -0.5 * s, 0.5 * c);
+  setBone(f, 'Head', -2, 0, 0);
+  setBone(f, 'UpperLeg.L', -LEG * s - 4, 0, 0);
+  setBone(f, 'UpperLeg.R', LEG * s - 4, 0, 0);
+  setBone(f, 'LowerLeg.L', knee(swingL), 0, 0);
+  setBone(f, 'LowerLeg.R', knee(swingR), 0, 0);
+  // Pie: plano en el apoyo, punta arriba al recibir el paso.
+  setBone(f, 'Foot.L', -6 * Math.max(0, s) + 10 * Math.max(0, -s) * Math.max(0, -c), 0, 0);
+  setBone(f, 'Foot.R', -6 * Math.max(0, -s) + 10 * Math.max(0, s) * Math.max(0, c), 0, 0);
+  // Brazo izquierdo libre: cae y se balancea opuesto a la pierna.
+  setBone(f, 'Shoulder.L', 0, 0, -4, 'XYZ');
+  setBone(f, 'UpperArm.L', 18 * s - 2, 0, -74, 'XYZ');
+  setBone(f, 'LowerArm.L', 0, -(16 + 14 * Math.max(0, -s)), 0);
+  setBone(f, 'Hand.L', 0, 0, -6);
+  // Brazo derecho: sostiene el celular al frente, apuntando a los árboles.
+  setBone(f, 'Shoulder.R', 0, 0, 4);
+  setBone(f, 'UpperArm.R', -14 - 3 * s, 6, 76, 'XYZ');
+  setBone(f, 'LowerArm.R', 0, 84 - 2 * s, 0);
+  setBone(f, 'Hand.R', 0, 0, -10);
+  relaxHands(f);
+}
+
+/** Idle: respiración y leve cambio de peso (fase 0..1). */
+function poseIdle(f, ph) {
+  resetPose(f);
+  const a = ph * Math.PI * 2;
+  const br = Math.sin(a);
+  setBone(f, 'Hips', 1, 0, 1.2 * Math.sin(a * 0.5 + 0.3));
+  setBone(f, 'Abdomen', 2 + 0.6 * br, 0, 0);
+  setBone(f, 'Torso', 1 + 0.8 * br, 0, -0.6 * Math.sin(a * 0.5 + 0.3));
+  setBone(f, 'Chest', 1 + 1.0 * br, 0, 0);
+  setBone(f, 'Neck', -2, 1.5 * Math.sin(a * 0.5), 0);
+  setBone(f, 'Head', -2 - 0.6 * br, 2 * Math.sin(a * 0.5), 0);
+  setBone(f, 'UpperLeg.L', -2, 0, 3);
+  setBone(f, 'UpperLeg.R', -2, 0, -3);
+  setBone(f, 'LowerLeg.L', 5, 0, 0);
+  setBone(f, 'LowerLeg.R', 5, 0, 0);
+  setBone(f, 'Foot.L', -3, 0, -3);
+  setBone(f, 'Foot.R', -3, 0, 3);
+  setBone(f, 'Shoulder.L', 0, 0, -4 - 1 * br);
+  setBone(f, 'UpperArm.L', -2, 0, -76 + 1.2 * br, 'XYZ');
+  setBone(f, 'LowerArm.L', 0, -14, 0);
+  setBone(f, 'Shoulder.R', 0, 0, 4 + 1 * br);
+  setBone(f, 'UpperArm.R', -13, 6, 77 - 1 * br, 'XYZ');
+  setBone(f, 'LowerArm.R', 0, 86 + 1.5 * br, 0);
+  setBone(f, 'Hand.R', 0, 0, -10);
+  relaxHands(f);
+}
+
+const tmpV = new THREE.Vector3();
+/** Baja/sube la cadera para que el pie más bajo toque el suelo (sin flotar ni hundirse). */
+function groundFeet(f, feetMesh) {
+  f.root.updateMatrixWorld(true);
+  let minY = Infinity, minLZ = Infinity, minRZ = Infinity, lowL = Infinity, lowR = Infinity;
+  const pos = feetMesh.geometry.attributes.position;
+  for (let i = 0; i < pos.count; i += 2) {
+    feetMesh.getVertexPosition(i, tmpV);
+    tmpV.applyMatrix4(feetMesh.matrixWorld);
+    if (tmpV.y < minY) minY = tmpV.y;
+    // lado del pie según X del modelo (+X = izquierda del personaje)
+    if (tmpV.x > 0) { if (tmpV.y < lowL) { lowL = tmpV.y; minLZ = tmpV.z; } }
+    else if (tmpV.y < lowR) { lowR = tmpV.y; minRZ = tmpV.z; }
+  }
+  // La escala del armature (cm → m) se compensa leyendo el desplazamiento en el espacio del hueso.
+  const hips = f.bones.Hips;
+  const parentInv = new THREE.Matrix4().copy(hips.parent.matrixWorld).invert();
+  const a = new THREE.Vector3(0, 0, 0).applyMatrix4(parentInv);
+  const b = new THREE.Vector3(0, -minY, 0).applyMatrix4(parentInv);
+  hips.position.add(b.sub(a));
+  f.root.updateMatrixWorld(true);
+  return { stanceLeft: lowL < lowR, footLZ: minLZ, footRZ: minRZ, lowL, lowR };
+}
+
+async function renderCharacter() {
+  const f = await buildFarmer();
+  const scene = new THREE.Scene();
+  lights(scene);
+  const holder = new THREE.Group();
+  holder.add(f.root);
+  // De espaldas a la cámara (el modelo mira a +Z; la escena avanza hacia -Z).
+  holder.rotation.y = Math.PI;
+  holder.position.set(0, 0, -CFG.charZ);
+  scene.add(holder);
+  let feet = null;
+  f.root.traverse(o => { if (o.isSkinnedMesh && /Feet/.test(o.name)) feet = o; });
+  // Celular: se coloca con el brazo en pose y luego se une a la mano.
+  poseWalk(f, 0); f.root.updateMatrixWorld(true);
+  const handW = f.hand.getWorldPosition(new THREE.Vector3());
+  f.phone.position.copy(handW).add(new THREE.Vector3(0.0, 0.05, -0.05));
+  f.phone.rotation.set(0.2, Math.PI, 0);
+  scene.add(f.phone);
+  scene.updateMatrixWorld(true);
+  f.hand.attach(f.phone);
+
+  const cam = sceneCamera();
+  const frames = [];
+  const stance = [];
+  const N = CFG.walkFrames;
+  for (let i = 0; i < N; i++) {
+    poseWalk(f, i / N);
+    const gInfo = groundFeet(f, feet);
+    stance.push(gInfo);
+    renderer.setClearColor(0x000000, 0);
+    renderer.render(scene, cam);
+    frames.push(grab());
+  }
+  for (let i = 0; i < CFG.idleFrames; i++) {
+    poseIdle(f, i / CFG.idleFrames);
+    groundFeet(f, feet);
+    renderer.render(scene, cam);
+    frames.push(grab());
+  }
+  // Metros por ciclo: velocidad con la que el pie de apoyo retrocede (caminata en el sitio).
+  // El suelo de la escena se desplaza exactamente a esa razón → los pies no patinan.
+  let travel = 0, n = 0;
+  for (let i = 0; i < N; i++) {
+    const a = stance[i], b = stance[(i + 1) % N];
+    if (a.stanceLeft && b.stanceLeft) { travel += Math.abs(b.footLZ - a.footLZ); n++; }
+    if (!a.stanceLeft && !b.stanceLeft) { travel += Math.abs(b.footRZ - a.footRZ); n++; }
+  }
+  const metersPerCycle = n ? (travel / n) * N : 1.3;
+
+  // Recorte común a todos los fotogramas (el personaje no cambia de lugar en pantalla).
+  let box = { x0: W, y0: H, x1: 0, y1: 0 };
+  for (const c of frames) {
+    const b = alphaBox(c);
+    box = { x0: Math.min(box.x0, b.x0), y0: Math.min(box.y0, b.y0), x1: Math.max(box.x1, b.x1), y1: Math.max(box.y1, b.y1) };
+  }
+  const pad = 4;
+  box = { x0: Math.max(0, box.x0 - pad), y0: Math.max(0, box.y0 - pad), x1: Math.min(W - 1, box.x1 + pad), y1: Math.min(H - 1, box.y1 + pad) };
+  const fw = box.x1 - box.x0 + 1, fh = box.y1 - box.y0 + 1;
+  const cols = 8, rows = Math.ceil(frames.length / cols);
+  const sheet = document.createElement('canvas');
+  sheet.width = fw * cols; sheet.height = fh * rows;
+  const sg = sheet.getContext('2d');
+  frames.forEach((c, i) => sg.drawImage(c, box.x0, box.y0, fw, fh, (i % cols) * fw, Math.floor(i / cols) * fh, fw, fh));
+  // Hoja de contacto para revisar visualmente (no va a la app).
+  const preview = document.createElement('canvas');
+  preview.width = W * 8; preview.height = H * rows;
+  const pg = preview.getContext('2d');
+  pg.fillStyle = '#163b2d'; pg.fillRect(0, 0, preview.width, preview.height);
+  frames.forEach((c, i) => pg.drawImage(c, (i % 8) * W, Math.floor(i / 8) * H));
+  return {
+    sheet: sheet.toDataURL('image/png'),
+    preview: preview.toDataURL('image/png'),
+    meta: {
+      frameW: fw / CFG.renderScale, frameH: fh / CFG.renderScale,
+      sheetCols: cols, sheetRows: rows,
+      walkFrames: N, idleFrames: CFG.idleFrames,
+      // posición del recorte en la escena (dp)
+      x: box.x0 / CFG.renderScale, y: box.y0 / CFG.renderScale,
+      metersPerCycle: +metersPerCycle.toFixed(3),
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Árboles
+// ---------------------------------------------------------------------------------------------
+const LEAF = ['#2f7f2c', '#3a8f33', '#2b762a'];
+async function loadTree(name, vi) {
+  const g = await loader.loadAsync(`/models/${name}.glb`);
+  g.scene.traverse(o => {
+    if (!o.isMesh) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of mats) {
+      const isLeaf = m.color.g > m.color.r * 1.15;
+      m.color.set(isLeaf ? LEAF[vi % LEAF.length] : '#5b3d27');
+      m.roughness = 0.9; m.metalness = 0; m.flatShading = true; m.needsUpdate = true;
+    }
+  });
+  const box = new THREE.Box3().setFromObject(g.scene);
+  const size = box.getSize(new THREE.Vector3());
+  return { obj: g.scene, height: size.y, width: Math.max(size.x, size.z) };
+}
+
+// Copa más ancha y baja: silueta de aguacate (los modelos originales son más altos y espigados).
+const AVO_WIDEN = 1.3, AVO_SQUASH = 0.82;
+const TREES = [
+  { file: 'CommonTree_1', h: 3.3 },
+  { file: 'CommonTree_2', h: 3.7 },
+  { file: 'CommonTree_5', h: 3.4 },
+];
+
+async function renderTrees() {
+  const out = [];
+  for (let i = 0; i < TREES.length; i++) {
+    const t = await loadTree(TREES[i].file, i);
+    const k = TREES[i].h / t.height;
+    t.obj.scale.set(k * AVO_WIDEN, k * AVO_SQUASH, k * AVO_WIDEN);
+    const scene = new THREE.Scene();
+    lights(scene, { ambient: 0.8 });
+    scene.add(t.obj);
+    // Ortográfica con la misma inclinación: escala uniforme y conocida (metros por píxel).
+    const PX = 480, PY = 520; // píxeles de salida (2× para árboles cercanos nítidos)
+    const mpp = 5.0 / PY; // 5 m de alto en el cuadro
+    const cam = new THREE.OrthographicCamera(-PX * mpp / 2, PX * mpp / 2, PY * mpp / 2, -PY * mpp / 2, 0.1, 100);
+    const th = CFG.pitchDeg * DEG;
+    const target = new THREE.Vector3(0, 1.9, 0);
+    cam.position.set(0, 1.9 + Math.sin(th) * 30, Math.cos(th) * 30);
+    cam.lookAt(target);
+    renderer.setSize(PX, PY);
+    renderer.setClearColor(0x000000, 0);
+    renderer.render(scene, cam);
+    const c = grab(PX, PY);
+    // Ancla: proyección de la base del tronco (0,0,0).
+    const base = new THREE.Vector3(0, 0, 0).project(cam);
+    const bx = (base.x + 1) / 2 * PX, by = (1 - base.y) / 2 * PY;
+    const b = alphaBox(c);
+    const x0 = Math.max(0, b.x0 - 2), y0 = Math.max(0, b.y0 - 2);
+    const x1 = Math.min(PX - 1, Math.max(b.x1 + 2, Math.ceil(by))), y1 = Math.min(PY - 1, Math.max(b.y1 + 2, Math.ceil(by) + 1));
+    const crop = document.createElement('canvas');
+    crop.width = x1 - x0 + 1; crop.height = y1 - y0 + 1;
+    crop.getContext('2d').drawImage(c, x0, y0, crop.width, crop.height, 0, 0, crop.width, crop.height);
+    out.push({
+      png: crop.toDataURL('image/png'),
+      meta: { w: crop.width, h: crop.height, anchorX: +(bx - x0).toFixed(1), anchorY: +(by - y0).toFixed(1), metersPerPx: +mpp.toFixed(5) },
+    });
+  }
+  renderer.setSize(W, H);
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fondo: cielo, suelo y filas lejanas (estáticas)
+// ---------------------------------------------------------------------------------------------
+async function renderBackground() {
+  const scene = new THREE.Scene();
+  const fogColor = new THREE.Color('#163f33');
+  scene.fog = new THREE.Fog(fogColor, 14, 78);
+  // Cielo con degradado vertical.
+  const sky = document.createElement('canvas'); sky.width = 4; sky.height = 256;
+  const sg = sky.getContext('2d');
+  const grd = sg.createLinearGradient(0, 0, 0, 256);
+  grd.addColorStop(0, '#061512'); grd.addColorStop(0.55, '#0f2e26'); grd.addColorStop(1, '#1d5241');
+  sg.fillStyle = grd; sg.fillRect(0, 0, 4, 256);
+  const skyTex = new THREE.CanvasTexture(sky); skyTex.colorSpace = THREE.SRGBColorSpace;
+  scene.background = skyTex;
+  lights(scene, { rim: false });
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: '#0d2a1d', roughness: 1 }));
+  ground.rotation.x = -Math.PI / 2;
+  scene.add(ground);
+  // Filas lejanas: mismas especies que las dinámicas, más allá de donde estas se desvanecen.
+  const models = [];
+  for (let i = 0; i < TREES.length; i++) { const t = await loadTree(TREES[i].file, i); const k = TREES[i].h / t.height; t.obj.scale.set(k * AVO_WIDEN, k * AVO_SQUASH, k * AVO_WIDEN); models.push(t.obj); }
+  let n = 0;
+  const [z0, z1] = CFG.farTreeZ;
+  for (const rx of [...CFG.treeRowsX, CFG.treeRowsX[1] + 2.7, CFG.treeRowsX[1] + 5.4]) for (const side of [-1, 1]) {
+    for (let z = z0 + (rx % 2); z < z1; z += CFG.treeSpacing) {
+      const m = models[(n++) % models.length].clone();
+      const r = Math.sin(n * 12.9898) * 43758.5453; const h = r - Math.floor(r);
+      m.scale.multiplyScalar(0.85 + 0.3 * h);
+      m.rotation.y = h * Math.PI * 2;
+      m.position.set(side * rx, 0, -z);
+      scene.add(m);
+    }
+  }
+  const cam = sceneCamera();
+  renderer.setClearColor(0x000000, 1);
+  renderer.render(scene, cam);
+  const c = grab();
+  return { png: c.toDataURL('image/jpeg', 0.86) };
+}
+
+window.run = async () => {
+  const character = await renderCharacter();
+  const trees = await renderTrees();
+  const bg = await renderBackground();
+  return { character, trees, bg };
+};
+
+/** Depuración: acercamiento del personaje (atrás y de lado) en varias fases. */
+window.debugCharacter = async (phases, kind = 'walk') => {
+  const f = await buildFarmer();
+  const scene = new THREE.Scene(); lights(scene);
+  scene.background = new THREE.Color('#2a5a48');
+  scene.add(f.root);
+  let feet = null; f.root.traverse(o => { if (o.isSkinnedMesh && /Feet/.test(o.name)) feet = o; });
+  poseWalk(f, 0); f.root.updateMatrixWorld(true);
+  const handW = f.hand.getWorldPosition(new THREE.Vector3());
+  f.phone.position.copy(handW).add(new THREE.Vector3(0.0, 0.05, 0.05)); f.phone.rotation.set(-0.2, 0, 0);
+  scene.add(f.phone); scene.updateMatrixWorld(true); f.hand.attach(f.phone);
+  const grid = new THREE.GridHelper(4, 16, '#88ffcc', '#3c7'); scene.add(grid);
+  const TW = 220, TH = 300;
+  const out = document.createElement('canvas'); out.width = TW * phases.length; out.height = TH * 2;
+  const og = out.getContext('2d');
+  renderer.setSize(TW, TH);
+  phases.forEach((ph, i) => {
+    kind === 'walk' ? poseWalk(f, ph) : poseIdle(f, ph); groundFeet(f, feet);
+    for (const [row, pos] of [[0, [0, 1.2, -3.2]], [1, [3.2, 1.0, 0]]]) {
+      const cam = new THREE.PerspectiveCamera(35, TW / TH, 0.1, 50); cam.position.set(...pos); cam.lookAt(0, 0.9, 0);
+      renderer.render(scene, cam); og.drawImage(renderer.domElement, 0, 0, TW * SS, TH * SS, i * TW, row * TH, TW, TH);
+    }
+  });
+  renderer.setSize(W, H);
+  return out.toDataURL('image/png');
+};
+window.READY = true;
+</script>
+</body>
+</html>

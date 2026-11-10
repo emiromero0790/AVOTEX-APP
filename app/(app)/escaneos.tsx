@@ -191,7 +191,6 @@ const T: TranslationResource = {
   layerSat: { es: 'Satélite', en: 'Satellite' },
   layerHybrid: { es: 'Híbrido', en: 'Hybrid' },
   layerZones: { es: 'Zonas', en: 'Zones' },
-  zonesNote: { es: 'Zonas ilustrativas, no son mediciones', en: 'Illustrative zones, not measurements' },
   layers: { es: 'Capas del mapa', en: 'Map layers' },
   lyRoutes: { es: 'Rutas de recorridos', en: 'Walk routes' },
   lyLayers: { es: 'Capas', en: 'Layers' },
@@ -301,7 +300,8 @@ export default function MisEscaneos() {
   const [lastPicker, setLastPicker] = useState<'orchard' | 'filters' | 'layers'>('filters');
   useEffect(() => { if (picker) setLastPicker(picker); }, [picker]);
   const sheetKind = picker ?? lastPicker;
-  // Mapa oscuro por defecto; la elección del usuario se guarda en el celular (AsyncStorage).
+  // Vista normal: mapa oscuro. Cada visita empieza en Oscuro (otra capa solo dura mientras estás en la
+  // pantalla); el estilo de ruta sí se recuerda (AsyncStorage).
   const [layer, setLayer] = useState<ScansMapLayer>('oscuro');
   const [routeStyle, setRouteStyle] = useState<ScansMapRouteStyle>('velocidad');
   // Tipo de mapa y estilo de ruta se recuerdan entre visitas.
@@ -311,14 +311,13 @@ export default function MisEscaneos() {
       if (!raw) return;
       try {
         const v = JSON.parse(raw) as { layer?: ScansMapLayer; routeStyle?: ScansMapRouteStyle };
-        if (v.layer && ['satelite', 'hibrido', 'estandar', 'topo', 'oscuro', 'zonas'].includes(v.layer)) setLayer(v.layer);
         if (v.routeStyle && ['clasica', 'velocidad', 'tiempo'].includes(v.routeStyle)) setRouteStyle(v.routeStyle);
       } catch { /* preferencia dañada: se ignora */ }
     }).catch(() => {}).finally(() => { styleLoaded.current = true; });
   }, []);
   useEffect(() => {
-    if (styleLoaded.current) AsyncStorage.setItem(MAP_STYLE_KEY, JSON.stringify({ layer, routeStyle })).catch(() => {});
-  }, [layer, routeStyle]);
+    if (styleLoaded.current) AsyncStorage.setItem(MAP_STYLE_KEY, JSON.stringify({ routeStyle })).catch(() => {});
+  }, [routeStyle]);
   const [show, setShow] = useState<ScansMapShow>({ routes: true, photos: true, findings: true, orchards: true });
   const [me, setMe] = useState<LatLng | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -752,9 +751,6 @@ export default function MisEscaneos() {
       </View>
       {legend && (
         <Reanimated.View key={routeStyle} entering={fade} style={st.legend} pointerEvents="none" accessibilityRole="text">{legend}</Reanimated.View>
-      )}
-      {layer === 'zonas' && (
-        <Reanimated.View entering={fade} style={st.legend} pointerEvents="none"><Text style={st.legendText}>{t('zonesNote')}</Text></Reanimated.View>
       )}
     </View>
   );

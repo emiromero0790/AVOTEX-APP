@@ -257,7 +257,7 @@ que cambia es la animación del agricultor, que llega como `modo=dron|gopro` y s
 1. El agricultor levanta el dron con la mano izquierda (0–1,1 s).
 2. Se encienden los LED y las hélices (1,5 s).
 3. El dron despega mientras el brazo baja (2–3,4 s).
-4. Después flota unos 25 cm sobre el sombrero, con un vaivén suave, y lo acompaña al caminar. La cámara sigue al agricultor, así que el dron avanza a su misma velocidad.
+4. Después vuela a su derecha, a la altura del hombro, con un vaivén suave y las hélices girando, y lo acompaña al caminar. La cámara sigue al agricultor, así que el dron avanza a su misma velocidad.
 
 **GoPro:** el agricultor toma el casco amarillo con la GoPro, lo sube, se lo pone (≈2,6 s) y camina con él.
 

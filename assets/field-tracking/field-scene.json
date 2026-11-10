@@ -61,19 +61,19 @@
   ],
   "companions": {
     "drone": {
-      "frameW": 48.666666666666664,
-      "frameH": 10.333333333333334,
-      "sheetCols": 5,
+      "frameW": 50,
+      "frameH": 11,
+      "sheetCols": 9,
       "sheetRows": 1,
-      "frames": 5,
-      "x": 45.166666666666664,
-      "y": 48.5,
-      "anchorX": 23.873,
-      "anchorY": 5.456,
+      "frames": 9,
+      "x": 71.16666666666667,
+      "y": 59,
+      "anchorX": 22.928,
+      "anchorY": 6.561,
       "ref": {
-        "x": 0.12,
-        "y": 2.12,
-        "z": 4.550000000000001
+        "x": 0.72,
+        "y": 1.85,
+        "z": 4.5
       }
     },
     "droneIntro": {

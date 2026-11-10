@@ -23,10 +23,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
-import Reanimated, { FadeIn, FadeInDown, FadeOut, FadeOutDown, useReducedMotion } from 'react-native-reanimated';
+import Reanimated, { FadeIn, FadeInDown, FadeOut, FadeOutDown, SlideInDown, useReducedMotion } from 'react-native-reanimated';
 import Svg, { Path, Polygon } from 'react-native-svg';
 import {
-  BarChart3, Bug, Calendar, Camera, Check, ChevronDown, ChevronRight, Clock, CloudUpload, Crosshair, Filter, Layers,
+  BarChart3, Bug, Calendar, Camera, Check, ChevronDown, ChevronRight, Clock, CloudUpload, Filter, Layers,
   Leaf, Lock, Maximize2, MapPin, Minimize2, Minus, Navigation, Plane, Plus, Route, Search, Video, X,
 } from 'lucide-react-native';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
@@ -177,7 +177,6 @@ const T: TranslationResource = {
   lyFindings: { es: 'Hallazgos', en: 'Findings' },
   lyOrchards: { es: 'Perímetros de huertas', en: 'Orchard outlines' },
   lyMe: { es: 'Mi ubicación', en: 'My location' },
-  center: { es: 'Centrar', en: 'Center' },
   zoomIn: { es: 'Acercar', en: 'Zoom in' },
   zoomOut: { es: 'Alejar', en: 'Zoom out' },
   full: { es: 'Pantalla completa', en: 'Full screen' },
@@ -262,6 +261,10 @@ export default function MisEscaneos() {
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [picker, setPicker] = useState<'orchard' | 'filters' | 'layers' | null>(null);
+  // Al cerrar, el panel conserva su contenido mientras se desvanece (si no, se vaciaba a media animación).
+  const [lastPicker, setLastPicker] = useState<'orchard' | 'filters' | 'layers'>('filters');
+  useEffect(() => { if (picker) setLastPicker(picker); }, [picker]);
+  const sheetKind = picker ?? lastPicker;
   const [layer, setLayer] = useState<ScansMapLayer>('satelite');
   const [routeStyle, setRouteStyle] = useState<ScansMapRouteStyle>('clasica');
   // Tipo de mapa y estilo de ruta se recuerdan entre visitas.
@@ -991,7 +994,6 @@ export default function MisEscaneos() {
           <CtrlBtn label={t('layers')} onPress={() => { tick(); setPicker('layers'); }} solo><Layers size={17} color={INK} /></CtrlBtn>
         </View>
         <View style={[st.ctrlCol, short && { gap: 6, top: 52 }]}>
-          <CtrlBtn small={short} label={t('center')} onPress={() => { tick(); mapRef.current?.fit(); }} solo><Crosshair size={17} color={INK} /></CtrlBtn>
           <View style={st.ctrlGroup}>
             <CtrlBtn small={short} label={t('zoomIn')} onPress={() => mapRef.current?.zoom(1)}><Plus size={17} color={INK} /></CtrlBtn>
             <View style={st.ctrlSep} />
@@ -1025,16 +1027,18 @@ export default function MisEscaneos() {
         )}
       </View>
 
-      <Modal visible={picker !== null} transparent animationType={reduced ? 'fade' : 'slide'} onRequestClose={() => setPicker(null)} statusBarTranslucent>
+      {/* El fondo solo se desvanece; lo que sube es el panel (con 'slide' el fondo oscuro subía con él). */}
+      <Modal visible={picker !== null} transparent animationType="fade" onRequestClose={() => setPicker(null)} statusBarTranslucent>
         <Pressable style={st.backdrop} onPress={() => setPicker(null)} accessibilityLabel={t('close')} />
-        <View style={[st.modalSheet, { paddingBottom: insets.bottom + 16 }, isTablet && { left: '20%', right: '20%' }]}>
+        <Reanimated.View entering={reduced ? undefined : SlideInDown.duration(280).easing(EASE_OUT)}
+          style={[st.modalSheet, { paddingBottom: insets.bottom + 16 }, isTablet && { left: '20%', right: '20%' }]}>
           <View style={st.handle} />
           <View style={[st.rowCenter, { justifyContent: 'space-between', marginBottom: 8 }]}>
-            <Text style={st.sectionTitle}>{picker === 'orchard' ? t('pickOrchard') : picker === 'layers' ? t('layers') : t('filters')}</Text>
+            <Text style={st.sectionTitle}>{sheetKind === 'orchard' ? t('pickOrchard') : sheetKind === 'layers' ? t('layers') : t('filters')}</Text>
             <Pressable onPress={() => setPicker(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('close')} style={st.modalClose}><X size={17} color={MUTED} /></Pressable>
           </View>
           <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ gap: 4 }}>
-            {picker === 'orchard' && (
+            {sheetKind === 'orchard' && (
               <>
                 <PickRow on={orchardFilter === 'all'} title={t('allOrchards')} meta={scansText(countFor('all'))} icon={<Leaf size={18} color={LIME_INK} />}
                   onPress={() => { tick(); setOrchardFilter('all'); setPicker(null); }} />
@@ -1047,7 +1051,7 @@ export default function MisEscaneos() {
                   onPress={() => { tick(); setOrchardFilter('none'); setPicker(null); }} />
               </>
             )}
-            {picker === 'filters' && (
+            {sheetKind === 'filters' && (
               <>
                 <Text style={st.groupLabel}>{t('type')}</Text>
                 <View style={st.chips}>
@@ -1072,7 +1076,7 @@ export default function MisEscaneos() {
                 </View>
               </>
             )}
-            {picker === 'layers' && (
+            {sheetKind === 'layers' && (
               <>
                 <MapStylePicker
                   layer={layer}
@@ -1102,7 +1106,7 @@ export default function MisEscaneos() {
               </>
             )}
           </ScrollView>
-        </View>
+        </Reanimated.View>
       </Modal>
     </GestureHandlerRootView>
   );

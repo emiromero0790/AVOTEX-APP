@@ -26,7 +26,7 @@ import { StatusBar } from 'expo-status-bar';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import Reanimated, { FadeIn, FadeOut, LinearTransition, cubicBezier, useReducedMotion } from 'react-native-reanimated';
+import Reanimated, { FadeIn, FadeOut, LinearTransition, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import {
   ChevronLeft,
   CloudOff,
@@ -107,17 +107,8 @@ const ITEM_IN = FadeIn.duration(220).easing(EASE_OUT);
 const LIST_REFLOW = LinearTransition.duration(260).easing(EASE_IN_OUT);
 // El número de fotos "late" una vez cada vez que se guarda una imagen nueva.
 const COUNT_POP = { from: { transform: [{ scale: 1.18 }] }, to: { transform: [{ scale: 1 }] } };
-// «Gira tu celular»: el teléfono pasa a horizontal, se sostiene y regresa (bucle mientras se muestra el aviso).
-const ROTATE_PHONE = {
-  '0%': { transform: [{ rotate: '0deg' }] },
-  '35%': { transform: [{ rotate: '-90deg' }] },
-  '70%': { transform: [{ rotate: '-90deg' }] },
-  '100%': { transform: [{ rotate: '0deg' }] },
-};
 const ROTATE_HINT_MS = 10000;
-const CSS_EASE_IN_OUT = cubicBezier(0.77, 0, 0.175, 1);
 const ROTATE_IN = FadeIn.duration(220).easing(EASE_OUT);
-const ROTATE_OUT = FadeOut.duration(160);
 
 const auth = firebaseAuth as Auth;
 
@@ -399,7 +390,10 @@ export default function RecorridoScreen() {
   const [vizSize, setVizSize] = useState({ w: 0, h: 0 });
   // Aviso «Gira tu celular» al iniciar el recorrido: se va solo al girar a horizontal, con el botón o a los 10 s.
   const [rotateHint, setRotateHint] = useState(false);
-  const isLandscape = width > winH;
+  // Orientación medida con el diseño real de la pantalla (onLayout). useWindowDimensions a veces llega tarde al
+  // girar en Android: el aviso «Gira tu celular» se quedaba aunque el teléfono ya estuviera horizontal.
+  const [screenBox, setScreenBox] = useState<{ w: number; h: number } | null>(null);
+  const isLandscape = screenBox ? screenBox.w > screenBox.h : width > winH;
   useEffect(() => { if (isLandscape) setRotateHint(false); }, [isLandscape]);
   useEffect(() => {
     if (!rotateHint) return;
@@ -987,12 +981,12 @@ export default function RecorridoScreen() {
       : network === 'cellular' ? (mobileData ? t('netCellularOn') : t('netCellular'))
       : t('savedOnPhone');
     const NetIcon = network === 'offline' ? WifiOff : network === 'wifi' ? Wifi : network === 'cellular' ? Signal : Smartphone;
-    const landscape = width > winH;
+    const landscape = isLandscape;
     const gpsDot = stats.gps === 'ok' ? '#22a06b' : stats.gps === 'lost' ? '#e8a317' : '#9aa1ab';
     // Diseño tipo Tesla: la cámara es el «mapa» (panel grande con tarjetas blancas) y el agricultor 3D es el
     // «auto» (panel claro con los datos grandes y los botones). Vertical: cámara arriba; horizontal: lado a lado.
     const cameraPane = (bottom: React.ReactNode) => (
-      <View style={[st.camPane, landscape ? st.camPaneLand : null]}>
+      <View style={[st.camPane, landscape ? st.camPaneLand : null, Platform.OS === 'android' ? st.camPaneNoClip : null]}>
         <CameraView
           ref={cameraRef}
           style={StyleSheet.absoluteFill}
@@ -1004,6 +998,9 @@ export default function RecorridoScreen() {
         {!cameraReady && (
           <View style={st.cameraLoading}><ActivityIndicator color="#fff" size="large" /></View>
         )}
+        {/* En Android la vista previa se pone negra si su contenedor recorta (overflow + borderRadius):
+            las esquinas redondeadas se pintan encima con el color del fondo. */}
+        {Platform.OS === 'android' && <View style={st.camCornerMask} pointerEvents="none" />}
         <Reanimated.View entering={HUD_FADE_IN} style={st.camTop} pointerEvents="none">
           <View style={st.tCard} accessibilityLabel={`${paused ? t('paused') : t('recording')} · ${t('time')} ${formatDuration(stats.elapsed)}`}>
             <View style={st.recDotWrap}>
@@ -1043,13 +1040,13 @@ export default function RecorridoScreen() {
 
     const dataPane = (
       <View style={[st.dataCol, landscape && st.dataColLand]} pointerEvents="none">
-        <View>
+        <View style={landscape ? st.dataItemLand : null}>
           <Text style={st.dLabel}>{t('distance')}</Text>
           <Text style={st.dBig} numberOfLines={1} adjustsFontSizeToFit>{formatDistance(stats.distance)}</Text>
           <Text style={st.dHint}>{distanceHint(stats, paused, t)}</Text>
         </View>
-        <View style={st.dDivider} />
-        <View>
+        {!landscape && <View style={st.dDivider} />}
+        <View style={landscape ? st.dataItemLandSmall : null}>
           <Text style={st.dLabel}>{t('images')}</Text>
           <Reanimated.Text
             key={stats.photos}
@@ -1118,8 +1115,11 @@ export default function RecorridoScreen() {
         <Text style={st.recordTip}>{holdHint ? t('holdToFinish') : t('tips')}</Text>
       </>
     );
+    // Claves distintas por orientación: al girar se monta de nuevo y su onLayout mide el tamaño nuevo (si se
+    // reutilizara el mismo contenedor, el evento no llega y el agricultor no aparecía tras girar).
     const vehiclePane = landscape ? (
       <View
+        key="veh-land"
         style={st.vehPaneLand}
         onLayout={e => {
           const { width: w, height: h } = e.nativeEvent.layout;
@@ -1137,7 +1137,7 @@ export default function RecorridoScreen() {
         </LinearGradient>
       </View>
     ) : (
-      <View style={st.vehPane}>
+      <View key="veh-port" style={st.vehPane}>
         <View style={st.vizRow}>
           <View style={{ width: compactW, height: compactH }}>{viz(compactW, compactH)}</View>
           {dataPane}
@@ -1148,32 +1148,32 @@ export default function RecorridoScreen() {
     );
 
     return (
-      <View style={[st.recordScreen, landscape && st.recordScreenLand, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 12, paddingLeft: insets.left + 10, paddingRight: insets.right + 10 }]}>
+      <View
+        style={[st.recordScreen, landscape && st.recordScreenLand, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 12, paddingLeft: insets.left + 10, paddingRight: insets.right + 10 }]}
+        onLayout={e => {
+          const { width: w, height: h } = e.nativeEvent.layout;
+          setScreenBox(prev => (prev && prev.w === Math.round(w) && prev.h === Math.round(h) ? prev : { w: Math.round(w), h: Math.round(h) }));
+        }}
+      >
         <StatusBar style="dark" />
-        {landscape
-          ? <>{vehiclePane}{cameraPane(<View style={st.camActions}><View style={st.tipCard}>{tip}</View>{actions}</View>)}</>
-          : <>{cameraPane(
-              <Reanimated.View entering={HUD_FADE_IN} style={st.camBottom} pointerEvents="none">
-                <View style={st.tChip}>
-                  <NetIcon size={13} color="#171a20" />
-                  <Text style={st.tChipText}>{netText}</Text>
-                </View>
-              </Reanimated.View>,
-            )}{vehiclePane}</>}
+        {/* La cámara va siempre primero (no se vuelve a montar al girar); en horizontal la fila va invertida
+            para que el agricultor quede a la izquierda, como en el Tesla. */}
+        {cameraPane(landscape
+          ? <View style={st.camActions}><View style={st.tipCard}>{tip}</View>{actions}</View>
+          : (
+            <Reanimated.View entering={HUD_FADE_IN} style={st.camBottom} pointerEvents="none">
+              <View style={st.tChip}>
+                <NetIcon size={13} color="#171a20" />
+                <Text style={st.tChipText}>{netText}</Text>
+              </View>
+            </Reanimated.View>
+          ))}
+        {vehiclePane}
         {rotateHint && !landscape && (
-          <Reanimated.View entering={ROTATE_IN} exiting={ROTATE_OUT} style={st.rotateOverlay}>
+          <Reanimated.View entering={ROTATE_IN} style={st.rotateOverlay}>
             <View style={st.rotateCard}>
               <View style={st.rotateIconWrap}>
-                <Reanimated.View
-                  style={reducedMotion ? { transform: [{ rotate: '-90deg' }] } : {
-                    animationName: ROTATE_PHONE,
-                    animationDuration: 2400,
-                    animationIterationCount: 'infinite',
-                    animationTimingFunction: CSS_EASE_IN_OUT,
-                  }}
-                >
-                  <Smartphone size={54} color="#171a20" strokeWidth={1.6} />
-                </Reanimated.View>
+                <RotatingPhone reduced={reducedMotion} />
                 <View style={st.rotateArrow}><RotateCcw size={18} color="#3e6ae1" strokeWidth={2.2} /></View>
               </View>
               <Text style={st.rotateTitle}>{t('rotateTitle')}</Text>
@@ -1434,12 +1434,44 @@ export default function RecorridoScreen() {
   );
 }
 
+/**
+ * Teléfono que gira a horizontal, se sostiene y regresa (bucle) para el aviso «Gira tu celular».
+ * Es la explicación misma del aviso, así que se anima aunque el sistema pida reducir movimiento (p. ej. con
+ * ahorro de batería en Android): en ese caso, en vez de girar, cruza suavemente entre vertical y horizontal.
+ */
+function RotatingPhone({ reduced }: { reduced: boolean }) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    const cfg = { duration: 650, easing: EASE_IN_OUT, reduceMotion: ReduceMotion.Never };
+    p.set(withRepeat(withSequence(withDelay(350, withTiming(1, cfg)), withDelay(700, withTiming(0, cfg))), -1, false));
+  }, [p]);
+  const spin = useAnimatedStyle(() => ({ transform: [{ rotate: `${-90 * p.get()}deg` }] }));
+  const portrait = useAnimatedStyle(() => ({ opacity: 1 - p.get() }));
+  const land = useAnimatedStyle(() => ({ opacity: p.get() }));
+  if (!reduced) {
+    return <Reanimated.View style={spin}><Smartphone size={54} color="#171a20" strokeWidth={1.6} /></Reanimated.View>;
+  }
+  return (
+    <View style={{ width: 60, height: 60, alignItems: 'center', justifyContent: 'center' }}>
+      <Reanimated.View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }, portrait]}>
+        <Smartphone size={54} color="#171a20" strokeWidth={1.6} />
+      </Reanimated.View>
+      <Reanimated.View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-90deg' }] }, land]}>
+        <Smartphone size={54} color="#171a20" strokeWidth={1.6} />
+      </Reanimated.View>
+    </View>
+  );
+}
+
 const st = StyleSheet.create({
   // ── Grabación (diseño tipo Tesla: superficies claras, tarjetas blancas, tipografía Inter) ──
   recordScreen: { flex: 1, backgroundColor: '#f2f3f5', gap: 10 },
-  recordScreenLand: { flexDirection: 'row' },
+  recordScreenLand: { flexDirection: 'row-reverse' },
   camPane: { flex: 1, borderRadius: 24, overflow: 'hidden', backgroundColor: '#0b0d10' },
   camPaneLand: { flex: 1 },
+  camPaneNoClip: { overflow: 'visible', borderRadius: 0 },
+  // Marco con borde grueso: su borde interior tiene el radio de las esquinas (2R − R = R) y tapa lo que sobra.
+  camCornerMask: { position: 'absolute', top: -24, left: -24, right: -24, bottom: -24, borderRadius: 48, borderWidth: 24, borderColor: '#f2f3f5' },
   camTop: { position: 'absolute', top: 10, left: 10, right: 10, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
   camBottom: { position: 'absolute', left: 10, bottom: 10, right: 10, flexDirection: 'row' },
   tCard: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingLeft: 12, paddingRight: 14, paddingVertical: 9, borderRadius: 14, backgroundColor: '#ffffff', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
@@ -1474,7 +1506,9 @@ const st = StyleSheet.create({
   rotateBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: '#171a20' },
   vizRow: { flexDirection: 'row', gap: 14, alignItems: 'center' },
   dataCol: { flex: 1, justifyContent: 'center', gap: 12, paddingVertical: 4 },
-  dataColLand: { flex: 0, flexDirection: 'row', alignItems: 'flex-start', gap: 22 },
+  dataColLand: { flex: 0, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-start', gap: 16 },
+  dataItemLand: { flex: 1.5, minWidth: 0 },
+  dataItemLandSmall: { flex: 1, minWidth: 0 },
   dLabel: { fontFamily: 'Inter_500Medium', fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase', color: '#8e8e93' },
   dBig: { fontFamily: 'Inter_300Light', fontSize: 50, lineHeight: 58, color: '#171a20', fontVariant: ['tabular-nums'], letterSpacing: -1 },
   dMid: { fontFamily: 'Inter_400Regular', fontSize: 30, lineHeight: 36, color: '#171a20', fontVariant: ['tabular-nums'], alignSelf: 'flex-start' },

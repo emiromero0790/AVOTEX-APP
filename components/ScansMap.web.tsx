@@ -17,7 +17,7 @@ type Avx = {
 };
 
 const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
-  { data, selectedId, detail, point, user, layer, pad, routeStyle = 'clasica', perspective = true, onEvent, onError },
+  { data, selectedId, detail, point, user, layer, pad, routeStyle = 'clasica', perspective = true, centerOnUser = false, onEvent, onError },
   ref,
 ) {
   const frame = useRef<HTMLIFrameElement>(null);
@@ -56,7 +56,7 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
   useEffect(() => { if (ready) avx()?.select(selectedId); }, [ready, selectedId]);
   useEffect(() => { if (ready) avx()?.setDetail(detail, true); }, [ready, detail]);
   useEffect(() => { if (ready) avx()?.point(point?.kind ?? null, point?.id ?? null); }, [ready, point]);
-  useEffect(() => { if (ready && user) avx()?.showUser(user.lat, user.lng, false); }, [ready, user]);
+  useEffect(() => { if (ready && user) avx()?.showUser(user.lat, user.lng, !!centerOnUser); }, [ready, user, centerOnUser]);
 
   return (
     <iframe

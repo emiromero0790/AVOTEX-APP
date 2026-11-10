@@ -9,7 +9,7 @@ const WebView = RNWebView<object>;
 type WebView = RNWebView<object>;
 
 const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
-  { data, selectedId, detail, point, user, layer, pad, routeStyle = 'clasica', perspective = true, onEvent, onError },
+  { data, selectedId, detail, point, user, layer, pad, routeStyle = 'clasica', perspective = true, centerOnUser = false, onEvent, onError },
   ref,
 ) {
   const web = useRef<WebView>(null);
@@ -33,7 +33,7 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
   useEffect(() => { if (ready) run(`avx.select(${safeJson(selectedId)})`); }, [ready, selectedId, run]);
   useEffect(() => { if (ready) run(`avx.setDetail(${safeJson(detail)},true)`); }, [ready, detail, run]);
   useEffect(() => { if (ready) run(`avx.point(${safeJson(point?.kind ?? null)},${safeJson(point?.id ?? null)})`); }, [ready, point, run]);
-  useEffect(() => { if (ready && user) run(`avx.showUser(${user.lat},${user.lng},false)`); }, [ready, user, run]);
+  useEffect(() => { if (ready && user) run(`avx.showUser(${user.lat},${user.lng},${centerOnUser ? 'true' : 'false'})`); }, [ready, user, run, centerOnUser]);
 
   return (
     <View style={styles.wrap}>

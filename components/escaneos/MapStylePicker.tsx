@@ -1,134 +1,124 @@
-import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import {
-  TranslationResource,
-  useTranslations,
-} from "../../context/LanguageContext";
-import type { ScansMapLayer, ScansMapRouteStyle } from "../scansMapHtml";
-const MINT = "#A7F3D0";
-const ROUTE_STYLES: ScansMapRouteStyle[] = [
-  "clasica",
-  "velocidad",
-  "tiempo",
-  "calor",
-];
-const translations: TranslationResource = {
-  mapTypes: { es: "Tipos de mapa", en: "Map types" },
-  routeStyles: { es: "Estilo de ruta", en: "Route style" },
-  satelite: { es: "Satélite", en: "Satellite" },
-  hibrido: { es: "Híbrido", en: "Hybrid" },
-  estandar: { es: "Estándar", en: "Standard" },
-  topo: { es: "Topográfico", en: "Topographic" },
-  oscuro: { es: "Oscuro", en: "Dark" },
-  zonas: { es: "Zonas", en: "Zones" },
-  clasica: { es: "Clásica", en: "Classic" },
-  velocidad: { es: "Velocidad", en: "Speed" },
-  tiempo: { es: "Tiempo", en: "Time" },
-  calor: { es: "Calor", en: "Heat" },
-  clasicaSub: { es: "Un color", en: "One color" },
-  velocidadSub: { es: "Lento → rápido", en: "Slow → fast" },
-  tiempoSub: { es: "Inicio → fin", en: "Start → end" },
-  calorSub: { es: "Donde más caminas", en: "Where you walk most" },
-  selected: { es: "seleccionado", en: "selected" },
+/**
+ * Selector de capas de Mis escaneos: panel flotante ligero (no es un modal) que sale junto al botón Capas.
+ * - Tipo de mapa: Oscuro (predeterminado), Satélite, Híbrido, Zonas (si hay huertas con zonas) y Estándar.
+ * - Estilo de ruta: Clásica (degradado por avance), Velocidad y Tiempo.
+ * - Qué se dibuja: rutas, fotos, hallazgos y huertas.
+ * Cada toque cambia el mapa al instante: el mapa solo alterna visibilidad de capas, no se recarga.
+ */
+import React, { memo } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Reanimated, { FadeIn, FadeOut, useReducedMotion } from 'react-native-reanimated';
+import { Bug, Camera, LayoutGrid, Leaf, Map as MapIcon, Moon, Route, Satellite, Signpost } from 'lucide-react-native';
+import { TranslationResource, useTranslations } from '../../context/LanguageContext';
+import type { ScansMapLayer, ScansMapRouteStyle, ScansMapShow } from '../scansMapHtml';
+
+const C = {
+  glass: 'rgba(14,21,25,0.94)', border: 'rgba(255,255,255,0.09)', text: '#F1F5F4', muted: '#93A3AC',
+  mint: '#A7F3D0', neon: '#8BF52B', ink: '#06110D', chip: 'rgba(255,255,255,0.06)',
 };
+
+const translations: TranslationResource = {
+  mapTypes: { es: 'Mapa', en: 'Map' },
+  routeStyles: { es: 'Ruta', en: 'Route' },
+  showTitle: { es: 'Mostrar', en: 'Show' },
+  oscuro: { es: 'Oscuro', en: 'Dark' },
+  satelite: { es: 'Satélite', en: 'Satellite' },
+  hibrido: { es: 'Híbrido', en: 'Hybrid' },
+  zonas: { es: 'Zonas', en: 'Zones' },
+  estandar: { es: 'Estándar', en: 'Standard' },
+  clasica: { es: 'Avance', en: 'Progress' },
+  velocidad: { es: 'Velocidad', en: 'Speed' },
+  tiempo: { es: 'Tiempo', en: 'Time' },
+  routes: { es: 'Rutas', en: 'Routes' },
+  photos: { es: 'Fotos', en: 'Photos' },
+  findings: { es: 'Hallazgos', en: 'Findings' },
+  orchards: { es: 'Huertas', en: 'Orchards' },
+};
+
+const LAYER_ICON = { oscuro: Moon, satelite: Satellite, hibrido: MapIcon, zonas: LayoutGrid, estandar: Signpost } as const;
+const ROUTE_STYLES: ScansMapRouteStyle[] = ['clasica', 'velocidad', 'tiempo'];
+const SHOW_ICON = { routes: Route, photos: Camera, findings: Bug, orchards: Leaf } as const;
 
 type Props = {
   layer: ScansMapLayer;
   routeStyle: ScansMapRouteStyle;
+  show: ScansMapShow;
   zonesAvailable: boolean;
   onLayer: (l: ScansMapLayer) => void;
   onRouteStyle: (r: ScansMapRouteStyle) => void;
+  onShow: (k: keyof ScansMapShow, v: boolean) => void;
+  style?: object;
 };
 
-export default function MapStylePicker({
-  layer,
-  routeStyle,
-  zonesAvailable,
-  onLayer,
-  onRouteStyle,
-}: Props) {
+function MapStylePicker({ layer, routeStyle, show, zonesAvailable, onLayer, onRouteStyle, onShow, style }: Props) {
   const t = useTranslations(translations);
-  const layers: ScansMapLayer[] = [
-    "oscuro",
-    "satelite",
-    "hibrido",
-    "estandar",
-    ...(zonesAvailable ? ["zonas" as const] : []),
-  ];
+  const reduced = useReducedMotion();
+  const layers: (keyof typeof LAYER_ICON)[] = ['oscuro', 'satelite', 'hibrido', ...(zonesAvailable ? ['zonas' as const] : []), 'estandar'];
+  const current = layer === 'topo' ? 'estandar' : layer;
   return (
-    <View style={{ gap: 12 }}>
-      <Text style={s.section}>{t("mapTypes")}</Text>
-      <View style={[s.grid, { gap: 8 }]}>
-        {layers.map((l) => (
-          <Pressable
-            key={l}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: layer === l }}
-            onPress={() => onLayer(l)}
-            style={{
-              paddingHorizontal: 14,
-              paddingVertical: 12,
-              borderRadius: 16,
-              borderWidth: 1,
-              borderColor: layer === l ? MINT : "#33434b",
-              backgroundColor: layer === l ? "#144139" : "#172329",
-            }}
-          >
-            <Text style={layer === l ? s.labelOn : s.label}>{t(l)}</Text>
-          </Pressable>
-        ))}
+    <Reanimated.View entering={FadeIn.duration(reduced ? 0 : 140)} exiting={FadeOut.duration(reduced ? 0 : 110)} style={[s.panel, style]} accessibilityViewIsModal>
+      <Text style={s.section}>{t('mapTypes')}</Text>
+      <View style={s.grid} accessibilityRole="radiogroup">
+        {layers.map(l => {
+          const on = current === l;
+          const Icon = LAYER_ICON[l];
+          return (
+            <Pressable key={l} onPress={() => onLayer(l)} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={t(l)}
+              style={({ pressed }) => [s.tile, on && s.tileOn, pressed && s.pressed]}>
+              <Icon size={18} color={on ? C.ink : C.text} />
+              <Text style={[s.tileText, on && s.textOn]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{t(l)}</Text>
+            </Pressable>
+          );
+        })}
       </View>
-      <Text style={s.section}>{t("routeStyles")}</Text>
-      <View style={[s.grid, { gap: 8 }]}>
-        {ROUTE_STYLES.map((r) => (
-          <Pressable
-            key={r}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: routeStyle === r }}
-            onPress={() => onRouteStyle(r)}
-            style={{
-              padding: 12,
-              borderRadius: 14,
-              backgroundColor: routeStyle === r ? "#144139" : "#172329",
-            }}
-          >
-            <Text style={routeStyle === r ? s.labelOn : s.label}>{t(r)}</Text>
-          </Pressable>
-        ))}
+      <Text style={s.section}>{t('routeStyles')}</Text>
+      <View style={s.row} accessibilityRole="radiogroup">
+        {ROUTE_STYLES.map(r => {
+          const on = routeStyle === r;
+          return (
+            <Pressable key={r} onPress={() => onRouteStyle(r)} accessibilityRole="radio" accessibilityState={{ checked: on }}
+              style={({ pressed }) => [s.chip, on && s.chipOn, pressed && s.pressed]}>
+              <Text style={[s.chipText, on && s.textOn]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{t(r)}</Text>
+            </Pressable>
+          );
+        })}
       </View>
-    </View>
+      <Text style={s.section}>{t('showTitle')}</Text>
+      <View style={s.grid}>
+        {(Object.keys(SHOW_ICON) as (keyof ScansMapShow)[]).map(k => {
+          const on = show[k];
+          const Icon = SHOW_ICON[k];
+          return (
+            <Pressable key={k} onPress={() => onShow(k, !on)} accessibilityRole="switch" accessibilityState={{ checked: on }} accessibilityLabel={t(k)}
+              style={({ pressed }) => [s.toggle, on && s.toggleOn, pressed && s.pressed]}>
+              <Icon size={14} color={on ? C.mint : C.muted} />
+              <Text style={[s.chipText, on ? { color: C.text } : { color: C.muted }]} numberOfLines={1} maxFontSizeMultiplier={1.2}>{t(k)}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </Reanimated.View>
   );
 }
 
+export default memo(MapStylePicker);
+
 const s = StyleSheet.create({
-  section: {
-    fontFamily: "Poppins_700Bold",
-    fontSize: 16,
-    color: "#FFFFFF",
-    letterSpacing: -0.2,
+  panel: {
+    width: 236, padding: 12, gap: 8, borderRadius: 20, backgroundColor: C.glass, borderWidth: 1, borderColor: C.border,
+    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 14,
   },
-  grid: { flexDirection: "row", flexWrap: "wrap" },
-  thumbWrap: { borderRadius: 16, borderWidth: 2.5, padding: 2 },
-  thumb: {
-    flex: 1,
-    borderRadius: 12,
-    overflow: "hidden",
-    backgroundColor: "#1E2A30",
-  },
-  label: { fontFamily: "Poppins_400Regular", fontSize: 13, color: "#AAB5BF" },
-  labelOn: { fontFamily: "Poppins_700Bold", color: MINT },
-  sub: {
-    fontFamily: "Poppins_400Regular",
-    fontSize: 10.5,
-    color: "#7C8A96",
-    marginTop: -4,
-  },
-  loading: { alignItems: "center", justifyContent: "center" },
-  zones: { flexDirection: "row", flexWrap: "wrap", opacity: 0.45 },
-  zone: {
-    width: "50%",
-    height: "50%",
-    borderWidth: 0.5,
-    borderColor: "rgba(255,255,255,0.8)",
-  },
+  section: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, letterSpacing: 0.6, color: C.muted, textTransform: 'uppercase', marginTop: 2 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  row: { flexDirection: 'row', gap: 6 },
+  tile: { width: 66, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 3, backgroundColor: C.chip, borderWidth: 1, borderColor: C.border },
+  tileOn: { backgroundColor: C.mint, borderColor: C.mint },
+  tileText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: C.text },
+  textOn: { color: C.ink },
+  chip: { flex: 1, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: C.chip, borderWidth: 1, borderColor: C.border },
+  chipOn: { backgroundColor: C.mint, borderColor: C.mint },
+  chipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: C.text },
+  toggle: { width: 100, height: 34, borderRadius: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: 'transparent', borderWidth: 1, borderColor: C.border },
+  toggleOn: { backgroundColor: 'rgba(167,243,208,0.12)', borderColor: 'rgba(167,243,208,0.45)' },
+  pressed: { opacity: 0.75, transform: [{ scale: 0.97 }] },
 });

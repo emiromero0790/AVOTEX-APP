@@ -14,7 +14,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View,
+  ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View,
   useWindowDimensions, type ImageSourcePropType,
 } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -26,8 +26,8 @@ import * as Location from 'expo-location';
 import Reanimated, { FadeIn, FadeInDown, FadeOut, FadeOutDown, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Polygon } from 'react-native-svg';
 import {
-  ArrowLeft, ArrowRight, ArrowUpDown, Bug, Calendar, Camera, Check, ChevronDown, ChevronRight, ChevronUp, CloudUpload, Layers, LayoutGrid,
-  Leaf, Lock, Map as MapIcon, Maximize2, MapPin, Minimize2, Minus, Moon, Navigation, Plane, Plus, Route, SlidersHorizontal, Video, X,
+  ArrowLeft, ArrowRight, ArrowUpDown, Bug, Calendar, Camera, Check, ChevronDown, ChevronRight, ChevronUp, CloudUpload, Layers,
+  Leaf, Lock, Maximize2, MapPin, Minimize2, Minus, Navigation, Plane, Plus, Route, SlidersHorizontal, Video, X,
 } from 'lucide-react-native';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { auth as firebaseAuth } from '../../firebaseConfig';
@@ -295,9 +295,11 @@ export default function MisEscaneos() {
   const [period, setPeriod] = useState<Period>('all');
   const [sortAsc, setSortAsc] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [picker, setPicker] = useState<'orchard' | 'filters' | 'layers' | null>(null);
+  const [picker, setPicker] = useState<'orchard' | 'filters' | null>(null);
+  // Selector de capas: panel flotante ligero junto al botón Capas (no modal).
+  const [layersOpen, setLayersOpen] = useState(false);
   // Al cerrar, el panel conserva su contenido mientras se desvanece (si no, se vaciaba a media animación).
-  const [lastPicker, setLastPicker] = useState<'orchard' | 'filters' | 'layers'>('filters');
+  const [lastPicker, setLastPicker] = useState<'orchard' | 'filters'>('filters');
   useEffect(() => { if (picker) setLastPicker(picker); }, [picker]);
   const sheetKind = picker ?? lastPicker;
   // Vista normal: mapa oscuro. Cada visita empieza en Oscuro (otra capa solo dura mientras estás en la
@@ -530,6 +532,9 @@ export default function MisEscaneos() {
       return g.ok ? g.zones.map(z => ({ key: `${o.id}:${z.id}`, label: `Zona ${z.id}`, color: z.color, ring: z.ring, at: z.label })) : [];
     });
   }, [layer, orchards, orchardFilter]);
+  const onPickLayer = useCallback((l: ScansMapLayer) => { tick(); setLayer(l); }, []);
+  const onPickRoute = useCallback((r: ScansMapRouteStyle) => { tick(); setRouteStyle(r); }, []);
+  const onPickShow = useCallback((k: keyof ScansMapShow, v: boolean) => { tick(); setShow(prev => ({ ...prev, [k]: v })); }, []);
   const zonesAvailable = useMemo(() => orchards.some(o => { const g = buildOrchardGeometry(o.coordinates, o.id); return g.ok && g.zones.length > 0; }), [orchards]);
 
   const mapData = useMemo<ScansMapData>(() => ({
@@ -544,8 +549,9 @@ export default function MisEscaneos() {
     show,
     reduced,
   }), [orchards, visible, zones, orchardFilter, scopeKey, show, reduced]);
+  const hasLegend = routeStyle !== 'clasica' && routeStyle !== 'calor' && !!selected && selected.kind !== 'foto' && selected.route.length > 1;
   // Encuadre: lo que tapan encabezado y panel. Se manda aparte, sin redibujar el mapa.
-  const mapPad = useMemo(() => ({ top: fullscreen ? insets.top + 12 : insets.top + 128, right: 68, bottom: coverH + 8, left: 12 }), [fullscreen, insets.top, coverH]);
+  const mapPad = useMemo(() => ({ top: fullscreen ? insets.top + 12 : insets.top + (hasLegend ? 104 : 68), right: 68, bottom: coverH + 8, left: 12 }), [fullscreen, insets.top, coverH, hasLegend]);
 
   const mapDetail = useMemo<ScansMapDetail | null>(() => {
     if (!selected || selected.kind === 'foto') return null;
@@ -687,16 +693,6 @@ export default function MisEscaneos() {
   })();
 
   // ── Selector de capas (Satélite · Híbrido · Oscuro · Zonas) ──
-  const layerOptions: { key: ScansMapLayer; label: string; Icon: typeof Layers }[] = [
-    { key: 'satelite', label: t('layerSat'), Icon: Layers },
-    { key: 'hibrido', label: t('layerHybrid'), Icon: MapIcon },
-    { key: 'oscuro', label: t('layerDark'), Icon: Moon },
-    ...(zonesAvailable ? [{ key: 'zonas' as const, label: t('layerZones'), Icon: LayoutGrid }] : []),
-  ];
-  const segW = Math.min(width, 560) - 32;
-  const segItem = (segW - 8) / layerOptions.length;
-  const layerFound = layerOptions.findIndex(l => l.key === layer);
-
   // ── Encabezado flotante ──
   const top = !fullscreen && (
     <View style={[st.top, { paddingTop: insets.top + 6 }]} pointerEvents="box-none">
@@ -713,22 +709,6 @@ export default function MisEscaneos() {
           <SlidersHorizontal size={18} color={D.text} />
           {filtersActive && <View style={st.badge} />}
         </GlassBtn>
-      </View>
-      <View style={[st.segment, { width: segW }]} accessibilityRole="tablist">
-        <Reanimated.View pointerEvents="none" style={[st.segPill, {
-          width: segItem, opacity: layerFound < 0 ? 0 : 1, transform: [{ translateX: 4 + Math.max(0, layerFound) * segItem }],
-          transitionProperty: reduced ? 'none' : ['transform', 'opacity'], transitionDuration: 220, transitionTimingFunction: CSS_EASE_OUT,
-        } as object]} />
-        {layerOptions.map(({ key, label, Icon }) => {
-          const on = layer === key;
-          return (
-            <Pressable key={key} onPress={() => { if (!on) { tick(); setLayer(key); } }} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={label}
-              style={[st.segBtn, { width: segItem }]}>
-              <Icon size={17} color={on ? D.ink : D.text} />
-              <Text style={[st.segText, on && st.segTextOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{label}</Text>
-            </Pressable>
-          );
-        })}
       </View>
       {legend && (
         <Reanimated.View key={routeStyle} entering={fade} style={st.legend} pointerEvents="none" accessibilityRole="text">{legend}</Reanimated.View>
@@ -981,7 +961,7 @@ export default function MisEscaneos() {
     );
   })();
 
-  const ctrlTop = (fullscreen ? insets.top + 12 : insets.top + 128);
+  const ctrlTop = (fullscreen ? insets.top + 12 : insets.top + 64);
 
   return (
     <GestureHandlerRootView style={st.screen}>
@@ -995,14 +975,14 @@ export default function MisEscaneos() {
 
       {/* Controles laterales */}
       <View style={[st.ctrlCol, { top: ctrlTop }]} pointerEvents="box-none">
-        <CtrlBtn label={t('layers')} onPress={() => { tick(); setPicker('layers'); }}><Layers size={19} color={D.text} /></CtrlBtn>
+        <CtrlBtn label={t('layers')} active={layersOpen} onPress={() => { tick(); setLayersOpen(o => !o); }}><Layers size={19} color={layersOpen ? D.ink : D.text} /></CtrlBtn>
         <View style={st.ctrlGroup}>
           <CtrlBtn grouped label={t('zoomIn')} onPress={() => mapRef.current?.zoom(1)}><Plus size={20} color={D.text} /></CtrlBtn>
           <View style={st.ctrlSep} />
           <CtrlBtn grouped label={t('zoomOut')} onPress={() => mapRef.current?.zoom(-1)}><Minus size={20} color={D.text} /></CtrlBtn>
         </View>
         <CtrlBtn label={perspective ? t('view2D') : t('view3D')} onPress={() => { tick(); setPerspective(p => !p); }}>
-          <Text style={{color:D.text,fontSize:14,fontWeight:'700'}}>{perspective ? '2D' : '3D'}</Text>
+          <Text style={st.ctrlText} maxFontSizeMultiplier={1.1}>{perspective ? '2D' : '3D'}</Text>
         </CtrlBtn>
         <CtrlBtn label={fullscreen ? t('exitFull') : t('full')} onPress={() => { tick(); setFullscreen(f => !f); setSheetIdx(0); }}>
           {fullscreen ? <Minimize2 size={18} color={D.text} /> : <Maximize2 size={18} color={D.text} />}
@@ -1054,12 +1034,20 @@ export default function MisEscaneos() {
       />
 
       {/* Panel de huerta, filtros y capas: independiente del historial (Modal: no compiten por gestos). */}
+      {/* Capas: va encima del panel inferior; tocar fuera lo cierra sin activar lo de abajo. */}
+      {layersOpen && (
+        <>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setLayersOpen(false)} accessibilityRole="button" accessibilityLabel={t('close')} />
+          <MapStylePicker layer={layer} routeStyle={routeStyle} show={show} zonesAvailable={zonesAvailable} style={[st.layersPanel, { top: ctrlTop }]}
+            onLayer={onPickLayer} onRouteStyle={onPickRoute} onShow={onPickShow} />
+        </>
+      )}
       <Modal visible={picker !== null} transparent animationType="fade" onRequestClose={() => setPicker(null)} statusBarTranslucent>
         <Pressable style={st.backdrop} onPress={() => setPicker(null)} accessibilityLabel={t('close')} />
         <SheetIn reduced={reduced} style={[st.modalSheet, { paddingBottom: insets.bottom + 16, maxHeight: height - insets.top - 24 }, isTablet && { left: '20%', right: '20%' }]}>
           <View style={st.modalHandle} />
           <View style={[st.rowCenter, { justifyContent: 'space-between', marginBottom: 8 }]}>
-            <Text style={st.modalTitle}>{sheetKind === 'orchard' ? t('pickOrchard') : sheetKind === 'layers' ? t('layers') : t('filters')}</Text>
+            <Text style={st.modalTitle}>{sheetKind === 'orchard' ? t('pickOrchard') : t('filters')}</Text>
             <Pressable onPress={() => setPicker(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('close')} style={st.modalClose}><X size={17} color={D.text} /></Pressable>
           </View>
           <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 6, paddingBottom: 4 }} showsVerticalScrollIndicator={false}>
@@ -1118,28 +1106,6 @@ export default function MisEscaneos() {
                 </View>
               </>
             )}
-            {sheetKind === 'layers' && (
-              <>
-                <MapStylePicker
-                  layer={layer}
-                  routeStyle={routeStyle}
-                  zonesAvailable={zonesAvailable}
-                  onLayer={setLayer}
-                  onRouteStyle={setRouteStyle}
-                />
-                <Text style={[st.modalTitle, { fontSize: 16, marginTop: 18, marginBottom: 2 }]}>{t('lyLayers')}</Text>
-                {([['routes', t('lyRoutes'), <Route key="r" size={17} color={D.teal} />], ['photos', t('lyPhotos'), <Camera key="c" size={17} color={D.teal} />],
-                  ['findings', t('lyFindings'), <Bug key="b" size={17} color={D.coral} />], ['orchards', t('lyOrchards'), <Leaf key="l" size={17} color={D.neon} />]] as Array<[keyof ScansMapShow, string, React.ReactNode]>)
-                  .map(([k, label, icon]) => (
-                    <View key={k} style={st.toggleRow}>
-                      <View style={st.pickIcon}>{icon}</View>
-                      <Text style={[st.pickTitle, { flex: 1 }]}>{label}</Text>
-                      <Switch value={show[k]} onValueChange={v => { tick(); setShow(s => ({ ...s, [k]: v })); }}
-                        trackColor={{ true: 'rgba(20,184,166,0.55)', false: 'rgba(255,255,255,0.15)' }} thumbColor={show[k] ? D.mint : '#E2E8F0'} accessibilityLabel={label} />
-                    </View>
-                  ))}
-              </>
-            )}
           </ScrollView>
         </SheetIn>
       </Modal>
@@ -1178,10 +1144,10 @@ function GlassBtn({ label, onPress, children, active }: { label: string; onPress
   );
 }
 
-function CtrlBtn({ label, onPress, children, grouped }: { label: string; onPress: () => void; children: React.ReactNode; grouped?: boolean }) {
+function CtrlBtn({ label, onPress, children, grouped, active }: { label: string; onPress: () => void; children: React.ReactNode; grouped?: boolean; active?: boolean }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={4}
-      style={({ pressed }) => [st.ctrlBtn, !grouped && st.ctrlSolo, pressed && { backgroundColor: 'rgba(255,255,255,0.12)', transform: [{ scale: 0.95 }] }]}>{children}</Pressable>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={active === undefined ? undefined : { expanded: active }} hitSlop={4}
+      style={({ pressed }) => [st.ctrlBtn, !grouped && st.ctrlSolo, active && st.ctrlOn, pressed && { backgroundColor: 'rgba(255,255,255,0.12)', transform: [{ scale: 0.95 }] }]}>{children}</Pressable>
   );
 }
 
@@ -1332,11 +1298,6 @@ const st = StyleSheet.create({
   glassBtn: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: D.glass, borderWidth: 1, borderColor: D.border },
   glassBtnOn: { borderColor: D.mint },
   badge: { position: 'absolute', top: 9, right: 9, width: 8, height: 8, borderRadius: 4, backgroundColor: D.mint },
-  segment: { marginTop: 12, height: 50, flexDirection: 'row', padding: 4, borderRadius: 25, backgroundColor: D.glass, borderWidth: 1, borderColor: D.border },
-  segPill: { position: 'absolute', top: 4, bottom: 4, left: 0, borderRadius: 21, backgroundColor: D.mint },
-  segBtn: { height: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 4 },
-  segText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: D.text },
-  segTextOn: { color: D.ink },
   legend: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, height: 28, borderRadius: 14, backgroundColor: D.glass, borderWidth: 1, borderColor: D.border },
   legendText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: D.text },
   legendBar: { width: 64, height: 6, borderRadius: 3 },
@@ -1347,6 +1308,9 @@ const st = StyleSheet.create({
   ctrlSep: { height: 1, marginHorizontal: 10, backgroundColor: D.border },
   ctrlBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   ctrlSolo: { borderRadius: 18, backgroundColor: D.glass, borderWidth: 1, borderColor: D.border },
+  ctrlOn: { backgroundColor: D.mint, borderColor: D.mint },
+  ctrlText: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: D.text, letterSpacing: 0.3 },
+  layersPanel: { position: 'absolute', right: 72 },
   fabWrap: { position: 'absolute', right: 16, bottom: 0 },
   fab: {
     width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0F766E',
@@ -1460,5 +1424,4 @@ const st = StyleSheet.create({
   pickRowOn: { borderColor: 'rgba(167,243,208,0.5)', backgroundColor: 'rgba(167,243,208,0.07)' },
   pickIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)' },
   pickTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: D.text },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
 });

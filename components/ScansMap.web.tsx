@@ -22,7 +22,10 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
 ) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
-  const html = useMemo(() => buildScansMapHtml(), []);
+  // URL blob (no srcDoc): un iframe srcDoc puede quedar con origen «null» y MapLibre no logra arrancar su
+  // worker, así que los mosaicos vectoriales nunca cargan. La URL blob hereda el origen de la app.
+  const src = useMemo(() => URL.createObjectURL(new Blob([buildScansMapHtml()], { type: 'text/html' })), []);
+  useEffect(() => () => URL.revokeObjectURL(src), [src]);
   const avx = () => (frame.current?.contentWindow as (Window & { avx?: Avx }) | null | undefined)?.avx;
 
   useEffect(() => {
@@ -59,7 +62,7 @@ const ScansMap = forwardRef<ScansMapHandle, ScansMapProps>(function ScansMap(
     <iframe
       ref={frame}
       title="Mapa de mis escaneos"
-      srcDoc={html}
+      src={src}
       style={{ border: 0, width: '100%', height: '100%', display: 'block', background: '#080D10' }}
     />
   );

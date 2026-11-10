@@ -245,6 +245,9 @@ const translations: TranslationResource = {
   recordAnyway: { es: 'Grabar sin GPS', en: 'Record without GPS' },
   savedTitle: { es: 'Recorrido guardado', en: 'Walk saved' },
   savedBody: { es: '{count} imágenes guardadas en el celular.', en: '{count} images saved on the phone.' },
+  distWaitGps: { es: 'Esperando señal GPS', en: 'Waiting for GPS signal' },
+  distEvery: { es: 'Suma cada ~{m} m', en: 'Adds every ~{m} m' },
+  distLeft: { es: 'Avanza ~{m} m más para sumar', en: 'Walk ~{m} m more to add' },
   emptyWalk: { es: 'No se tomó ninguna imagen; el recorrido no se guardó.', en: 'No images were taken; the walk was not saved.' },
   processTitle: { es: '¿Procesar este recorrido?', en: 'Process this walk?' },
   processBody: {
@@ -287,6 +290,23 @@ function formatDuration(ms: number): string {
   const mm = String(m).padStart(2, '0');
   const ss = String(sec).padStart(2, '0');
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+/**
+ * Leyenda bajo la distancia: el contador sube por tramos (el filtro solo suma cuando el avance supera el ruido
+ * del GPS). Muestra cuánto falta para el siguiente tramo, con el mínimo real del filtro, no un número fijo.
+ */
+function distanceHint(
+  s: { gps: 'ok' | 'searching' | 'lost'; gate: number; pending: number },
+  paused: boolean,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  if (paused) return t('savedOnPhone');
+  if (s.gps !== 'ok' || s.gate <= 0) return t('distWaitGps');
+  const left = Math.ceil(s.gate - s.pending);
+  // Con algo de avance acumulado (≥ 1 m) se dice cuánto falta; quieto, cada cuánto suma.
+  if (s.pending >= 1 && left >= 1) return t('distLeft', { m: left });
+  return t('distEvery', { m: Math.max(1, Math.round(s.gate)) });
 }
 
 function formatDistance(m: number): string {
@@ -362,7 +382,8 @@ export default function RecorridoScreen() {
   const [fieldMotion, setFieldMotion] = useState<FieldMotion | null>(null);
   const [hudBottom, setHudBottom] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [stats, setStats] = useState({ elapsed: 0, distance: 0, photos: 0, accuracy: null as number | null, gps: 'searching' as 'ok' | 'searching' | 'lost' });
+  // gate/pending: mínimo para sumar el siguiente tramo y lo avanzado hacia él (del filtro GpsTrack, en metros).
+  const [stats, setStats] = useState({ elapsed: 0, distance: 0, photos: 0, accuracy: null as number | null, gps: 'searching' as 'ok' | 'searching' | 'lost', gate: 0, pending: 0 });
   const [limitHit, setLimitHit] = useState(false);
   const startedAtRef = useRef(0);
   const pausedMsRef = useRef(0);
@@ -615,7 +636,10 @@ export default function RecorridoScreen() {
     // Al arrancar, el teléfono puede repetir la última posición conocida: hasta que haya lecturas frescas
     // se muestra «Buscando GPS…» (todavía no se puede medir distancia).
     const warming = track.frozen && track.debug.accepted === 0;
-    setStats(s => ({ ...s, accuracy: accuracy ?? null, gps: warming ? 'searching' : 'ok' }));
+    // Tras sumar un tramo, lo pendiente vuelve a 0 (el filtro deja el ancla en el punto aceptado).
+    const pending = step.accepted ? 0 : track.debug.lastDist;
+    const gate = track.debug.lastGate;
+    setStats(s => ({ ...s, accuracy: accuracy ?? null, gps: warming ? 'searching' : 'ok', gate: gate > 0 ? gate : s.gate, pending }));
     const fm = fieldMotionRef.current;
     if (fm) {
       try {
@@ -668,7 +692,7 @@ export default function RecorridoScreen() {
       setHoldHint(false);
       setCameraReady(false);
       cameraReadyRef.current = false;
-      setStats({ elapsed: 0, distance: 0, photos: 0, accuracy: null, gps: withGps ? 'searching' : 'lost' });
+      setStats({ elapsed: 0, distance: 0, photos: 0, accuracy: null, gps: withGps ? 'searching' : 'lost', gate: 0, pending: 0 });
       startedAtRef.current = Date.now();
       pausedMsRef.current = 0;
       pauseStartRef.current = null;
@@ -1024,7 +1048,7 @@ export default function RecorridoScreen() {
                 <Text style={st.statLabel}>{t('distance')}</Text>
               </View>
               <Text style={st.statValue}>{formatDistance(stats.distance)}</Text>
-              <Text style={st.statFoot}>{t('savedOnPhone')}</Text>
+              <Text style={st.statFoot}>{distanceHint(stats, paused, t)}</Text>
             </View>
           </View>
           <Text style={st.recordTip}>{holdHint ? t('holdToFinish') : t('tips')}</Text>

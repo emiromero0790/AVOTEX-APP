@@ -2,18 +2,25 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import Reanimated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
+import Reanimated, { FadeIn, FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { Calendar as CalendarIcon, ChevronRight as ChevronRightIcon, Layers, Map as MapIcon, Settings, Sprout, X } from 'lucide-react-native';
 import StatsHero from '../../components/actividad/StatsHero';
 import { SectionSkeleton } from '../../components/actividad/Skeleton';
 import OrchardFilterSheet, { type OrchardFilter } from '../../components/actividad/OrchardFilterSheet';
+import { A, CAT_COLORS, ChartCard, EmptyChart, PROBLEM_COLORS, SLICE_COLORS } from '../../components/actividad/charts/core';
+import Donut3D, { type DonutSlice } from '../../components/actividad/charts/Donut3D';
+import FruitBars from '../../components/actividad/charts/FruitBars';
+import Columns3D, { type Column } from '../../components/actividad/charts/Columns3D';
+import TrendLine, { type TrendPoint } from '../../components/actividad/charts/TrendLine';
+import AttentionPanel from '../../components/actividad/charts/AttentionPanel';
+import { attention, classRows, cropRows as buildCropRows, matchOrchard, orchardShare, sinceOf, timeline, type Granularity, type PeriodKey } from '../../services/actividadStats';
 import { listRemote, type RecorridoRemoto } from '../../services/recorridos';
 import { Footprints, Unlink } from 'lucide-react-native';
 import { listOrchards, type Orchard } from '../../services/orchards';
 import { categoria, listUserHallazgos, type CategoriaHallazgo, type HallazgoMapa } from '../../services/escaneos';
 import { CSS_EASE_OUT } from '../../components/scan/motion';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { AlertTriangle, BarChart3, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Clock, Leaf, Plus, ScanLine, ShieldCheck, Trash2 } from 'lucide-react-native';
+import { AlertTriangle, BarChart3, CalendarDays, Microscope, PieChart, TrendingUp, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Clock, Leaf, Plus, ScanLine, ShieldCheck, Trash2 } from 'lucide-react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -23,10 +30,9 @@ import { useAccessibility } from '../../context/AccessibilityContext';
 import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 
 type Scan = { id: number; created_at: string; user_id: string; label: string; score: number; fruto?: string; huerta_id?: string | null };
-type Period = 7 | 30 | 90 | 'all';
+type Period = PeriodKey;
 /** Un análisis para el Resumen: foto individual (scans) o hallazgo de un recorrido (hallazgos). Fuentes distintas: no se duplican. */
-type Rec = { source: 'foto' | 'recorrido'; crop: string; cat: CategoriaHallazgo; conf: number; date: number; huertaId: string | null };
-const CROP_EMOJI: Record<string, string> = { Aguacate: '🥑', Limón: '🍋', Mango: '🥭', Café: '☕' };
+type Rec = { source: 'foto' | 'recorrido'; crop: string; cat: Exclude<CategoriaHallazgo, 'otro'>; conf: number; date: number; huertaId: string | null; label: string };
 type Task = { id: number; title: string; detail?: string; completed: boolean; user_id: string; scheduled_at?: string; created_at?: string };
 type Section = 'summary' | 'history' | 'plan';
 type Recommendation = { title: string; text: string; tone: 'positive' | 'info' | 'warning' };
@@ -92,7 +98,40 @@ const translations: TranslationResource = {
   noOrchardNote: { es: '{count} fotos individuales sin huerta asignada no se incluyen al filtrar por huerta.', en: '{count} single photos without an orchard are excluded when filtering by orchard.' },
   legendHealthy: { es: 'Saludable', en: 'Healthy' }, legendReview: { es: 'Revisar (confianza baja)', en: 'Review (low confidence)' }, legendProblem: { es: 'Posible problema', en: 'Possible issue' },
   close: { es: 'Cerrar', en: 'Close' },
+  scansTab: { es: 'Escaneos', en: 'Scans' },
+  noOrchardOpt: { es: 'Sin huerta asignada', en: 'No orchard assigned' },
+  months: { es: '{count} meses', en: '{count} months' }, year: { es: '12 meses', en: '12 months' },
+  byOrchard: { es: 'Estado por huerta', en: 'Status by orchard' },
+  byOrchardSub: { es: 'Reparto de análisis entre huertas · no aplica el filtro de huerta', en: 'Analyses split by orchard · orchard filter not applied' },
+  analyses: { es: 'análisis', en: 'analyses' }, other: { es: 'Otras', en: 'Others' },
+  topFruits: { es: 'Frutas más analizadas', en: 'Most analyzed fruit' }, topFruitsSub: { es: 'Toca un cultivo para filtrar todas las gráficas', en: 'Tap a crop to filter every chart' },
+  nAnalyses: { es: '{count} análisis', en: '{count} analyses' }, nAnalysis1: { es: '1 análisis', en: '1 analysis' },
+  diseases: { es: 'Enfermedades por fruto', en: 'Diseases by fruit' },
+  diseasesSub: { es: 'Toca un cultivo para ver sus diagnósticos', en: 'Tap a crop to see its diagnoses' },
+  diseasesDetail: { es: 'Diagnósticos de la IA en {crop}', en: 'AI diagnoses in {crop}' },
+  backGeneral: { es: 'Vista general', en: 'Overview' },
+  catHealthy: { es: 'Saludable', en: 'Healthy' }, catReview: { es: 'Revisar', en: 'Review' }, catProblem: { es: 'Con problema', en: 'With issue' },
+  lowConf: { es: 'Confianza baja (revisar)', en: 'Low confidence (review)' },
+  sample: { es: 'n = {count}', en: 'n = {count}' },
+  perDay: { es: 'Escaneos por día', en: 'Scans per day' }, perWeek: { es: 'Escaneos por semana', en: 'Scans per week' }, perMonth: { es: 'Escaneos por mes', en: 'Scans per month' },
+  trendSub: { es: 'Análisis de IA en el periodo y filtros elegidos', en: 'AI analyses in the chosen period and filters' },
+  weekOf: { es: 'Semana del {date}', en: 'Week of {date}' },
+  vsPrev: { es: '{sign}{pct}% vs. periodo anterior', en: '{sign}{pct}% vs. previous period' }, samePrev: { es: 'Igual que el periodo anterior', en: 'Same as previous period' },
+  attention: { es: 'Hallazgos que requieren atención', en: 'Findings that need attention' },
+  attentionSub: { es: 'Problemas detectados por la IA con confianza suficiente; no es un diagnóstico definitivo', en: 'Issues the AI detected with enough confidence; not a definitive diagnosis' },
+  ofAnalyses: { es: 'de los análisis con problema', en: 'of analyses with an issue' },
+  nFindings: { es: '{count} hallazgos', en: '{count} findings' }, nFinding1: { es: '1 hallazgo', en: '1 finding' },
+  topCrop: { es: 'Cultivo con más hallazgos', en: 'Crop with most findings' },
+  lowNote: { es: '{count} análisis con confianza baja no se cuentan aquí (están en «Revisar»).', en: '{count} low-confidence analyses are not counted here (see “Review”).' },
+  ofProblems: { es: 'de los problemas', en: 'of issues' },
+  noAttention: { es: 'Ningún análisis de esta selección detectó un problema con confianza suficiente.', en: 'No analysis in this selection detected an issue with enough confidence.' },
+  emptyPeriod: { es: 'Todavía no hay análisis para este periodo', en: 'There are no analyses for this period yet' },
+  emptyOrchard: { es: 'Esta huerta aún no tiene escaneos registrados', en: 'This orchard has no scans yet' },
+  notEnough: { es: 'No hay suficientes resultados para esta visualización', en: 'Not enough results for this chart' },
+  unitNote: { es: 'Unidad: análisis de IA (cada foto individual o foto analizada de un recorrido cuenta una vez).', en: 'Unit: AI analysis (each single photo or analyzed walk photo counts once).' },
 };
+/** Primera letra en mayúscula (las clases del modelo llegan en minúsculas). */
+const cap = (v: string) => (v ? v.charAt(0).toUpperCase() + v.slice(1) : v);
 const normalize = (value = '') => value.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
 const healthy = (label = '') => {
   const normalized = normalize(label);
@@ -143,7 +182,11 @@ export default function ResultsScreen() {
   const reduced = useReducedMotion();
   const [hallazgos, setHallazgos] = useState<HallazgoMapa[]>([]);
   const [orchards, setOrchards] = useState<Orchard[]>([]);
-  const [orchardId, setOrchardId] = useState<string | null>(null);
+  // Huerta del Resumen: todas, una huerta o sin huerta asignada.
+  const [orchardF, setOrchardF] = useState<OrchardFilter>('all');
+  const orchardId = orchardF !== 'all' && orchardF !== 'none' ? orchardF : null;
+  // Enfermedades por fruto: cultivo abierto en detalle (si no hay filtro de cultivo).
+  const [detailCrop, setDetailCrop] = useState<string | null>(null);
   const [crop, setCrop] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period | null>(null);
   const [picker, setPicker] = useState<'orchard' | 'crop' | 'period' | null>(null);
@@ -220,12 +263,12 @@ export default function ResultsScreen() {
     for (const sc of scans) {
       const cat = categoria({ fruto: sc.fruto ?? '', estado: sc.label ?? '', confianza: Number(sc.score) });
       if (cat === 'otro') continue; // "no es fruto": no cuenta como resultado de un cultivo
-      out.push({ source: 'foto', crop: cropOf(sc.fruto), cat, conf: Math.max(0, Math.min(1, Number(sc.score) || 0)), date: new Date(sc.created_at).getTime(), huertaId: sc.huerta_id ?? null });
+      out.push({ source: 'foto', crop: cropOf(sc.fruto), cat, conf: Math.max(0, Math.min(1, Number(sc.score) || 0)), date: new Date(sc.created_at).getTime(), huertaId: sc.huerta_id ?? null, label: sc.label ?? '' });
     }
     for (const h of hallazgos) {
       const cat = categoria(h);
       if (cat === 'otro') continue;
-      out.push({ source: 'recorrido', crop: cropOf(h.fruto), cat, conf: Math.max(0, Math.min(1, Number(h.confianza) || 0)), date: new Date(h.tomada_at).getTime(), huertaId: h.huerta_id });
+      out.push({ source: 'recorrido', crop: cropOf(h.fruto), cat, conf: Math.max(0, Math.min(1, Number(h.confianza) || 0)), date: new Date(h.tomada_at).getTime(), huertaId: h.huerta_id, label: h.estado ?? '' });
     }
     return out;
   }, [scans, hallazgos]);
@@ -260,16 +303,16 @@ export default function ResultsScreen() {
   const histLabel = histOrchard === 'all' ? t('histAll') : histOrchard === 'none' ? t('histNone') : orchardName(histOrchard) ?? t('histAll');
 
   const effPeriod: Period = period ?? (records.some(r => r.date >= Date.now() - 30 * 86400000) ? 30 : 'all');
+  // Registros del periodo (sin filtro de huerta): base de «Estado por huerta».
+  const inPeriod = useMemo(() => {
+    const since = sinceOf(effPeriod);
+    return records.filter(r => r.date >= since);
+  }, [records, effPeriod]);
   const scoped = useMemo(() => {
-    const since = effPeriod === 'all' ? 0 : Date.now() - effPeriod * 86400000;
     // Con huerta elegida solo cuentan registros con ese huerta_id; nada sin relación verificable se le atribuye.
-    return records.filter(r => r.date >= since && (!orchardId || r.huertaId === orchardId));
-  }, [records, effPeriod, orchardId]);
-  const excludedNoOrchard = useMemo(() => {
-    if (!orchardId) return 0;
-    const since = effPeriod === 'all' ? 0 : Date.now() - effPeriod * 86400000;
-    return records.filter(r => r.date >= since && r.source === 'foto' && !r.huertaId).length;
-  }, [records, effPeriod, orchardId]);
+    return inPeriod.filter(r => matchOrchard(r, orchardF));
+  }, [inPeriod, orchardF]);
+  const excludedNoOrchard = useMemo(() => (orchardId ? inPeriod.filter(r => r.source === 'foto' && !r.huertaId).length : 0), [inPeriod, orchardId]);
   const sel = useMemo(() => (crop ? scoped.filter(r => r.crop === crop) : scoped), [scoped, crop]);
   const stat = useMemo(() => {
     const n = sel.length;
@@ -284,17 +327,72 @@ export default function ResultsScreen() {
       walk: sel.filter(r => r.source === 'recorrido').length,
     };
   }, [sel]);
-  const cropRows = useMemo(() => {
-    const names = Array.from(new Set(sel.map(r => r.crop)));
-    return names.map(name => {
-      const items = sel.filter(r => r.crop === name);
-      const k = (c: CategoriaHallazgo) => items.filter(r => r.cat === c).length;
-      return { name, count: items.length, sano: k('sano'), revisar: k('revisar'), enfermo: k('enfermo') };
-    }).sort((a, b) => b.count - a.count);
-  }, [sel]);
   const cropOptions = useMemo(() => Array.from(new Set(scoped.map(r => r.crop))).sort(), [scoped]);
   const orchardObj = orchards.find(o => o.id === orchardId) ?? null;
-  const areaHa = (orchardObj ? orchardObj.area_m2 : orchards.reduce((a, o) => a + (o.area_m2 || 0), 0)) / 10000;
+  // Superficie de las huertas del filtro (cada huerta una vez, no por escaneo). «Sin huerta»: no aplica.
+  const areaHa = orchardF === 'none' ? 0 : (orchardObj ? orchardObj.area_m2 || 0 : orchards.reduce((a, o) => a + (o.area_m2 || 0), 0)) / 10000;
+  const orchardLabel = orchardF === 'none' ? t('noOrchardOpt') : orchardObj?.nombre ?? t('allOrchards');
+  const periodLabel = effPeriod === 'all' ? t('allTime') : effPeriod === 180 ? t('months', { count: 6 }) : effPeriod === 365 ? t('year') : t('days', { count: effPeriod });
+  const periodLong = effPeriod === 'all' ? t('allTimeLong') : periodLabel;
+  const cropName = useCallback((c: string) => localizeDomainLabel(c, language) ?? c, [language]);
+  const nA = useCallback((n: number) => (n === 1 ? t('nAnalysis1') : t('nAnalyses', { count: n.toLocaleString(locale) })), [t, locale]);
+
+  // ───────── Gráficas del Resumen (todas desde los mismos registros filtrados) ─────────
+  const orchardNames = useMemo(() => Object.fromEntries(orchards.map(o => [o.id, o.nombre])), [orchards]);
+  const donut = useMemo(() => {
+    const base = crop ? inPeriod.filter(r => r.crop === crop) : inPeriod;
+    const sl = orchardShare(base, orchardNames, { none: t('noOrchardOpt'), other: t('other') }, 4);
+    let ci = 0;
+    return sl.map(x => ({ ...x, color: x.kind === 'orchard' ? SLICE_COLORS[ci++ % SLICE_COLORS.length] : x.kind === 'other' ? A.gray : A.slate }));
+  }, [inPeriod, crop, orchardNames, t]);
+  const donutSlices = useMemo<DonutSlice[]>(() => donut.map(d => ({ key: d.key, color: d.color, value: d.count })), [donut]);
+  const donutSel = orchardF === 'all' ? null : orchardF === 'none' ? '__none' : orchardF;
+  const fruitRows = useMemo(() => buildCropRows(scoped).map(r => ({ crop: r.crop, label: cropName(r.crop), count: r.count, pct: r.pct })), [scoped, cropName]);
+  const openCrop = crop ?? (detailCrop && scoped.some(r => r.crop === detailCrop) ? detailCrop : null);
+  const columns = useMemo<Column[]>(() => {
+    if (openCrop) {
+      const rows = classRows(scoped, openCrop, normalize).slice().reverse(); // base: saludable abajo
+      let pi = 0;
+      const n = scoped.filter(r => r.crop === openCrop).length;
+      return [{
+        key: openCrop, crop: openCrop, label: cropName(openCrop), n,
+        segs: rows.map(r => ({
+          key: r.key, pct: r.pct,
+          color: r.healthy ? CAT_COLORS.sano : r.lowConfidence ? CAT_COLORS.revisar : PROBLEM_COLORS[pi++ % PROBLEM_COLORS.length],
+          label: r.healthy ? t('catHealthy') : r.lowConfidence ? t('lowConf') : cap(localizeDomainLabel(r.label, language) ?? r.label),
+        })),
+      }];
+    }
+    return buildCropRows(scoped).slice(0, 4).map(r => ({
+      key: r.crop, crop: r.crop, label: cropName(r.crop), n: r.count,
+      segs: [
+        { key: 'enfermo', color: CAT_COLORS.enfermo, pct: (r.enfermo / r.count) * 100, label: t('catProblem') },
+        { key: 'revisar', color: CAT_COLORS.revisar, pct: (r.revisar / r.count) * 100, label: t('catReview') },
+        { key: 'sano', color: CAT_COLORS.sano, pct: (r.sano / r.count) * 100, label: t('catHealthy') },
+      ],
+    }));
+  }, [openCrop, scoped, cropName, language, t]);
+  const trend = useMemo(() => {
+    const fmtShort = (start: number, g: Granularity) => new Date(start).toLocaleDateString(locale, g === 'month' ? { month: 'short' } : { day: 'numeric', month: 'short' });
+    const { g, buckets } = timeline(sel, effPeriod, fmtShort);
+    const points: TrendPoint[] = buckets.map(b => ({
+      label: b.label, count: b.count,
+      long: g === 'month' ? new Date(b.start).toLocaleDateString(locale, { month: 'long', year: 'numeric' })
+        : g === 'week' ? t('weekOf', { date: new Date(b.start).toLocaleDateString(locale, { day: 'numeric', month: 'short' }) })
+        : new Date(b.start).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' }),
+    }));
+    return { g, points };
+  }, [sel, effPeriod, locale, t]);
+  const attn = useMemo(() => attention(sel, normalize), [sel]);
+  const fmtNum = useCallback((n: number) => n.toLocaleString(locale), [locale]);
+  const compare = useCallback((cur: number, prev: number) => {
+    if (prev <= 0) return null;
+    const d = Math.round(((cur - prev) / prev) * 100);
+    return d === 0 ? t('samePrev') : t('vsPrev', { sign: d > 0 ? '+' : '', pct: d });
+  }, [t]);
+  const cardW = Math.min(width, 1100) - 32;
+  const chartW = cardW - 30;
+  const enter = (i: number) => (reduced ? undefined : FadeInDown.duration(320).delay(80 + i * 70));
   const tap = () => { if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {}); };
 
   const weekDays = useMemo(() => {
@@ -424,13 +522,18 @@ export default function ResultsScreen() {
           </Pressable>
         </View>
         <View style={styles.navigator} accessibilityRole="tablist">{([
-           ['summary', t('summary'), BarChart3], ['history', t('history'), ClipboardList], ['plan', t('workPlan'), Check],
+           ['summary', t('summary'), BarChart3], ['scans', t('scansTab'), ScanLine], ['history', t('history'), ClipboardList], ['plan', t('workPlan'), Check],
         ] as const).map(([key, label, Icon]) => {
           const on = section === key;
+          // «Escaneos» abre Mis escaneos (mapa y recorridos) a pantalla completa; al regresar se vuelve a la
+          // sección en la que estabas (la pantalla de Actividad conserva su estado).
+          const press = key === 'scans'
+            ? () => { tap(); router.push({ pathname: '/(app)/escaneos', params: { n: String(Date.now()) } }); }
+            : () => { if (!on) { tap(); changeSection(key); } };
           return (
-            <Pressable key={key} onPress={() => { if (!on) { tap(); changeSection(key); } }} accessibilityRole="tab" accessibilityState={{ selected: on }}
-              style={[styles.navItem, { flex: key === 'plan' ? 1.4 : 1 }, on && { backgroundColor: colors.primary }, { transitionProperty: 'backgroundColor', transitionDuration: 180, transitionTimingFunction: CSS_EASE_OUT } as object]}>
-              <Icon size={15} color={on ? '#fff' : colors.primary} />
+            <Pressable key={key} onPress={press} accessibilityRole="tab" accessibilityState={{ selected: on }}
+              style={[styles.navItem, { flex: key === 'plan' ? 1.35 : 1 }, on && { backgroundColor: colors.primary }, { transitionProperty: 'backgroundColor', transitionDuration: 180, transitionTimingFunction: CSS_EASE_OUT } as object]}>
+              {width >= 400 && <Icon size={15} color={on ? '#fff' : colors.primary} />}
               <Text style={[styles.navText, on && styles.navTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{label}</Text>
             </Pressable>
           );
@@ -441,84 +544,161 @@ export default function ResultsScreen() {
               <StatsHero
                 width={heroW} height={heroH}
                 confidence={stat.conf} healthy={stat.healthy} problem={stat.problem} review={stat.review}
-                orchardLabel={orchardObj?.nombre ?? t('allOrchards')}
+                orchardLabel={orchardLabel}
                 onOrchard={() => { tap(); setPicker('orchard'); }}
                 labels={{ confidence: t('avgConfidence'), healthy: t('healthyCap'), problem: t('withProblem'), review: t('toReview'), empty: t('noData') }}
                 reduced={reduced}
-                animKey={`${orchardId}|${crop}|${effPeriod}`}
+                animKey={`${orchardF}|${crop}|${effPeriod}`}
               />
             </View>
 
-            {/* Métricas rápidas */}
-            <View style={styles.quick}>
-              <Quick icon={<Layers size={20} color="#16A34A" />} value={String(stat.n)} label={t('scansCap')} />
+            {/* Indicadores rápidos */}
+            <Reanimated.View entering={enter(0)} style={styles.quick}>
+              <Quick icon={<Layers size={20} color="#16A34A" />} value={stat.n.toLocaleString(locale)} label={t('scansCap')} />
               <View style={styles.quickSep} />
               <Quick icon={<Sprout size={20} color="#16A34A" />} value={String(new Set(sel.map(r => r.crop)).size)} label={t('crops')} />
               <View style={styles.quickSep} />
               <Quick icon={<MapIcon size={20} color="#16A34A" />} value={areaHa > 0 ? `${areaHa.toFixed(2)} ha` : '—'} label={t('area')} />
               <View style={styles.quickSep} />
-              <Quick icon={<CalendarIcon size={20} color="#16A34A" />} value={effPeriod === 'all' ? t('allTime') : t('days', { count: effPeriod })} label={t('period')} onPress={() => { tap(); setPicker('period'); }} />
-            </View>
+              <Quick icon={<CalendarIcon size={20} color="#16A34A" />} value={periodLabel} label={t('period')} onPress={() => { tap(); setPicker('period'); }} />
+            </Reanimated.View>
             {stat.n > 0 && <Text style={styles.sources}>{t('sources', { photos: stat.photos, walk: stat.walk })}</Text>}
             {excludedNoOrchard > 0 && <Text style={styles.sources}>{t('noOrchardNote', { count: excludedNoOrchard })}</Text>}
 
-            {/* Filtros compactos: cultivo y periodo */}
-            <View style={styles.filterRow}>
+            {/* Filtros: huerta, cultivo y periodo (todas las gráficas usan los mismos) */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+              <Pressable onPress={() => { tap(); setPicker('orchard'); }} accessibilityRole="button" style={({ pressed }) => [styles.filterPill, orchardF !== 'all' && styles.filterPillOn, pressed && { opacity: 0.85 }]}>
+                <Text style={[styles.filterText, orchardF !== 'all' && styles.filterTextOn]} numberOfLines={1}>{orchardLabel}</Text>
+                <ChevronDown size={15} color={orchardF !== 'all' ? '#166534' : '#475569'} />
+              </Pressable>
               <Pressable onPress={() => { tap(); setPicker('crop'); }} accessibilityRole="button" style={({ pressed }) => [styles.filterPill, crop && styles.filterPillOn, pressed && { opacity: 0.85 }]}>
-                <Text style={[styles.filterText, crop && styles.filterTextOn]} numberOfLines={1}>{t('crop')}: {crop ? localizeDomainLabel(crop, language) : t('allCrops')}</Text>
+                <Text style={[styles.filterText, crop && styles.filterTextOn]} numberOfLines={1}>{t('crop')}: {crop ? cropName(crop) : t('allCrops')}</Text>
                 <ChevronDown size={15} color={crop ? '#166534' : '#475569'} />
               </Pressable>
               <Pressable onPress={() => { tap(); setPicker('period'); }} accessibilityRole="button" style={({ pressed }) => [styles.filterPill, pressed && { opacity: 0.85 }]}>
-                <Text style={styles.filterText} numberOfLines={1}>{t('period')}: {effPeriod === 'all' ? t('allTimeLong') : t('days', { count: effPeriod })}</Text>
+                <Text style={styles.filterText} numberOfLines={1}>{t('period')}: {periodLong}</Text>
                 <ChevronDown size={15} color="#475569" />
               </Pressable>
-            </View>
+            </ScrollView>
 
-            {/* Estado de tus cultivos */}
-            <View style={styles.sectionHead}>
-              <Text style={styles.sectionTitle}>{t('cropStatus')}</Text>
-              <Pressable onPress={() => { tap(); changeSection('history'); }} accessibilityRole="button" hitSlop={8} style={styles.seeDetail}>
-                <Text style={styles.seeDetailText}>{t('seeDetail')}</Text>
-                <ChevronRightIcon size={16} color="#15803D" />
-              </Pressable>
-            </View>
-            {cropRows.length ? cropRows.map((row, i) => {
-              const pct = (v: number) => (row.count ? (v / row.count) * 100 : 0);
-              const on = crop === row.name;
-              return (
-                <Reanimated.View key={row.name} entering={reduced ? undefined : FadeIn.duration(220).delay(i * 50)}>
-                  <Pressable onPress={() => { tap(); setCrop(on ? null : row.name); }} accessibilityRole="button" accessibilityState={{ selected: on }}
-                    accessibilityLabel={`${localizeDomainLabel(row.name, language)}, ${row.count === 1 ? t('nScan1') : t('nScans', { count: row.count })}, ${t('healthyPct', { pct: Math.round(pct(row.sano)) })}`}
-                    style={({ pressed }) => [styles.cropRow, on && styles.cropRowOn, pressed && { opacity: 0.9 }]}>
-                    <View style={styles.cropIcon}>{CROP_EMOJI[row.name] ? <Text style={styles.cropEmoji}>{CROP_EMOJI[row.name]}</Text> : <Leaf size={22} color="#15803D" />}</View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <View style={styles.cropTop}>
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={styles.cropName} numberOfLines={1}>{localizeDomainLabel(row.name, language)}</Text>
-                          <Text style={styles.muted}>{row.count === 1 ? t('nScan1') : t('nScans', { count: row.count })}</Text>
+            {scoped.length === 0 ? (
+              <Reanimated.View entering={enter(1)} style={styles.cards}>
+                <ChartCard icon={<ScanLine size={18} color={A.green} />} title={orchardId ? t('emptyOrchard') : t('emptyPeriod')}
+                  decorations={[{ variant: 'leaf', corner: 'tr', size: 92, opacity: 0.35 }, { variant: 'fern', corner: 'bl', size: 84, opacity: 0.18 }]}>
+                  <Text style={[styles.body, { marginBottom: 12 }]}>{t('emptyOrchardText')}</Text>
+                  <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary, marginHorizontal: 0 }]} onPress={() => router.navigate('/(app)/scan')}>
+                    <ScanLine size={18} color="#fff" /><Text style={styles.buttonText}>{t('doScan')}</Text>
+                  </TouchableOpacity>
+                </ChartCard>
+              </Reanimated.View>
+            ) : (
+              <View style={styles.cards}>
+                {/* 1. Estado por huerta: dona 3D */}
+                <Reanimated.View entering={enter(1)}>
+                  <ChartCard icon={<PieChart size={18} color={A.green} />} title={t('byOrchard')} subtitle={t('byOrchardSub')}
+                    onMore={() => { tap(); setPicker('orchard'); }} moreLabel={t('pickOrchard')}
+                    decorations={[{ variant: 'leaf', corner: 'tr', size: 96, opacity: 0.32 }, { variant: 'sprig', corner: 'bl', size: 88, opacity: 0.22 }]}>
+                    {donut.length ? (
+                      <View style={[styles.donutRow, chartW < 300 && { flexDirection: 'column' }]}>
+                        <Donut3D size={Math.min(180, chartW < 300 ? chartW : chartW * 0.52)} slices={donutSlices} selected={donutSel} reduced={reduced}
+                          total={donut.reduce((a, d) => a + d.count, 0).toLocaleString(locale)} totalLabel={t('analyses')}
+                          onSelect={key => {
+                            tap();
+                            if (key === '__other') { setPicker('orchard'); return; }
+                            const next: OrchardFilter = key === '__none' ? 'none' : key;
+                            setOrchardF(f => (f === next ? 'all' : next));
+                          }} />
+                        <View style={styles.legendCol}>
+                          {donut.map(d => {
+                            const on = donutSel === d.key;
+                            return (
+                              <Pressable key={d.key} onPress={() => { tap(); if (d.kind === 'other') { setPicker('orchard'); return; } const next: OrchardFilter = d.kind === 'none' ? 'none' : d.key; setOrchardF(f => (f === next ? 'all' : next)); }}
+                                accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`${d.name}: ${Math.round(d.pct)} %, ${nA(d.count)}`}
+                                style={[styles.legendRow, on && styles.legendRowOn]}>
+                                <View style={[styles.legendSwatch, { backgroundColor: d.color }]} />
+                                <View style={{ flex: 1, minWidth: 0 }}>
+                                  <Text style={styles.legendName} numberOfLines={1}>{d.name}</Text>
+                                  {on && <Text style={styles.legendCount} numberOfLines={1}>{nA(d.count)}</Text>}
+                                </View>
+                                <Text style={styles.legendPct}>{Math.round(d.pct)}%</Text>
+                              </Pressable>
+                            );
+                          })}
                         </View>
-                        <Text style={styles.cropHealthy}>{t('healthyPct', { pct: Math.round(pct(row.sano)) })}</Text>
                       </View>
-                      <View style={styles.dist}>
-                        {([['sano', '#34C759', 0], ['revisar', '#FBBF24', pct(row.sano)], ['enfermo', '#EF6A4C', pct(row.sano) + pct(row.revisar)]] as const).map(([k, color, left]) => (
-                          <Reanimated.View key={k} style={[styles.distSeg, {
-                            left: `${left}%`, width: `${pct(row[k])}%`, backgroundColor: color,
-                            transitionProperty: reduced ? 'none' : ['left', 'width'], transitionDuration: 350, transitionTimingFunction: CSS_EASE_OUT,
-                          } as object]} />
-                        ))}
-                      </View>
-                    </View>
-                  </Pressable>
+                    ) : <EmptyChart text={t('notEnough')} />}
+                  </ChartCard>
                 </Reanimated.View>
-              );
-            }) : <Empty text={t('noChartData')} />}
-            {cropRows.length > 0 && (
-              <View style={styles.legend}>
-                <LegendDot color="#34C759" text={t('legendHealthy')} />
-                <LegendDot color="#FBBF24" text={t('legendReview')} />
-                <LegendDot color="#EF6A4C" text={t('legendProblem')} />
+
+                {/* 2. Frutas más analizadas: barras volumétricas */}
+                <Reanimated.View entering={enter(2)}>
+                  <ChartCard icon={<Sprout size={18} color={A.green} />} title={t('topFruits')} subtitle={t('topFruitsSub')}
+                    onMore={() => { tap(); setPicker('crop'); }} moreLabel={t('crop')}
+                    decorations={[{ variant: 'leaf', corner: 'br', size: 90, opacity: 0.3 }]}>
+                    <FruitBars rows={fruitRows} width={chartW} selected={crop} reduced={reduced} countLabel={nA}
+                      onSelect={c => { tap(); setCrop(cur => (cur === c ? null : c)); setDetailCrop(null); }} />
+                  </ChartCard>
+                </Reanimated.View>
+
+                {/* 3. Enfermedades por fruto: columnas apiladas 3D (general → detalle) */}
+                <Reanimated.View entering={enter(3)}>
+                  <ChartCard icon={<Microscope size={18} color={A.green} />} title={t('diseases')}
+                    subtitle={openCrop ? t('diseasesDetail', { crop: cropName(openCrop) }) : t('diseasesSub')}
+                    decorations={[{ variant: 'sprig', corner: 'tr', size: 84, opacity: 0.22 }]}>
+                    {openCrop && !crop && (
+                      <Pressable onPress={() => { tap(); setDetailCrop(null); }} accessibilityRole="button" style={styles.backChip}>
+                        <ChevronLeft size={14} color={A.green} /><Text style={styles.backChipText}>{t('backGeneral')}</Text>
+                      </Pressable>
+                    )}
+                    {columns.length && columns[0].n > 0 ? (
+                      <>
+                        <View style={styles.colLegend}>
+                          {(openCrop ? columns[0].segs.slice().reverse() : columns[0].segs.slice().reverse()).map(sg => (
+                            <View key={sg.key} style={styles.colLegendItem}>
+                              <View style={[styles.colLegendDot, { backgroundColor: sg.color }]} />
+                              <Text style={styles.colLegendText} numberOfLines={1}>{sg.label}{openCrop ? ` · ${Math.round(sg.pct)}%` : ''}</Text>
+                            </View>
+                          ))}
+                        </View>
+                        <Columns3D columns={columns} width={chartW} reduced={reduced} sampleLabel={n => t('sample', { count: n })}
+                          onPick={openCrop ? undefined : c => { tap(); setDetailCrop(c); }} />
+                      </>
+                    ) : <EmptyChart text={t('notEnough')} />}
+                  </ChartCard>
+                </Reanimated.View>
+
+                {/* 4. Evolución: línea con degradado */}
+                <Reanimated.View entering={enter(4)}>
+                  <ChartCard icon={<TrendingUp size={18} color={A.green} />} title={trend.g === 'day' ? t('perDay') : trend.g === 'week' ? t('perWeek') : t('perMonth')} subtitle={t('trendSub')}
+                    decorations={[{ variant: 'leaf', corner: 'tr', size: 70, opacity: 0.2, rotate: 20 }]}>
+                    {trend.points.length >= 2 ? (
+                      <TrendLine points={trend.points} width={chartW} reduced={reduced} fmt={fmtNum} compareLabel={compare} />
+                    ) : <EmptyChart text={t('notEnough')} />}
+                  </ChartCard>
+                </Reanimated.View>
+
+                {/* 5. Hallazgos que requieren atención */}
+                <Reanimated.View entering={enter(5)}>
+                  <ChartCard icon={<AlertTriangle size={18} color={A.coral} />} title={t('attention')} subtitle={t('attentionSub')}
+                    tint="#FFFBF8" onMore={() => { tap(); changeSection('history'); }} moreLabel={t('seeDetail')}
+                    decorations={[{ variant: 'leaf', corner: 'tr', size: 80, opacity: 0.16, color: '#E07A5F' }]}>
+                    {attn.total > 0 ? (
+                      <AttentionPanel pct={attn.pct} total={attn.total} width={chartW} reduced={reduced}
+                        top={attn.top.map(x => ({ ...x, label: cap(localizeDomainLabel(x.label, language) ?? x.label) }))}
+                        topCrop={attn.topCrop ? { label: cropName(attn.topCrop.crop), count: attn.topCrop.count } : null}
+                        lowConfidence={attn.lowConfidence}
+                        onOpen={() => { tap(); changeSection('history'); }}
+                        labels={{
+                          ofAnalyses: t('ofAnalyses'), findings: n => (n === 1 ? t('nFinding1') : t('nFindings', { count: n })),
+                          topCrop: t('topCrop'), low: n => t('lowNote', { count: n }), ofProblems: t('ofProblems'),
+                        }} />
+                    ) : <EmptyChart text={t('noAttention')} />}
+                  </ChartCard>
+                </Reanimated.View>
+                <Text style={styles.unitNote}>{t('unitNote')}</Text>
               </View>
             )}
+
              <Text style={styles.subheading}>{t('recommendedActions')}</Text>
              {recommendations.map((item, index) => <View key={item.title} style={[styles.recommendation, { backgroundColor: item.tone === 'warning' ? '#FFF4E1' : item.tone === 'info' ? '#EAF4FC' : colors.soft }]}><View style={[styles.priorityBadge, { backgroundColor: item.tone === 'warning' ? '#C78335' : colors.primary }]}><Text style={styles.priorityText}>{index + 1}</Text></View><View style={{ flex: 1 }}><Text style={styles.headingSmall}>{item.title}</Text><Text style={styles.body}>{item.text}</Text><TouchableOpacity onPress={() => prepareTask(item)}><Text style={[styles.actionText, { color: colors.primary }]}>{t('addToPlan')}</Text></TouchableOpacity></View></View>)}
              <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => router.push('/(app)/scan')}><ScanLine size={18} color="#fff" /><Text style={styles.buttonText}>{t('scanFruit')}</Text></TouchableOpacity>
@@ -684,18 +864,19 @@ export default function ResultsScreen() {
             <Pressable onPress={() => setPicker(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('close')} style={styles.closeRound}><X size={17} color="#64748B" /></Pressable>
           </View>
           <ScrollView style={{ maxHeight: 420 }}>
-            {picker === 'orchard' && [{ id: null as string | null, name: t('allOrchards'), ha: orchards.reduce((a, o) => a + (o.area_m2 || 0), 0) / 10000 },
-              ...orchards.map(o => ({ id: o.id as string | null, name: o.nombre, ha: (o.area_m2 || 0) / 10000 }))].map(o => (
-              <PickRow key={o.id ?? 'all'} on={orchardId === o.id} title={o.name} meta={o.ha > 0 ? `${o.ha.toFixed(2)} ha` : ''}
-                onPress={() => { tap(); setOrchardId(o.id); setCrop(null); setPicker(null); }} />
+            {picker === 'orchard' && [{ id: 'all' as OrchardFilter, name: t('allOrchards'), ha: orchards.reduce((a, o) => a + (o.area_m2 || 0), 0) / 10000 },
+              ...orchards.map(o => ({ id: o.id as OrchardFilter, name: o.nombre, ha: (o.area_m2 || 0) / 10000 })),
+              { id: 'none' as OrchardFilter, name: t('noOrchardOpt'), ha: 0 }].map(o => (
+              <PickRow key={o.id} on={orchardF === o.id} title={o.name} meta={o.ha > 0 ? `${o.ha.toFixed(2)} ha` : ''}
+                onPress={() => { tap(); setOrchardF(o.id); setPicker(null); }} />
             ))}
             {picker === 'crop' && [null, ...cropOptions].map(c => (
-              <PickRow key={c ?? 'all'} on={crop === c} title={c ? `${CROP_EMOJI[c] ?? ''} ${localizeDomainLabel(c, language)}`.trim() : t('allCrops')}
+              <PickRow key={c ?? 'all'} on={crop === c} title={c ? cropName(c) : t('allCrops')}
                 meta={c ? (() => { const n = scoped.filter(r => r.crop === c).length; return n === 1 ? t('nScan1') : t('nScans', { count: n }); })() : ''}
                 onPress={() => { tap(); setCrop(c); setPicker(null); }} />
             ))}
-            {picker === 'period' && ([7, 30, 90, 'all'] as Period[]).map(pv => (
-              <PickRow key={String(pv)} on={effPeriod === pv} title={pv === 'all' ? t('allTimeLong') : t('days', { count: pv })} meta=""
+            {picker === 'period' && ([7, 30, 90, 180, 365, 'all'] as Period[]).map(pv => (
+              <PickRow key={String(pv)} on={effPeriod === pv} title={pv === 'all' ? t('allTimeLong') : pv === 180 ? t('months', { count: 6 }) : pv === 365 ? t('year') : t('days', { count: pv })} meta=""
                 onPress={() => { tap(); setPeriod(pv); setPicker(null); }} />
             ))}
           </ScrollView>
@@ -709,9 +890,6 @@ function Quick({ icon, value, label, onPress }: { icon: React.ReactNode; value: 
   return onPress
     ? <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} style={styles.quickItem}>{body}</Pressable>
     : <View style={styles.quickItem} accessible accessibilityLabel={`${label}: ${value}`}>{body}</View>;
-}
-function LegendDot({ color, text }: { color: string; text: string }) {
-  return <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: color }]} /><Text style={styles.muted}>{text}</Text></View>;
 }
 function PickRow({ on, title, meta, onPress }: { on: boolean; title: string; meta: string; onPress: () => void }) {
   return (
@@ -741,7 +919,23 @@ const styles = StyleSheet.create({
   quickValue: { color: '#0F172A', fontFamily: 'Poppins_700Bold', fontSize: 17, lineHeight: 22 },
   quickLabel: { color: '#64748B', fontFamily: 'Poppins_400Regular', fontSize: 11 },
   sources: { marginHorizontal: 20, marginTop: 6, color: '#64748B', fontFamily: 'Poppins_400Regular', fontSize: 11 },
-  filterRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 12 },
+  cards: { marginHorizontal: 16, marginTop: 14, gap: 14 },
+  donutRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  legendCol: { flex: 1, minWidth: 0, gap: 2, alignSelf: 'stretch', justifyContent: 'center' },
+  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 5, paddingHorizontal: 6, borderRadius: 10, borderBottomWidth: 1, borderBottomColor: '#F1F4F1' },
+  legendRowOn: { backgroundColor: '#EEF8EA', borderBottomColor: 'transparent' },
+  legendSwatch: { width: 11, height: 11, borderRadius: 6 },
+  legendName: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, color: '#1F2D25' },
+  legendCount: { fontFamily: 'Poppins_400Regular', fontSize: 10.5, color: '#6B7A72', marginTop: -2 },
+  legendPct: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#10231A', fontVariant: ['tabular-nums'] },
+  backChip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 2, height: 30, paddingHorizontal: 10, borderRadius: 15, backgroundColor: '#EEF8EA', marginBottom: 6 },
+  backChipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#15803D' },
+  colLegend: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 4, marginBottom: 6 },
+  colLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: '100%' },
+  colLegendDot: { width: 10, height: 10, borderRadius: 3 },
+  colLegendText: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: '#3B4A42', flexShrink: 1 },
+  unitNote: { marginHorizontal: 4, fontFamily: 'Poppins_400Regular', fontSize: 11, lineHeight: 15, color: '#6B7A72' },
+  filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginTop: 12 },
   filterPill: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 36, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF' },
   filterPillOn: { backgroundColor: '#ECFCCB', borderColor: '#BEF264' },
   filterText: { flexShrink: 1, color: '#334155', fontFamily: 'Poppins_600SemiBold', fontSize: 12 }, filterTextOn: { color: '#166534' },

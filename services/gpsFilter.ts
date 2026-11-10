@@ -66,6 +66,11 @@ export class GpsTrack {
   /** Lecturas seguidas por encima de la puerta (sin velocidad, el desplazamiento debe persistir). */
   private over = 0;
   private lastVec: { x: number; y: number; t: number } | null = null;
+  /** Última coordenada cruda y cuántas veces seguidas se repitió idéntica (ubicación congelada). */
+  private lastRaw: { lat: number; lng: number } | null = null;
+  private sameCount = 0;
+  /** El teléfono repite exactamente la misma coordenada: aún no hay lecturas frescas (p. ej. al arrancar). */
+  get frozen() { return this.sameCount >= 3; }
   /** Precisión típica reciente (m), suavizada. */
   private accEma = 10;
   /** Velocidad confiable de la última lectura (m/s), o null si el teléfono no da una utilizable. */
@@ -77,7 +82,7 @@ export class GpsTrack {
     lastAcc: null as number | null, lastRawSpeed: null as number | null, speedTrusted: false,
     lastGate: 0, lastDist: 0, still: false,
     /** Decisión de la última lectura. */
-    lastReason: '' as '' | 'inicio' | 'aceptada' | 'precisión' | 'puerta' | 'persistencia' | 'salto' | 'ida-vuelta',
+    lastReason: '' as '' | 'inicio' | 'aceptada' | 'repetida' | 'precisión' | 'puerta' | 'persistencia' | 'salto' | 'ida-vuelta',
   };
 
   private toXY(lat: number, lng: number) { return { x: (lng - this.lng0) * this.k * M_PER_DEG, y: (lat - this.lat0) * M_PER_DEG }; }
@@ -103,7 +108,14 @@ export class GpsTrack {
     this.lastSpeed = speed;
     this.debug.lastAcc = acc; this.debug.lastRawSpeed = raw; this.debug.speedTrusted = speed != null;
     if (acc > MAX_ACCURACY_M) { this.debug.rejectedAccuracy += 1; this.debug.lastReason = 'precisión'; return { accepted: false, point: null, step: 0 }; }
-    this.accEma = this.ready ? this.accEma + 0.2 * (acc - this.accEma) : acc;
+    // Lectura idéntica a la anterior: el teléfono repite la última posición conocida (sin fix nuevo).
+    // No es información nueva: no entra al Kalman, así la siguiente lectura real se sigue de inmediato.
+    const same = this.lastRaw != null && this.lastRaw.lat === f.lat && this.lastRaw.lng === f.lng;
+    this.lastRaw = { lat: f.lat, lng: f.lng };
+    this.sameCount = same ? this.sameCount + 1 : 0;
+    if (same && this.ready && this.live) { this.debug.lastReason = 'repetida'; return { accepted: false, point: null, step: 0 }; }
+    // Se recupera rápido cuando la precisión vuelve a ser buena (α 0.5: ~3 s en volver de ±9 m a ±3 m).
+    this.accEma = this.ready ? this.accEma + 0.5 * (acc - this.accEma) : acc;
     if (!this.ready) {
       this.lat0 = f.lat; this.lng0 = f.lng; this.k = Math.cos((f.lat * Math.PI) / 180);
       this.x = 0; this.y = 0; this.P = acc * acc; this.lastT = f.t; this.ready = true;

@@ -1261,12 +1261,13 @@ function ItemThumb({ item, size, outline, preferPhoto }: { item: ScanItem; size:
       <Image source={item.thumb} style={StyleSheet.absoluteFill} resizeMode="cover" onError={() => setFailed(true)} accessibilityIgnoresInvertColors />
     </View>
   ) : null;
+  // Foto individual: siempre la imagen de representación, como en Actividad. La foto original se borra tras el
+  // análisis aunque su ruta siga guardada; intentar cargarla dejaba el recuadro vacío (en Android no siempre
+  // llega el error para cambiar a la imagen de representación).
+  if (item.kind === 'foto') return <FruitThumb fruit={item.result?.fruto ?? null} label={item.result?.label ?? null} size={size} />;
   if (preferPhoto && photo) return photo;
   if (geo) return <SatThumb route={item.route} points={item.localPhotos} outline={outlinePts} size={size} radius={14} />;
   if (photo) return photo;
-  // Foto individual sin foto guardada (se borran tras el análisis): la misma imagen que en Actividad
-  // (aguacate sano con pesas o aguacate enfermo; otras frutas, su imagen).
-  if (item.kind === 'foto') return <FruitThumb fruit={item.result?.fruto ?? null} label={item.result?.label ?? null} size={size} />;
   const Icon = item.fuente === 'dron' ? Plane : item.fuente === 'camara' ? Video : Route;
   return (
     <View style={[st.thumb, st.center, { width: size, height: size, backgroundColor: '#1A252B' }]}>
@@ -1281,8 +1282,10 @@ function FruitThumb({ fruit, label, size, radius = 14 }: { fruit: string | null;
   const [failed, setFailed] = useState(false);
   const source = failed ? fruitImage('Aguacate', sano) : fruitImage(fruit, sano);
   return (
-    <View style={{ width: size, height: size, borderRadius: radius, overflow: 'hidden', backgroundColor: '#1A252B' }}>
-      <Image source={source} style={StyleSheet.absoluteFill} resizeMode="cover" onError={() => setFailed(true)} accessibilityIgnoresInvertColors />
+    // Fondo claro como la tarjeta blanca de Actividad: las imágenes son PNG con fondo transparente.
+    <View style={{ width: size, height: size, borderRadius: radius, overflow: 'hidden', backgroundColor: '#EEF4F1' }}>
+      {/* Ancho y alto explícitos: con solo absoluteFill la imagen local puede tomar su tamaño original y verse recortada. */}
+      <Image source={source} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} resizeMode="cover" onError={() => setFailed(true)} accessibilityIgnoresInvertColors />
     </View>
   );
 }

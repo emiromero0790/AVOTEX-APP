@@ -610,7 +610,7 @@ export default function RecorridoScreen() {
     if (fm) {
       try {
         fm.pushFix({
-          t: now, lat, lng, acc: accuracy ?? null, speed: speed ?? null, heading: loc.coords.heading ?? null,
+          t: now, lat, lng, acc: accuracy ?? null, speed: track.lastSpeed, heading: loc.coords.heading ?? null,
           accepted: step.accepted, step: step.step, trackMoving: track.isMoving(now),
         });
       } catch (e) { console.warn('[recorrido] field tracking', e); }

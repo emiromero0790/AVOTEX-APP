@@ -36,7 +36,7 @@ function run(samples: Sample[], opts: { tickUntil?: number } = {}) {
     const lat = LAT0 + (p.y + gauss() * p.noise) / M_PER_DEG;
     const lng = LNG0 + (p.x + gauss() * p.noise) / (M_PER_DEG * K);
     const r = track.push({ lat, lng, acc: p.acc, speed: p.speed, t: p.t });
-    fm.pushFix({ t: p.t, lat, lng, acc: p.acc, speed: p.speed, heading: p.heading, accepted: r.accepted, step: r.step, trackMoving: track.isMoving(p.t) });
+    fm.pushFix({ t: p.t, lat, lng, acc: p.acc, speed: track.lastSpeed, heading: p.heading, accepted: r.accepted, step: r.step, trackMoving: track.isMoving(p.t) });
   }
   const end = opts.tickUntil ?? lastT;
   while (nextTick <= end) { lastT = nextTick; fm.tick(nextTick); nextTick += 1000; }
@@ -178,6 +178,21 @@ check('14. FieldMotion no altera la distancia de GpsTrack', () => {
     t2.push({ lat, lng, acc: p.acc, speed: p.speed, t: p.t });
   }
   assert.equal(a, t2.distance);
+});
+
+check('15. Android sin velocidad (speed = 0 siempre) caminando 1.2 m/s: el personaje camina', () => {
+  const s = straight(1.2, 60).map(p => ({ ...p, speed: 0 }));
+  const { fm, log } = run(s);
+  assert.equal(fm.current.moving, true, 'no camina');
+  const first = log.find(e => e.s.moving)!;
+  assert.ok(first.t <= 12000, `tardó ${first.t} ms en arrancar`);
+});
+
+check('16. Android sin velocidad quieto 5 min: casi nunca camina', () => {
+  const s = straight(0, 300, { noise: 3, acc: 6 }).map(p => ({ ...p, speed: 0 }));
+  const { log } = run(s);
+  const f = movingFraction(log, 0, 300000);
+  assert.ok(f < 0.1, `en movimiento ${(f * 100).toFixed(1)}%`);
 });
 
 console.log('Field Tracking — simulaciones de movimiento');

@@ -126,6 +126,38 @@ for (const mode of MODES) {
   check(`72 m · ±6 m · ${LABEL[mode]}`, r.min >= 72 * 0.75 && r.max <= 72 * 1.25, `min ${(r.min / 72 * 100).toFixed(0)}% · prom ${(r.avg / 72 * 100).toFixed(0)}%`);
 }
 
+rows.push('Caso real (logs de Android/Expo Go): 21 s de posición congelada, luego caminar con Doppler ~0.2 m/s:');
+{
+  const delays: number[] = [];
+  const ratios: number[] = [];
+  let frozenOk = true;
+  for (let k = 0; k < SEEDS; k++) {
+    seed = 5000 + k * 7919;
+    const t = new GpsTrack();
+    const lat0 = 19.775438, lng0 = -101.130888;
+    let first = -1;
+    for (let i = 0; i <= 21; i++) {
+      t.push({ lat: lat0, lng: lng0, acc: 3, speed: 0, t: i * 1000 });
+      if (i >= 4 && !t.frozen) frozenOk = false;
+    }
+    let bx = 0, by = 0;
+    for (let i = 1; i <= 40; i++) {
+      bx = 0.9 * bx + g() * 0.4; by = 0.9 * by + g() * 0.4;
+      const acc = i < 6 ? 8 + rnd() : 3;
+      const y = 1.0 * i;
+      t.push({ lat: lat0 + (y + by + g() * 0.8) / M, lng: lng0 + (bx + g() * 0.8) / (M * K), acc, speed: 0.2 * rnd(), t: (21 + i) * 1000 });
+      if (first < 0 && t.distance > 0) first = i;
+    }
+    delays.push(first < 0 ? 99 : first);
+    ratios.push(t.distance / 40);
+  }
+  const worstDelay = Math.max(...delays);
+  const avgDelay = delays.reduce((a, b) => a + b, 0) / delays.length;
+  check('Congelada: se detecta (píldora «Buscando GPS…»)', frozenOk, frozenOk ? 'sí' : 'no');
+  check('Primer metro contado tras empezar a moverse', worstDelay <= 9, `prom ${avgDelay.toFixed(1)} s · peor ${worstDelay} s`);
+  check('40 m caminando después', Math.min(...ratios) >= 0.8, `min ${(Math.min(...ratios) * 100).toFixed(0)}% · prom ${(ratios.reduce((a, b) => a + b, 0) / ratios.length * 100).toFixed(0)}%`);
+}
+
 console.log('Distancia del recorrido — GpsTrack');
 console.log(rows.join('\n'));
 assert.equal(failed, 0, `${failed} caso(s) fuera de tolerancia`);

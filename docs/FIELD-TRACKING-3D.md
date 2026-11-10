@@ -230,7 +230,7 @@ interfaz):
 | `v=` | Velocidad que da el teléfono (`sin dato` si no la da). `(no confiable)`: aún no demostró medir movimiento. |
 | `quieto` | El Doppler confiable dice que no te mueves (la puerta sube a 25 m). |
 | `desp 12.4/10.0m` | Desplazamiento suavizado desde el último punto aceptado / mínimo exigido (puerta). |
-| `→` | Decisión: `+X m` sumados, o `rechazada(precisión · puerta · persistencia · salto · ida-vuelta)`. |
+| `→` | Decisión: `+X m` sumados, o `rechazada(repetida · precisión · puerta · persistencia · salto · ida-vuelta)`. `repetida`: el teléfono repitió exactamente la misma coordenada (sin lectura nueva); al inicio, la píldora muestra «Buscando GPS…» mientras eso pase. |
 | `total` | Distancia acumulada del recorrido. |
 
 Dónde verlo: en la terminal de Metro (build de desarrollo); en Android con

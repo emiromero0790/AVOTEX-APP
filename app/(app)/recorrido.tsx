@@ -246,6 +246,14 @@ const translations: TranslationResource = {
   savedTitle: { es: 'Recorrido guardado', en: 'Walk saved' },
   savedBody: { es: '{count} imágenes guardadas en el celular.', en: '{count} images saved on the phone.' },
   emptyWalk: { es: 'No se tomó ninguna imagen; el recorrido no se guardó.', en: 'No images were taken; the walk was not saved.' },
+  processTitle: { es: '¿Procesar este recorrido?', en: 'Process this walk?' },
+  processBody: {
+    es: '{count} imágenes. Si lo procesas, se sube y la IA analiza las imágenes. Si lo borras, se elimina del celular y no se analiza.',
+    en: '{count} images. If you process it, it is uploaded and AI analyzes the images. If you delete it, it is removed from the phone and not analyzed.',
+  },
+  processYes: { es: 'Procesar', en: 'Process' },
+  processDelete: { es: 'Borrar', en: 'Delete' },
+  deletedWalk: { es: 'Recorrido borrado. No se subió ni se analizó.', en: 'Walk deleted. It was not uploaded or analyzed.' },
   // detalle
   detailTitle: { es: 'Recorrido del {date}', en: 'Walk of {date}' },
   analyzed: { es: 'imágenes analizadas', en: 'images analyzed' },
@@ -604,7 +612,10 @@ export default function RecorridoScreen() {
       rec.ruta.push({ lat: step.point.lat, lng: step.point.lng, t: new Date(now).toISOString(), f: 1 });
       if (step.step > 0 && !pausedRef.current) setStats(s => ({ ...s, distance: s.distance + step.step }));
     }
-    setStats(s => ({ ...s, accuracy: accuracy ?? null, gps: 'ok' }));
+    // Al arrancar, el teléfono puede repetir la última posición conocida: hasta que haya lecturas frescas
+    // se muestra «Buscando GPS…» (todavía no se puede medir distancia).
+    const warming = track.frozen && track.debug.accepted === 0;
+    setStats(s => ({ ...s, accuracy: accuracy ?? null, gps: warming ? 'searching' : 'ok' }));
     const fm = fieldMotionRef.current;
     if (fm) {
       try {
@@ -686,7 +697,8 @@ export default function RecorridoScreen() {
         setStats(s => ({
           ...s,
           elapsed: now - startedAtRef.current - pausedMsRef.current - pausedNow,
-          gps: !useGpsRef.current ? 'lost' : (!fix ? (now - startedAtRef.current > 8000 ? 'lost' : 'searching') : gpsLost ? 'lost' : 'ok'),
+          gps: !useGpsRef.current ? 'lost' : (!fix ? (now - startedAtRef.current > 8000 ? 'lost' : 'searching') : gpsLost ? 'lost'
+            : trackRef.current?.frozen && trackRef.current.debug.accepted === 0 ? 'searching' : 'ok'),
         }));
         // Sin GPS: una imagen cada pocos segundos para no perder el recorrido.
         const shot = lastShotRef.current;
@@ -754,6 +766,24 @@ export default function RecorridoScreen() {
       rec.estado = 'guardado';
       rec.terminadoAt = new Date().toISOString();
       await saveLocal(rec);
+      // Antes de subir (y gastar en el análisis) se pregunta si se procesa o se borra.
+      const choice = await new Promise<'process' | 'delete'>(resolve => {
+        Alert.alert(
+          t('processTitle'),
+          t('processBody', { count: rec.fotos.length }),
+          [
+            { text: t('processDelete'), style: 'destructive', onPress: () => resolve('delete') },
+            { text: t('processYes'), onPress: () => resolve('process') },
+          ],
+          { cancelable: false },
+        );
+      });
+      if (choice === 'delete') {
+        await deleteLocal(rec);
+        await loadHome();
+        Alert.alert(t('title'), t('deletedWalk'));
+        return;
+      }
       Alert.alert(t('savedTitle'), t('savedBody', { count: rec.fotos.length }));
     }
     await loadHome();

@@ -71,6 +71,14 @@ export class GpsTrack {
   /** Velocidad confiable de la última lectura (m/s), o null si el teléfono no da una utilizable. */
   lastSpeed: number | null = null;
   distance = 0;
+  /** Diagnóstico (solo lectura, para la pantalla de diagnóstico GPS del recorrido). */
+  readonly debug = {
+    fixes: 0, accepted: 0, rejectedAccuracy: 0, rejectedGate: 0, rejectedSpike: 0, rejectedReversal: 0,
+    lastAcc: null as number | null, lastRawSpeed: null as number | null, speedTrusted: false,
+    lastGate: 0, lastDist: 0, still: false,
+    /** Decisión de la última lectura. */
+    lastReason: '' as '' | 'inicio' | 'aceptada' | 'precisión' | 'puerta' | 'persistencia' | 'salto' | 'ida-vuelta',
+  };
 
   private toXY(lat: number, lng: number) { return { x: (lng - this.lng0) * this.k * M_PER_DEG, y: (lat - this.lat0) * M_PER_DEG }; }
   private toLL(x: number, y: number) { return { lat: this.lat0 + y / M_PER_DEG, lng: this.lng0 + x / (this.k * M_PER_DEG) }; }
@@ -87,17 +95,20 @@ export class GpsTrack {
    */
   push(f: RawFix): { accepted: boolean; point: TrackPoint | null; step: number } {
     if (!Number.isFinite(f.lat) || !Number.isFinite(f.lng)) return { accepted: false, point: null, step: 0 };
+    this.debug.fixes += 1;
     const acc = typeof f.acc === 'number' && f.acc > 0 ? f.acc : 10;
     const raw = typeof f.speed === 'number' && Number.isFinite(f.speed) && f.speed >= 0 ? f.speed : null;
     if (raw != null && raw > SPEED_PROOF && this.speedProofs < SPEED_PROOF_COUNT) this.speedProofs += 1;
     const speed = raw != null && this.speedProofs >= SPEED_PROOF_COUNT ? raw : null;
     this.lastSpeed = speed;
-    if (acc > MAX_ACCURACY_M) return { accepted: false, point: null, step: 0 };
+    this.debug.lastAcc = acc; this.debug.lastRawSpeed = raw; this.debug.speedTrusted = speed != null;
+    if (acc > MAX_ACCURACY_M) { this.debug.rejectedAccuracy += 1; this.debug.lastReason = 'precisión'; return { accepted: false, point: null, step: 0 }; }
     this.accEma = this.ready ? this.accEma + 0.2 * (acc - this.accEma) : acc;
     if (!this.ready) {
       this.lat0 = f.lat; this.lng0 = f.lng; this.k = Math.cos((f.lat * Math.PI) / 180);
       this.x = 0; this.y = 0; this.P = acc * acc; this.lastT = f.t; this.ready = true;
       this.anchor = { x: 0, y: 0, t: f.t }; this.lastAcceptAt = 0;
+      this.debug.lastReason = 'inicio';
       return { accepted: true, point: { lat: f.lat, lng: f.lng, t: f.t }, step: 0 };
     }
     // 1. Kalman (mismo P en ambos ejes)
@@ -128,13 +139,14 @@ export class GpsTrack {
       && this.speeds.filter(v => v < STILL_SPEED).length >= 2
       && this.speeds.every(v => v <= SPEED_PROOF);
     if (still) gate = Math.max(STILL_GATE_M, gate * 4);
-    if (d < gate) { this.over = 0; return { accepted: false, point: null, step: 0 }; }
+    this.debug.lastGate = gate; this.debug.lastDist = d; this.debug.still = still;
+    if (d < gate) { this.over = 0; this.debug.rejectedGate += 1; this.debug.lastReason = 'puerta'; return { accepted: false, point: null, step: 0 }; }
     // Sin velocidad que lo confirme, el desplazamiento debe sostenerse 2 lecturas: caminar lo cumple con
     // 1 s de retraso; el «baile» del GPS que cruza la puerta y regresa, no.
     this.over += 1;
-    if (speed == null && this.live && this.over < 2) return { accepted: false, point: null, step: 0 };
+    if (speed == null && this.live && this.over < 2) { this.debug.rejectedGate += 1; this.debug.lastReason = 'persistencia'; return { accepted: false, point: null, step: 0 }; }
     const secs = Math.max(0.5, (f.t - a.t) / 1000);
-    if (d / secs > MAX_SPEED && this.spikes < 3) { this.spikes += 1; return { accepted: false, point: null, step: 0 }; }
+    if (d / secs > MAX_SPEED && this.spikes < 3) { this.spikes += 1; this.debug.rejectedSpike += 1; this.debug.lastReason = 'salto'; return { accepted: false, point: null, step: 0 }; }
     this.spikes = 0;
     this.over = 0;
     const vx = this.x - a.x, vy = this.y - a.y;
@@ -146,10 +158,12 @@ export class GpsTrack {
     //    no una caminata. Se mueve el ancla pero no se suman metros (al caminar solo pasa en vueltas de hilera).
     if (speed == null && this.live && prev && f.t - prev.t < REVERSAL_WINDOW_MS) {
       const cos = (vx * prev.x + vy * prev.y) / (Math.hypot(vx, vy) * Math.hypot(prev.x, prev.y) || 1);
-      if (cos < -0.5) return { accepted: false, point: null, step: 0 };
+      if (cos < -0.5) { this.debug.rejectedReversal += 1; this.debug.lastReason = 'ida-vuelta'; return { accepted: false, point: null, step: 0 }; }
     }
     this.lastAcceptAt = f.t;
     this.distance += d;
+    this.debug.accepted += 1;
+    this.debug.lastReason = 'aceptada';
     return { accepted: true, point: { lat: ll.lat, lng: ll.lng, t: f.t }, step: d };
   }
 }

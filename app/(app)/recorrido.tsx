@@ -114,6 +114,8 @@ const LIST_REFLOW = LinearTransition.duration(260).easing(EASE_IN_OUT);
 const COUNT_POP = { from: { transform: [{ scale: 1.18 }] }, to: { transform: [{ scale: 1 }] } };
 const ROTATE_HINT_MS = 10000;
 const ROTATE_IN = FadeIn.duration(220).easing(EASE_OUT);
+// Al girar: la capa con cargador aparece de golpe (tapa el reacomodo) y se desvanece al terminar.
+const RELAYOUT_OUT = FadeOut.duration(240).easing(EASE_OUT);
 
 const auth = firebaseAuth as Auth;
 
@@ -412,6 +414,48 @@ export default function RecorridoScreen() {
   const [screenBox, setScreenBox] = useState<{ w: number; h: number } | null>(null);
   const isLandscape = screenBox ? screenBox.w > screenBox.h : width > winH;
   useEffect(() => { if (isLandscape) setRotateHint(false); }, [isLandscape]);
+  // Giro del teléfono: se detecta con el evento de dimensiones de la ventana, que llega en cuanto el sistema
+  // gira (antes de que la pantalla termine de reacomodarse). En ese mismo instante se cambia el diseño, se quita
+  // «Gira tu celular» y una capa con cargador tapa el reacomodo; se desvanece cuando el nuevo diseño ya está
+  // medido (onLayout del panel del agricultor), o a los 2.5 s como máximo.
+  const [relayout, setRelayout] = useState(false);
+  const lastLandRef = useRef<boolean | null>(null);
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const relayoutMaxRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noteOrientation = useCallback((w: number, h: number) => {
+    const land = w > h;
+    const prev = lastLandRef.current;
+    lastLandRef.current = land;
+    if (land) setRotateHint(false);
+    setScreenBox(b => (b && b.w === Math.round(w) && b.h === Math.round(h) ? b : { w: Math.round(w), h: Math.round(h) }));
+    if (prev !== null && prev !== land) {
+      setRelayout(true);
+      if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+      if (relayoutMaxRef.current) clearTimeout(relayoutMaxRef.current);
+      relayoutMaxRef.current = setTimeout(() => setRelayout(false), 2500);
+    }
+  }, []);
+  // El panel del agricultor de la orientación nueva ya se midió: se deja pintar un par de cuadros y se descubre.
+  const settleRelayout = useCallback(() => {
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = setTimeout(() => {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        setRelayout(false);
+        if (relayoutMaxRef.current) clearTimeout(relayoutMaxRef.current);
+      }));
+    }, 180);
+  }, []);
+  useEffect(() => {
+    if (mode !== 'record') { lastLandRef.current = null; setRelayout(false); return; }
+    const d = Dimensions.get('window');
+    lastLandRef.current = d.width > d.height;
+    const sub = Dimensions.addEventListener('change', ({ window }: { window: { width: number; height: number } }) => noteOrientation(window.width, window.height));
+    return () => {
+      sub.remove();
+      if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+      if (relayoutMaxRef.current) clearTimeout(relayoutMaxRef.current);
+    };
+  }, [mode, noteOrientation]);
   useEffect(() => {
     if (!rotateHint) return;
     const id = setTimeout(() => setRotateHint(false), ROTATE_HINT_MS);
@@ -1232,6 +1276,7 @@ export default function RecorridoScreen() {
         onLayout={e => {
           const { width: w, height: h } = e.nativeEvent.layout;
           setVizSize(prev => (Math.abs(prev.w - w) < 1 && Math.abs(prev.h - h) < 1 ? prev : { w: Math.round(w), h: Math.round(h) }));
+          settleRelayout();
         }}
       >
         {vizSize.w > 0 && viz(vizSize.w, vizSize.h, 0.64)}
@@ -1245,7 +1290,7 @@ export default function RecorridoScreen() {
         </LinearGradient>
       </View>
     ) : (
-      <View key="veh-port" style={st.vehPane}>
+      <View key="veh-port" style={st.vehPane} onLayout={settleRelayout}>
         <View style={st.vizRow}>
           <View style={{ width: compactW, height: compactH }}>{viz(compactW, compactH)}</View>
           {dataPane}
@@ -1260,7 +1305,7 @@ export default function RecorridoScreen() {
         style={[st.recordScreen, landscape && st.recordScreenLand, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 12, paddingLeft: insets.left + 10, paddingRight: insets.right + 10 }]}
         onLayout={e => {
           const { width: w, height: h } = e.nativeEvent.layout;
-          setScreenBox(prev => (prev && prev.w === Math.round(w) && prev.h === Math.round(h) ? prev : { w: Math.round(w), h: Math.round(h) }));
+          noteOrientation(w, h);
         }}
       >
         <StatusBar style="dark" />
@@ -1281,7 +1326,7 @@ export default function RecorridoScreen() {
           <Reanimated.View entering={ROTATE_IN} style={st.rotateOverlay}>
             <View style={st.rotateCard}>
               {/* Cerrar: a veces el celular tarda unos segundos en detectar que ya está en horizontal. */}
-              <PressableScale style={st.rotateClose} onPress={() => setRotateHint(false)} accessibilityRole="button" accessibilityLabel={t('close')} hitSlop={10}>
+              <PressableScale style={st.rotateClose} onPressIn={() => setRotateHint(false)} accessibilityRole="button" accessibilityLabel={t('close')} hitSlop={12}>
                 <X size={18} color="#171a20" strokeWidth={2.4} />
               </PressableScale>
               <View style={st.rotateIconWrap}>
@@ -1290,10 +1335,16 @@ export default function RecorridoScreen() {
               </View>
               <Text style={st.rotateTitle}>{t('rotateTitle')}</Text>
               <Text style={st.rotateBody}>{t('rotateBody')}</Text>
-              <PressableScale style={st.rotateBtn} onPress={() => setRotateHint(false)} accessibilityRole="button">
+              <PressableScale style={st.rotateBtn} onPressIn={() => setRotateHint(false)} accessibilityRole="button">
                 <Text style={st.rotateBtnText}>{t('rotateSkip')}</Text>
               </PressableScale>
             </View>
+          </Reanimated.View>
+        )}
+        {/* Reacomodo al girar: tapa el instante en que la pantalla aún no se acomoda y se desvanece. */}
+        {relayout && (
+          <Reanimated.View exiting={RELAYOUT_OUT} style={st.relayoutCover} pointerEvents="none">
+            <ActivityIndicator color="#171a20" />
           </Reanimated.View>
         )}
       </View>
@@ -1608,6 +1659,7 @@ const st = StyleSheet.create({
   camActions: { position: 'absolute', left: 12, right: 12, bottom: 12, gap: 8 },
   tChips: { alignItems: 'flex-end', gap: 6, flexShrink: 1 },
   tipCard: { alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.92)' },
+  relayoutCover: { ...StyleSheet.absoluteFill, backgroundColor: '#f2f3f5', alignItems: 'center', justifyContent: 'center' },
   rotateOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(242,243,245,0.92)', alignItems: 'center', justifyContent: 'center', padding: 28 },
   rotateCard: { alignItems: 'center', gap: 8, paddingVertical: 26, paddingHorizontal: 24, borderRadius: 24, backgroundColor: '#ffffff', maxWidth: 340, width: '100%', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
   rotateIconWrap: { width: 96, height: 96, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },

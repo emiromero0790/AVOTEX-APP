@@ -245,3 +245,30 @@ interfaz):
 
 Dónde verlo: en la terminal de Metro (build de desarrollo); en Android con
 `adb logcat -s ReactNativeJS`; en iOS con la app Consola de macOS filtrando por `[gps]`.
+
+## Modos Dron y GoPro (acompañantes)
+
+En Escanear, las tarjetas **Dron** y **GoPro** inician el mismo recorrido inteligente que Celular. La captura,
+el GPS y los datos son idénticos (las fotos las toma el celular y el recorrido se guarda como siempre). Lo único
+que cambia es la animación del agricultor, que llega como `modo=dron|gopro` y se pasa a `FieldTracking3D` como
+`companion`. La importación de fotos de dron/GoPro desde la galería se eliminó.
+
+**Dron:**
+1. El agricultor levanta el dron con la mano izquierda (0–1,1 s).
+2. Se encienden los LED y las hélices (1,5 s).
+3. El dron despega mientras el brazo baja (2–3,4 s).
+4. Después flota unos 25 cm sobre el sombrero, con un vaivén suave, y lo acompaña al caminar. La cámara sigue al agricultor, así que el dron avanza a su misma velocidad.
+
+**GoPro:** el agricultor toma el casco amarillo con la GoPro, lo sube, se lo pone (≈2,6 s) y camina con él.
+
+**Implementación:**
+- **Generación:** todo sale de la misma cámara y el mismo modelo CC0, con `node scripts/field-tracking/render.mjs … --companions`. Genera:
+  - `drone.png`: 4 fotogramas con hélices girando y 1 apagado.
+  - `farmer-drone-intro.png`: 14 fotogramas del brazo, más la posición de la mano por fotograma.
+  - `farmer-gopro-intro.png`: 20 fotogramas.
+  - `farmer-gopro.png`: caminata e idle con casco.
+- **Metadatos:** van en `field-scene.json → companions`.
+- **Posición del dron en la app:** se proyecta con `projection.ts` y se escala por profundidad. Durante la secuencia, el agricultor espera quieto.
+- **Al girar el celular:** la secuencia no se repite. El inicio se guarda por recorrido.
+- **Reducir movimiento:** con esta opción se salta la secuencia.
+- **El dron y el casco son dibujos 3D propios**, generados con three.js (formas simples), no modelos de marca.

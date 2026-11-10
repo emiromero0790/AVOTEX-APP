@@ -6,6 +6,7 @@ de dominio público. La app no incluye los modelos ni three.js: solo estas imág
 | Archivo | Origen | Licencia |
 |---|---|---|
 | `farmer-walk.png` | «Farmer» del [Ultimate Modular Men Pack](https://quaternius.com/packs/ultimatemodularcharacters.html) de Quaternius, con su esqueleto original (49 huesos). Caminata e idle creados en `render.html`; se cambiaron colores y se añadieron mochila y celular. | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) — uso comercial libre, sin atribución obligatoria |
+| `drone.png`, `farmer-drone-intro.png`, `farmer-gopro.png`, `farmer-gopro-intro.png` | El mismo «Farmer» (CC0). El dron y el casco con GoPro son geometría propia hecha en `render.html` (sin modelos de terceros). | CC0 1.0 (personaje) |
 | `tree-1.png`, `tree-2.png`, `tree-3.png`, `field-bg.jpg` | `CommonTree_1`, `CommonTree_2` y `CommonTree_5` del [Ultimate Nature Pack](https://quaternius.com/packs/ultimatenature.html) de Quaternius; recoloreados y achatados para parecer aguacates. | CC0 1.0 |
 
 Los `.glb` se descargaron del espejo

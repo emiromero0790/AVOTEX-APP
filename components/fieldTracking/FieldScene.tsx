@@ -27,6 +27,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   CHAR_Z,
+  COMPANIONS,
   CX,
   DYNAMIC_TREE_Z,
   FARMER,
@@ -37,6 +38,7 @@ import {
   VIEW_H,
   VIEW_W,
   bendX,
+  depthOf,
   groundLine,
   hash,
   mod,
@@ -48,6 +50,29 @@ import {
 import { QUALITY, type FieldQuality } from './quality';
 
 const SHEET = require('../../assets/field-tracking/farmer-walk.png');
+// Modos Dron y GoPro: agricultor con casco y GoPro, secuencias de inicio y el dron (ver render.html).
+const SHEET_GOPRO = require('../../assets/field-tracking/farmer-gopro.png');
+const INTRO_DRONE = require('../../assets/field-tracking/farmer-drone-intro.png');
+const INTRO_GOPRO = require('../../assets/field-tracking/farmer-gopro-intro.png');
+const DRONE_IMG = require('../../assets/field-tracking/drone.png');
+
+/** Acompañante del recorrido: solo cambia la animación (la captura sigue siendo con el celular). */
+export type Companion = 'none' | 'dron' | 'gopro';
+
+const DR = COMPANIONS.drone;
+const DI = COMPANIONS.droneIntro;
+const GI = COMPANIONS.goproIntro;
+const GW = COMPANIONS.goproWalk;
+const DI_LAST = DI.frames - 1;
+const GI_LAST = GI.frames - 1;
+/**
+ * Dron (s): sube el brazo con el dron (0–1.1) · lo sostiene · se encienden LEDs y hélices (1.5) · despega (2.0–3.4)
+ * mientras el brazo baja (2.15–2.95) · después vuela sobre el agricultor y lo acompaña al caminar.
+ */
+const D_RAISE = 1.1, D_ON = 1.5, D_LIFT0 = 2.0, D_LIFT1 = 3.4, D_LOWER0 = 2.15, D_LOWER1 = 2.95;
+/** GoPro (s): sube el casco, lo baja hasta la cabeza y el brazo vuelve; luego camina con él. */
+const G_END = 2.6;
+const REF_DEPTH = depthOf(DR.ref.z, DR.ref.y);
 const BG = require('../../assets/field-tracking/field-bg.jpg');
 const TREE_IMG = [
   require('../../assets/field-tracking/tree-1.png'),
@@ -98,9 +123,12 @@ export type FieldSceneProps = {
   onJank: () => void;
   /** Error al cargar una imagen: el panel pasa a modo sin escena. */
   onAssetError: () => void;
+  companion?: Companion;
+  /** Segundos de la secuencia de inicio ya transcurridos (al volver a montar no se repite). */
+  introElapsed?: number;
 };
 
-function FieldSceneImpl({ targetSpeed, targetCurvature, running, quality, onJank, onAssetError }: FieldSceneProps) {
+function FieldSceneImpl({ targetSpeed, targetCurvature, running, quality, onJank, onAssetError, companion = 'none', introElapsed = 0 }: FieldSceneProps) {
   const spec = QUALITY[quality];
   const tickMs = 1000 / spec.fps;
 
@@ -110,6 +138,11 @@ function FieldSceneImpl({ targetSpeed, targetCurvature, running, quality, onJank
   const frame = useSharedValue(WALK); // primer fotograma idle
   const sim = useSharedValue({ acc: 0, v: 0, phase: 0, idle: 0, walking: 0 });
   const mon = useSharedValue({ n: 0, sum: 0, t: 0, bad: 0, cooldown: 0 });
+  // Acompañante: tiempo de la secuencia de inicio, fotograma de esa secuencia y estado del dron.
+  const introEnd = companion === 'dron' ? D_LIFT1 : companion === 'gopro' ? G_END : 0;
+  const introT = useSharedValue(Math.min(introElapsed, introEnd));
+  const introFrame = useSharedValue(0);
+  const drone = useSharedValue({ x: DR.ref.x, y: DR.ref.y, z: DR.ref.z, f: 4 });
 
   const callback = useFrameCallback(info => {
     'worklet';
@@ -133,8 +166,37 @@ function FieldSceneImpl({ targetSpeed, targetCurvature, running, quality, onJank
     const dt = Math.min(s.acc, 250) / 1000; // tras un salto (segundo plano) no se «teletransporta»
     s.acc = 0;
 
+    // --- acompañante: secuencia de inicio y dron ---
+    let it = introT.get();
+    if (it < introEnd) { it = Math.min(introEnd, it + dt); introT.set(it); }
+    const intro = it < introEnd;
+    if (companion === 'gopro') {
+      introFrame.set(Math.min(GI_LAST, Math.floor((it / G_END) * GI.frames)));
+    } else if (companion === 'dron') {
+      // Brazo: sube, se queda arriba y baja tras soltar el dron.
+      const fi = it < D_RAISE ? Math.floor((it / D_RAISE) * DI_LAST)
+        : it < D_LOWER0 ? DI_LAST
+        : it < D_LOWER1 ? DI_LAST - Math.floor(((it - D_LOWER0) / (D_LOWER1 - D_LOWER0)) * DI_LAST) : 0;
+      introFrame.set(fi);
+      // Flota sobre el agricultor con un vaivén suave; en la mano antes de despegar.
+      const hx = DR.ref.x + 0.05 * Math.sin(it * 0.8), hy = DR.ref.y + 0.035 * Math.sin(it * 2.3), hz = DR.ref.z;
+      const d = drone.get();
+      if (it < D_LIFT0) {
+        const h = DI.hand[it < D_RAISE ? fi : DI_LAST];
+        d.x = h.x; d.y = h.y; d.z = h.z;
+      } else if (it < D_LIFT1) {
+        const u = (it - D_LIFT0) / (D_LIFT1 - D_LIFT0);
+        const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+        const h = DI.hand[DI_LAST];
+        d.x = h.x + (hx - h.x) * e; d.y = h.y + (hy - h.y) * e; d.z = h.z + (hz - h.z) * e;
+      } else { d.x = hx; d.y = hy; d.z = hz; }
+      d.f = it >= D_ON ? Math.floor(it * 24) % 4 : 4; // hélices girando (4 fotogramas) o apagado
+      drone.set({ ...d });
+    }
+
     // Velocidad visual: se acerca suavemente a la velocidad real (arranque y frenado sin saltos).
-    const target = Math.max(BASE_WALK, targetSpeed.get());
+    // Durante la secuencia de inicio el agricultor espera quieto.
+    const target = intro ? 0 : Math.max(BASE_WALK, targetSpeed.get());
     const tau = target > s.v ? 0.6 : 0.45;
     s.v += (target - s.v) * (1 - Math.exp(-dt / tau));
     if (target === 0 && s.v < 0.03) s.v = 0;
@@ -205,10 +267,38 @@ function FieldSceneImpl({ targetSpeed, targetCurvature, running, quality, onJank
     return { d };
   });
 
-  // --- sprite del agricultor ---
+  // --- sprite del agricultor (normal o con casco) y de la secuencia de inicio ---
+  const W_SHEET = companion === 'gopro' ? GW : null;
+  const wCols = W_SHEET ? W_SHEET.sheetCols : COLS, wFW = W_SHEET ? W_SHEET.frameW : FW, wFH = W_SHEET ? W_SHEET.frameH : FH;
   const spriteStyle = useAnimatedStyle(() => {
     const f = frame.get();
-    return { transform: [{ translateX: -(f % COLS) * FW }, { translateY: -Math.floor(f / COLS) * FH }] };
+    return { transform: [{ translateX: -(f % wCols) * wFW }, { translateY: -Math.floor(f / wCols) * wFH }] };
+  });
+  // Mientras dura la secuencia se ve su hoja; después, la caminata.
+  const introSheet = companion === 'dron' ? DI : companion === 'gopro' ? GI : null;
+  const showIntroUntil = companion === 'dron' ? D_LOWER1 : G_END;
+  const walkVis = useAnimatedStyle(() => ({ opacity: introSheet && introT.get() < showIntroUntil ? 0 : 1 }));
+  const introVis = useAnimatedStyle(() => ({ opacity: introSheet && introT.get() < showIntroUntil ? 1 : 0 }));
+  const introStyle = useAnimatedStyle(() => {
+    if (!introSheet) return {};
+    const f = introFrame.get();
+    return { transform: [{ translateX: -(f % introSheet.sheetCols) * introSheet.frameW }, { translateY: -Math.floor(f / introSheet.sheetCols) * introSheet.frameH }] };
+  });
+  // Dron: posición proyectada con la misma cámara y escala por profundidad (la imagen se hizo en DR.ref).
+  const droneBox = useAnimatedStyle(() => {
+    const d = drone.get();
+    const k = REF_DEPTH / depthOf(d.z, d.y);
+    return { transform: [{ translateX: screenX(d.x, d.z, d.y) - DR.anchorX * k }, { translateY: screenY(d.z, d.y) - DR.anchorY * k }, { scale: k }] };
+  });
+  const droneImg = useAnimatedStyle(() => ({ transform: [{ translateX: -drone.get().f * DR.frameW }] }));
+  const droneShadow = useAnimatedStyle(() => {
+    const d = drone.get();
+    const k = scaleAt(d.z);
+    const lift = Math.max(0, Math.min(1, (d.y - 1.0) / 1.6));
+    return {
+      opacity: 0.1 + 0.18 * lift,
+      transform: [{ translateX: screenX(d.x, d.z) - 0.22 * k }, { translateY: screenY(d.z) - 0.05 * k }, { scaleX: 0.44 * k / 10 }, { scaleY: 0.1 * k / 10 }],
+    };
   });
 
   // Ranuras de árboles: más lejanas primero (orden de pintado = profundidad).
@@ -254,9 +344,24 @@ function FieldSceneImpl({ targetSpeed, targetCurvature, running, quality, onJank
       {slots.map(s => (
         <TreeSlot key={s.key} row={s.row} side={s.side} slot={s.slot} travel={travel} curv={curv} onError={onAssetError} />
       ))}
-      <View style={styles.sprite}>
-        <Reanimated.Image source={SHEET} style={[styles.sheet, spriteStyle]} onError={onAssetError} fadeDuration={0} />
-      </View>
+      {companion === 'dron' && <Reanimated.View style={[styles.droneShadow, droneShadow]} />}
+      <Reanimated.View style={[W_SHEET
+        ? { position: 'absolute', left: W_SHEET.x, top: W_SHEET.y, width: W_SHEET.frameW, height: W_SHEET.frameH, overflow: 'hidden' }
+        : styles.sprite, walkVis]}>
+        <Reanimated.Image source={W_SHEET ? SHEET_GOPRO : SHEET} onError={onAssetError} fadeDuration={0}
+          style={[W_SHEET ? { width: W_SHEET.frameW * W_SHEET.sheetCols, height: W_SHEET.frameH * W_SHEET.sheetRows } : styles.sheet, spriteStyle]} />
+      </Reanimated.View>
+      {introSheet && (
+        <Reanimated.View style={[{ position: 'absolute', left: introSheet.x, top: introSheet.y, width: introSheet.frameW, height: introSheet.frameH, overflow: 'hidden' }, introVis]}>
+          <Reanimated.Image source={companion === 'dron' ? INTRO_DRONE : INTRO_GOPRO} onError={onAssetError} fadeDuration={0}
+            style={[{ width: introSheet.frameW * introSheet.sheetCols, height: introSheet.frameH * introSheet.sheetRows }, introStyle]} />
+        </Reanimated.View>
+      )}
+      {companion === 'dron' && (
+        <Reanimated.View style={[styles.drone, droneBox]}>
+          <Reanimated.Image source={DRONE_IMG} onError={onAssetError} fadeDuration={0} style={[styles.droneSheet, droneImg]} />
+        </Reanimated.View>
+      )}
       {/* Bruma suave del horizonte. */}
       <LinearGradient
         colors={['rgba(244,245,247,0.7)', 'rgba(244,245,247,0)']}
@@ -326,6 +431,10 @@ const styles = StyleSheet.create({
   sprite: { position: 'absolute', left: FARMER.x, top: FARMER.y, width: FW, height: FH, overflow: 'hidden' },
   sheet: { width: FW * COLS, height: FH * FARMER.sheetRows },
   topShade: { position: 'absolute', left: 0, right: 0, top: 0, height: 36 },
+  drone: { position: 'absolute', left: 0, top: 0, width: DR.frameW, height: DR.frameH, overflow: 'hidden', transformOrigin: 'left top' },
+  droneSheet: { width: DR.frameW * DR.sheetCols, height: DR.frameH },
+  // Elipse de 10×10 que se escala al tamaño de la sombra en el suelo.
+  droneShadow: { position: 'absolute', left: 0, top: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#1f2328', transformOrigin: 'left top' },
 });
 
 export default memo(FieldSceneImpl);

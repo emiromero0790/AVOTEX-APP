@@ -448,6 +448,208 @@ async function renderBackground() {
   return { png: c.toDataURL('image/jpeg', 0.86) };
 }
 
+
+// ---------------------------------------------------------------------------------------------
+// Acompañantes: dron y GoPro en casco (modos Dron y GoPro del recorrido)
+// ---------------------------------------------------------------------------------------------
+/** Dron cuadricóptero simple (blanco y gris); «spin» gira las aspas, «on» enciende LEDs y el disco de giro. */
+function buildDrone(spin = 0, on = true) {
+  const g = new THREE.Group();
+  const white = new THREE.MeshStandardMaterial({ color: '#f4f5f7', roughness: 0.35, metalness: 0.1 });
+  const dark = new THREE.MeshStandardMaterial({ color: '#2a2e33', roughness: 0.5 });
+  const gray = new THREE.MeshStandardMaterial({ color: '#8b939c', roughness: 0.4, metalness: 0.3 });
+  const body = new THREE.Mesh(new RoundedBoxGeometry(0.17, 0.065, 0.24, 4, 0.03), white); g.add(body);
+  const top = new THREE.Mesh(new RoundedBoxGeometry(0.11, 0.03, 0.14, 3, 0.012), gray); top.position.y = 0.045; g.add(top);
+  const cam = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 12), dark); cam.position.set(0, -0.04, 0.11); g.add(cam);
+  const S = 0.2;
+  for (const [sx, sz, i] of [[1, 1, 0], [-1, 1, 1], [1, -1, 2], [-1, -1, 3]]) {
+    const arm = new THREE.Mesh(new RoundedBoxGeometry(0.2, 0.025, 0.035, 2, 0.01), dark);
+    arm.position.set(sx * S / 2, 0.01, sz * S / 2); arm.rotation.y = -Math.atan2(sz, sx); g.add(arm);
+    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.04, 16), dark); motor.position.set(sx * S, 0.02, sz * S); g.add(motor);
+    // LED bajo el motor: verde atrás, rojo adelante (como los drones reales); encendido solo con «on».
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), new THREE.MeshBasicMaterial({ color: on ? (sz > 0 ? '#ff3b30' : '#34d399') : '#3a3f45' }));
+    led.position.set(sx * S, -0.006, sz * S); g.add(led);
+    if (on) {
+      // hélice en movimiento: disco translúcido (desenfoque) + aspas a distinto ángulo por fotograma
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(0.105, 32), new THREE.MeshBasicMaterial({ color: '#cfd5db', transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false }));
+      disc.rotation.x = -Math.PI / 2; disc.position.set(sx * S, 0.046, sz * S); g.add(disc);
+    }
+    const blade = new THREE.Mesh(new RoundedBoxGeometry(0.2, 0.006, 0.022, 2, 0.003), on ? new THREE.MeshStandardMaterial({ color: '#2a2e33', transparent: true, opacity: 0.55 }) : dark);
+    blade.position.set(sx * S, 0.045, sz * S); blade.rotation.y = (on ? spin * (i % 2 ? -1 : 1) : 0.6) + i * 0.7; g.add(blade);
+  }
+  g.scale.setScalar(1.7); // más grande que un dron real para que se lea en el panel
+  return g;
+}
+/** Casco amarillo con una GoPro montada arriba al frente. */
+function buildHelmet() {
+  const g = new THREE.Group();
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(0.135, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.55), new THREE.MeshStandardMaterial({ color: '#f2b705', roughness: 0.35 }));
+  shell.scale.set(1, 0.95, 1.12); g.add(shell);
+  const brim = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.012, 8, 32), new THREE.MeshStandardMaterial({ color: '#d99a00', roughness: 0.4 }));
+  brim.rotation.x = Math.PI / 2; brim.position.y = 0.022; brim.scale.set(1, 1.12, 1); g.add(brim);
+  const ridge = new THREE.Mesh(new RoundedBoxGeometry(0.035, 0.03, 0.24, 2, 0.01), new THREE.MeshStandardMaterial({ color: '#f7c948', roughness: 0.35 }));
+  ridge.position.set(0, 0.125, 0); g.add(ridge);
+  // GoPro arriba al frente, en su montura
+  const mount = new THREE.Mesh(new RoundedBoxGeometry(0.04, 0.025, 0.04, 2, 0.008), new THREE.MeshStandardMaterial({ color: '#2a2e33' }));
+  mount.position.set(0, 0.142, 0.06); g.add(mount);
+  const cam = new THREE.Mesh(new RoundedBoxGeometry(0.075, 0.055, 0.04, 3, 0.008), new THREE.MeshStandardMaterial({ color: '#15181b', roughness: 0.35, metalness: 0.2 }));
+  cam.position.set(0, 0.18, 0.065); g.add(cam);
+  const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.012, 16), new THREE.MeshStandardMaterial({ color: '#3e6ae1', roughness: 0.2, metalness: 0.5 }));
+  lens.rotation.x = Math.PI / 2; lens.position.set(0.016, 0.182, 0.088); g.add(lens);
+  const rec = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 6), new THREE.MeshBasicMaterial({ color: '#ff3b30' }));
+  rec.position.set(-0.022, 0.2, 0.046); g.add(rec);
+  return g;
+}
+
+const lerp = (a, b, t) => a + (b - a) * t;
+const hideHat = f => f.root.traverse(o => { if (o.isMesh && /Farmer_Head_(2|4)/.test(o.name)) o.visible = false; });
+
+/** Brazo izquierdo de la pose idle (t=0) a recto hacia arriba (t=1), sosteniendo algo en la mano. */
+function poseRaiseLeft(f, t, ph = 0) {
+  poseIdle(f, ph);
+  const e = smooth(Math.max(0, Math.min(1, t)));
+  setBone(f, 'Shoulder.L', 0, 0, lerp(-4, 6, e));
+  setBone(f, 'UpperArm.L', lerp(-2, 0, e), 0, lerp(-76, 80, e), 'XYZ');
+  setBone(f, 'LowerArm.L', 0, lerp(-14, -20, e), 0);
+}
+
+/** Escena del personaje (de espaldas, a CHAR_Z) y utilidades comunes de recorte y hoja de sprites. */
+function characterScene(f) {
+  const scene = new THREE.Scene();
+  lights(scene);
+  const holder = new THREE.Group();
+  holder.add(f.root);
+  holder.rotation.y = Math.PI;
+  holder.position.set(0, 0, -CFG.charZ);
+  scene.add(holder);
+  let feet = null;
+  f.root.traverse(o => { if (o.isSkinnedMesh && /Feet/.test(o.name)) feet = o; });
+  poseWalk(f, 0); f.root.updateMatrixWorld(true);
+  const handW = f.hand.getWorldPosition(new THREE.Vector3());
+  f.phone.position.copy(handW).add(new THREE.Vector3(0.0, 0.05, -0.05));
+  f.phone.rotation.set(0.2, Math.PI, 0);
+  scene.add(f.phone);
+  scene.updateMatrixWorld(true);
+  f.hand.attach(f.phone);
+  return { scene, feet };
+}
+function packSheet(frames, cols = 8) {
+  let box = { x0: W, y0: H, x1: 0, y1: 0 };
+  for (const c of frames) {
+    const b = alphaBox(c);
+    box = { x0: Math.min(box.x0, b.x0), y0: Math.min(box.y0, b.y0), x1: Math.max(box.x1, b.x1), y1: Math.max(box.y1, b.y1) };
+  }
+  const pad = 4;
+  box = { x0: Math.max(0, box.x0 - pad), y0: Math.max(0, box.y0 - pad), x1: Math.min(W - 1, box.x1 + pad), y1: Math.min(H - 1, box.y1 + pad) };
+  const fw = box.x1 - box.x0 + 1, fh = box.y1 - box.y0 + 1;
+  const rows = Math.ceil(frames.length / cols);
+  const sheet = document.createElement('canvas');
+  sheet.width = fw * Math.min(cols, frames.length); sheet.height = fh * rows;
+  const sg = sheet.getContext('2d');
+  frames.forEach((c, i) => sg.drawImage(c, box.x0, box.y0, fw, fh, (i % cols) * fw, Math.floor(i / cols) * fh, fw, fh));
+  return {
+    png: sheet.toDataURL('image/png'),
+    meta: { frameW: fw / CFG.renderScale, frameH: fh / CFG.renderScale, sheetCols: Math.min(cols, frames.length), sheetRows: rows, frames: frames.length, x: box.x0 / CFG.renderScale, y: box.y0 / CFG.renderScale },
+  };
+}
+/** Escena (three) → mundo de la proyección de la app: x lateral, y altura, z distancia al frente. */
+const toWorld = v => ({ x: +v.x.toFixed(3), y: +v.y.toFixed(3), z: +(-v.z).toFixed(3) });
+
+const INTRO_FRAMES = 14;
+async function renderCompanions() {
+  const cam = sceneCamera();
+  renderer.setClearColor(0x000000, 0);
+
+  // 1) Dron solo, en su posición de referencia sobre el agricultor: 4 fotogramas con aspas girando + 1 apagado.
+  const DRONE_REF = { x: 0.12, y: 2.12, z: CFG.charZ + 0.15 }; // ~25 cm sobre el sombrero
+  const droneFrames = [];
+  for (let i = 0; i < 5; i++) {
+    const scene = new THREE.Scene(); lights(scene);
+    const d = i < 4 ? buildDrone((i / 4) * (Math.PI / 2), true) : buildDrone(0, false);
+    d.rotation.y = Math.PI;
+    d.position.set(DRONE_REF.x, DRONE_REF.y, -DRONE_REF.z);
+    scene.add(d);
+    renderer.render(scene, cam);
+    droneFrames.push(grab());
+  }
+  const drone = packSheet(droneFrames, 5);
+  // Centro del dron en el recorte (dp), para colocarlo en cualquier punto proyectado.
+  const pv = new THREE.Vector3(DRONE_REF.x, DRONE_REF.y, -DRONE_REF.z).project(cam);
+  const sx = (pv.x * 0.5 + 0.5) * CFG.viewW, sy = (-pv.y * 0.5 + 0.5) * CFG.viewH;
+  drone.meta.anchorX = +(sx - drone.meta.x).toFixed(3);
+  drone.meta.anchorY = +(sy - drone.meta.y).toFixed(3);
+  drone.meta.ref = DRONE_REF;
+
+  // 2) Agricultor levantando el dron con la mano izquierda (el dron se dibuja aparte, en la mano).
+  {
+    const f = await buildFarmer();
+    const { scene, feet } = characterScene(f);
+    const frames = [], hand = [];
+    for (let i = 0; i < INTRO_FRAMES; i++) {
+      poseRaiseLeft(f, i / (INTRO_FRAMES - 1));
+      groundFeet(f, feet);
+      scene.updateMatrixWorld(true);
+      // Punto de apoyo del dron: sobre la palma.
+      const hp = f.bones.HandL.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.08, 0));
+      hand.push(toWorld(hp));
+      renderer.render(scene, cam);
+      frames.push(grab());
+    }
+    var droneIntro = packSheet(frames);
+    droneIntro.meta.hand = hand;
+  }
+
+  // 3) GoPro: caminata + idle con casco (sin sombrero) y 4) la secuencia de ponerse el casco.
+  const f = await buildFarmer();
+  hideHat(f);
+  const { scene, feet } = characterScene(f);
+  const helmet = buildHelmet();
+  scene.add(helmet);
+  // Posición del casco sobre la cabeza (en reposo), luego se une al hueso Head para seguir el paso.
+  const onHead = () => {
+    const hd = f.bones.Head;
+    const m = new THREE.Matrix4().copy(hd.matrixWorld);
+    const pos = new THREE.Vector3(0, 0, 0).applyMatrix4(m);
+    const q = hd.getWorldQuaternion(new THREE.Quaternion()).multiply(f.rest.Head.world.clone().invert());
+    return { pos: pos.add(new THREE.Vector3(0, 0.1, 0).applyQuaternion(q)), q };
+  };
+  const introFrames = [];
+  const N = 20;
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1);
+    // 0–0.45: sube el casco en la mano · 0.45–0.75: el casco baja hasta la cabeza · 0.75–1: el brazo vuelve
+    const raise = t < 0.45 ? t / 0.45 : t < 0.75 ? 1 - ((t - 0.45) / 0.3) * 0.25 : 0.75 * (1 - (t - 0.75) / 0.25);
+    poseRaiseLeft(f, raise);
+    groundFeet(f, feet);
+    scene.updateMatrixWorld(true);
+    const handTop = f.bones.HandL.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.12, 0));
+    const head = onHead();
+    // del brazo izquierdo se rota para quedar «de frente» (el modelo está girado 180°)
+    const k = t < 0.45 ? 0 : t < 0.75 ? smooth((t - 0.45) / 0.3) : 1;
+    helmet.position.copy(handTop).lerp(head.pos, k);
+    helmet.quaternion.setFromEuler(new THREE.Euler(0, Math.PI, 0)).slerp(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)).premultiply(head.q), k);
+    renderer.render(scene, cam);
+    introFrames.push(grab());
+  }
+  const goproIntro = packSheet(introFrames);
+
+  // Caminata e idle con el casco unido a la cabeza.
+  poseIdle(f, 0); groundFeet(f, feet); scene.updateMatrixWorld(true);
+  const h0 = onHead();
+  helmet.position.copy(h0.pos);
+  helmet.quaternion.setFromEuler(new THREE.Euler(0, Math.PI, 0)).premultiply(h0.q);
+  scene.updateMatrixWorld(true);
+  f.bones.Head.attach(helmet);
+  const walkFrames = [];
+  for (let i = 0; i < CFG.walkFrames; i++) { poseWalk(f, i / CFG.walkFrames); groundFeet(f, feet); renderer.render(scene, cam); walkFrames.push(grab()); }
+  for (let i = 0; i < CFG.idleFrames; i++) { poseIdle(f, i / CFG.idleFrames); groundFeet(f, feet); renderer.render(scene, cam); walkFrames.push(grab()); }
+  const goproWalk = packSheet(walkFrames);
+
+  return { drone, droneIntro, goproIntro, goproWalk };
+}
+
+window.runCompanions = renderCompanions;
+
 window.run = async () => {
   const character = await renderCharacter();
   const trees = await renderTrees();
@@ -481,6 +683,8 @@ window.debugCharacter = async (phases, kind = 'walk') => {
   renderer.setSize(W, H);
   return out.toDataURL('image/png');
 };
+// Acceso para depuración desde Playwright (render.mjs no lo usa).
+window.FT = { THREE, CFG, renderer, buildFarmer, buildDrone, buildHelmet, hideHat, poseRaiseLeft, setBone, resetPose, relaxHands, poseWalk, poseIdle, groundFeet, sceneCamera, lights, grab, alphaBox };
 window.READY = true;
 </script>
 </body>

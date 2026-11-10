@@ -8,8 +8,8 @@
  *      del recorrido).
  *    - Invitado: Tomar fotografía (foto individual) y «Recorrido inteligente» con candado; al tocarlo se
  *      explica que se desbloquea al crear una cuenta o suscribirse a un plan de pago.
- * 3. Abajo, Dron y GoPro/cámara de acción: cada tarjeta abre directamente la importación de fotos
- *    (no hay conexión directa con ningún fabricante; ver services/importar.ts).
+ * 3. Abajo, Dron y GoPro/cámara de acción: cada tarjeta inicia el mismo recorrido inteligente; solo cambia
+ *    la animación (el agricultor lanza un dron que lo sigue, o se pone un casco con GoPro).
  *
  * Movimiento (skill animate-expo): entrada escalonada de las tarjetas solo la primera vez (260 ms, salida
  * fuerte); cambio de modo con transiciones de color de 160 ms + Haptics.selectionAsync; el texto del botón
@@ -61,14 +61,14 @@ const translations: TranslationResource = {
   descDrone: { es: 'Escaneo aéreo de tu huerta para un análisis más completo', en: 'Aerial scan of your orchard for a more complete analysis' },
   descAction: { es: 'Captura recorridos en campo con alta estabilidad', en: 'Capture field walks with high stability' },
   descPhone: { es: 'Escanea plantas, hojas y frutos de forma rápida y sencilla', en: 'Scan plants, leaves and fruit quickly and easily' },
-  capImport: { es: 'Importa las fotos desde la galería de tu celular. Se ubican con su GPS.', en: 'Import the photos from your phone gallery. Placed by their GPS.' },
+  capModes: { es: 'Inician el recorrido inteligente con la animación de tu dron o tu GoPro.', en: 'They start the smart walk with your drone or GoPro animation.' },
   capWalk: { es: 'Camina tu huerta: el celular toma las fotos solo, sin internet.', en: 'Walk your orchard: the phone takes the photos, offline.' },
   capPhoto: { es: 'Toma una foto de un fruto, hoja o árbol y recibe el diagnóstico.', en: 'Take a photo of a fruit, leaf or tree and get a diagnosis.' },
   modeWalk: { es: 'Recorrido inteligente', en: 'Smart walk' },
   modePhoto: { es: 'Foto individual', en: 'Single photo' },
   ctaWalk: { es: 'Iniciar recorrido', en: 'Start walk' },
   ctaPhoto: { es: 'Tomar fotografía', en: 'Take photo' },
-  ctaImport: { es: 'Importar capturas', en: 'Import captures' },
+  ctaModeWalk: { es: 'Iniciar recorrido', en: 'Start walk' },
   locked: { es: 'Crea una cuenta para usarlo', en: 'Create an account to use it' },
   unlockTitle: { es: 'Recorrido inteligente bloqueado', en: 'Smart walk is locked' },
   unlockBody: { es: 'Se desbloquea al crear una cuenta o al suscribirte a un plan de pago. Con él caminas tu huerta y el celular toma las fotos solo.', en: 'Unlock it by creating an account or subscribing to a paid plan. Walk your orchard and the phone takes the photos for you.' },
@@ -89,8 +89,8 @@ type Props = {
   pendingCount: number;
   /** Foto individual: solo para invitados (con cuenta se toma dentro del recorrido). */
   onPhoto?: () => void;
-  onWalk: () => void;
-  onImport: (fuente: 'dron' | 'camara') => void;
+  /** Recorrido inteligente; «modo» solo cambia la animación del agricultor. */
+  onWalk: (modo?: 'dron' | 'gopro') => void;
   onOpenScans: () => void;
   /** Mientras se verifica la huerta por GPS: el botón muestra este texto y no responde. */
   busyLabel?: string | null;
@@ -143,7 +143,7 @@ function SourceCard({ kind, icon, title, desc, featured, locked, onPress, a11y, 
   );
 }
 
-export default function ScanHome({ isGuest, tokensRemaining, email = null, pendingCount, onPhoto, onWalk, onImport, onOpenScans, busyLabel = null }: Props) {
+export default function ScanHome({ isGuest, tokensRemaining, email = null, pendingCount, onPhoto, onWalk, onOpenScans, busyLabel = null }: Props) {
   const t = useTranslations(translations);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -177,16 +177,16 @@ export default function ScanHome({ isGuest, tokensRemaining, email = null, pendi
   const start = () => {
     if (busyLabel) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    (isGuest ? onPhoto : onWalk)?.();
+    if (isGuest) onPhoto?.(); else onWalk();
   };
   const tapLockedWalk = () => {
     Haptics.selectionAsync().catch(() => {});
     setWalkInfo(v => !v);
   };
-  const importFrom = (fuente: 'dron' | 'camara') => {
+  const walkWith = (fuente: 'dron' | 'camara') => {
     if (isGuest) { Haptics.selectionAsync().catch(() => {}); setLockedTap(true); return; }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    onImport(fuente);
+    onWalk(fuente === 'dron' ? 'dron' : 'gopro');
   };
 
   // Barra de pestañas flotante + botón central que sobresale.
@@ -299,13 +299,13 @@ export default function ScanHome({ isGuest, tokensRemaining, email = null, pendi
                 <SourceCard
                   key={src.key} kind={src.key} index={i + 1} animateIn={animateIn} height={cardH} locked={isGuest}
                   icon={<Icon size={18} color={C.white} />} title={src.title} desc={src.desc}
-                  onPress={() => importFrom(src.key)}
-                  a11y={`${src.title}. ${src.desc}. ${t('ctaImport')}${isGuest ? `, ${t('needsAccount')}` : ''}`}
+                  onPress={() => walkWith(src.key)}
+                  a11y={`${src.title}. ${src.desc}. ${t('ctaModeWalk')}${isGuest ? `, ${t('needsAccount')}` : ''}`}
                 />
               );
             })}
           </View>
-          <Text style={s.caption} maxFontSizeMultiplier={1.15}>{isGuest && lockedTap ? t('locked') : t('capImport')}</Text>
+          <Text style={s.caption} maxFontSizeMultiplier={1.15}>{isGuest && lockedTap ? t('locked') : t('capModes')}</Text>
         </View>
       </ScrollView>
     </View>

@@ -14,7 +14,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View,
+  ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View,
   useWindowDimensions, type ImageSourcePropType,
 } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -27,7 +27,7 @@ import Reanimated, { FadeIn, FadeInDown, FadeOut, FadeOutDown, useAnimatedStyle,
 import Svg, { Polygon } from 'react-native-svg';
 import {
   ArrowLeft, ArrowRight, ArrowUpDown, Bug, Calendar, Camera, Check, ChevronDown, ChevronRight, ChevronUp, CloudUpload, Layers, LayoutGrid,
-  Leaf, Lock, Map as MapIcon, Maximize2, MapPin, Minimize2, Minus, Moon, Navigation, Plane, Plus, Route, Search, SlidersHorizontal, Video, X,
+  Leaf, Lock, Map as MapIcon, Maximize2, MapPin, Minimize2, Minus, Moon, Navigation, Plane, Plus, Route, SlidersHorizontal, Video, X,
 } from 'lucide-react-native';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { auth as firebaseAuth } from '../../firebaseConfig';
@@ -110,8 +110,6 @@ const T: TranslationResource = {
   crop: { es: 'CULTIVO', en: 'CROP' },
   periodLbl: { es: 'FECHA', en: 'DATE' },
   days: { es: 'Últimos {n} días', en: 'Last {n} days' },
-  search: { es: 'Buscar por huerta, fruto o fecha', en: 'Search by orchard, fruit or date' },
-  searchBtn: { es: 'Buscar', en: 'Search' },
   filters: { es: 'Filtrar', en: 'Filter' },
   tokens: { es: 'Tokens: {value}', en: 'Tokens: {value}' },
   orchard: { es: 'Huerta', en: 'Orchard' },
@@ -191,7 +189,6 @@ const T: TranslationResource = {
   layerSat: { es: 'Satélite', en: 'Satellite' },
   layerHybrid: { es: 'Híbrido', en: 'Hybrid' },
   layerZones: { es: 'Zonas', en: 'Zones' },
-  zonesNote: { es: 'Zonas ilustrativas, no son mediciones', en: 'Illustrative zones, not measurements' },
   layers: { es: 'Capas del mapa', en: 'Map layers' },
   lyRoutes: { es: 'Rutas de recorridos', en: 'Walk routes' },
   lyLayers: { es: 'Capas', en: 'Layers' },
@@ -290,7 +287,6 @@ export default function MisEscaneos() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [orchardFilter, setOrchardFilter] = useState<OrchardFilter>('all');
-  const [query, setQuery] = useState('');
   // Filtros del historial completo (además de tipo y estado).
   const [cropFilter, setCropFilter] = useState<string>('all');
   const [period, setPeriod] = useState<Period>('all');
@@ -301,7 +297,8 @@ export default function MisEscaneos() {
   const [lastPicker, setLastPicker] = useState<'orchard' | 'filters' | 'layers'>('filters');
   useEffect(() => { if (picker) setLastPicker(picker); }, [picker]);
   const sheetKind = picker ?? lastPicker;
-  // Mapa oscuro por defecto; la elección del usuario se guarda en el celular (AsyncStorage).
+  // Vista normal: mapa oscuro. Cada visita empieza en Oscuro (otra capa solo dura mientras estás en la
+  // pantalla); el estilo de ruta sí se recuerda (AsyncStorage).
   const [layer, setLayer] = useState<ScansMapLayer>('oscuro');
   const [routeStyle, setRouteStyle] = useState<ScansMapRouteStyle>('velocidad');
   // Tipo de mapa y estilo de ruta se recuerdan entre visitas.
@@ -311,14 +308,13 @@ export default function MisEscaneos() {
       if (!raw) return;
       try {
         const v = JSON.parse(raw) as { layer?: ScansMapLayer; routeStyle?: ScansMapRouteStyle };
-        if (v.layer && ['satelite', 'hibrido', 'estandar', 'topo', 'oscuro', 'zonas'].includes(v.layer)) setLayer(v.layer);
         if (v.routeStyle && ['clasica', 'velocidad', 'tiempo'].includes(v.routeStyle)) setRouteStyle(v.routeStyle);
       } catch { /* preferencia dañada: se ignora */ }
     }).catch(() => {}).finally(() => { styleLoaded.current = true; });
   }, []);
   useEffect(() => {
-    if (styleLoaded.current) AsyncStorage.setItem(MAP_STYLE_KEY, JSON.stringify({ layer, routeStyle })).catch(() => {});
-  }, [layer, routeStyle]);
+    if (styleLoaded.current) AsyncStorage.setItem(MAP_STYLE_KEY, JSON.stringify({ routeStyle })).catch(() => {});
+  }, [routeStyle]);
   const [show, setShow] = useState<ScansMapShow>({ routes: true, photos: true, findings: true, orchards: true });
   const [me, setMe] = useState<LatLng | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -327,7 +323,6 @@ export default function MisEscaneos() {
   const [syncing, setSyncing] = useState(false);
   const mapRef = useRef<ScansMapHandle>(null);
   const sheetRef = useRef<HistorySheetHandle>(null);
-  const searchRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const autoScope = useRef<string | null>(null);
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
@@ -465,16 +460,15 @@ export default function MisEscaneos() {
   }, [items, cropsOf]);
 
   const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
     const since = period === 'all' ? 0 : Date.now() - period * 86400000;
     const out = items.filter(it =>
       (typeFilter === 'all' || (typeFilter === 'photo' ? it.kind === 'foto' : it.kind !== 'foto'))
       && matchesStatus(it, statusFilter) && matchesOrchard(it, orchardFilter)
       && (!since || new Date(it.date).getTime() >= since)
       && (cropFilter === 'all' || cropsOf(it).includes(cropFilter))
-      && (!q || `${kindText(it)} ${orchardText(it.orchardId)} ${fmtDate(it.date)} ${it.result?.label ?? ''}`.toLowerCase().includes(q)));
+      );
     return sortAsc ? out.slice().reverse() : out;
-  }, [items, typeFilter, statusFilter, orchardFilter, query, kindText, orchardText, fmtDate, period, cropFilter, cropsOf, sortAsc]);
+  }, [items, typeFilter, statusFilter, orchardFilter, period, cropFilter, cropsOf, sortAsc]);
 
   const selected = items.find(it => it.id === selectedId) ?? null;
   const selectedFindings = useMemo(() => (selected?.remoteId ? findingsBy[selected.remoteId] ?? [] : []), [selected, findingsBy]);
@@ -670,11 +664,6 @@ export default function MisEscaneos() {
 
   const expand = () => { tick(); setSheetIdx(2); };
   const collapse = () => { tick(); setSheetIdx(0); };
-  const openSearch = () => {
-    tick();
-    setSheetIdx(2);
-    setTimeout(() => searchRef.current?.focus(), reduced ? 50 : 360);
-  };
 
   if (isGuest) {
     return (
@@ -728,7 +717,6 @@ export default function MisEscaneos() {
           <Text style={st.title} accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t('title')}</Text>
           <Text style={st.subtitle} numberOfLines={1}>{t('subtitle')}</Text>
         </View>
-        <GlassBtn label={t('searchBtn')} onPress={openSearch} active={!!query}><Search size={19} color={D.text} /></GlassBtn>
         <GlassBtn label={t('filters')} onPress={() => { tick(); setPicker('filters'); }} active={filtersActive}>
           <SlidersHorizontal size={18} color={D.text} />
           {filtersActive && <View style={st.badge} />}
@@ -752,9 +740,6 @@ export default function MisEscaneos() {
       </View>
       {legend && (
         <Reanimated.View key={routeStyle} entering={fade} style={st.legend} pointerEvents="none" accessibilityRole="text">{legend}</Reanimated.View>
-      )}
-      {layer === 'zonas' && (
-        <Reanimated.View entering={fade} style={st.legend} pointerEvents="none"><Text style={st.legendText}>{t('zonesNote')}</Text></Reanimated.View>
       )}
     </View>
   );
@@ -853,12 +838,6 @@ export default function MisEscaneos() {
       </View>
       {sheetIdx === 2 && (
         <Reanimated.View entering={fade} style={st.tools}>
-          <View style={st.searchBox}>
-            <Search size={16} color={D.muted} />
-            <TextInput ref={searchRef} value={query} onChangeText={setQuery} placeholder={t('search')} placeholderTextColor="rgba(170,181,191,0.7)"
-              style={st.searchInput} returnKeyType="search" accessibilityLabel={t('search')} selectionColor={D.mint} />
-            {!!query && <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('close')}><X size={15} color={D.muted} /></Pressable>}
-          </View>
           <View style={st.toolRow}>
             <Pressable onPress={() => { tick(); setPicker('filters'); }} accessibilityRole="button" style={({ pressed }) => [st.toolChip, filtersActive && st.toolChipOn, pressed && st.pressed]}>
               <SlidersHorizontal size={14} color={filtersActive ? D.ink : D.text} />
@@ -1414,8 +1393,6 @@ const st = StyleSheet.create({
   seeAllText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: D.neon },
   count: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: D.muted },
   tools: { gap: 8 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: D.border },
-  searchInput: { flex: 1, minWidth: 0, fontFamily: 'Poppins_400Regular', fontSize: 14, color: D.text, paddingVertical: 8 },
   toolRow: { flexDirection: 'row', gap: 8 },
   toolChip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 12, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: D.border },
   toolChipOn: { backgroundColor: D.mint, borderColor: D.mint },

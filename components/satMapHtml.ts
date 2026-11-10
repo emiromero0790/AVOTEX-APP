@@ -10,6 +10,9 @@ import { safeJsonValue as safeJson } from './safeJson';
 
 export type SatLayer = 'satelite' | 'zonas' | 'hibrido';
 
+/** Mapa de vigor (NDVI) de Sentinel-2 para la capa «Satélite»: PNG recortado al contorno y sus esquinas. */
+export type SatNdviOverlay = { image: string; bounds: { south: number; west: number; north: number; east: number } } | null;
+
 export type SatMapZone = {
   id: ZoneId;
   color: ZoneColor;
@@ -47,6 +50,7 @@ export function buildSatMapHtml(): string {
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
 html,body,#map{height:100%;width:100%;margin:0;background:#0b1f17}
+.ndvi{transition:opacity .35s ease-out}
 .leaflet-container{background:#0b1f17;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
 .leaflet-control-attribution{background:rgba(6,20,15,.6)!important;color:#a7b8ad!important;font-size:8px;border-radius:6px 0 0 0}
 .leaflet-control-attribution a{color:#cfe0d4!important}
@@ -81,11 +85,12 @@ var sat=L.tileLayer(base+'World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxNativeZo
 var shade=L.tileLayer(base+'Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:16,maxZoom:20,opacity:.38,className:'shade',attribution:'Relieve © Esri'});
 var labels=L.tileLayer(base+'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:18,maxZoom:20});
 var roads=L.tileLayer(base+'Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:18,maxZoom:20,opacity:.7});
+map.createPane('ndvi').style.zIndex=405;map.getPane('ndvi').style.pointerEvents='none';
 map.createPane('zones').style.zIndex=410;
 map.createPane('rows').style.zIndex=415;map.getPane('rows').style.pointerEvents='none';
 map.createPane('outline').style.zIndex=430;map.getPane('outline').style.pointerEvents='none';
 var zoneLayer=L.layerGroup(),rowLayer=L.layerGroup(),labelLayer=L.layerGroup(),outlineLayer=L.layerGroup().addTo(map);
-var data=null,layer='zonas',selected=null,zonePaths={},zoneLabels={},lastKey=null;
+var data=null,layer='zonas',selected=null,zonePaths={},zoneLabels={},lastKey=null,ndvi=null;
 function ll(p){return[p.lat,p.lng];}
 function padOpts(){var p=(data&&data.pad)||{top:0,right:0,bottom:0,left:0};return{paddingTopLeft:[p.left+8,p.top+8],paddingBottomRight:[p.right+8,p.bottom+8],maxZoom:19};}
 function bounds(){return data&&data.outline.length?L.latLngBounds(data.outline.map(ll)):null;}
@@ -126,6 +131,8 @@ function drawZones(animate){
 }
 function applyLayer(){
   var zonesOn=layer!=='satelite';
+  // Mapa de vigor (NDVI): solo en «Satélite».
+  if(ndvi){var on=layer==='satelite';if(on&&!map.hasLayer(ndvi))ndvi.addTo(map);if(!on&&map.hasLayer(ndvi))map.removeLayer(ndvi);}
   [zoneLayer,rowLayer,labelLayer].forEach(function(g){if(zonesOn&&!map.hasLayer(g))g.addTo(map);if(!zonesOn&&map.hasLayer(g))map.removeLayer(g);});
   var hy=layer==='hibrido';
   [shade,roads,labels].forEach(function(t){if(hy&&!map.hasLayer(t))t.addTo(map);if(!hy&&map.hasLayer(t))map.removeLayer(t);});
@@ -146,6 +153,13 @@ window.avx={
     if(!data)return;
     data.zones.forEach(function(z){var p=zonePaths[z.id];if(p){p.setStyle(styleFor(z));if(selected===z.id)p.bringToFront();}});
     Object.keys(zoneLabels).forEach(function(k){var x=zoneLabels[k];x.mk.setIcon(L.divIcon({className:'zlw',html:labelHtml(x.z),iconSize:[0,0]}));x.mk.setZIndexOffset(k===selected?900:500);});
+  },
+  setNdvi:function(n){
+    if(ndvi){map.removeLayer(ndvi);ndvi=null;}
+    if(!n||!n.image||!n.bounds)return;
+    var b=n.bounds;
+    ndvi=L.imageOverlay('data:image/png;base64,'+n.image,[[b.south,b.west],[b.north,b.east]],{pane:'ndvi',opacity:.88,interactive:false,className:'ndvi',attribution:'Vigor: Copernicus Sentinel-2'});
+    applyLayer();
   },
   zoom:function(d){d>0?map.zoomIn():map.zoomOut();},
   fit:function(){var b=bounds();if(b)map.flyToBounds(b,Object.assign(padOpts(),{duration:animOn()?.6:0.01}));}

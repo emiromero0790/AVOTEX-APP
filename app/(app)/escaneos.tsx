@@ -23,7 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
-import Reanimated, { FadeIn, FadeInDown, FadeOut, FadeOutDown, SlideInDown, useReducedMotion } from 'react-native-reanimated';
+import Reanimated, { FadeIn, FadeInDown, FadeOut, FadeOutDown, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Path, Polygon } from 'react-native-svg';
 import {
   BarChart3, Bug, Calendar, Camera, Check, ChevronDown, ChevronRight, Clock, CloudUpload, Filter, Layers,
@@ -48,7 +48,7 @@ import {
 } from '../../components/scansMapHtml';
 import BottomSheet from '../../components/escaneos/BottomSheet';
 import SatThumb from '../../components/escaneos/SatThumb';
-import MapStylePicker from '../../components/escaneos/MapStylePicker';
+import MapStylePicker, { prefetchStyleThumbs } from '../../components/escaneos/MapStylePicker';
 import TokenRing from '../../components/TokenRing';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -127,6 +127,9 @@ const T: TranslationResource = {
   kindCam: { es: 'Cámara de acción', en: 'Action camera' },
   kindPhoto: { es: 'Escaneo de {fruit}', en: '{fruit} scan' },
   kindPhotoPlain: { es: 'Foto individual', en: 'Single photo' },
+  kpiScans: { es: 'Escaneos', en: 'Scans' },
+  kpiFindings: { es: 'Hallazgos', en: 'Findings' },
+  kpiDistance: { es: 'Recorrido', en: 'Walked' },
   statPhotos: { es: 'Fotos', en: 'Photos' },
   statFindings: { es: 'Hallazgos', en: 'Findings' },
   statRoute: { es: 'Recorrido', en: 'Route' },
@@ -295,7 +298,9 @@ export default function MisEscaneos() {
   const autoScope = useRef<string | null>(null);
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
-  useFocusEffect(useCallback(() => { setStatusBarStyle('dark'); }, []));
+  // Encabezado oscuro: barra de estado clara (salvo invitado o mapa a pantalla completa, que van sobre blanco).
+  const lightBar = !isGuest && !fullscreen;
+  useFocusEffect(useCallback(() => { setStatusBarStyle(lightBar ? 'light' : 'dark'); return () => setStatusBarStyle('dark'); }, [lightBar]));
 
   // ───────── datos ─────────
   const load = useCallback(async () => {
@@ -594,49 +599,73 @@ export default function MisEscaneos() {
   const stats = (it: ScanItem) => ({ km: fmtDistance(routeMeters(it.route)), mins: durationMinutes(it.date, it.endedAt) });
 
   // ── Encabezado ──
+  const kpis = {
+    scans: visible.length,
+    findings: visible.reduce((n, v) => n + (v.findings ?? 0), 0),
+    meters: visible.reduce((n, v) => n + (v.route.length > 1 ? routeMeters(v.route) : 0), 0),
+  };
+
   const header = !fullscreen && (
-    <View style={[st.header, { paddingTop: insets.top + 4 }]}>
+    <LinearGradient colors={['#021513', '#062B27', '#0B4A41']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+      style={[st.header, { paddingTop: insets.top + 6 }]}>
+      {/* Curvas de nivel decorativas: guiño al mapa, sin competir con el contenido. */}
+      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} viewBox="0 0 400 260" preserveAspectRatio="xMaxYMin slice" pointerEvents="none">
+        {[0, 1, 2, 3, 4, 5].map(i => (
+          <Path key={i} d={`M ${250 - i * 34} -10 C ${300 - i * 30} ${50 + i * 14}, ${360 - i * 12} ${40 + i * 26}, 410 ${96 + i * 30}`}
+            stroke="#BEF264" strokeOpacity={0.13 - i * 0.015} strokeWidth={1.2} fill="none" />
+        ))}
+      </Svg>
       {!short && <View style={st.brandRow}>
-        <Image source={WORDMARK} style={st.wordmark} resizeMode="contain" accessibilityLabel="AVOTEX" />
-        {tokens != null && <TokenRing remaining={tokens * 100} email={email} size={36} />}
+        <View style={st.brandPill}><Image source={WORDMARK} style={st.wordmark} resizeMode="contain" accessibilityLabel="AVOTEX" /></View>
+        {tokens != null && <TokenRing remaining={tokens * 100} email={email} size={36} variant="dark" />}
       </View>}
       <View style={st.titleRow}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={st.title} accessibilityRole="header" numberOfLines={1}>{t('title')}</Text>
-          <Text style={st.subtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('subtitle')}</Text>
+          <Text style={st.title} accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t('title')}</Text>
+          {short && <Text style={st.subtitle} numberOfLines={1}>{scansText(kpis.scans)}</Text>}
         </View>
         <RoundBtn label={t('searchBtn')} onPress={() => { tick(); if (searchOpen) setQuery(''); setSearchOpen(o => !o); }} active={searchOpen || !!query}>
-          {searchOpen ? <X size={18} color={INK} /> : <Search size={18} color={INK} />}
+          {searchOpen ? <X size={18} color="#fff" /> : <Search size={18} color="#fff" />}
         </RoundBtn>
         <RoundBtn label={t('filters')} onPress={() => { tick(); setPicker('filters'); }} active={filtersActive}>
-          <Filter size={17} color={INK} />
+          <Filter size={17} color="#fff" />
           {filtersActive && <View style={st.badge} />}
         </RoundBtn>
       </View>
       {searchOpen && (
         <Reanimated.View entering={fade} style={st.searchBox}>
-          <Search size={15} color={MUTED} />
-          <TextInput value={query} onChangeText={setQuery} placeholder={t('search')} placeholderTextColor="#94A3B8" style={st.searchInput}
-            autoFocus returnKeyType="search" accessibilityLabel={t('search')} />
+          <Search size={15} color="rgba(255,255,255,0.7)" />
+          <TextInput value={query} onChangeText={setQuery} placeholder={t('search')} placeholderTextColor="rgba(255,255,255,0.5)" style={st.searchInput}
+            autoFocus returnKeyType="search" accessibilityLabel={t('search')} selectionColor="#BEF264" />
         </Reanimated.View>
       )}
-      <Pressable onPress={() => { tick(); setPicker('orchard'); }} accessibilityRole="button"
-        accessibilityLabel={`${t('orchard')}: ${orchardObj?.nombre ?? (orchardFilter === 'none' ? t('noOrchard') : t('allOrchards'))}`}
-        style={({ pressed }) => [st.orchardBar, pressed && { opacity: 0.85 }]}>
-        <View style={st.leafDot}>{orchardObj ? <OrchardMini orchard={orchardObj} size={20} /> : <Leaf size={15} color={LIME_INK} />}</View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={st.orchardName} numberOfLines={1}>
-            {orchardObj ? `${t('orchard')}: ${orchardObj.nombre}` : orchardFilter === 'none' ? t('noOrchard') : t('allOrchards')}
-          </Text>
-          <Text style={st.orchardMeta} numberOfLines={1}>
-            {orchardObj && orchardObj.area_m2 > 0 ? `${(orchardObj.area_m2 / 10000).toFixed(2)} ha · `
-              : orchardFilter === 'all' ? `${orchards.length === 1 ? t('nOrchards1') : t('nOrchards', { count: orchards.length })} · ` : ''}
-            {scansText(countFor(orchardFilter))}
-          </Text>
-        </View>
-        <ChevronDown size={18} color={MUTED} />
-      </Pressable>
-    </View>
+      <View style={st.glass}>
+        <Pressable onPress={() => { tick(); setPicker('orchard'); }} accessibilityRole="button"
+          accessibilityLabel={`${t('orchard')}: ${orchardObj?.nombre ?? (orchardFilter === 'none' ? t('noOrchard') : t('allOrchards'))}`}
+          style={({ pressed }) => [st.orchardBar, pressed && { opacity: 0.8 }]}>
+          <View style={st.leafDot}>{orchardObj ? <OrchardMini orchard={orchardObj} size={20} /> : <Leaf size={15} color={LIME_INK} />}</View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={st.orchardName} numberOfLines={1}>
+              {orchardObj ? orchardObj.nombre : orchardFilter === 'none' ? t('noOrchard') : t('allOrchards')}
+            </Text>
+            <Text style={st.orchardMeta} numberOfLines={1}>
+              {orchardObj ? (orchardObj.area_m2 > 0 ? `${(orchardObj.area_m2 / 10000).toFixed(2)} ha` : t('orchard'))
+                : orchardFilter === 'all' ? (orchards.length === 1 ? t('nOrchards1') : t('nOrchards', { count: orchards.length })) : scansText(countFor(orchardFilter))}
+            </Text>
+          </View>
+          <ChevronDown size={18} color="rgba(255,255,255,0.75)" />
+        </Pressable>
+        {!short && (
+          <View style={st.kpiRow}>
+            <Kpi value={String(kpis.scans)} label={t('kpiScans')} />
+            <View style={st.kpiSep} />
+            <Kpi value={String(kpis.findings)} label={t('kpiFindings')} accent={kpis.findings > 0} />
+            <View style={st.kpiSep} />
+            <Kpi value={fmtDistance(kpis.meters) ?? '—'} label={t('kpiDistance')} />
+          </View>
+        )}
+      </View>
+    </LinearGradient>
   );
 
   // ── Cabecera del panel (zona arrastrable): escaneo elegido ──
@@ -691,11 +720,8 @@ export default function MisEscaneos() {
       <View style={st.statsBlock}>
         <View style={st.statsRow}>
           <Stat icon={<Camera size={16} color={TEAL} />} value={selected.photos != null ? String(selected.photos) : '—'} label={t('statPhotos')} />
-          <View style={st.statSep} />
           <Stat icon={<Bug size={16} color={selected.findings ? FINDING_COLOR.enfermo : MUTED} />} value={selected.findings != null ? String(selected.findings) : '—'} label={t('statFindings')} />
-          <View style={st.statSep} />
           <Stat icon={<Route size={16} color={TEAL} />} value={km ?? '—'} label={t('statRoute')} />
-          <View style={st.statSep} />
           <Stat icon={<Clock size={16} color={TEAL} />} value={mins != null ? `${mins} min` : '—'} label={t('statTime')} />
         </View>
         {selected.kind === 'remoto' && selected.status === 'listo' ? (
@@ -749,7 +775,7 @@ export default function MisEscaneos() {
             <Pressable onPress={() => select(it.id)} accessibilityRole="button" accessibilityState={{ selected: on }}
               accessibilityLabel={`${kindText(it)}, ${orchardText(it.orchardId)}, ${fmtDate(it.date)}, ${statusText(it)}`}
               style={({ pressed }) => [st.row, on && st.rowOn, pressed && { opacity: 0.85 }]}>
-              <ItemThumb item={it} size={52} outline={it.orchardId ? orchardById[it.orchardId]?.coordinates : undefined} />
+              <ItemThumb item={it} size={58} outline={it.orchardId ? orchardById[it.orchardId]?.coordinates : undefined} />
               <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
                 <Text style={st.rowTitle} numberOfLines={1}>{kindText(it)}</Text>
                 <Text style={st.meta} numberOfLines={1}>{orchardText(it.orchardId)} · {fmtDate(it.date)}</Text>
@@ -773,7 +799,7 @@ export default function MisEscaneos() {
               <Pressable onPress={() => openResults(it)} hitSlop={8} accessibilityRole="button"
                 accessibilityLabel={it.kind === 'local' ? t('uploadNow') : it.kind === 'foto' ? t('viewActivity') : t('viewResults')}
                 style={({ pressed }) => [st.rowChevron, pressed && st.pressed]}>
-                {it.kind === 'local' ? <CloudUpload size={16} color={INK} /> : <ChevronRight size={18} color={INK} />}
+                {it.kind === 'local' ? <CloudUpload size={16} color={TEAL} /> : <ChevronRight size={18} color={TEAL} />}
               </Pressable>
             </Pressable>
           </Reanimated.View>
@@ -859,15 +885,17 @@ export default function MisEscaneos() {
     <View style={{ flex: 1 }}>
       {statsBlock}
       <View style={st.tabs} accessibilityRole="tablist">
+        <Reanimated.View pointerEvents="none" style={[st.tabBar, {
+          left: `${(tabIdx * 100) / 3}%`,
+          transitionProperty: reduced ? 'none' : 'left', transitionDuration: 220, transitionTimingFunction: CSS_EASE_OUT,
+        } as object]}>
+          <View style={st.tabPill} />
+        </Reanimated.View>
         {tabs.map(x => (
           <Pressable key={x.key} onPress={() => { if (tab !== x.key) { tick(); setTab(x.key); } }} accessibilityRole="tab" accessibilityState={{ selected: tab === x.key }} style={st.tabBtn}>
             <Text style={[st.tabText, tab === x.key && st.tabTextOn]} numberOfLines={1}>{x.label}</Text>
           </Pressable>
         ))}
-        <Reanimated.View style={[st.tabBar, {
-          left: `${(tabIdx * 100) / 3}%`,
-          transitionProperty: reduced ? 'none' : 'left', transitionDuration: 220, transitionTimingFunction: CSS_EASE_OUT,
-        } as object]} />
       </View>
       <ScrollView key={tab} ref={listRef} contentContainerStyle={{ paddingTop: 6, paddingBottom: listBottom }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Reanimated.View entering={fade}>
@@ -931,6 +959,10 @@ export default function MisEscaneos() {
     return o ? { lat: o.coordinates[0].latitude, lng: o.coordinates[0].longitude } : { lat: 19.415, lng: -102.06 };
   }, [selected, visible, orchards]);
 
+  // Las miniaturas del panel de capas se bajan por adelantado (una vez por zona).
+  const thumbKey = `${styleCenter.lat.toFixed(2)},${styleCenter.lng.toFixed(2)}`;
+  useEffect(() => { prefetchStyleThumbs(styleCenter); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [thumbKey]);
+
   // Leyenda del estilo de ruta (solo cuando hay un recorrido con ruta en el mapa, o el mapa de calor).
   const legend = (() => {
     if (routeStyle === 'calor') return <Text style={st.legendText}>{t('lgHeat')}</Text>;
@@ -960,7 +992,7 @@ export default function MisEscaneos() {
   return (
     <GestureHandlerRootView style={st.screen}>
       {header}
-      <View style={[st.card, { marginBottom: tabClear, marginTop: fullscreen ? insets.top + 6 : 0, marginHorizontal: isTablet ? 24 : 10 }]}
+      <View style={[st.card, { marginBottom: tabClear, marginTop: fullscreen ? insets.top + 6 : -22, marginHorizontal: isTablet ? 24 : 8 }]}
         onLayout={e => setCardH(Math.round(e.nativeEvent.layout.height))}>
         <Reanimated.View entering={reduced ? undefined : FadeIn.duration(320)} style={StyleSheet.absoluteFill}>
           <ScansMap ref={mapRef} data={mapData} selectedId={selected?.loc || mapDetail ? selectedId : null} detail={mapDetail}
@@ -1030,8 +1062,7 @@ export default function MisEscaneos() {
       {/* El fondo solo se desvanece; lo que sube es el panel (con 'slide' el fondo oscuro subía con él). */}
       <Modal visible={picker !== null} transparent animationType="fade" onRequestClose={() => setPicker(null)} statusBarTranslucent>
         <Pressable style={st.backdrop} onPress={() => setPicker(null)} accessibilityLabel={t('close')} />
-        <Reanimated.View entering={reduced ? undefined : SlideInDown.duration(280).easing(EASE_OUT)}
-          style={[st.modalSheet, { paddingBottom: insets.bottom + 16 }, isTablet && { left: '20%', right: '20%' }]}>
+        <SheetIn reduced={reduced} style={[st.modalSheet, { paddingBottom: insets.bottom + 16 }, isTablet && { left: '20%', right: '20%' }]}>
           <View style={st.handle} />
           <View style={[st.rowCenter, { justifyContent: 'space-between', marginBottom: 8 }]}>
             <Text style={st.sectionTitle}>{sheetKind === 'orchard' ? t('pickOrchard') : sheetKind === 'layers' ? t('layers') : t('filters')}</Text>
@@ -1106,13 +1137,33 @@ export default function MisEscaneos() {
               </>
             )}
           </ScrollView>
-        </Reanimated.View>
+        </SheetIn>
       </Modal>
     </GestureHandlerRootView>
   );
 }
 
 // ───────── piezas ─────────
+
+/**
+ * Panel del modal: sube desde abajo. Arranca ya fuera de pantalla (valor compartido), así el primer
+ * cuadro nunca lo muestra en su sitio antes de animar.
+ */
+function SheetIn({ reduced, style, children }: { reduced: boolean; style: object; children: React.ReactNode }) {
+  const p = useSharedValue(reduced ? 0 : 1);
+  useEffect(() => { p.set(withTiming(0, { duration: reduced ? 0 : 300, easing: EASE_OUT })); }, [p, reduced]);
+  const anim = useAnimatedStyle(() => ({ transform: [{ translateY: p.get() * 640 }] }));
+  return <Reanimated.View style={[style, anim]}>{children}</Reanimated.View>;
+}
+
+function Kpi({ value, label, accent }: { value: string; label: string; accent?: boolean }) {
+  return (
+    <View style={st.kpi} accessible accessibilityLabel={`${label}: ${value}`}>
+      <Text style={[st.kpiValue, accent && { color: '#FDBA74' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{value}</Text>
+      <Text style={st.kpiLabel} numberOfLines={1}>{label}</Text>
+    </View>
+  );
+}
 
 function RoundBtn({ label, onPress, children, active }: { label: string; onPress: () => void; children: React.ReactNode; active?: boolean }) {
   return (
@@ -1240,39 +1291,47 @@ const st = StyleSheet.create({
   lockBtn: { marginTop: 14, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 16, backgroundColor: SCAN.limeBright },
   lockBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: SCAN.limeInk },
 
-  header: { paddingHorizontal: 16, paddingBottom: 8, gap: 6 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 32 },
-  wordmark: { width: 96, height: 22 },
+  header: { paddingHorizontal: 16, paddingBottom: 34, gap: 10, overflow: 'hidden' },
+  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 36 },
+  wordmark: { width: 88, height: 20 },
   tokens: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 30, paddingHorizontal: 11, borderRadius: 15, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A' },
   tokensText: { fontFamily: 'Poppins_700Bold', fontSize: 12.5, color: '#78350F', fontVariant: ['tabular-nums'] },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { fontFamily: 'Poppins_700Bold', fontSize: 25, lineHeight: 31, letterSpacing: -0.7, color: INK },
-  subtitle: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: MUTED },
-  roundBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: LINE },
-  roundBtnOn: { backgroundColor: '#ECFCCB', borderColor: '#BEF264' },
-  badge: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: '#65A30D', borderWidth: 1.5, borderColor: '#fff' },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 40, paddingHorizontal: 12, borderRadius: 12, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: LINE },
-  searchInput: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, paddingVertical: 0 },
-  orchardBar: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 50, paddingLeft: 8, paddingRight: 12, borderRadius: 14, backgroundColor: '#FBFCF8', borderWidth: 1, borderColor: LINE },
-  leafDot: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ECFCCB' },
-  orchardName: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, lineHeight: 18, color: INK },
-  orchardMeta: { fontFamily: 'Poppins_400Regular', fontSize: 11, lineHeight: 15, color: MUTED },
+  title: { fontFamily: 'Poppins_700Bold', fontSize: 30, lineHeight: 36, letterSpacing: -1, color: '#FFFFFF' },
+  subtitle: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(255,255,255,0.7)' },
+  roundBtn: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)' },
+  roundBtnOn: { backgroundColor: 'rgba(190,242,100,0.22)', borderColor: '#BEF264' },
+  badge: { position: 'absolute', top: 8, right: 8, width: 9, height: 9, borderRadius: 5, backgroundColor: '#BEF264', borderWidth: 1.5, borderColor: '#062B27' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 42, paddingHorizontal: 14, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)' },
+  searchInput: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 14, color: '#FFFFFF', paddingVertical: 0 },
+  orchardBar: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 52, paddingLeft: 10, paddingRight: 12 },
+  leafDot: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#D9F99D' },
+  orchardName: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, lineHeight: 19, color: '#FFFFFF' },
+  orchardMeta: { fontFamily: 'Poppins_400Regular', fontSize: 11, lineHeight: 15, color: 'rgba(255,255,255,0.65)' },
 
-  card: { flex: 1, borderRadius: 22, overflow: 'hidden', backgroundColor: '#dfe7e1' },
-  compass: { position: 'absolute', top: 10, left: 10, width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15,23,42,0.78)' },
+  brandPill: { height: 32, paddingHorizontal: 12, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF' },
+  glass: { borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', overflow: 'hidden' },
+  kpiRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)' },
+  kpi: { flex: 1, alignItems: 'center', paddingHorizontal: 6 },
+  kpiSep: { width: 1, height: 26, backgroundColor: 'rgba(255,255,255,0.12)' },
+  kpiValue: { fontFamily: 'Poppins_700Bold', fontSize: 19, lineHeight: 24, letterSpacing: -0.4, color: '#D9F99D', fontVariant: ['tabular-nums'] },
+  kpiLabel: { fontFamily: 'Poppins_400Regular', fontSize: 10.5, lineHeight: 14, letterSpacing: 0.3, color: 'rgba(255,255,255,0.65)' },
+
+  card: { flex: 1, borderRadius: 28, overflow: 'hidden', backgroundColor: '#dfe7e1' },
+  compass: { position: 'absolute', top: 12, left: 12, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(2,21,19,0.72)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
   compassN: { fontFamily: 'Poppins_700Bold', fontSize: 10.5, lineHeight: 12, color: '#fff' },
-  segment: { position: 'absolute', top: 10, alignSelf: 'center', height: 34, flexDirection: 'row', padding: 4, borderRadius: 17, backgroundColor: 'rgba(15,23,42,0.72)' },
-  segPill: { position: 'absolute', top: 4, bottom: 4, borderRadius: 13, backgroundColor: '#FFFFFF' },
+  segment: { position: 'absolute', top: 12, alignSelf: 'center', height: 36, flexDirection: 'row', padding: 4, borderRadius: 18, backgroundColor: 'rgba(2,21,19,0.72)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
+  segPill: { position: 'absolute', top: 3, bottom: 3, borderRadius: 14, backgroundColor: '#FFFFFF' },
   segBtn: { alignItems: 'center', justifyContent: 'center' },
   segText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11.5, color: '#E2E8F0' },
   segTextOn: { color: TEAL },
-  zonesNote: { position: 'absolute', top: 50, alignSelf: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(15,23,42,0.7)' },
+  zonesNote: { position: 'absolute', top: 54, alignSelf: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(2,21,19,0.72)' },
   zonesNoteText: { fontFamily: 'Poppins_400Regular', fontSize: 10.5, color: '#fff' },
-  ctrlTop: { position: 'absolute', top: 10, right: 10 },
-  ctrlCol: { position: 'absolute', top: 56, right: 10, gap: 8, alignItems: 'center' },
-  ctrlGroup: { borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.97)', overflow: 'hidden', shadowColor: '#0f172a', shadowOpacity: 0.14, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
-  ctrlBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  ctrlSolo: { borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.97)', shadowColor: '#0f172a', shadowOpacity: 0.14, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
+  ctrlTop: { position: 'absolute', top: 12, right: 12 },
+  ctrlCol: { position: 'absolute', top: 60, right: 12, gap: 8, alignItems: 'center' },
+  ctrlGroup: { borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.97)', overflow: 'hidden', shadowColor: '#0f172a', shadowOpacity: 0.14, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
+  ctrlBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  ctrlSolo: { borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.97)', shadowColor: '#0f172a', shadowOpacity: 0.14, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
   ctrlSep: { height: 1, backgroundColor: LINE, marginHorizontal: 7 },
   notice: { position: 'absolute', alignSelf: 'center', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, backgroundColor: 'rgba(15,23,42,0.82)' },
   noticeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#fff' },
@@ -1285,44 +1344,45 @@ const st = StyleSheet.create({
   pointGo: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: TEAL },
   pointClose: { position: 'absolute', top: 5, right: 5, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9' },
 
-  selCard: { paddingHorizontal: 14, paddingBottom: 8 },
+  selCard: { paddingHorizontal: 16, paddingBottom: 10 },
   selRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  selTitle: { fontFamily: 'Poppins_700Bold', fontSize: 16.5, lineHeight: 21, color: INK, letterSpacing: -0.2 },
+  selTitle: { fontFamily: 'Poppins_700Bold', fontSize: 17.5, lineHeight: 22, color: INK, letterSpacing: -0.3 },
   typeChip: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: '#F2FBE3' },
   typeChipText: { flexShrink: 1, fontFamily: 'Poppins_600SemiBold', fontSize: 10.5, color: LIME_INK },
   statsBlock: { paddingHorizontal: 14, paddingTop: 2, paddingBottom: 6 },
-  statsRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: LINE, backgroundColor: '#FCFDFB' },
-  stat: { flex: 1, alignItems: 'center', gap: 1 },
-  statSep: { width: 1, alignSelf: 'stretch', backgroundColor: LINE },
-  statValue: { fontFamily: 'Poppins_700Bold', fontSize: 14.5, color: INK },
+  statsRow: { flexDirection: 'row', alignItems: 'stretch', gap: 6 },
+  stat: { flex: 1, alignItems: 'center', gap: 1, paddingVertical: 8, borderRadius: 16, backgroundColor: '#F3F7F5' },
+  statValue: { fontFamily: 'Poppins_700Bold', fontSize: 15.5, color: INK, letterSpacing: -0.2 },
   statLabel: { fontFamily: 'Poppins_400Regular', fontSize: 10.5, color: MUTED },
-  primary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 38, marginTop: 7, borderRadius: 19, backgroundColor: TEAL },
-  primaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: '#fff' },
+  primary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 46, marginTop: 8, borderRadius: 16, backgroundColor: '#062B27' },
+  primaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#fff' },
   stateNote: { marginTop: 8, textAlign: 'center', fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#B45309' },
 
-  tabs: { flexDirection: 'row', marginHorizontal: 14, marginTop: 6, borderBottomWidth: 1, borderBottomColor: LINE },
-  tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', height: 38 },
+  tabs: { flexDirection: 'row', marginHorizontal: 14, marginTop: 6, height: 42, borderRadius: 14, backgroundColor: '#F1F5F3' },
+  tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tabText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: MUTED },
-  tabTextOn: { color: TEAL },
-  tabBar: { position: 'absolute', bottom: -1, width: '33.333%', height: 2.5, borderRadius: 2, backgroundColor: TEAL },
+  tabTextOn: { color: '#062B27' },
+  tabBar: { position: 'absolute', top: 0, bottom: 0, width: '33.333%', padding: 4 },
 
-  sectionTitle: { fontFamily: 'Poppins_700Bold', fontSize: 15.5, color: INK, letterSpacing: -0.2 },
+  tabPill: { flex: 1, borderRadius: 11, backgroundColor: '#FFFFFF', shadowColor: '#0f172a', shadowOpacity: 0.10, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+
+  sectionTitle: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK, letterSpacing: -0.3 },
   count: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: MUTED },
   hint: { marginTop: 3, fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 17, color: MUTED },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 10, marginVertical: 3, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 14, borderWidth: 1, borderColor: '#F1F4F2', backgroundColor: PANEL },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 12, marginVertical: 4, padding: 8, borderRadius: 20, borderWidth: 1, borderColor: 'transparent', backgroundColor: '#F6F8F7' },
   rowSlim: { paddingVertical: 5 },
-  rowOn: { backgroundColor: '#F6FDE9', borderColor: '#D9F99D' },
-  rowTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: INK },
+  rowOn: { backgroundColor: '#F0FBDD', borderColor: '#BEF264' },
+  rowTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK, letterSpacing: -0.1 },
   rowTitleSm: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: INK },
   rowCounts: { alignItems: 'flex-end', gap: 3 },
-  rowChevron: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4F6F8' },
+  rowChevron: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF' },
   meta: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: MUTED },
   miniText: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: MUTED },
   chip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
   chipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11 },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 4 },
-  thumb: { borderRadius: 12, overflow: 'hidden', backgroundColor: '#F1F5F9' },
-  fThumb: { width: 52, height: 52, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9' },
+  thumb: { borderRadius: 14, overflow: 'hidden', backgroundColor: '#F1F5F9' },
+  fThumb: { width: 58, height: 58, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#E9EEF0' },
   pThumb: { width: 36, height: 36, borderRadius: 10, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F0FDFA' },
   photoNote: { marginHorizontal: 18, marginBottom: 4, fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: MUTED },
   track: { height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', marginTop: 4, overflow: 'hidden' },
@@ -1340,10 +1400,10 @@ const st = StyleSheet.create({
   empty: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 19, color: MUTED, textAlign: 'center', paddingHorizontal: 24, marginTop: 14 },
 
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.45)' },
-  legend: { position: 'absolute', top: 52, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, height: 28, borderRadius: 14, backgroundColor: 'rgba(15,23,42,0.78)' },
+  legend: { position: 'absolute', top: 56, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, height: 28, borderRadius: 14, backgroundColor: 'rgba(2,21,19,0.78)' },
   legendText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#F8FAFC' },
   legendBar: { width: 64, height: 6, borderRadius: 3 },
-  modalSheet: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 8, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: '#fff' },
+  modalSheet: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 8, borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: '#fff' },
   handle: { alignSelf: 'center', width: 38, height: 4.5, borderRadius: 3, backgroundColor: '#CBD5E1', marginBottom: 10 },
   modalClose: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9' },
   pickRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 14 },

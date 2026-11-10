@@ -48,7 +48,7 @@ import {
 } from '../../components/scansMapHtml';
 import HistorySheet, { sheetJustDragged, type HistorySheetHandle } from '../../components/escaneos/HistorySheet';
 import SatThumb from '../../components/escaneos/SatThumb';
-import MapStylePicker, { prefetchStyleThumbs } from '../../components/escaneos/MapStylePicker';
+import MapStylePicker from '../../components/escaneos/MapStylePicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CSS_EASE_OUT, EASE_OUT, PressableScale } from '../../components/scan/motion';
@@ -98,6 +98,7 @@ const T: TranslationResource = {
   title: { es: 'Mis escaneos', en: 'My scans' },
   subtitle: { es: 'Explora tus recorridos y diagnósticos', en: 'Explore your walks and diagnoses' },
   back: { es: 'Regresar', en: 'Back' },
+  mapUnavailable: { es: 'No se pudo cargar el mapa. Revisa tu conexión y compatibilidad con WebGL.', en: 'Map unavailable. Check your connection and WebGL support.' },
   layerDark: { es: 'Oscuro', en: 'Dark' },
   seeHistory: { es: 'Ver historial', en: 'See history' },
   expand: { es: 'Expandir historial', en: 'Expand history' },
@@ -636,17 +637,6 @@ export default function MisEscaneos() {
     meters: visible.reduce((n, v) => n + (v.route.length > 1 ? routeMeters(v.route) : 0), 0),
   }), [visible]);
 
-  // Centro para las miniaturas de estilos: el recorrido elegido, el primero visible o una huerta.
-  const styleCenter = useMemo(() => {
-    const first = selected?.loc ?? visible.find(v => v.loc)?.loc;
-    if (first) return first;
-    const o = orchards.find(x => x.coordinates?.length);
-    return o ? { lat: o.coordinates[0].latitude, lng: o.coordinates[0].longitude } : { lat: 19.415, lng: -102.06 };
-  }, [selected, visible, orchards]);
-  // Las miniaturas del panel de capas se bajan por adelantado (una vez por zona).
-  const thumbKey = `${styleCenter.lat.toFixed(2)},${styleCenter.lng.toFixed(2)}`;
-  useEffect(() => { prefetchStyleThumbs(styleCenter); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [thumbKey]);
-
   // Filas de la lista según la pestaña (un solo FlatList virtualizado).
   const rows = useMemo<Row[]>(() => {
     if (tab === 'history') return visible.map(it => ({ k: 'scan' as const, key: it.id, it }));
@@ -712,7 +702,6 @@ export default function MisEscaneos() {
         <GlassBtn label={t('back')} onPress={() => { tick(); if (router.canGoBack()) router.back(); else router.navigate('/(app)/scan'); }}>
           <ArrowLeft size={20} color={D.text} />
         </GlassBtn>
-        <View style={st.leafIcon}><Leaf size={17} color="#0B1A0F" fill={D.neon} /></View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={st.title} accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t('title')}</Text>
           <Text style={st.subtitle} numberOfLines={1}>{t('subtitle')}</Text>
@@ -993,10 +982,10 @@ export default function MisEscaneos() {
 
   return (
     <GestureHandlerRootView style={st.screen}>
-      {/* Mapa a pantalla completa: Leaflet se monta una sola vez; todo lo demás flota encima. */}
+      {/* Mapa a pantalla completa: MapLibre se monta una sola vez; todo lo demás flota encima. */}
       <View style={StyleSheet.absoluteFill}>
         <ScansMap ref={mapRef} data={mapData} selectedId={selected?.loc || mapDetail ? selectedId : null} detail={mapDetail}
-          point={point} user={me} layer={layer} pad={mapPad} routeStyle={routeStyle} onEvent={onMapEvent} />
+          point={point} user={me} layer={layer} pad={mapPad} routeStyle={routeStyle} onEvent={onMapEvent} onError={() => setNotice(t('mapUnavailable'))} />
       </View>
 
       {top}
@@ -1129,8 +1118,6 @@ export default function MisEscaneos() {
                   layer={layer}
                   routeStyle={routeStyle}
                   zonesAvailable={zonesAvailable}
-                  center={styleCenter}
-                  width={(isTablet ? width * 0.6 : width) - 32 - 8}
                   onLayer={setLayer}
                   onRouteStyle={setRouteStyle}
                 />

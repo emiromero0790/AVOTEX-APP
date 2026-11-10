@@ -1,22 +1,9 @@
-/**
- * Mapa de "Mis escaneos" (Leaflet + imágenes satelitales de Esri, la misma base que el resto de la app).
- *
- * Solo dibuja datos reales y cada cosa con su propio lenguaje visual:
- * - Huertas: perímetro real (huertas.coordinates) en verde lima con su nombre.
- * - Recorridos: todas las rutas GPS (recorridos.ruta) en teal tenue; la elegida, resaltada, con inicio
- *   (flecha), fin (bandera), dirección de avance y puntos de captura (recorrido_fotos.lat/lng).
- * - Hallazgos (hallazgos.lat/lng): forma y color por categoría — círculo coral (posible enfermedad),
- *   rombo ámbar (revisar), cuadro verde (saludable), punto gris (no es fruto).
- * - Pines y fotos cercanos se agrupan con un número; al acercar se separan.
- * - Capa "Zonas": subdivisión ILUSTRATIVA de cada huerta (services/satZones.ts), igual que en Satélite.
- * El HTML se carga una vez; los datos llegan con window.avx.* (no se recarga el WebView).
- */
-import { safeJsonValue } from './safeJson';
-import { ZONE_PALETTE } from './satMapHtml';
+import { safeJsonValue } from "./safeJson";
 
 export type ScansMapPoint = { lat: number; lng: number };
-export type ScanStatus = 'listo' | 'proceso' | 'cola' | 'local' | 'error';
-export type ScansMapLayer = 'satelite' | 'hibrido' | 'zonas' | 'estandar' | 'topo' | 'oscuro';
+export type ScanStatus = "listo" | "proceso" | "cola" | "local" | "error";
+export type ScansMapLayer =
+  "satelite" | "hibrido" | "zonas" | "estandar" | "topo" | "oscuro";
 /**
  * Estilo de la ruta (como los mapas de actividad de Strava):
  * - clasica: teal.
@@ -24,16 +11,43 @@ export type ScansMapLayer = 'satelite' | 'hibrido' | 'zonas' | 'estandar' | 'top
  * - tiempo: degradado del inicio (verde) al final (violeta).
  * - calor: todas las rutas superpuestas brillan más donde más has caminado.
  */
-export type ScansMapRouteStyle = 'clasica' | 'velocidad' | 'tiempo' | 'calor';
+export type ScansMapRouteStyle = "clasica" | "velocidad" | "tiempo" | "calor";
 /** Escala de velocidad (azul lento → rojo rápido), compartida con la leyenda de la pantalla. */
-export const SPEED_COLORS = ['#3B82F6', '#22C55E', '#EAB308', '#F97316', '#EF4444'] as const;
-export const TIME_COLORS = ['#22C55E', '#14B8A6', '#6366F1', '#A855F7'] as const;
-export type FindingCat = 'sano' | 'enfermo' | 'revisar' | 'otro';
+export const SPEED_COLORS = [
+  "#3B82F6",
+  "#22C55E",
+  "#EAB308",
+  "#F97316",
+  "#EF4444",
+] as const;
+export const TIME_COLORS = [
+  "#22C55E",
+  "#14B8A6",
+  "#6366F1",
+  "#A855F7",
+] as const;
+export type FindingCat = "sano" | "enfermo" | "revisar" | "otro";
 
-export type ScansMapOrchard = { id: string; name: string; points: ScansMapPoint[] };
-export type ScansMapScan = { id: string; kind: 'recorrido' | 'foto'; status: ScanStatus; lat: number; lng: number };
+export type ScansMapOrchard = {
+  id: string;
+  name: string;
+  points: ScansMapPoint[];
+};
+export type ScansMapScan = {
+  id: string;
+  kind: "recorrido" | "foto";
+  status: ScanStatus;
+  lat: number;
+  lng: number;
+};
 export type ScansMapRoute = { id: string; points: ScansMapPoint[] };
-export type ScansMapZone = { key: string; label: string; color: string; ring: ScansMapPoint[]; at: ScansMapPoint };
+export type ScansMapZone = {
+  key: string;
+  label: string;
+  color: string;
+  ring: ScansMapPoint[];
+  at: ScansMapPoint;
+};
 export type ScansMapDetail = {
   id: string;
   /** t: hora del punto en ms (si la ruta la trae), para los estilos Velocidad y Tiempo. */
@@ -45,7 +59,12 @@ export type ScansMapDetail = {
   /** Perímetro de su huerta, para encuadrar el terreno junto con la ruta. */
   orchard: ScansMapPoint[];
 };
-export type ScansMapShow = { routes: boolean; photos: boolean; findings: boolean; orchards: boolean };
+export type ScansMapShow = {
+  routes: boolean;
+  photos: boolean;
+  findings: boolean;
+  orchards: boolean;
+};
 
 export type ScansMapData = {
   orchards: ScansMapOrchard[];
@@ -63,258 +82,671 @@ export type ScansMapData = {
 };
 
 export const SCAN_STATUS_COLOR: Record<ScanStatus, string> = {
-  listo: '#22C55E',
-  proceso: '#F59E0B',
-  cola: '#F59E0B',
-  local: '#0EA5E9',
-  error: '#EF4444',
+  listo: "#22C55E",
+  proceso: "#F59E0B",
+  cola: "#F59E0B",
+  local: "#0EA5E9",
+  error: "#EF4444",
 };
 
 export const FINDING_COLOR: Record<FindingCat, string> = {
-  sano: '#22C55E',
-  enfermo: '#F2545B',
-  revisar: '#F59E0B',
-  otro: '#94A3B8',
+  sano: "#22C55E",
+  enfermo: "#F2545B",
+  revisar: "#F59E0B",
+  otro: "#94A3B8",
 };
 
 export const safeJson = safeJsonValue;
 
 export function buildScansMapHtml(): string {
-  const colors = safeJson(SCAN_STATUS_COLOR);
-  const fcolors = safeJson(FINDING_COLOR);
-  const scol = safeJson(SPEED_COLORS);
-  const tcol = safeJson(TIME_COLORS);
-  const zpal = safeJson(ZONE_PALETTE);
-  return `<!doctype html>
-<html><head><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>
-html,body,#map{height:100%;width:100%;margin:0;background:#dfe7e1}
-.leaflet-container{background:#080D10;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
-.leaflet-control-attribution{background:rgba(8,13,16,.55)!important;color:#AAB5BF!important;font-size:8px;border-radius:6px 0 0 0}
-.leaflet-bottom{transition:bottom .25s cubic-bezier(.23,1,.32,1)}
-.leaflet-control-attribution a{color:#CBD5E1!important}
-.leaflet-control-scale{margin:0 0 10px 12px!important}
-.leaflet-control-scale-line{border:2px solid #fff;border-top:0;color:#fff;background:transparent;font-size:10px;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.8);box-shadow:0 1px 0 rgba(0,0,0,.25)}
-.orch{background:rgba(255,255,255,.9);border:0;border-radius:999px;box-shadow:0 1px 4px rgba(0,0,0,.25);color:#365314;font-size:10.5px;font-weight:700;padding:2px 9px}
-.orch::before{display:none}
-.zl{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;padding:2px 7px;border-radius:6px;font-size:10.5px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3)}
-.pin{position:relative;width:30px;height:38px;transform-origin:50% 100%;transition:transform .2s cubic-bezier(.23,1,.32,1),opacity .2s}
-.pin .h{position:absolute;left:2px;top:0;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,.4)}
-.pin .i{position:absolute;left:1px;top:-1px;width:30px;height:30px;display:flex;align-items:center;justify-content:center}
-.pin.sel{transform:scale(1.18)}
-.pin.dim{opacity:.4;transform:scale(.82)}
-.pin.sel::after{content:'';position:absolute;left:-5px;top:-6px;width:40px;height:40px;border-radius:50%;border:2px solid rgba(255,255,255,.9);animation:ring 1.6s cubic-bezier(.23,1,.32,1) infinite}
-@keyframes ring{from{transform:scale(.6);opacity:.9}to{transform:scale(1.45);opacity:0}}
-.cl{min-width:30px;height:30px;padding:0 6px;box-sizing:border-box;border-radius:15px;display:flex;align-items:center;justify-content:center;gap:3px;background:#0f766e;color:#fff;font-size:12px;font-weight:800;border:2.5px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,.4)}
-.cl.dim{opacity:.45}
-.pc{min-width:22px;height:22px;padding:0 5px;box-sizing:border-box;border-radius:11px;display:flex;align-items:center;justify-content:center;background:#fff;color:#0f766e;font-size:11px;font-weight:800;border:2px solid #14b8a6;box-shadow:0 2px 6px rgba(0,0,0,.35)}
-.se{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2.5px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,.45)}
-.st{background:#0f766e}.en{background:#fff}
-.ph{width:22px;height:22px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);border:1.5px solid #14b8a6;transition:transform .15s}
-.ph.on{transform:scale(1.35);border-color:#0f766e;box-shadow:0 0 0 3px rgba(20,184,166,.45),0 2px 6px rgba(0,0,0,.4)}
-.fd{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 7px rgba(0,0,0,.45);transition:transform .15s;box-sizing:border-box}
-.fd.c{border-radius:50%}.fd.q{border-radius:7px}.fd.d{transform:rotate(45deg);border-radius:5px;width:23px;height:23px}.fd.d svg{transform:rotate(-45deg)}.fd.o{width:18px;height:18px;border-radius:50%}
-.fd.on{box-shadow:0 0 0 3px rgba(255,255,255,.8),0 3px 9px rgba(0,0,0,.5)}
-.fd.c.on,.fd.q.on,.fd.o.on{transform:scale(1.3)}.fd.d.on{transform:rotate(45deg) scale(1.3)}
-.ar{width:14px;height:14px;display:flex;align-items:center;justify-content:center}
-.me{width:16px;height:16px;border-radius:50%;background:#38bdf8;border:3px solid #fff;box-shadow:0 0 0 6px rgba(56,189,248,.25),0 2px 8px rgba(0,0,0,.45)}
-.in{animation:pop .3s cubic-bezier(.23,1,.32,1) both}
-@keyframes pop{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
-.fade{animation:fade .45s cubic-bezier(.23,1,.32,1) both}
-@keyframes fade{from{opacity:0}to{opacity:1}}
-.leaflet-heat-pane svg{mix-blend-mode:screen}
-.calm .pin,.calm .in,.calm .fade,.calm .pin.sel::after{animation:none!important;transition:none!important}
-@media (prefers-reduced-motion: reduce){.pin,.in,.fade,.pin.sel::after{animation:none!important;transition:none!important}}
-</style></head><body><div id="map"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-(function(){
-var COLORS=${colors},FC=${fcolors},ZP=${zpal},SC=${scol},TC=${tcol};
-function post(m){var s=JSON.stringify(m);try{if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(s);else if(window.parent!==window)window.parent.postMessage(s,'*');}catch(e){}}
-if(typeof L==='undefined'){post({type:'error',message:'leaflet'});return;}
-var MAXZ=22;
-var map=L.map('map',{zoomControl:false,attributionControl:true,zoomSnap:.25,maxZoom:MAXZ}).setView([19.4,-102.05],9);
-map.attributionControl.setPrefix(false);
-L.control.scale({imperial:false,position:'bottomleft',maxWidth:110}).addTo(map);
-var base='https://server.arcgisonline.com/ArcGIS/rest/services/';
-// z18 existe en todas partes; más cerca se amplía (z19 falta en algunas zonas y sale un recuadro gris).
-var BASES={
-  satelite:L.tileLayer(base+'World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:18,maxZoom:MAXZ,attribution:'Imágenes © Esri'}),
-  estandar:L.tileLayer(base+'World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:18,maxZoom:MAXZ,attribution:'© Esri'}),
-  topo:L.tileLayer(base+'World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:18,maxZoom:MAXZ,attribution:'© Esri'}),
-  oscuro:L.tileLayer(base+'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:16,maxZoom:MAXZ,attribution:'© Esri'})
-};
-var darkLabels=L.tileLayer(base+'Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:16,maxZoom:MAXZ});
-var curBase=BASES.satelite.addTo(map),routeStyle='clasica';
-var labels=L.tileLayer(base+'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:18,maxZoom:MAXZ});
-var roads=L.tileLayer(base+'Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:18,maxZoom:MAXZ,opacity:.75});
-map.createPane('zones').style.zIndex=405;
-map.createPane('routes').style.zIndex=420;
-map.createPane('heat').style.zIndex=425;
-map.createPane('route').style.zIndex=440;
-var zoneLayer=L.layerGroup().addTo(map),orchLayer=L.layerGroup().addTo(map),routeLayer=L.layerGroup().addTo(map),scanLayer=L.layerGroup().addTo(map),
-    detailLayer=L.layerGroup().addTo(map),photoLayer=L.layerGroup().addTo(map),meLayer=L.layerGroup().addTo(map);
-var PAD={top:0,right:0,bottom:0,left:0};
-var data=null,selected=null,detail=null,pointMarkers={},active=null,lastFitKey=null,loaded=false,pendingFit=false,popped={};
-var I={
- route:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>',
- cam:function(c,s){return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="'+c+'" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>';},
- nav:'<svg width="15" height="15" viewBox="0 0 24 24" fill="#fff" stroke="#fff" stroke-width="2" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>',
- flag:'<svg width="16" height="16" viewBox="0 0 16 16"><rect x="2" y="1" width="1.6" height="14" fill="#111"/><g fill="#111"><rect x="4" y="2" width="3" height="3"/><rect x="10" y="2" width="3" height="3"/><rect x="7" y="5" width="3" height="3"/><rect x="13" y="5" width="1.5" height="3"/><rect x="4" y="8" width="3" height="3"/><rect x="10" y="8" width="3" height="3"/></g><rect x="3.6" y="2" width="11" height="9" fill="none" stroke="#111" stroke-width=".8"/></svg>',
- bug:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m8 2 1.88 1.88M14.12 3.88 16 2M9 7.13v-1a3 3 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6M12 20v-9M6.53 9C4.6 8.8 3 7.1 3 5M6 13H2M3 21c0-2.1 1.7-3.9 3.8-4M20.97 5c0 2.1-1.6 3.8-3.5 4M22 13h-4M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg>',
- leaf:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>',
- warn:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M12 6v8"/><path d="M12 18h.01"/></svg>',
- x:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
- arrow:'<svg width="12" height="12" viewBox="0 0 24 24" fill="#fff" stroke="#0f766e" stroke-width="2" stroke-linejoin="round"><path d="M12 3 20 20 12 15 4 20Z"/></svg>'
-};
-function ll(p){return[p.lat,p.lng];}
-function anim(){return data&&!data.reduced;}
-function show(k){return !data||!data.show||data.show[k]!==false;}
-function padOpts(maxZ){var p=PAD;return{paddingTopLeft:[p.left+20,p.top+20],paddingBottomRight:[p.right+20,p.bottom+20],maxZoom:maxZ||18};}
-function minSpan(b,m){if(!b||!b.isValid())return b;var c=b.getCenter(),n=b.getNorthEast(),sw=b.getSouthWest();
-  var h=(n.lat-sw.lat)*111320,w=(n.lng-sw.lng)*111320*Math.cos(c.lat*Math.PI/180);if(h>=m||w>=m)return b;
-  var dl=m/2/111320,dg=m/2/(111320*Math.cos(c.lat*Math.PI/180));return L.latLngBounds([c.lat-dl,c.lng-dg],[c.lat+dl,c.lng+dg]);}
-function go(b,maxZ){if(!b||!b.isValid())return;if(curBase===BASES.oscuro)maxZ=Math.min(maxZ||18,18);var o=padOpts(maxZ);if(anim()&&loaded){map.flyToBounds(b,Object.assign(o,{duration:.8}));}else{map.fitBounds(b,o);}loaded=true;}
-function centerOn(latlng,minZ){var z=Math.max(map.getZoom(),minZ),pd=PAD,pt=map.project(latlng,z).add([(pd.right-pd.left)/2,(pd.bottom-pd.top)/2]);
-  if(anim())map.flyTo(map.unproject(pt,z),z,{duration:.6});else map.setView(map.unproject(pt,z),z);}
-// Agrupa puntos que en pantalla quedan a menos de "px" píxeles (al zoom actual).
-function cluster(items,px){var out=[];items.forEach(function(it){var p=map.latLngToLayerPoint([it.lat,it.lng]),hit=null;
-  for(var i=0;i<out.length;i++){if(out[i].p.distanceTo(p)<px){hit=out[i];break;}}
-  if(hit){hit.items.push(it);}else out.push({p:p,items:[it]});});return out;}
-function boundsOf(items){var b=L.latLngBounds([]);items.forEach(function(i){b.extend([i.lat,i.lng]);});return b;}
-function expandOrPick(items,pick){var b=boundsOf(items),n=b.getNorthEast(),s=b.getSouthWest(),span=map.distance(n,s);
-  if(map.getZoom()>=MAXZ-.5||span<2){pick(items[0]);}else map.flyToBounds(b,Object.assign(padOpts(MAXZ),{duration:anim()?.6:.01}));}
-function scopeBounds(){var b=L.latLngBounds([]);if(!data)return b;
-  if(data.focusOrchard){var o=data.orchards.filter(function(x){return x.id===data.focusOrchard;})[0];if(o)o.points.forEach(function(q){b.extend(ll(q));});}
-  else data.orchards.forEach(function(o){o.points.forEach(function(q){b.extend(ll(q));});});
-  data.scans.forEach(function(s){b.extend([s.lat,s.lng]);});data.routes.forEach(function(r){r.points.forEach(function(q){b.extend(ll(q));});});return b;}
-function drawZones(){zoneLayer.clearLayers();if(!data)return;
-  data.zones.forEach(function(z){var c=ZP[z.color]||ZP.green;
-    L.polygon(z.ring.map(ll),{pane:'zones',color:c.line,weight:1.4,opacity:.95,fillColor:c.fill,fillOpacity:.32,interactive:false,className:anim()?'fade':''}).addTo(zoneLayer);
-    L.marker(ll(z.at),{icon:L.divIcon({className:'',html:'<div class="zl" style="background:'+c.label+';color:'+c.ink+'">'+z.label+'</div>',iconSize:[0,0]}),interactive:false,keyboard:false}).addTo(zoneLayer);});}
-function drawOrchards(){orchLayer.clearLayers();if(!show('orchards'))return;
-  data.orchards.forEach(function(o){if(o.points.length<3)return;var on=data.focusOrchard===o.id,off=data.focusOrchard&&!on;
-    var poly=L.polygon(o.points.map(ll),{color:'#8BF52B',weight:on?3.2:2.4,opacity:off?.45:1,fillColor:'#8BF52B',fillOpacity:data.zones.length?0:(on?.16:off?.04:.12),lineJoin:'round',className:anim()?'fade':''});
-    poly.bindTooltip(o.name,{permanent:true,direction:'center',className:'orch',opacity:off?.6:1});
-    poly.on('click',function(e){L.DomEvent.stopPropagation(e);post({type:'orchard',id:o.id});});poly.addTo(orchLayer);});}
-function drawRoutes(){routeLayer.clearLayers();if(!show('routes'))return;
-  var heat=routeStyle==='calor';
-  data.routes.forEach(function(r){if(r.points.length<2||(detail&&detail.id===r.id&&!heat))return;
-    var dim=!!selected;
-    if(heat){
-      // Mapa de calor: capas translúcidas que se suman (mix-blend-mode: screen) donde las rutas se repiten.
-      [[12,'#ff3d00',.16],[6,'#ff7a00',.32],[2.2,'#ffd166',.7]].forEach(function(w){
-        L.polyline(r.points.map(ll),{pane:'heat',color:w[1],weight:w[0],opacity:dim&&!(detail&&detail.id===r.id)?w[2]*.45:w[2],lineCap:'round',lineJoin:'round',interactive:false}).addTo(routeLayer);});
-      var hit=L.polyline(r.points.map(ll),{pane:'heat',color:'#000',weight:14,opacity:0,lineCap:'round'});
-      hit.on('click',function(e){L.DomEvent.stopPropagation(e);post({type:'select',id:r.id});});hit.addTo(routeLayer);
-      return;}
-    L.polyline(r.points.map(ll),{pane:'routes',color:'#ffffff',weight:5,opacity:dim?.25:.55,lineCap:'round',lineJoin:'round',interactive:false}).addTo(routeLayer);
-    var line=L.polyline(r.points.map(ll),{pane:'routes',color:'#2dd4bf',weight:3,opacity:dim?.35:.9,lineCap:'round',lineJoin:'round'});
-    line.on('click',function(e){L.DomEvent.stopPropagation(e);post({type:'select',id:r.id});});line.addTo(routeLayer);});}
-function pinHtml(s,sel,dim){var c=COLORS[s.status]||'#fff';
-  return '<div class="pin'+(sel?' sel':'')+(dim?' dim':'')+'"><div class="h" style="background:'+c+'"></div><div class="i">'+(s.kind==='foto'?I.cam('#fff',14):I.route)+'</div></div>';}
-function drawScans(){scanLayer.clearLayers();if(!data)return;
-  var list=data.scans.filter(function(s){return !(detail&&detail.id===s.id);});
-  var sel=list.filter(function(s){return s.id===selected;}),rest=list.filter(function(s){return s.id!==selected;});
-  cluster(rest,34).forEach(function(g){var s=g.items[0];
-    var m=g.items.length>1
-      ?L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:'<div class="cl'+(selected?' dim':'')+'">'+I.route+g.items.length+'</div>',iconSize:[44,30],iconAnchor:[22,15]}),keyboard:false})
-      :L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:pinHtml(s,false,!!selected),iconSize:[30,38],iconAnchor:[15,36]}),keyboard:false});
-    m.on('click',function(e){L.DomEvent.stopPropagation(e);if(g.items.length>1)expandOrPick(g.items,function(x){post({type:'select',id:x.id});});else post({type:'select',id:s.id});});
-    m.addTo(scanLayer);popIn(m,'s:'+s.id+':'+g.items.length);});
-  sel.forEach(function(s){var m=L.marker([s.lat,s.lng],{icon:L.divIcon({className:'',html:pinHtml(s,true,false),iconSize:[30,38],iconAnchor:[15,36]}),zIndexOffset:1000,keyboard:false});
-    m.on('click',function(e){L.DomEvent.stopPropagation(e);post({type:'select',id:s.id});});m.addTo(scanLayer);});}
-function popIn(m,key){if(!anim()||popped[key])return;popped[key]=1;var el=m.getElement&&m.getElement();if(el&&el.firstChild)el.firstChild.classList.add('in');}
-function bearing(a,b){var y=(b.lng-a.lng)*Math.cos((a.lat+b.lat)*Math.PI/360),x=b.lat-a.lat;return Math.atan2(y,x)*180/Math.PI;}
-function dist(a,b){return map.distance(ll(a),ll(b));}
-function findingIcon(f){var on=active&&active.kind==='finding'&&active.id===f.id?' on':'';
-  if(f.cat==='enfermo')return '<div class="fd c'+on+'" style="background:'+FC.enfermo+'">'+I.bug+'</div>';
-  if(f.cat==='revisar')return '<div class="fd d'+on+'" style="background:'+FC.revisar+'">'+I.warn+'</div>';
-  if(f.cat==='sano')return '<div class="fd q'+on+'" style="background:'+FC.sano+'">'+I.leaf+'</div>';
-  return '<div class="fd o'+on+'" style="background:'+FC.otro+'">'+I.x+'</div>';}
-function drawPhotos(){photoLayer.clearLayers();pointMarkers={};if(!detail)return;
-  if(show('photos')){
-    cluster(detail.photos,22).forEach(function(g){var p=g.items[0],m;
-      if(g.items.length>1){m=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',html:'<div class="pc">'+g.items.length+'</div>',iconSize:[26,22],iconAnchor:[13,11]}),zIndexOffset:300});
-        m.on('click',function(e){L.DomEvent.stopPropagation(e);expandOrPick(g.items,function(x){post({type:'point',kind:'photo',id:x.id});});});}
-      else{var on=active&&active.kind==='photo'&&active.id===p.id;
-        m=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',html:'<div class="ph'+(on?' on':'')+'">'+I.cam('#0f766e',12)+'</div>',iconSize:[22,22],iconAnchor:[11,11]}),zIndexOffset:on?900:300});
-        m.on('click',function(e){L.DomEvent.stopPropagation(e);post({type:'point',kind:'photo',id:p.id});});pointMarkers['photo:'+p.id]=m;}
-      m.addTo(photoLayer);popIn(m,'p:'+p.id+':'+g.items.length);});}
-  if(show('findings')){
-    detail.findings.forEach(function(f){var on=active&&active.kind==='finding'&&active.id===f.id;
-      var m=L.marker([f.lat,f.lng],{icon:L.divIcon({className:'',html:findingIcon(f),iconSize:[26,26],iconAnchor:[13,13]}),zIndexOffset:on?950:600});
-      m.on('click',function(e){L.DomEvent.stopPropagation(e);post({type:'point',kind:'finding',id:f.id});});m.addTo(photoLayer);pointMarkers['finding:'+f.id]=m;popIn(m,'f:'+f.id);});}}
-function detailBounds(withOrchard){var b=L.latLngBounds([]);if(!detail)return b;
-  detail.route.forEach(function(p){b.extend(ll(p));});detail.photos.forEach(function(p){b.extend([p.lat,p.lng]);});detail.findings.forEach(function(p){b.extend([p.lat,p.lng]);});
-  // Si el recorrido cubre buena parte de su huerta, se encuadra el terreno completo (como en el boceto).
-  if(withOrchard&&b.isValid()&&detail.orchard.length>2){var ob=L.latLngBounds(detail.orchard.map(ll));
-    if(map.distance(b.getNorthEast(),b.getSouthWest())>map.distance(ob.getNorthEast(),ob.getSouthWest())*.3)b.extend(ob);}
-  return b;}
-function mix(a,b,t){var pa=parseInt(a.slice(1),16),pb=parseInt(b.slice(1),16);
-  var r=Math.round(((pa>>16)&255)*(1-t)+((pb>>16)&255)*t),g=Math.round(((pa>>8)&255)*(1-t)+((pb>>8)&255)*t),bl=Math.round((pa&255)*(1-t)+(pb&255)*t);
-  return '#'+((1<<24)|(r<<16)|(g<<8)|bl).toString(16).slice(1);}
-function ramp(stops,t){t=Math.max(0,Math.min(1,t));var n=stops.length-1,i=Math.min(n-1,Math.floor(t*n));return mix(stops[i],stops[i+1],t*n-i);}
-// Color de cada tramo (null = estilo de un solo color). Velocidad: km/h entre puntos con hora, suavizada.
-function segmentColors(r){
-  if(routeStyle==='tiempo'){var out=[];for(var i=1;i<r.length;i++)out.push(ramp(TC,(i-.5)/(r.length-1)));return out;}
-  if(routeStyle!=='velocidad'||!detail.speedRange)return null;
-  var v=[];for(var j=1;j<r.length;j++){var dt=(r[j].t-r[j-1].t)/1000;v.push(r[j].t&&r[j-1].t&&dt>0?dist(r[j-1],r[j])/dt*3.6:null);}
-  var lo=detail.speedRange[0],hi=detail.speedRange[1],res=[];
-  for(var k=0;k<v.length;k++){var w=[v[k-1],v[k],v[k+1]].filter(function(x){return x!=null&&isFinite(x);});
-    var s=w.length?w.reduce(function(a,b){return a+b;},0)/w.length:null;res.push(s==null?'#94a3b8':ramp(SC,(s-lo)/Math.max(.1,hi-lo)));}
-  return res;}
-function drawDetail(fit){detailLayer.clearLayers();if(!detail){photoLayer.clearLayers();pointMarkers={};return;}
-  var r=detail.route;
-  if(r.length>1){
-    var heat=routeStyle==='calor';
-    L.polyline(r.map(ll),{pane:'route',color:heat?'#1f0a00':'#ffffff',weight:heat?11:9,opacity:heat?.35:.9,lineCap:'round',lineJoin:'round',interactive:false}).addTo(detailLayer);
-    var cols=segmentColors(r);
-    if(cols){for(var q=1;q<r.length;q++){L.polyline([ll(r[q-1]),ll(r[q])],{pane:'route',color:cols[q-1],weight:5.5,opacity:1,lineCap:'round',lineJoin:'round',interactive:false,className:anim()?'fade':''}).addTo(detailLayer);}}
-    else if(heat){[[9,'#ff7a00',.55],[4,'#ffd166',1]].forEach(function(w){L.polyline(r.map(ll),{pane:'route',color:w[1],weight:w[0],opacity:w[2],lineCap:'round',lineJoin:'round',interactive:false}).addTo(detailLayer);});}
-    else L.polyline(r.map(ll),{pane:'route',color:'#14b8a6',weight:5,opacity:1,lineCap:'round',lineJoin:'round',interactive:false,className:anim()?'fade':''}).addTo(detailLayer);
-    var total=0,seg=[];for(var i=1;i<r.length;i++){var d=dist(r[i-1],r[i]);seg.push(d);total+=d;}
-    var every=Math.max(total/7,15),acc=0,next=every;
-    for(var k=1;k<r.length&&total>40;k++){acc+=seg[k-1];if(acc>=next&&acc<total-every*.4){next+=every;
-      L.marker(ll(r[k]),{icon:L.divIcon({className:'',html:'<div class="ar" style="transform:rotate('+bearing(r[k-1],r[k])+'deg)">'+I.arrow+'</div>',iconSize:[14,14],iconAnchor:[7,7]}),interactive:false,pane:'route'}).addTo(detailLayer);}}
-    L.marker(ll(r[0]),{icon:L.divIcon({className:'',html:'<div class="se st">'+I.nav+'</div>',iconSize:[30,30],iconAnchor:[15,15]}),zIndexOffset:800,interactive:false}).addTo(detailLayer);
-    L.marker(ll(r[r.length-1]),{icon:L.divIcon({className:'',html:'<div class="se en">'+I.flag+'</div>',iconSize:[30,30],iconAnchor:[15,15]}),zIndexOffset:800,interactive:false}).addTo(detailLayer);
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css"><style>html,body,#map{margin:0;width:100%;height:100%;background:#080D10}.maplibregl-ctrl-attrib{font:9px sans-serif;background:#10171bd9;color:#cbd5e1}.maplibregl-ctrl-attrib a{color:#cbd5e1}</style></head><body><div id="map"></div><script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js" onerror="var m=JSON.stringify({type:'error'});if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(m);else parent.postMessage(m,'*')"></script><script>const STATUS=${safeJson(SCAN_STATUS_COLOR)};const SPEED=${safeJson(SPEED_COLORS)};
+(function () {
+  const post = (m) => {
+    const s = JSON.stringify(m);
+    if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(s);
+    else parent.postMessage(s, "*");
+  };
+  window.addEventListener("error", () => post({ type: "error" }));
+  if (!window.maplibregl) {
+    post({ type: "error" });
+    return;
   }
-  drawPhotos();
-  var b=detailBounds(true);if(fit&&b.isValid())go(minSpan(b,16),MAXZ);}
-function redrawAll(){if(!data)return;drawZones();drawOrchards();drawRoutes();drawScans();drawDetail(false);}
-map.on('zoomend',function(){if(!data)return;drawScans();drawPhotos();});
-map.on('click',function(){post({type:'clear'});});
-window.avx={
-  // Márgenes de lo que tapan el encabezado y el panel: solo se guardan (no redibujan nada) y se usan
-  // al encuadrar. Los controles inferiores de Leaflet (escala, créditos) suben por encima del panel.
-  setPad:function(p){PAD=p||PAD;var els=document.querySelectorAll('.leaflet-bottom');for(var i=0;i<els.length;i++)els[i].style.bottom=(PAD.bottom||0)+'px';},
-  setData:function(d){var refit=!data||d.fitKey!==lastFitKey;data=d;lastFitKey=d.fitKey;if(d.pad)avx.setPad(d.pad);
-    document.getElementById('map').classList.toggle('calm',!!d.reduced);
-    redrawAll();
-    if(refit){if(detail)pendingFit=true;else go(scopeBounds(),18);}},
-  select:function(id){selected=id||null;if(!data)return;
-    if(!selected){detail=null;active=null;}
-    drawRoutes();drawScans();if(!selected){drawDetail(false);if(pendingFit){pendingFit=false;go(scopeBounds(),18);}}
-    else if(!detail){var s=data.scans.filter(function(x){return x.id===selected;})[0];if(s)centerOn([s.lat,s.lng],19);}},
-  setDetail:function(d,fit){detail=d;active=null;if(!data)return;drawRoutes();drawScans();drawDetail(fit);
-    if(!d&&pendingFit){pendingFit=false;go(scopeBounds(),18);}},
-  point:function(kind,id){active=id?{kind:kind,id:id}:null;drawPhotos();
-    if(!active)return;var m=pointMarkers[kind+':'+id],f=null;
-    if(!m&&detail){f=(kind==='photo'?detail.photos:detail.findings).filter(function(x){return x.id===id;})[0];}
-    var at=m?m.getLatLng():f?L.latLng(f.lat,f.lng):null;if(at)centerOn(at,20);},
-  setLayer:function(n){var b=BASES[n]||BASES.satelite;if(b!==curBase){map.removeLayer(curBase);curBase=b.addTo(map);curBase.bringToBack();}
-    var hy=n==='hibrido';[labels,roads].forEach(function(t){if(hy&&!map.hasLayer(t))t.addTo(map);if(!hy&&map.hasLayer(t))map.removeLayer(t);});
-    if(n==='oscuro'&&!map.hasLayer(darkLabels))darkLabels.addTo(map);if(n!=='oscuro'&&map.hasLayer(darkLabels))map.removeLayer(darkLabels);},
-  setRouteStyle:function(st){routeStyle=st||'clasica';if(!data)return;drawRoutes();drawDetail(false);},
-  zoom:function(d){d>0?map.zoomIn():map.zoomOut();},
-  showUser:function(lat,lng,fly){meLayer.clearLayers();L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div class="me"></div>',iconSize:[16,16],iconAnchor:[8,8]}),interactive:false}).addTo(meLayer);
-    if(fly){if(anim())map.flyTo([lat,lng],Math.max(map.getZoom(),17),{duration:.8});else map.setView([lat,lng],17);}},
-  fit:function(){if(detail){var b=detailBounds(true);if(b.isValid()){go(minSpan(b,16),MAXZ);return;}}go(scopeBounds(),18);},
-  invalidate:function(){map.invalidateSize();}
-};
-post({type:'ready'});
+  const fc = (features) => ({ type: "FeatureCollection", features });
+  const valid = (p) =>
+    p &&
+    Number.isFinite(p.lat) &&
+    Number.isFinite(p.lng) &&
+    Math.abs(p.lat) <= 90 &&
+    Math.abs(p.lng) <= 180;
+  const xy = (p) => [p.lng, p.lat];
+  const feature = (type, coordinates, properties) => ({
+    type: "Feature",
+    geometry: { type, coordinates },
+    properties: properties || {},
+  });
+  const point = (p, props) =>
+    valid(p) ? feature("Point", xy(p), props) : null;
+  const line = (points, props) => {
+    const c = points.filter(valid).map(xy);
+    return c.length > 1 ? feature("LineString", c, props) : null;
+  };
+  const polygon = (points, props) => {
+    const c = points.filter(valid).map(xy);
+    if (c.length < 3) return null;
+    if (String(c[0]) !== String(c[c.length - 1])) c.push(c[0]);
+    return feature("Polygon", [c], props);
+  };
+  const tile = (svc) =>
+    "https://server.arcgisonline.com/ArcGIS/rest/services/" +
+    svc +
+    "/MapServer/tile/{z}/{y}/{x}";
+  const sources = {
+    dark: {
+      type: "raster",
+      tiles: [tile("Canvas/World_Dark_Gray_Base")],
+      maxzoom: 16,
+      tileSize: 256,
+      attribution: "Tiles © Esri, HERE, Garmin, OpenStreetMap contributors",
+    },
+    standard: {
+      type: "raster",
+      tiles: [tile("World_Street_Map")],
+      tileSize: 256,
+      attribution: "Tiles © Esri, HERE, Garmin, OpenStreetMap contributors",
+    },
+    sat: {
+      type: "raster",
+      tiles: [tile("World_Imagery")],
+      tileSize: 256,
+      attribution:
+        "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, GIS User Community",
+    },
+    labels: {
+      type: "raster",
+      tiles: [tile("Reference/World_Boundaries_and_Places")],
+      tileSize: 256,
+      attribution: "© Esri",
+    },
+    roads: {
+      type: "raster",
+      tiles: [tile("Reference/World_Transportation")],
+      tileSize: 256,
+      attribution: "© Esri",
+    },
+  };
+  const map = new maplibregl.Map({
+    container: "map",
+    style: {
+      version: 8,
+      sources,
+      layers: [
+        {
+          id: "background",
+          type: "background",
+          paint: { "background-color": "#080D10" },
+        },
+        ...Object.keys(sources).map((id) => ({
+          id,
+          type: "raster",
+          source: id,
+          paint: id === "dark" ? {"raster-brightness-max": .7, "raster-saturation": -.4} : {},
+          layout: { visibility: id === "dark" ? "visible" : "none" },
+        })),
+      ],
+    },
+    center: [-102, 23],
+    zoom: 4,
+    maxZoom: 21,
+    attributionControl: { compact: true },
+  });
+  map.on("styleimagemissing", (e) => {
+    if (!e.id.startsWith("count-")) return;
+    const c = document.createElement("canvas");
+    c.width = 96;
+    c.height = 48;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 26px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(e.id.slice(6), 48, 24);
+    map.addImage(e.id, ctx.getImageData(0, 0, 96, 48));
+  });
+  let data = null,
+    detail = null,
+    selected = null,
+    active = null,
+    layer = "oscuro",
+    routeStyle = "clasica",
+    pad = { top: 110, bottom: 220, left: 24, right: 72 },
+    lastKey,
+    loaded = false,
+    queued = false;
+  const colors = {
+    enfermo: "#F2545B",
+    revisar: "#F59E0B",
+    sano: "#22C55E",
+    otro: "#94A3B8",
+  };
+  const cache = {};
+  function source(id, features) {
+    const collection = fc(features.filter(Boolean));
+    const key = JSON.stringify(collection);
+    if (cache[id] === key) return;
+    cache[id] = key;
+    map.getSource(id).setData(collection);
+  }
+  function schedule() {
+    if (!loaded || queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      draw();
+    });
+  }
+  function visible(id, on) {
+    map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+  }
+  function bases() {
+    ["dark", "standard", "sat", "labels", "roads"].forEach((id) =>
+      visible(
+        id,
+        (id === "dark" && (layer === "oscuro" || layer === "zonas")) ||
+          (id === "standard" && (layer === "estandar" || layer === "topo")) ||
+          (id === "sat" && (layer === "satelite" || layer === "hibrido")) ||
+          ((id === "labels" || id === "roads") && layer === "hibrido"),
+      ),
+    );
+  }
+  function speedColor(v, range) {
+    const t = Math.max(
+      0,
+      Math.min(1, (v - range[0]) / Math.max(0.1, range[1] - range[0])),
+    );
+    const stops = SPEED;
+    const scaled = t * (stops.length - 1),
+      i = Math.min(stops.length - 2, Math.floor(scaled));
+    const a = parseInt(stops[i].slice(1), 16),
+      b = parseInt(stops[i + 1].slice(1), 16),
+      f = scaled - i;
+    return (
+      "#" +
+      [16, 8, 0]
+        .map((shift) =>
+          Math.round(((a >> shift) & 255) * (1 - f) + ((b >> shift) & 255) * f)
+            .toString(16)
+            .padStart(2, "0"),
+        )
+        .join("")
+    );
+  }
+  function draw() {
+    if (!data) return;
+    const show = data.show || {};
+    source(
+      "orchards",
+      show.orchards === false
+        ? []
+        : data.orchards.map((o) =>
+            polygon(o.points, {
+              id: o.id,
+              color: "#8BF52B",
+              opacity:
+                data.focusOrchard && data.focusOrchard !== o.id ? 0.035 : 0.16,
+            }),
+          ),
+    );
+    source(
+      "zones",
+      layer === "zonas"
+        ? data.zones.map((z) =>
+            polygon(z.ring, {
+              color:
+                {
+                  green: "#84cc16",
+                  yellow: "#fbbf24",
+                  red: "#f87171",
+                  orange: "#fb923c",
+                }[z.color] || "#2dd4bf",
+            }),
+          )
+        : [],
+    );
+    source(
+      "routes",
+      show.routes === false
+        ? []
+        : data.routes
+            .filter((r) => !detail || r.id !== detail.id)
+            .map((r) => line(r.points, { id: r.id })),
+    );
+    source(
+      "scans",
+      data.scans
+        .filter((s) => !detail || s.id !== detail.id)
+        .map((s) =>
+          point(s, {
+            id: s.id,
+            color: STATUS[s.status] || "#38bdf8",
+            selected: s.id === selected,
+          }),
+        ),
+    );
+    const r = detail ? detail.route.filter(valid) : [];
+    source("detail", show.routes === false ? [] : [line(r, {})]);
+    map.setPaintProperty(
+      "detail-line",
+      "line-gradient",
+      routeStyle === "tiempo"
+        ? [
+            "interpolate",
+            ["linear"],
+            ["line-progress"],
+            0,
+            "#84cc16",
+            0.5,
+            "#2dd4bf",
+            1,
+            "#a78bfa",
+          ]
+        : [
+            "interpolate",
+            ["linear"],
+            ["line-progress"],
+            0,
+            "#8BF52B",
+            1,
+            "#14b8a6",
+          ],
+    );
+    let segments = [];
+    if (routeStyle === "velocidad" && detail && detail.speedRange) {
+      for (let i = 1; i < r.length; i++) {
+        let dt = (r[i].t - r[i - 1].t) / 1000;
+        let a = xy(r[i - 1]),
+          b = xy(r[i]);
+        let rad = Math.PI / 180,
+          dy = (b[1] - a[1]) * rad,
+          dx = (b[0] - a[0]) * rad;
+        let h =
+          Math.sin(dy / 2) ** 2 +
+          Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dx / 2) ** 2;
+        let v =
+          dt > 0
+            ? ((6371000 * 2 * Math.asin(Math.min(1, Math.sqrt(h)))) / dt) * 3.6
+            : null;
+        segments.push(
+          line([r[i - 1], r[i]], {
+            color: v === null ? "#94a3b8" : speedColor(v, detail.speedRange),
+          }),
+        );
+      }
+    }
+    source("speed", show.routes === false ? [] : segments);
+    visible("detail-line", !segments.length);
+    visible("heat", routeStyle === "calor" && show.routes !== false);
+    source(
+      "endpoints",
+      show.routes === false || !r.length
+        ? []
+        : [
+            point(r[0], { color: "#8BF52B", label: "▶" }),
+            point(r[r.length - 1], { color: "#c4b5fd", label: "⚑" }),
+          ],
+    );
+    source(
+      "photos",
+      !detail || show.photos === false
+        ? []
+        : detail.photos.map((p) =>
+            point(p, { id: p.id, kind: "photo", color: "#2dd4bf" }),
+          ),
+    );
+    source(
+      "findings",
+      !detail || show.findings === false
+        ? []
+        : detail.findings.map((p) =>
+            point(p, {
+              id: p.id,
+              kind: "finding",
+              color: colors[p.cat] || colors.otro,
+            }),
+          ),
+    );
+    source(
+      "active",
+      !detail || !active
+        ? []
+        : (active.kind === "photo" ? detail.photos : detail.findings)
+            .filter((p) => p.id === active.id)
+            .map((p) => point(p, {})),
+    );
+  }
+  function allPoints() {
+    if (!detail && selected && data) { const p=data.scans.find(s=>s.id===selected);if(p)return [p]; }
+    return detail
+      ? [
+          ...detail.route,
+          ...detail.photos,
+          ...detail.findings,
+          ...detail.orchard,
+        ]
+      : data
+        ? [
+            ...data.scans,
+            ...data.routes.flatMap((r) => r.points),
+            ...data.orchards.flatMap((o) => o.points),
+          ]
+        : [];
+  }
+  function fit() {
+    const pts = allPoints().filter(valid);
+    if (!pts.length) return;
+    const bounds = new maplibregl.LngLatBounds();
+    pts.forEach((p) => bounds.extend(xy(p)));
+    const h = map.getContainer().clientHeight,
+      w = map.getContainer().clientWidth;
+    const safe = {
+      top: Math.min(pad.top, h * 0.2),
+      bottom: Math.min(pad.bottom, h * 0.55),
+      left: Math.min(pad.left, w * 0.2),
+      right: Math.min(pad.right, w * 0.2),
+    };
+    map.fitBounds(bounds, {
+      padding: safe,
+      maxZoom: 19,
+      duration: data && data.reduced ? 0 : 650,
+    });
+  }
+  function go(p) {
+    if (valid(p))
+      map.easeTo({
+        center: xy(p),
+        zoom: Math.max(18, map.getZoom()),
+        padding: pad,
+        duration: data && data.reduced ? 0 : 500,
+      });
+  }
+  map.on("load", () => {
+    loaded = true;
+    bases();
+    [
+      "orchards",
+      "zones",
+      "routes",
+      "detail",
+      "speed",
+      "endpoints",
+      "findings",
+      "active",
+      "user",
+      "scans",
+      "photos",
+    ].forEach((id) =>
+      map.addSource(id, {
+        type: "geojson",
+        data: fc([]),
+        ...(id === "detail" ? { lineMetrics: true } : {}),
+        ...(["scans", "photos"].includes(id)
+          ? { cluster: true, clusterRadius: 40, clusterMaxZoom: 18 }
+          : {}),
+      }),
+    );
+    const add = (id, type, source, paint, extra) =>
+      map.addLayer({ id, type, source, paint, ...extra });
+    add("zones-fill", "fill", "zones", {
+      "fill-color": ["get", "color"],
+      "fill-opacity": 0.32,
+    });
+    add("orchards-fill", "fill", "orchards", {
+      "fill-color": ["get", "color"],
+      "fill-opacity": ["get", "opacity"],
+    });
+    add("orchards-border", "line", "orchards", {
+      "line-color": "#8BF52B",
+      "line-width": 2,
+    });
+    add("routes-line", "line", "routes", {
+      "line-color": "#2dd4bf",
+      "line-width": 3,
+      "line-opacity": 0.5,
+    });
+    add("heat", "line", "routes", {
+      "line-color": "#fb923c",
+      "line-width": 14,
+      "line-blur": 8,
+      "line-opacity": 0.55,
+    });
+    add("detail-halo", "line", "detail", {
+      "line-color": "#031d22",
+      "line-width": 10,
+    });
+    add(
+      "detail-line",
+      "line",
+      "detail",
+      { "line-width": 5 },
+      { layout: { "line-cap": "round", "line-join": "round" } },
+    );
+    add("speed-line", "line", "speed", {
+      "line-color": ["get", "color"],
+      "line-width": 5,
+    });
+    ["scans", "photos", "findings", "endpoints", "user"].forEach((id) => {
+      add(
+        id + "-circle",
+        "circle",
+        id,
+        {
+          "circle-radius":
+            id === "findings" ? 12 : id === "endpoints" ? 15 : 10,
+          "circle-color":
+            id === "user"
+              ? "#38bdf8"
+              : ["coalesce", ["get", "color"], "#14b8a6"],
+          "circle-stroke-width": 2,
+          "circle-stroke-color":
+            id === "scans"
+              ? [
+                  "case",
+                  ["boolean", ["get", "selected"], false],
+                  "#fff",
+                  "#99f6e4",
+                ]
+              : "#ecfdf5",
+        },
+        ["scans", "photos"].includes(id)
+          ? { filter: ["!", ["has", "point_count"]] }
+          : {},
+      );
+      if (["scans", "photos"].includes(id)) {
+        add(
+          id + "-cluster",
+          "circle",
+          id,
+          {
+            "circle-color": "#0f766e",
+            "circle-radius": [
+              "step",
+              ["get", "point_count"],
+              17,
+              10,
+              22,
+              50,
+              28,
+            ],
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "#99f6e4",
+          },
+          { filter: ["has", "point_count"] },
+        );
+        map.addLayer({
+          id: id + "-count",
+          type: "symbol",
+          source: id,
+          filter: ["has", "point_count"],
+          layout: {
+            "icon-image": [
+              "concat",
+              "count-",
+              ["to-string", ["get", "point_count_abbreviated"]],
+            ],
+            "icon-size": 0.5,
+            "icon-allow-overlap": true,
+          },
+        });
+      }
+    });
+    // Canvas sprites keep symbols legible without relying on a remote glyph server.
+    [
+      ["camera", "▣"],
+      ["alert", "!"],
+      ["start", "▶"],
+      ["end", "⚑"],
+    ].forEach(([id, text]) => {
+      const c = document.createElement("canvas");
+      c.width = c.height = 48;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#081318";
+      ctx.font = "bold 34px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      if(id === 'camera') { ctx.lineWidth=4;ctx.strokeStyle='#081318';ctx.strokeRect(7,14,34,24);ctx.beginPath();ctx.arc(24,26,8,0,Math.PI*2);ctx.stroke();ctx.fillRect(15,9,16,5); }
+      else if(id === 'start') {ctx.beginPath();ctx.moveTo(13,8);ctx.lineTo(39,24);ctx.lineTo(13,40);ctx.closePath();ctx.fill();}
+      else if(id === 'end') {ctx.fillRect(12,8,4,34);ctx.fillRect(16,8,24,17);}
+      else ctx.fillText(text, 24, 25);
+      map.addImage(id, ctx.getImageData(0, 0, 48, 48));
+    });
+    [
+      ["photos", "camera"],
+      ["findings", "alert"],
+      ["endpoints", "start"],
+    ].forEach(([src, icon]) =>
+      map.addLayer({
+        id: src + "-icon",
+        type: "symbol",
+        source: src,
+        filter: ["!", ["has", "point_count"]],
+        layout: {
+          "icon-image":
+            src === "endpoints"
+              ? ["match", ["get", "label"], "⚑", "end", "start"]
+              : icon,
+          "icon-size": 0.5,
+          "icon-allow-overlap": true,
+        },
+      }),
+    );
+    add("active-ring", "circle", "active", {
+      "circle-radius": 19,
+      "circle-color": "#fff",
+      "circle-opacity": 0.1,
+      "circle-stroke-width": 3,
+      "circle-stroke-color": "#fff",
+    });
+    map.on("click", async (e) => {
+      const hit = map.queryRenderedFeatures(e.point, {
+        layers: [
+          "photos-circle",
+          "findings-circle",
+          "scans-circle",
+          "photos-cluster",
+          "scans-cluster",
+          "orchards-fill",
+          "routes-line",
+        ],
+      })[0];
+      if (!hit) {
+        post({ type: "clear" });
+        return;
+      }
+      const p = hit.properties;
+      if (p.cluster) {
+        const zoom = await map
+          .getSource(hit.source)
+          .getClusterExpansionZoom(p.cluster_id);
+        map.easeTo({ center: hit.geometry.coordinates, zoom });
+        return;
+      }
+      if (hit.source === "photos" || hit.source === "findings")
+        post({
+          type: "point",
+          kind: hit.source === "photos" ? "photo" : "finding",
+          id: p.id,
+        });
+      else
+        post({
+          type: hit.source === "orchards" ? "orchard" : "select",
+          id: p.id,
+        });
+    });
+    post({ type: "ready" });
+  });
+  map.on("error", () => post({ type: "error" }));
+  window.avx = {
+    setData(d) {
+      const refit = !data || lastKey !== d.fitKey;
+      data = d;
+      lastKey = d.fitKey;
+      schedule();
+      if (refit && !detail) fit();
+    },
+    setLayer(n) {
+      layer = n;
+      if (loaded) bases();
+      schedule();
+    },
+    setRouteStyle(n) {
+      routeStyle = n;
+      schedule();
+    },
+    setPad(p) {
+      pad = p;
+      const el = document.querySelector(".maplibregl-ctrl-bottom-right");
+      if (el)
+        el.style.bottom =
+          Math.min(p.bottom, map.getContainer().clientHeight * 0.55) + "px";
+    },
+    select(id) {
+      selected = id;
+      if (id && detail && detail.id !== id) detail = null;
+      if (id && !detail) fit();
+      if (!id) {
+        detail = null;
+        active = null;
+      }
+      schedule();
+    },
+    setDetail(d, focus) {
+      detail = d;
+      active = null;
+      schedule();
+      if (focus) fit();
+    },
+    point(kind, id) {
+      active = id ? { kind, id } : null;
+      schedule();
+      if (active && detail) {
+        const p = (kind === "photo" ? detail.photos : detail.findings).find(
+          (p) => p.id === id,
+        );
+        if (p) go(p);
+      }
+    },
+    zoom(d) {
+      map.zoomTo(map.getZoom() + d);
+    },
+    showUser(lat, lng, fly) {
+      const p = { lat, lng };
+      if (loaded) source("user", [point(p, {})]);
+      if (fly) go(p);
+    },
+    fit,
+    invalidate() {
+      map.resize();
+    },
+  };
 })();
 </script></body></html>`;
 }

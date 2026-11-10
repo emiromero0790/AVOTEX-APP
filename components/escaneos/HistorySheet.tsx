@@ -190,6 +190,9 @@ function HistorySheetInner<T>(props: Props<T>, ref: React.Ref<HistorySheetHandle
       scheduleOnRN(markDragEnd);
     });
 
+  const nativeScroll = Gesture.Native();
+  const coordinatedListPan = listPan.simultaneousWithExternalGesture(nativeScroll);
+
   const onScroll = useAnimatedScrollHandler(e => { scrollY.set(e.contentOffset.y); });
   const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: y.get() }] }));
 
@@ -212,8 +215,9 @@ function HistorySheetInner<T>(props: Props<T>, ref: React.Ref<HistorySheetHandle
           {header}
         </View>
       </GestureDetector>
-      <GestureDetector gesture={listPan}>
+      <GestureDetector gesture={coordinatedListPan}>
         <View style={s.body} collapsable={false}>
+          <GestureDetector gesture={nativeScroll}>
           <Reanimated.FlatList
             ref={list}
             data={data as T[]}
@@ -239,6 +243,7 @@ function HistorySheetInner<T>(props: Props<T>, ref: React.Ref<HistorySheetHandle
               list.current?.scrollToOffset({ offset: Math.max(0, info.averageItemLength * info.index), animated: !reduced });
             }}
           />
+          </GestureDetector>
         </View>
       </GestureDetector>
     </Reanimated.View>
@@ -251,7 +256,8 @@ export default HistorySheet;
 const s = StyleSheet.create({
   sheet: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(14,20,24,0.94)',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(14,20,24,0.97)',
     borderTopLeftRadius: 30, borderTopRightRadius: 30,
     borderWidth: 1, borderBottomWidth: 0, borderColor: 'rgba(255,255,255,0.10)',
     shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 22, shadowOffset: { width: 0, height: -6 }, elevation: 18,

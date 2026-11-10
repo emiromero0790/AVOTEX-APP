@@ -6,7 +6,6 @@ import {
   Alert,
   Image,
   Platform,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -110,6 +109,24 @@ const COUNT_POP = { from: { transform: [{ scale: 1.18 }] }, to: { transform: [{ 
 
 const auth = firebaseAuth as Auth;
 
+/**
+ * Diagnóstico GPS en la consola (Metro, `adb logcat -s ReactNativeJS`, o Consola de macOS en iOS):
+ * una línea por lectura con lo que recibe el filtro de distancia (services/gpsFilter.ts) y su decisión.
+ * Buscar «[gps]». Ejemplo:
+ *   [gps] #12 ±6m v=0.00(no confiable) desp 3.1/7.5m → rechazada(puerta) · pasos 2 · rech prec 0 puerta 9 salto 0 idavuelta 0 · total 11.4m
+ */
+function logGps(track: GpsTrack, f: { lat: number; lng: number; acc: number | null; speed: number | null; step: number; accepted: boolean }) {
+  const d = track.debug;
+  const n = (v: number | null | undefined, k = 1) => (v == null ? '—' : v.toFixed(k));
+  const speedTxt = f.speed == null || f.speed < 0 ? 'sin dato' : `${n(f.speed, 2)}${d.speedTrusted ? '' : '(no confiable)'}`;
+  const verdict = f.accepted ? (f.step > 0 ? `+${n(f.step)}m` : 'inicio') : `rechazada(${d.lastReason})`;
+  console.log(
+    `[gps] #${d.fixes} ±${n(f.acc, 0)}m v=${speedTxt}${d.still ? ' quieto' : ''} desp ${n(d.lastDist)}/${n(d.lastGate)}m → ${verdict}`
+    + ` · pasos ${d.accepted} · rech prec ${d.rejectedAccuracy} puerta ${d.rejectedGate} salto ${d.rejectedSpike} idavuelta ${d.rejectedReversal}`
+    + ` · total ${n(track.distance)}m · ${f.lat.toFixed(6)},${f.lng.toFixed(6)}`,
+  );
+}
+
 const translations: TranslationResource = {
   title: { es: 'Recorrido inteligente', en: 'Smart field walk' },
   back: { es: 'Volver', en: 'Back' },
@@ -211,8 +228,6 @@ const translations: TranslationResource = {
   gpsSearching: { es: 'Buscando GPS…', en: 'Searching GPS…' },
   gpsLost: { es: 'Sin GPS: imágenes por tiempo', en: 'No GPS: images by time' },
   pause: { es: 'Pausar', en: 'Pause' },
-  gpsDiag: { es: 'Diagnóstico GPS', en: 'GPS diagnostics' },
-  gpsDiagHint: { es: 'Mantén presionado el GPS para ver el diagnóstico', en: 'Long-press GPS for diagnostics' },
   resume: { es: 'Seguir', en: 'Resume' },
   finish: { es: 'Terminar', en: 'Finish' },
   holdToFinish: { es: 'Mantén presionado para terminar', en: 'Press and hold to finish' },
@@ -338,8 +353,6 @@ export default function RecorridoScreen() {
   const fieldMotionRef = useRef<FieldMotion | null>(null);
   const [fieldMotion, setFieldMotion] = useState<FieldMotion | null>(null);
   const [hudBottom, setHudBottom] = useState(0);
-  // Diagnóstico GPS (toque largo en la píldora de GPS): muestra lo que el filtro de distancia recibe.
-  const [gpsDiag, setGpsDiag] = useState(false);
   const [paused, setPaused] = useState(false);
   const [stats, setStats] = useState({ elapsed: 0, distance: 0, photos: 0, accuracy: null as number | null, gps: 'searching' as 'ok' | 'searching' | 'lost' });
   const [limitHit, setLimitHit] = useState(false);
@@ -586,6 +599,7 @@ export default function RecorridoScreen() {
     // ni dispara fotos. Solo los pasos de movimiento real entran a la ruta y a la distancia.
     const track = trackRef.current ?? (trackRef.current = new GpsTrack());
     const step = track.push({ lat, lng, acc: accuracy ?? null, speed: speed ?? null, t: now });
+    logGps(track, { lat, lng, acc: accuracy ?? null, speed: speed ?? null, step: step.step, accepted: step.accepted });
     if (step.accepted && step.point) {
       rec.ruta.push({ lat: step.point.lat, lng: step.point.lng, t: new Date(now).toISOString(), f: 1 });
       if (step.step > 0 && !pausedRef.current) setStats(s => ({ ...s, distance: s.distance + step.step }));
@@ -923,17 +937,10 @@ export default function RecorridoScreen() {
             style={st.pillsRow}
             onLayout={e => { const { y, height } = e.nativeEvent.layout; setHudBottom(y + height); }}
           >
-            <Pressable
-              onLongPress={() => { Haptics.selectionAsync().catch(() => {}); setGpsDiag(v => !v); }}
-              delayLongPress={600}
-              accessibilityRole="button"
-              accessibilityLabel={gpsText}
-              accessibilityHint={t('gpsDiagHint')}
-              style={[st.gpsPill, stats.gps === 'ok' ? st.gpsOk : stats.gps === 'lost' ? st.gpsLost : st.gpsSearch]}
-            >
+            <View style={[st.gpsPill, stats.gps === 'ok' ? st.gpsOk : stats.gps === 'lost' ? st.gpsLost : st.gpsSearch]}>
               <MapPin size={13} color="#fff" />
               <Text style={st.gpsText}>{gpsText}</Text>
-            </Pressable>
+            </View>
             <View style={[st.gpsPill, st.netPill]}>
               <NetIcon size={13} color="#fff" />
               <Text style={st.gpsText}>{netText}</Text>
@@ -951,8 +958,6 @@ export default function RecorridoScreen() {
             <FieldTracking3D motion={fieldMotion} paused={paused} distanceLabel={formatDistance(stats.distance)} top={hudBottom + 12} />
           </FieldTrackingGuard>
         )}
-
-        {gpsDiag && hudBottom > 0 && <GpsDiagCard track={trackRef.current} stats={stats} top={hudBottom + 12} title={t('gpsDiag')} />}
 
         {paused && (
           <Reanimated.View entering={PAUSE_IN} exiting={PAUSE_OUT} style={st.pauseOverlay} pointerEvents="none">
@@ -1277,45 +1282,7 @@ export default function RecorridoScreen() {
   );
 }
 
-/**
- * Diagnóstico GPS del recorrido (toque largo en la píldora de GPS). Muestra lo que recibe el filtro de
- * distancia (GpsTrack) para entender en campo por qué suma o no metros. Se actualiza con el reloj (1 s).
- */
-function GpsDiagCard({ track, stats, top, title }: { track: GpsTrack | null; stats: { distance: number; accuracy: number | null }; top: number; title: string }) {
-  const d = track?.debug;
-  const fmt = (v: number | null | undefined, digits = 1) => (v == null ? '—' : v.toFixed(digits));
-  const rows: [string, string][] = d ? [
-    ['Lecturas', String(d.fixes)],
-    ['Precisión', `±${fmt(d.lastAcc, 0)} m`],
-    ['Velocidad GPS', d.lastRawSpeed == null ? 'no informa' : `${fmt(d.lastRawSpeed, 2)} m/s`],
-    ['Velocidad confiable', d.speedTrusted ? 'sí' : 'no (se mide por posición)'],
-    ['Quieto (Doppler)', d.still ? 'sí' : 'no'],
-    ['Desplazamiento / puerta', `${fmt(d.lastDist)} / ${fmt(d.lastGate)} m`],
-    ['Pasos aceptados', String(d.accepted)],
-    ['Rechazos precisión', String(d.rejectedAccuracy)],
-    ['Rechazos puerta', String(d.rejectedGate)],
-    ['Rechazos salto / ida-vuelta', `${d.rejectedSpike} / ${d.rejectedReversal}`],
-    ['Distancia', `${stats.distance.toFixed(1)} m`],
-  ] : [['Estado', 'sin lecturas GPS todavía']];
-  return (
-    <View style={[st.diagCard, { top }]} pointerEvents="none">
-      <Text style={st.diagTitle}>{title}</Text>
-      {rows.map(([k, v]) => (
-        <View key={k} style={st.diagRow}>
-          <Text style={st.diagKey}>{k}</Text>
-          <Text style={st.diagVal}>{v}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 const st = StyleSheet.create({
-  diagCard: { position: 'absolute', left: 12, width: 196, padding: 10, borderRadius: 14, backgroundColor: 'rgba(2,6,23,0.86)', borderWidth: 1, borderColor: 'rgba(148,163,184,0.35)', gap: 2 },
-  diagTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 11.5, color: '#fff', marginBottom: 4 },
-  diagRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
-  diagKey: { fontFamily: 'Poppins_400Regular', fontSize: 10, color: 'rgba(226,232,240,0.75)', flexShrink: 1 },
-  diagVal: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: '#fff' },
   screen: { flex: 1, backgroundColor: '#FFFFFF' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 },

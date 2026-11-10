@@ -217,7 +217,21 @@ Si cambia `scene.config.json`, hay que regenerar: la proyección en vivo lee los
 
 ## Diagnóstico GPS
 
-En la pantalla de grabación, **mantener presionada la píldora de GPS** muestra lo que recibe el filtro de
-distancia: lecturas, precisión, velocidad que informa el teléfono y si es confiable, desplazamiento frente a la
-puerta de movimiento, pasos aceptados y rechazos (por precisión, puerta, salto o ida-vuelta). Sirve para saber
-en campo por qué un recorrido suma o no metros.
+Durante la grabación, cada lectura GPS imprime una línea en la consola con el prefijo `[gps]` (no aparece en la
+interfaz):
+
+```
+[gps] #13 ±8m v=0.00(no confiable) desp 12.4/10.0m → +12.4m · pasos 1 · rech prec 0 puerta 11 salto 0 idavuelta 0 · total 12.4m · 19.400143,-102.050018
+```
+
+| Campo | Significado |
+|---|---|
+| `±8m` | Precisión que reporta el teléfono. Lecturas peores que ±50 m se rechazan. |
+| `v=` | Velocidad que da el teléfono (`sin dato` si no la da). `(no confiable)`: aún no demostró medir movimiento. |
+| `quieto` | El Doppler confiable dice que no te mueves (la puerta sube a 25 m). |
+| `desp 12.4/10.0m` | Desplazamiento suavizado desde el último punto aceptado / mínimo exigido (puerta). |
+| `→` | Decisión: `+X m` sumados, o `rechazada(precisión · puerta · persistencia · salto · ida-vuelta)`. |
+| `total` | Distancia acumulada del recorrido. |
+
+Dónde verlo: en la terminal de Metro (build de desarrollo); en Android con
+`adb logcat -s ReactNativeJS`; en iOS con la app Consola de macOS filtrando por `[gps]`.

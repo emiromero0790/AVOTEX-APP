@@ -1,0 +1,4 @@
+{
+  "compilerOptions": { "lib": ["deno.ns", "deno.window", "dom"] },
+  "imports": { "@std/encoding/base64": "jsr:@std/encoding@1/base64" }
+}

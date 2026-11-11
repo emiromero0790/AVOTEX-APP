@@ -1,9 +1,11 @@
-import type { SatLayer, SatMapData } from './satMapHtml';
+import type { SatLayer, SatMapData, SatNdviOverlay } from './satMapHtml';
 import type { ZoneId } from '../services/satZones';
 
 export type SatMapProps = {
   data: SatMapData | null;
   layer: SatLayer;
+  /** Mapa de vigor (NDVI) de Sentinel-2; se ve solo en la capa «Satélite». */
+  ndvi?: SatNdviOverlay;
   selectedZone: ZoneId | null;
   onSelectZone: (id: ZoneId | null) => void;
   onError?: () => void;

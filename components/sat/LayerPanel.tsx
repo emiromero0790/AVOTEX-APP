@@ -2,7 +2,8 @@
  * Panel flotante de capas (lo más parecido posible al panel lateral de la referencia).
  * Las ilustraciones se generan con SVG a partir de la geometría real de la huerta:
  * - Zonas: las zonas ilustrativas como bloques 3D sobre una rejilla isométrica.
- * - Contorno: la silueta real de la huerta con textura sobre una rejilla (textura ilustrativa, no NDVI).
+ * - Contorno: la silueta real de la huerta con textura sobre una rejilla (en el mapa, la capa «Satélite» muestra el
+ *   mapa de vigor NDVI real de Sentinel-2).
  * - Relieve: imagen fija ilustrativa de la capa de sombreado de relieve (vista Híbrido).
  * Cada sección cambia la capa del mapa; no son adornos.
  */

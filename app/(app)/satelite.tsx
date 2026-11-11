@@ -3,6 +3,7 @@
  *
  * - Selector con las huertas reales del usuario (tabla huertas).
  * - Mapa satelital con el perímetro real y zonas ILUSTRATIVAS estables (services/satZones.ts).
+ * - Capa «Satélite»: mapa de vigor NDVI real de Sentinel-2 (Planetary Computer; services/ndviMap.ts → función ndvi-huerta).
  * - Reportes de la huerta elegida (reportes.huerta_id), su historial y sus índices.
  * Las zonas no llevan índices: los reportes se calculan para toda la huerta.
  */
@@ -30,10 +31,11 @@ import {
   countUnassignedReports, listSatelliteReports, MissingHuertaColumnError, type SatelliteReport,
 } from '../../services/reports';
 import { buildOrchardGeometry, type ZoneId } from '../../services/satZones';
+import { loadNdviMap, type NdviResult } from '../../services/ndviMap';
 import { INDEX_SPECS, formatIndex, readIndex } from '../../services/indices';
 import SatMap from '../../components/SatMap';
 import type { SatMapHandle } from '../../components/SatMap.types';
-import { ZONE_PALETTE, type SatLayer, type SatMapData } from '../../components/satMapHtml';
+import { ZONE_PALETTE, type SatLayer, type SatMapData, type SatNdviOverlay } from '../../components/satMapHtml';
 import LayerPanel from '../../components/sat/LayerPanel';
 import { ClimateGrid, IndexCard, NdviDial, SAT } from '../../components/sat/IndexViews';
 import { CSS_EASE_OUT } from '../../components/scan/motion';
@@ -41,6 +43,8 @@ import { CSS_EASE_OUT } from '../../components/scan/motion';
 const STORE_KEY = 'avotex.satelite.huerta';
 const SEG_W = 222;
 const SEG_ITEM = (SEG_W - 8) / 3;
+// Misma escala de color que la imagen NDVI de la función ndvi-huerta (rojo suelo desnudo → verde vigoroso).
+const NDVI_RAMP = ['#E5533F', '#F08A32', '#D9D24A', '#86D45A', '#2BBF6A', '#0F8F4E'] as const;
 
 const translations: TranslationResource = {
   brand: { es: 'AVOTEX / DATOS SATELITALES', en: 'AVOTEX / SATELLITE DATA' },
@@ -60,7 +64,16 @@ const translations: TranslationResource = {
   panelTitle: { es: 'CAPAS', en: 'LAYERS' },
   panelOutline: { es: 'Contorno', en: 'Outline' },
   panelRelief: { es: 'Relieve', en: 'Relief' },
-  panelTexture: { es: 'Textura ilustrativa', en: 'Illustrative texture' },
+  panelTexture: { es: 'Textura', en: 'Texture' },
+  ndviLoading: { es: 'Cargando mapa de vigor…', en: 'Loading vigor map…' },
+  ndviTitle: { es: 'Vigor (NDVI)', en: 'Vigor (NDVI)' },
+  ndviLow: { es: 'Bajo', en: 'Low' },
+  ndviHigh: { es: 'Alto', en: 'High' },
+  ndviMeta: { es: 'Promedio {mean} · Sentinel-2 · {date}', en: 'Average {mean} · Sentinel-2 · {date}' },
+  ndviNoClear: { es: 'Sin imagen despejada en los últimos 75 días', en: 'No clear image in the last 75 days' },
+  ndviUnavailable: { es: 'Mapa de vigor no disponible por ahora', en: 'Vigor map not available yet' },
+  ndviError: { es: 'No se pudo cargar el mapa de vigor', en: 'Could not load the vigor map' },
+  ndviRetry: { es: 'Reintentar', en: 'Retry' },
   panelHide: { es: 'Ocultar panel de capas', en: 'Hide layer panel' },
   panelShow: { es: 'Mostrar panel de capas', en: 'Show layer panel' },
   zoomIn: { es: 'Acercar', en: 'Zoom in' },
@@ -289,6 +302,29 @@ export default function SateliteScreen() {
     };
   }, [orchard, geometry, areaM2, lang, mapPad.top, mapPad.right, mapPad.bottom, mapPad.left, reduced]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Mapa de vigor (NDVI, Sentinel-2) para la capa «Satélite» ──
+  // Se pide solo cuando se abre esa capa (cuida la cuota gratuita) y se guarda 24 h por huerta.
+  const [ndvi, setNdvi] = useState<{ huertaId: string; status: 'loading' } | { huertaId: string; status: 'done'; result: NdviResult } | null>(null);
+  const ndviReq = useRef(0);
+  const fetchNdvi = useCallback((force = false) => {
+    if (!orchard || !geometry || !geometry.ok) return;
+    const req = ++ndviReq.current;
+    const huertaId = orchard.id;
+    setNdvi({ huertaId, status: 'loading' });
+    loadNdviMap(huertaId, geometry.outline, { force }).then(result => {
+      if (req === ndviReq.current) setNdvi({ huertaId, status: 'done', result });
+    });
+  }, [orchard, geometry]);
+  useEffect(() => {
+    if (layer !== 'satelite' || !orchard || !geometry || !geometry.ok) return;
+    if (ndvi && ndvi.huertaId === orchard.id) return;
+    fetchNdvi();
+  }, [layer, orchard, geometry, ndvi, fetchNdvi]);
+  const ndviForMap = useMemo<SatNdviOverlay>(() => {
+    if (!orchard || !ndvi || ndvi.huertaId !== orchard.id || ndvi.status !== 'done' || !ndvi.result.ok) return null;
+    return { image: ndvi.result.image, bounds: ndvi.result.bounds };
+  }, [orchard, ndvi]);
+
   const changeLayer = useCallback((l: SatLayer) => {
     if (l === layer) return;
     tick();
@@ -416,7 +452,7 @@ export default function SateliteScreen() {
                   onTouchCancel={() => setScrollEnabled(true)}
                 >
                   {mapData && !mapFailed ? (
-                    <SatMap ref={mapRef} data={mapData} layer={layer} selectedZone={zone} onSelectZone={clearZoneFromMap} onError={() => setMapFailed(true)} />
+                    <SatMap ref={mapRef} data={mapData} layer={layer} ndvi={ndviForMap} selectedZone={zone} onSelectZone={clearZoneFromMap} onError={() => setMapFailed(true)} />
                   ) : (
                     <View style={s.mapFallback}>
                       <MapIcon size={26} color={SAT.muted} />
@@ -470,6 +506,37 @@ export default function SateliteScreen() {
                         <Pressable onPress={() => mapRef.current?.zoom(-1)} accessibilityRole="button" accessibilityLabel={t('zoomOut')} style={({ pressed }) => [s.zoomBtn, pressed && s.pressed]}><Minus size={17} color="#0B1F17" /></Pressable>
                         <Pressable onPress={() => mapRef.current?.fit()} accessibilityRole="button" accessibilityLabel={t('fit')} style={({ pressed }) => [s.zoomBtn, pressed && s.pressed]}><Maximize2 size={15} color="#0B1F17" /></Pressable>
                       </View>
+
+                      {/* Leyenda del mapa de vigor (capa «Satélite») */}
+                      {layer === 'satelite' && ndvi && ndvi.huertaId === orchard.id && (
+                        <Reanimated.View entering={reduced ? undefined : FadeIn.duration(200)} style={s.ndviCard}>
+                          {ndvi.status === 'loading' ? (
+                            <View style={s.ndviRow}><ActivityIndicator size="small" color="#BEF264" /><Text style={s.ndviMeta}>{t('ndviLoading')}</Text></View>
+                          ) : ndvi.result.ok ? (
+                            <>
+                              <View style={s.ndviRow}>
+                                <Text style={s.ndviTitle}>{t('ndviTitle')}</Text>
+                                <Text style={s.ndviEnd}>{t('ndviLow')}</Text>
+                                <LinearGradient colors={NDVI_RAMP} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.ndviBar} />
+                                <Text style={s.ndviEnd}>{t('ndviHigh')}</Text>
+                              </View>
+                              <Text style={s.ndviMeta} numberOfLines={1}>
+                                {t('ndviMeta', { mean: ndvi.result.stats.mean.toFixed(2), date: shortFmt.format(new Date(`${ndvi.result.date}T12:00:00Z`)) })}
+                              </Text>
+                            </>
+                          ) : (
+                            <View style={s.ndviRow}>
+                              <Info size={12} color="#E8F5D0" />
+                              <Text style={[s.ndviMeta, { flex: 1 }]} numberOfLines={2}>
+                                {ndvi.result.reason === 'no-clear-image' ? t('ndviNoClear') : ndvi.result.reason === 'not-configured' ? t('ndviUnavailable') : t('ndviError')}
+                              </Text>
+                              {ndvi.result.reason !== 'not-configured' && ndvi.result.reason !== 'no-clear-image' && (
+                                <Pressable onPress={() => { tick(); fetchNdvi(true); }} hitSlop={8} accessibilityRole="button"><Text style={s.ndviRetry}>{t('ndviRetry')}</Text></Pressable>
+                              )}
+                            </View>
+                          )}
+                        </Reanimated.View>
+                      )}
 
                       {isTablet && layer !== 'satelite' && zones.length > 0 && (
                         <View style={s.mapNote} pointerEvents="none">
@@ -723,6 +790,13 @@ const s = StyleSheet.create({
   panelSlotRow: { position: 'absolute', left: 10, bottom: 10 },
   zoomCol: { position: 'absolute', right: 10, bottom: 10, gap: 6 },
   zoomBtn: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.94)' },
+  ndviCard: { position: 'absolute', left: 10, right: 58, bottom: 10, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 14, backgroundColor: 'rgba(10,22,17,0.82)', gap: 4 },
+  ndviRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  ndviTitle: { color: '#F2FBE4', fontFamily: 'Poppins_600SemiBold', fontSize: 11 },
+  ndviEnd: { color: '#C9D8CC', fontFamily: 'Poppins_400Regular', fontSize: 10 },
+  ndviBar: { flex: 1, height: 7, borderRadius: 4 },
+  ndviMeta: { color: '#C9D8CC', fontFamily: 'Poppins_400Regular', fontSize: 10 },
+  ndviRetry: { color: '#BEF264', fontFamily: 'Poppins_600SemiBold', fontSize: 11 },
   mapNote: { position: 'absolute', left: 10, bottom: 12, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: 'rgba(10,22,17,0.78)' },
   mapNoteText: { color: '#E8F5D0', fontFamily: 'Poppins_600SemiBold', fontSize: 10 },
 

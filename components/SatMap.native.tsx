@@ -9,7 +9,7 @@ const WebView = RNWebView<object>;
 type WebView = RNWebView<object>;
 
 const SatMap = forwardRef<SatMapHandle, SatMapProps>(function SatMap(
-  { data, layer, selectedZone, onSelectZone, onError },
+  { data, layer, ndvi = null, selectedZone, onSelectZone, onError },
   ref,
 ) {
   const web = useRef<WebView>(null);
@@ -25,6 +25,7 @@ const SatMap = forwardRef<SatMapHandle, SatMapProps>(function SatMap(
   }), [run]);
 
   useEffect(() => { if (ready) run(`avx.setLayer(${safeJson(layer)})`); }, [ready, layer, run]);
+  useEffect(() => { if (ready) run(`avx.setNdvi(${safeJson(ndvi)})`); }, [ready, ndvi, run]);
   useEffect(() => { if (ready && data) run(`avx.setData(${safeJson(data)});avx.select(${safeJson(selectedZone)})`); }, [ready, data, run]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ready) run(`avx.select(${safeJson(selectedZone)})`); }, [ready, selectedZone, run]);
 

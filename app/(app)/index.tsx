@@ -143,7 +143,8 @@ function OrchardThumb({ orchard, ratio, stroke = 2 }: { orchard: Orchard; ratio:
   if (!preview) return <LinearGradient colors={['#6E9A4F', '#2F5A33']} style={StyleSheet.absoluteFill} />;
   return (
     <>
-      <Image source={{ uri: preview.imageUrl }} style={s.fill} resizeMode="cover" accessibilityIgnoresInvertColors />
+      {/* Anclada a los cuatro bordes (como el Inicio anterior): con ancho/alto en % no se dibujaba en Android. */}
+      <Image source={{ uri: preview.imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" accessibilityIgnoresInvertColors />
       <Svg width="100%" height="100%" viewBox={preview.viewBox} preserveAspectRatio="xMidYMid slice" style={StyleSheet.absoluteFill}>
         <SvgPolygon points={preview.polygonPoints} fill="rgba(160,214,90,0.42)" stroke="#FFFFFF" strokeWidth={stroke} strokeLinejoin="round" />
       </Svg>
@@ -466,10 +467,13 @@ export default function Home() {
                 style={[s.action, { width: actionW }]}>
                 <Image source={a.img} style={s.fill} resizeMode="cover" accessibilityIgnoresInvertColors />
                 <LinearGradient colors={['rgba(6,63,50,0.15)', 'rgba(6,63,50,0.55)', 'rgba(4,40,26,0.92)']} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
-                <View style={[s.actionIcon, a.locked && s.actionIconLocked]}>
-                  {a.locked ? <Lock size={15} color={C.white} /> : <a.Icon size={17} color={C.limeInk} strokeWidth={2.3} />}
+                {/* El relleno va en esta capa (no en la tarjeta): así la foto cubre la tarjeta completa en Android. */}
+                <View style={s.actionBody}>
+                  <View style={[s.actionIcon, a.locked && s.actionIconLocked]}>
+                    {a.locked ? <Lock size={15} color={C.white} /> : <a.Icon size={17} color={C.limeInk} strokeWidth={2.3} />}
+                  </View>
+                  <Text style={[s.actionLabel, a.locked && { opacity: 0.75 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.15}>{a.label}</Text>
                 </View>
-                <Text style={[s.actionLabel, a.locked && { opacity: 0.75 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.15}>{a.label}</Text>
               </PressableScale>
             ))}
           </ScrollView>
@@ -510,7 +514,7 @@ const shadow = { shadowColor: '#1D3B2A', shadowOpacity: 0.08, shadowRadius: 12, 
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
-  fill: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
+  fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' },
   hero: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden', backgroundColor: C.deep },
   content: { alignSelf: 'center' },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, height: 50 },
@@ -577,7 +581,8 @@ const s = StyleSheet.create({
   orchardArea: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(255,255,255,0.88)' },
   orchardGo: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: C.lime },
 
-  action: { height: 78, borderRadius: 18, overflow: 'hidden', backgroundColor: C.deep, padding: 8, justifyContent: 'space-between', ...shadow },
+  action: { height: 78, borderRadius: 18, overflow: 'hidden', backgroundColor: C.deep, ...shadow },
+  actionBody: { flex: 1, padding: 8, justifyContent: 'space-between' },
   actionIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: C.lime },
   actionIconLocked: { backgroundColor: 'rgba(0,0,0,0.45)' },
   actionLabel: { fontFamily: 'Poppins_700Bold', fontSize: 12.5, letterSpacing: -0.2, color: C.white },

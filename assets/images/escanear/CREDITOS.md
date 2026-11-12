@@ -37,3 +37,8 @@ renderizada a partir de una superficie generada (no corresponde a datos reales d
 `hero-escanear.jpg` (huerta de aguacate al atardecer, hileras) y `hero-recorrido-aguacates.jpg` (aguacates en el árbol)
 las proporcionó AVOTEX para los héroes de Escanear y de "Antes de empezar"; se redimensionaron y comprimieron.
 `hoja.png` (hoja con transparencia del recuadro "Dispositivo listo") es un dibujo vectorial hecho para la app.
+
+## Inicio (assets/images/inicio)
+`hero-aguacates-amanecer.jpg`, `accion-escanear-hoja.jpg`, `accion-mapeo-terrazas.jpg`, `accion-actividad-hileras.jpg`,
+`accion-satelite.jpg` y `banner-campos-geometricos.jpg` las proporcionó AVOTEX para la pantalla Inicio; se
+redimensionaron y comprimieron. `avotex-logo-blanco.png` es la versión en blanco de `AvotexNuevoLogo.png`.

@@ -13,8 +13,8 @@ import { TranslationResource, useTranslations } from '../../context/LanguageCont
 import type { ScansMapLayer, ScansMapRouteStyle, ScansMapShow } from '../scansMapHtml';
 
 const C = {
-  glass: 'rgba(14,21,25,0.94)', border: 'rgba(255,255,255,0.09)', text: '#F1F5F4', muted: '#93A3AC',
-  mint: '#A7F3D0', neon: '#8BF52B', ink: '#06110D', chip: 'rgba(255,255,255,0.06)',
+  glass: 'rgba(255,255,255,0.97)', border: 'rgba(18,61,42,0.12)', text: '#12261C', muted: '#5D7266',
+  mint: '#A7F3D0', neon: '#2F9E1F', ink: '#06110D', chip: '#F3F7F4',
 };
 
 const translations: TranslationResource = {
@@ -116,6 +116,6 @@ const s = StyleSheet.create({
   chipOn: { backgroundColor: C.mint, borderColor: C.mint },
   chipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: C.text },
   toggle: { width: 100, height: 34, borderRadius: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: 'transparent', borderWidth: 1, borderColor: C.border },
-  toggleOn: { backgroundColor: 'rgba(167,243,208,0.12)', borderColor: 'rgba(167,243,208,0.45)' },
+  toggleOn: { backgroundColor: 'rgba(167,243,208,0.35)', borderColor: 'rgba(15,122,85,0.4)' },
   pressed: { opacity: 0.75, transform: [{ scale: 0.97 }] },
 });

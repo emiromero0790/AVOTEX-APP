@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Platform,
   KeyboardAvoidingView,
+  Keyboard,
   ActivityIndicator,
   Modal,
   Linking,
@@ -18,6 +19,7 @@ import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import emailjs from '@emailjs/browser';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth } from '../../firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 import { TranslationResource, useTranslations, useLanguage } from '../../context/LanguageContext';
@@ -83,6 +85,16 @@ export default function ChatbotScreen() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  // iOS: la isla dinámica / muesca tapa el encabezado si se usa un margen fijo; y sin el inset inferior
+  // el campo de texto queda pegado a la barra de inicio.
+  const insets = useSafeAreaInsets();
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardOpen(true));
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardOpen(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+  const inputBottom = keyboardOpen ? 10 : Math.max(insets.bottom, 12);
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold });
 
   const [waitingForEmail, setWaitingForEmail] = useState(false);
@@ -338,11 +350,14 @@ export default function ChatbotScreen() {
         </View>
       </Modal>
 
-      <LinearGradient colors={['#BFEFDF', '#EAF8F3', '#FFFFFF']} locations={[0, 0.38, 0.9]} style={styles.background}>
-      <View style={styles.atmosphereTop} />
-      <View style={styles.atmosphereBottom} />
+      {/* Fondo de TODA la pantalla (también detrás del campo de texto): antes terminaba arriba del campo y
+          debajo quedaba el blanco del contenedor, cortando el círculo decorativo. */}
+      <LinearGradient colors={['#BFEFDF', '#EAF8F3', '#FFFFFF']} locations={[0, 0.38, 0.9]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      <View style={styles.atmosphereTop} pointerEvents="none" />
+      <View style={styles.atmosphereBottom} pointerEvents="none" />
+      <View style={styles.background}>
       {!modalVisible && (
-        <View style={styles.persistentHeader}>
+        <View style={[styles.persistentHeader, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity onPress={() => router.back()} accessibilityLabel={t('chat.back')} style={styles.backButton}>
             <ChevronLeft size={20} color="#174E43" />
           </TouchableOpacity>
@@ -412,10 +427,10 @@ export default function ChatbotScreen() {
           </View>
         )}
       </ScrollView>
-      </LinearGradient>
+      </View>
 
       {messages.length === 0 && !modalVisible && (
-        <View style={[styles.inputContainer, styles.initialInput, !accepted && styles.inputContainerDisabled]}>
+        <View style={[styles.inputContainer, styles.initialInput, { marginBottom: inputBottom }, !accepted && styles.inputContainerDisabled]}>
           <TextInput
             value={input}
             onChangeText={setInput}
@@ -443,7 +458,7 @@ export default function ChatbotScreen() {
         </View>
       )}
 
-      {messages.length > 0 && <View style={[styles.inputContainer, !accepted && styles.inputContainerDisabled]}>
+      {messages.length > 0 && <View style={[styles.inputContainer, { marginBottom: inputBottom }, !accepted && styles.inputContainerDisabled]}>
         <TextInput
           value={input}
           onChangeText={setInput}
@@ -478,8 +493,8 @@ export default function ChatbotScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
-  background: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1, backgroundColor: "#EAF8F3" },
+  background: { flex: 1 },
   atmosphereTop: {
     position: 'absolute', top: -90, left: -80, width: 280, height: 260,
     borderRadius: 140, backgroundColor: '#FFFFFF', opacity: 0.55,
@@ -491,7 +506,7 @@ const styles = StyleSheet.create({
   chatArea: { flex: 1, backgroundColor: 'transparent' },
   chatContent: { padding: 18, paddingBottom: 20, maxWidth: 1100, width: '100%', alignSelf: 'center' },
   persistentHeader: {
-    minHeight: 82, paddingHorizontal: 16, paddingTop: 30, flexDirection: 'row',
+    paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'row',
     alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: '#DCECE7',
     backgroundColor: 'rgba(255,255,255,0.9)', zIndex: 10,
   },
@@ -688,7 +703,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   initialInput: {
-    width: '100%', minHeight: 92, marginHorizontal: 0, marginTop: 8,
+    minHeight: 92, marginHorizontal: 12, marginTop: 8,
     borderRadius: 22, paddingHorizontal: 17, paddingTop: 12, paddingBottom: 10,
     alignItems: 'stretch', flexDirection: 'column',
   },

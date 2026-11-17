@@ -55,20 +55,21 @@ import { CSS_EASE_OUT, EASE_OUT, PressableScale } from '../../components/scan/mo
 
 const auth = firebaseAuth as Auth;
 
-/** Paleta Dark Agritech de Mis escaneos. */
+/** Paleta clara de Mis escaneos (antes Dark Agritech). Solo diseño: los nombres de las claves se conservan. */
 const D = {
-  bg: '#080D10',
-  surface: '#12191D',
-  card: '#151E23',
-  glass: 'rgba(16,23,27,0.82)',
-  border: 'rgba(255,255,255,0.12)',
-  neon: '#8BF52B',
-  lime: '#A3E635',
-  teal: '#14B8A6',
+  bg: '#F3F7F4',
+  surface: '#FFFFFF',
+  card: '#FFFFFF',
+  glass: 'rgba(255,255,255,0.94)',
+  border: 'rgba(18,61,42,0.12)',
+  neon: '#2F9E1F',
+  lime: '#3B8F14',
+  teal: '#0E9384',
   mint: '#A7F3D0',
-  coral: '#FF625B',
-  text: '#FFFFFF',
-  muted: '#AAB5BF',
+  accent: '#0F7A55',
+  coral: '#E5483F',
+  text: '#12261C',
+  muted: '#5D7266',
   ink: '#0B1A12',
 } as const;
 /** Arreglo vacío estable: cambiar de capa ya no crea datos «nuevos» que obligan a redibujar el mapa. */
@@ -302,10 +303,10 @@ export default function MisEscaneos() {
   const [lastPicker, setLastPicker] = useState<'orchard' | 'filters'>('filters');
   useEffect(() => { if (picker) setLastPicker(picker); }, [picker]);
   const sheetKind = picker ?? lastPicker;
-  // Vista normal: mapa oscuro. Cada visita empieza en Oscuro (otra capa solo dura mientras estás en la
+  // Vista normal: mapa claro. Cada visita empieza en Estándar (otra capa solo dura mientras estás en la
   // pantalla); el estilo de ruta sí se recuerda (AsyncStorage).
   const [perspective, setPerspective] = useState(true);
-  const [layer, setLayer] = useState<ScansMapLayer>('oscuro');
+  const [layer, setLayer] = useState<ScansMapLayer>('estandar');
   const [routeStyle, setRouteStyle] = useState<ScansMapRouteStyle>('velocidad');
   // Tipo de mapa y estilo de ruta se recuerdan entre visitas.
   const styleLoaded = useRef(false);
@@ -332,8 +333,8 @@ export default function MisEscaneos() {
   const autoScope = useRef<string | null>(null);
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
-  // Pantalla oscura: barra de estado clara (salvo invitado, que va sobre fondo oscuro igual).
-  const lightBar = true;
+  // Pantalla clara: barra de estado con texto oscuro.
+  const lightBar = false;
   useFocusEffect(useCallback(() => { setStatusBarStyle(lightBar ? 'light' : 'dark'); return () => setStatusBarStyle('dark'); }, [lightBar]));
 
   // ───────── datos ─────────
@@ -660,7 +661,7 @@ export default function MisEscaneos() {
   if (isGuest) {
     return (
       <View style={[st.screen, st.center, { paddingTop: insets.top }]}>
-        <Lock size={36} color={D.mint} />
+        <Lock size={36} color={D.accent} />
         <Text style={st.lockText}>{t('locked')}</Text>
         <PressableScale style={st.lockBtn} onPress={() => router.replace('/(auth)')} accessibilityRole="button">
           <Text style={st.lockBtnText}>{t('signIn')}</Text>
@@ -689,7 +690,7 @@ export default function MisEscaneos() {
   // ── Encabezado flotante ──
   const top = !fullscreen && (
     <View style={[st.top, { paddingTop: insets.top + 6 }]} pointerEvents="box-none">
-      <LinearGradient colors={['rgba(8,13,16,0.94)', 'rgba(8,13,16,0.62)', 'rgba(8,13,16,0)']} locations={[0, 0.62, 1]} style={st.topShade} pointerEvents="none" />
+      <LinearGradient colors={['rgba(243,247,244,0.96)', 'rgba(243,247,244,0.66)', 'rgba(243,247,244,0)']} locations={[0, 0.62, 1]} style={st.topShade} pointerEvents="none" />
       <View style={st.titleRow}>
         <GlassBtn label={t('back')} onPress={() => { tick(); if (router.canGoBack()) router.back(); else router.navigate('/(app)/scan'); }}>
           <ArrowLeft size={20} color={D.text} />
@@ -908,7 +909,7 @@ export default function MisEscaneos() {
             <Text style={st.cardTitleSm}>{t('photoN', { n: item.i + 1, total: item.total })}</Text>
             <Text style={st.metaSm}>{fmtTime(p.tomada_at)} · {p.lat.toFixed(5)}, {p.lng.toFixed(5)}</Text>
           </View>
-          <MapPin size={15} color={on ? D.mint : D.muted} />
+          <MapPin size={15} color={on ? D.accent : D.muted} />
         </Pressable>
       </Reanimated.View>
     );
@@ -1140,7 +1141,7 @@ function GlassBtn({ label, onPress, children, active }: { label: string; onPress
 function CtrlBtn({ label, onPress, children, grouped, active }: { label: string; onPress: () => void; children: React.ReactNode; grouped?: boolean; active?: boolean }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={active === undefined ? undefined : { expanded: active }} hitSlop={4}
-      style={({ pressed }) => [st.ctrlBtn, !grouped && st.ctrlSolo, active && st.ctrlOn, pressed && { backgroundColor: 'rgba(255,255,255,0.12)', transform: [{ scale: 0.95 }] }]}>{children}</Pressable>
+      style={({ pressed }) => [st.ctrlBtn, !grouped && st.ctrlSolo, active && st.ctrlOn, pressed && { backgroundColor: 'rgba(18,61,42,0.08)', transform: [{ scale: 0.95 }] }]}>{children}</Pressable>
   );
 }
 
@@ -1181,7 +1182,7 @@ function ScanCard({ it, on, compact, title, kind, date, status, noOrchard, noOrc
         {it.kind === 'foto' ? (
           resultText ? (
             <View style={{ alignItems: 'flex-end', gap: 3 }}>
-              <View style={[st.resultChip, { backgroundColor: healthy ? 'rgba(139,245,43,0.14)' : 'rgba(255,98,91,0.16)' }]}>
+              <View style={[st.resultChip, { backgroundColor: healthy ? 'rgba(47,158,31,0.12)' : 'rgba(229,72,63,0.12)' }]}>
                 {healthy ? <Leaf size={11} color={D.neon} /> : <Bug size={11} color={D.coral} />}
                 <Text style={[st.resultText, { color: healthy ? D.lime : D.coral }]} numberOfLines={1}>{resultText}</Text>
               </View>
@@ -1228,7 +1229,7 @@ function PickRow({ on, title, meta, icon, onPress }: { on: boolean; title: strin
         <Text style={st.pickTitle} numberOfLines={1}>{title}</Text>
         <Text style={st.meta} numberOfLines={1}>{meta}</Text>
       </View>
-      {on && <Check size={18} color={D.mint} />}
+      {on && <Check size={18} color={D.accent} />}
     </Pressable>
   );
 }
@@ -1270,7 +1271,7 @@ function ItemThumb({ item, size, outline, preferPhoto }: { item: ScanItem; size:
   if (photo) return photo;
   const Icon = item.fuente === 'dron' ? Plane : item.fuente === 'camara' ? Video : Route;
   return (
-    <View style={[st.thumb, st.center, { width: size, height: size, backgroundColor: '#1A252B' }]}>
+    <View style={[st.thumb, st.center, { width: size, height: size, backgroundColor: '#E6EFE9' }]}>
       <Icon size={size * 0.36} color={D.muted} />
     </View>
   );
@@ -1307,7 +1308,7 @@ const st = StyleSheet.create({
   title: { fontFamily: 'Poppins_700Bold', fontSize: 21, lineHeight: 27, color: D.text, letterSpacing: -0.5 },
   subtitle: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: D.muted, marginTop: -2 },
   glassBtn: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: D.glass, borderWidth: 1, borderColor: D.border },
-  glassBtnOn: { borderColor: D.mint },
+  glassBtnOn: { borderColor: D.accent },
   badge: { position: 'absolute', top: 9, right: 9, width: 8, height: 8, borderRadius: 4, backgroundColor: D.mint },
   legend: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, height: 28, borderRadius: 14, backgroundColor: D.glass, borderWidth: 1, borderColor: D.border },
   legendText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: D.text },
@@ -1329,19 +1330,19 @@ const st = StyleSheet.create({
   },
   notice: { position: 'absolute', alignSelf: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, backgroundColor: D.glass, borderWidth: 1, borderColor: D.border },
   noticeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: D.text },
-  pointCard: { position: 'absolute', left: 14, right: 84, padding: 10, borderRadius: 18, backgroundColor: 'rgba(16,23,27,0.94)', borderWidth: 1, borderColor: D.border },
+  pointCard: { position: 'absolute', left: 14, right: 84, padding: 10, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.97)', borderWidth: 1, borderColor: D.border, shadowColor: '#0B1A12', shadowOpacity: 0.12, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
   pointRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  pointThumb: { width: 50, height: 50, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1A252B' },
+  pointThumb: { width: 50, height: 50, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#E6EFE9' },
   pointTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: D.text, flexShrink: 1 },
   pointMeta: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: D.muted },
   pointGo: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: D.mint },
-  pointClose: { position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
+  pointClose: { position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(18,61,42,0.06)' },
 
   // Panel
   sheetHead: { paddingHorizontal: 16, paddingBottom: 4, gap: 8 },
   headRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  orchardBar: { flex: 1.15, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingLeft: 8, paddingRight: 8, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: D.border },
-  leafTile: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(139,245,43,0.18)' },
+  orchardBar: { flex: 1.15, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingLeft: 8, paddingRight: 8, borderRadius: 20, backgroundColor: '#F3F7F4', borderWidth: 1, borderColor: D.border },
+  leafTile: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(47,158,31,0.14)' },
   orchardName: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: D.text },
   orchardMeta: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: D.muted },
   kpiRow: { flex: 1, flexDirection: 'row', alignItems: 'center' },
@@ -1352,7 +1353,7 @@ const st = StyleSheet.create({
   kpiSep: { width: 1, height: 44, backgroundColor: D.border },
   togglePill: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 30, paddingHorizontal: 12, borderRadius: 15, backgroundColor: D.mint },
   toggleText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: D.ink },
-  toggleRound: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: D.border },
+  toggleRound: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F7F4', borderWidth: 1, borderColor: D.border },
 
   listHead: { paddingHorizontal: 16, paddingTop: 8, gap: 10 },
   histHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: D.border, paddingTop: 14 },
@@ -1362,31 +1363,31 @@ const st = StyleSheet.create({
   count: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: D.muted },
   tools: { gap: 8 },
   toolRow: { flexDirection: 'row', gap: 8 },
-  toolChip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 12, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: D.border },
+  toolChip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 12, borderRadius: 16, backgroundColor: '#F3F7F4', borderWidth: 1, borderColor: D.border },
   toolChipOn: { backgroundColor: D.mint, borderColor: D.mint },
   toolChipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: D.text },
-  tabs: { flexDirection: 'row', height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: D.border, marginBottom: 4 },
+  tabs: { flexDirection: 'row', height: 38, borderRadius: 19, backgroundColor: '#F3F7F4', borderWidth: 1, borderColor: D.border, marginBottom: 4 },
   tabPillWrap: { position: 'absolute', top: 0, bottom: 0, width: '33.333%', padding: 3 },
-  tabPill: { flex: 1, borderRadius: 16, backgroundColor: 'rgba(167,243,208,0.16)', borderWidth: 1, borderColor: 'rgba(167,243,208,0.45)' },
+  tabPill: { flex: 1, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(15,122,85,0.35)' },
   tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tabText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: D.muted },
-  tabTextOn: { color: D.mint },
+  tabTextOn: { color: D.accent },
   photoNote: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: D.muted },
 
   rowWrap: { paddingHorizontal: 16, paddingTop: 10 },
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 20,
-    backgroundColor: D.card, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3,
+    backgroundColor: D.card, borderWidth: 1, borderColor: 'rgba(18,61,42,0.10)',
+    shadowColor: '#0B1A12', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3,
   },
-  cardOn: { borderColor: D.mint, borderWidth: 1.5, backgroundColor: 'rgba(167,243,208,0.07)' },
+  cardOn: { borderColor: D.accent, borderWidth: 1.5, backgroundColor: 'rgba(167,243,208,0.18)' },
   cardCompact: { padding: 7, gap: 10, borderRadius: 18 },
   cardSlim: { paddingVertical: 8 },
   cardTitle: { fontFamily: 'Poppins_700Bold', fontSize: 16, lineHeight: 20, color: D.text },
   cardTitleMuted: { color: D.muted, fontFamily: 'Poppins_600SemiBold' },
   cardTitleSm: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: D.text },
   cardRight: { alignItems: 'flex-end', justifyContent: 'center' },
-  typeChip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: '100%', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, backgroundColor: 'rgba(139,245,43,0.12)' },
+  typeChip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: '100%', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, backgroundColor: 'rgba(47,158,31,0.10)' },
   typeChipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: D.lime, flexShrink: 1 },
   meta: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: D.muted, flexShrink: 1 },
   metaSm: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: D.muted, flexShrink: 1 },
@@ -1399,18 +1400,18 @@ const st = StyleSheet.create({
   scoreText: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: D.text },
   go: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   thumb: { borderRadius: 14, overflow: 'hidden' },
-  track: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.1)', overflow: 'hidden', marginTop: 2 },
+  track: { height: 4, borderRadius: 2, backgroundColor: 'rgba(18,61,42,0.10)', overflow: 'hidden', marginTop: 2 },
   fill: { height: 4, borderRadius: 2, backgroundColor: D.teal },
-  fThumb: { width: 58, height: 58, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1A252B' },
-  pThumb: { width: 42, height: 42, borderRadius: 10, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1A252B' },
+  fThumb: { width: 58, height: 58, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#E6EFE9' },
+  pThumb: { width: 42, height: 42, borderRadius: 10, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#E6EFE9' },
 
   sync: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: 'rgba(20,184,166,0.1)', borderWidth: 1, borderColor: 'rgba(20,184,166,0.3)' },
   syncTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: D.text },
   syncBtn: { paddingHorizontal: 12, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: D.mint },
   syncBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: D.ink },
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: 'rgba(255,98,91,0.12)', borderWidth: 1, borderColor: 'rgba(255,98,91,0.35)' },
-  errorText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 12.5, color: '#FECACA' },
-  retry: { paddingHorizontal: 12, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
+  errorText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 12.5, color: '#9B2C22' },
+  retry: { paddingHorizontal: 12, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(18,61,42,0.07)' },
   retryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: D.text },
   emptyBox: { alignItems: 'center', gap: 10, paddingVertical: 24, paddingHorizontal: 24 },
   emptyTitle: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: D.text },
@@ -1419,20 +1420,20 @@ const st = StyleSheet.create({
   primaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: D.ink },
 
   // Modal (huerta, filtros, capas)
-  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)' },
+  backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(11,26,18,0.35)' },
   modalSheet: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 8, borderTopLeftRadius: 28, borderTopRightRadius: 28, backgroundColor: D.surface, borderWidth: 1, borderBottomWidth: 0, borderColor: D.border },
-  modalHandle: { alignSelf: 'center', width: 42, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)', marginBottom: 10 },
+  modalHandle: { alignSelf: 'center', width: 42, height: 5, borderRadius: 3, backgroundColor: 'rgba(18,61,42,0.22)', marginBottom: 10 },
   modalTitle: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: D.text },
-  modalClose: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
+  modalClose: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(18,61,42,0.06)' },
   groupLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: D.muted, letterSpacing: 0.6, marginTop: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  fChip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 34, paddingHorizontal: 13, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: D.border },
+  fChip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 34, paddingHorizontal: 13, borderRadius: 17, backgroundColor: '#F3F7F4', borderWidth: 1, borderColor: D.border },
   fChipOn: { backgroundColor: D.mint, borderColor: D.mint },
   fChipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: D.text },
   ghostBtn: { height: 46, paddingHorizontal: 18, borderRadius: 23, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: D.border },
   ghostText: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: D.text },
   pickRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 16, borderWidth: 1, borderColor: 'transparent' },
-  pickRowOn: { borderColor: 'rgba(167,243,208,0.5)', backgroundColor: 'rgba(167,243,208,0.07)' },
-  pickIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)' },
+  pickRowOn: { borderColor: 'rgba(15,122,85,0.45)', backgroundColor: 'rgba(167,243,208,0.18)' },
+  pickIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F7F4' },
   pickTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: D.text },
 });

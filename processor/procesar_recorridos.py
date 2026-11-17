@@ -164,8 +164,14 @@ def procesar(sb: Supabase, modelo: Modelo, recorrido: dict, cfg: dict) -> dict:
     rid = recorrido["id"]
     email = recorrido["user_email"]
     fotos = sb.select("recorrido_fotos", {"recorrido_id": f"eq.{rid}", "select": "*", "order": "tomada_at.asc"})
-    elegidas = nucleo.seleccionar_fotos(fotos, min_dist_m=cfg["min_dist_m"], max_fotos=cfg["max_fotos"])
-    log(f"  {len(fotos)} fotos → {len(elegidas)} elegidas por distancia")
+    grabacion = nucleo.es_grabacion(recorrido)
+    if grabacion:
+        # Grabación: el agricultor ya eligió cada foto (y su zona) en la app; se usan todas.
+        elegidas = sorted(fotos, key=lambda f: f["tomada_at"])[:cfg["max_fotos"]]
+        log(f"  grabación: {len(elegidas)} fotos elegidas por el agricultor")
+    else:
+        elegidas = nucleo.seleccionar_fotos(fotos, min_dist_m=cfg["min_dist_m"], max_fotos=cfg["max_fotos"])
+        log(f"  {len(fotos)} fotos → {len(elegidas)} elegidas por distancia")
 
     # Descarga y descarta las borrosas (si todas salen borrosas se usan igual: mejor algo que nada).
     descargadas = []
@@ -180,7 +186,8 @@ def procesar(sb: Supabase, modelo: Modelo, recorrido: dict, cfg: dict) -> dict:
         except Exception:
             continue  # no es una imagen válida
         descargadas.append((f, datos, nit))
-    nitidas = [d for d in descargadas if d[2] >= cfg["umbral_nitidez"]] or descargadas
+    # En grabaciones no se descartan fotos por nitidez: las eligió el agricultor viendo la imagen.
+    nitidas = descargadas if grabacion else ([d for d in descargadas if d[2] >= cfg["umbral_nitidez"]] or descargadas)
     log(f"  {len(nitidas)} fotos nítidas para el modelo")
 
     detecciones: list[nucleo.Deteccion] = []
@@ -208,7 +215,7 @@ def procesar(sb: Supabase, modelo: Modelo, recorrido: dict, cfg: dict) -> dict:
         f = g.mejor.foto
         miniatura_path = f"hallazgos/{rid}/{n:03d}.jpg"
         sb.subir(miniatura_path, nucleo.miniatura(datos_por_foto[f["id"]]))
-        filas.append({
+        fila = {
             "recorrido_id": rid,
             "user_email": email,
             # Todos los hallazgos heredan la huerta de su recorrido (mismo UUID o NULL).
@@ -222,7 +229,11 @@ def procesar(sb: Supabase, modelo: Modelo, recorrido: dict, cfg: dict) -> dict:
             "confianza_fruto": round(g.mejor.confianza_fruto, 4),
             "fotos_en_grupo": g.cantidad,
             "miniatura_path": miniatura_path,
-        })
+        }
+        # La columna «zona» solo se escribe en grabaciones (requiere la migración 20261117).
+        if grabacion:
+            fila["zona"] = f.get("zona")
+        filas.append(fila)
     sb.insert("hallazgos", filas)
 
     # Privacidad y espacio: las fotos originales se borran; solo quedan las miniaturas.
@@ -241,7 +252,7 @@ def procesar(sb: Supabase, modelo: Modelo, recorrido: dict, cfg: dict) -> dict:
     sb.update("recorridos", {"id": f"eq.{rid}"}, cambios)
 
     nombre = next((h.get("nombre") for h in huertas if h.get("id") == huerta_id), None)
-    titulo, cuerpo = nucleo.resumen_notificacion(nombre, grupos)
+    titulo, cuerpo = nucleo.resumen_notificacion(nombre, grupos, grabacion)
     enviados = enviar_push(sb, email, titulo, cuerpo, {"tipo": "recorrido", "recorridoId": rid})
     log(f"  listo: {len(filas)} hallazgos; notificación a {enviados} dispositivo(s)")
     return {"hallazgos": len(filas), "analizadas": len(nitidas), "notificados": enviados}

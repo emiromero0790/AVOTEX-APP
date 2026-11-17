@@ -33,7 +33,13 @@ export type HallazgoMapa = {
   estado: string;
   confianza: number;
   miniatura_path: string | null;
+  /** Solo grabaciones (migración 20261117): zona A–D de la huerta. */
+  zona?: 'A' | 'B' | 'C' | 'D' | null;
 };
+
+/** Columna «zona» ausente (migración 20261117 sin ejecutar): se reintenta sin ella. */
+const missingZona = (e: { code?: string; message?: string } | null) =>
+  !!e && /zona/i.test(e.message ?? '') && (e.code === '42703' || e.code === 'PGRST204' || /column/i.test(e.message ?? ''));
 
 /**
  * Categoría visual de un hallazgo, derivada solo de lo que devolvió el modelo:
@@ -53,14 +59,17 @@ export function categoria(h: Pick<HallazgoMapa, 'fruto' | 'estado' | 'confianza'
 }
 
 export async function listUserHallazgos(userEmail: string): Promise<HallazgoMapa[]> {
-  const { data, error } = await supabase
+  const q = (cols: string) => supabase
     .from('hallazgos')
-    .select('id,recorrido_id,huerta_id,tomada_at,lat,lng,fruto,estado,confianza,miniatura_path')
+    .select(cols)
     .eq('user_email', userEmail)
     .order('tomada_at', { ascending: true })
     .limit(2000);
+  const base = 'id,recorrido_id,huerta_id,tomada_at,lat,lng,fruto,estado,confianza,miniatura_path';
+  let { data, error } = await q(`${base},zona`);
+  if (missingZona(error)) ({ data, error } = await q(base));
   if (error) throw error;
-  return (data ?? []) as HallazgoMapa[];
+  return (data ?? []) as unknown as HallazgoMapa[];
 }
 
 // ───────────────────────── puntos de captura ─────────────────────────
@@ -213,12 +222,15 @@ export type HallazgoDetalle = HallazgoMapa & {
 
 /** Un hallazgo por su id, solo si pertenece al usuario (filtra también por user_email). */
 export async function getHallazgo(id: string, userEmail: string): Promise<HallazgoDetalle | null> {
-  const { data, error } = await supabase
+  const q = (cols: string) => supabase
     .from('hallazgos')
-    .select('id,recorrido_id,huerta_id,tomada_at,lat,lng,fruto,estado,confianza,confianza_fruto,fotos_en_grupo,miniatura_path,created_at')
+    .select(cols)
     .eq('id', id)
     .eq('user_email', userEmail)
     .maybeSingle();
+  const base = 'id,recorrido_id,huerta_id,tomada_at,lat,lng,fruto,estado,confianza,confianza_fruto,fotos_en_grupo,miniatura_path,created_at';
+  let { data, error } = await q(`${base},zona`);
+  if (missingZona(error)) ({ data, error } = await q(base));
   if (error) throw error;
-  return (data as HallazgoDetalle | null) ?? null;
+  return (data as unknown as HallazgoDetalle | null) ?? null;
 }

@@ -257,6 +257,48 @@ class ProcesarTest(unittest.TestCase):
         self.assertEqual({h["huerta_id"] for h in sb.tablas["hallazgos"]}, {None})
         self.assertNotIn("huerta_id", sb.updates[-1][2])
 
+    def test_grabacion_por_zonas(self):
+        # Video subido: sin GPS, fotos a 1 s (el filtro normal descartaría la mitad) y una borrosa.
+        fotos = []
+        for i, zona in enumerate(["A", "A", "B", "B", "C"]):
+            f = foto(i, i, None, None)
+            f["zona"] = zona
+            fotos.append(f)
+        archivos = {f["storage_path"]: jpg_nitida() for f in fotos}
+        archivos["fotos/r1/4.jpg"] = jpg_borrosa()
+        sb = FakeSupabase(fotos, archivos, [{"id": "h1", "nombre": "Huerta 1", "coordinates": CUADRO}])
+        # f1 y f2: mismo diagnóstico y seguidas, pero de zonas distintas → dos hallazgos.
+        modelo = FakeModelo({
+            "f0.jpg": res("Aguacate", 0.95, "Antracnosis", 0.80),
+            "f1.jpg": res("Aguacate", 0.95, "Antracnosis", 0.90),
+            "f2.jpg": res("Aguacate", 0.95, "Antracnosis", 0.85),
+            "f3.jpg": res("Aguacate", 0.95, "Saludable", 0.92),
+            "f4.jpg": res("Aguacate", 0.95, "Saludable", 0.91),
+        })
+        respuesta_push = mock.Mock(status_code=200)
+        respuesta_push.json.return_value = {"data": [{"status": "ok"}]}
+        respuesta_push.raise_for_status = lambda: None
+        sb.tablas["push_tokens"] = [{"token": "ExponentPushToken[y]", "user_email": "a@b.mx"}]
+        with mock.patch.object(pr.requests, "Session") as S:
+            S.return_value.post.return_value = respuesta_push
+            pr.procesar(sb, modelo, {"id": "r1", "user_email": "a@b.mx", "huerta_id": "h1", "tipo": "grabacion", "fuente": "dron"},
+                        {"lote": 8, "min_dist_m": 2.5, "max_fotos": 600, "umbral_nitidez": 60})
+            enviado = S.return_value.post.call_args.kwargs["json"][0]
+        self.assertEqual(modelo.llamadas, [["f0.jpg", "f1.jpg", "f2.jpg", "f3.jpg", "f4.jpg"]])  # todas, también la borrosa
+        hall = sb.tablas["hallazgos"]
+        self.assertEqual([(h["zona"], h["estado"], h["fotos_en_grupo"]) for h in hall],
+                         [("A", "Antracnosis", 2), ("B", "Antracnosis", 1), ("B", "Saludable", 1), ("C", "Saludable", 1)])
+        self.assertEqual({h["lat"] for h in hall}, {None})
+        self.assertEqual({h["huerta_id"] for h in hall}, {"h1"})
+        self.assertEqual(enviado["title"], "Tu grabación en Huerta 1 está lista")
+        self.assertIn("por zona", enviado["body"])
+        self.assertEqual(enviado["data"], {"tipo": "recorrido", "recorridoId": "r1"})  # la app abre igual
+
+    def test_recorrido_normal_no_escribe_zona(self):
+        sb = self._procesar_simple({"id": "r7", "user_email": "a@b.mx", "huerta_id": "h1"})
+        self.assertTrue(sb.tablas["hallazgos"])
+        self.assertTrue(all("zona" not in h for h in sb.tablas["hallazgos"]))
+
     def test_recorrido_sin_fotos(self):
         sb = FakeSupabase([], {}, [])
         out = pr.procesar(sb, FakeModelo({}), {"id": "r2", "user_email": "a@b.mx"},

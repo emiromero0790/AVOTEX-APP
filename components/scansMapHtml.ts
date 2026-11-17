@@ -59,6 +59,10 @@ export type ScansMapDetail = {
   findings: { id: string; lat: number; lng: number; cat: FindingCat }[];
   /** Perímetro de su huerta, para encuadrar el terreno junto con la ruta. */
   orchard: ScansMapPoint[];
+  /** Grabaciones (sin GPS): zonas de la huerta usadas al clasificar, con color hex y cuántos hallazgos tiene cada una. */
+  zones?: (ScansMapZone & { count?: number })[];
+  /** Zona de cada hallazgo de una grabación (id del hallazgo → letra de zona). */
+  zoneOf?: Record<string, string>;
 };
 export type ScansMapShow = {
   routes: boolean;
@@ -347,8 +351,18 @@ const RUNTIME = String.raw`(function () {
       var dim = detail ? (own && !isOwn(o) ? 1 : 0) : focusId ? (focusId === o.id ? 0 : 1) : 0;
       return poly(o.points, { id: o.id, dim: dim });
     }));
-    setSource("zones", layer === "zonas" ? data.zones.map(function (z) {
-      return poly(z.ring, { color: { green: "#84CC16", yellow: "#FBBF24", red: "#F87171", orange: "#FB923C" }[z.color] || TEAL });
+    // Zonas: las de una grabación elegida (resalta la del hallazgo activo) o, en la capa Zonas, las generales.
+    var detailZones = detail && detail.zones && detail.zones.length ? detail.zones : null;
+    var activeZone = detailZones && active && active.kind === "finding" && detail.zoneOf ? detail.zoneOf[active.id] || null : null;
+    var zoneList = detailZones || (layer === "zonas" ? data.zones : []);
+    setSource("zones", zoneList.map(function (z) {
+      var color = z.color && z.color.charAt(0) === "#" ? z.color : ({ green: "#84CC16", yellow: "#FBBF24", red: "#F87171", orange: "#FB923C" }[z.color] || TEAL);
+      var level = activeZone ? (z.key === activeZone ? 2 : 0) : 1;
+      return poly(z.ring, { color: color, op: level === 2 ? 0.55 : level === 0 ? 0.08 : (detailZones ? 0.32 : 0.3), w: level === 2 ? 3.5 : detailZones ? 2 : 1 });
+    }));
+    setSource("zonelabels", detailZones ? detailZones.map(function (z) {
+      var dim = activeZone && z.key !== activeZone;
+      return { type: "Feature", properties: { t: z.label + (z.count ? " · " + z.count : ""), dim: dim ? 1 : 0 }, geometry: { type: "Point", coordinates: xy(z.at) } };
     }) : []);
     // Árboles: en la huerta del recorrido elegido, en la huerta filtrada o, si son pocas, en todas.
     var treePolys = [];
@@ -550,15 +564,17 @@ const RUNTIME = String.raw`(function () {
   map.on("load", function () {
     loaded = true;
     icons();
-    ["orchards", "zones", "trees", "routes", "detail", "endpoints", "findings", "active", "user", "scans", "photos"].forEach(function (id) {
+    ["orchards", "zones", "zonelabels", "trees", "routes", "detail", "endpoints", "findings", "active", "user", "scans", "photos"].forEach(function (id) {
       var opts = { type: "geojson", data: fc([]) };
       if (id === "detail") opts.lineMetrics = true;
       if (id === "scans") { opts.cluster = true; opts.clusterRadius = 38; opts.clusterMaxZoom = 18; }
       map.addSource(id, opts);
     });
     var add = function (id, type, source, paint, extra) { map.addLayer(Object.assign({ id: id, type: type, source: source, paint: paint }, extra || {})); };
-    add("zones-fill", "fill", "zones", { "fill-color": ["get", "color"], "fill-opacity": 0.3 });
-    add("zones-line", "line", "zones", { "line-color": ["get", "color"], "line-width": 1, "line-opacity": 0.7 });
+    add("zones-fill", "fill", "zones", { "fill-color": ["get", "color"], "fill-opacity": ["coalesce", ["get", "op"], 0.3] });
+    add("zones-line", "line", "zones", { "line-color": ["get", "color"], "line-width": ["coalesce", ["get", "w"], 1], "line-opacity": 0.9 });
+    add("zonelabels", "symbol", "zonelabels", { "text-color": "#0B1A12", "text-halo-color": "#FFFFFF", "text-halo-width": 2, "text-opacity": ["case", ["==", ["get", "dim"], 1], 0.45, 1] },
+      { layout: { "text-field": ["get", "t"], "text-font": ["Noto Sans Bold"], "text-size": 13, "text-allow-overlap": true, "text-ignore-placement": true } });
     // Huerta: relleno suave + contorno neón con brillo.
     add("orchards-fill", "fill", "orchards", { "fill-color": NEON, "fill-opacity": ["case", ["==", ["get", "dim"], 1], 0.025, 0.09] });
     add("orchards-glow", "line", "orchards", { "line-color": NEON, "line-width": 9, "line-blur": 7, "line-opacity": ["case", ["==", ["get", "dim"], 1], 0.08, 0.42] });
@@ -655,6 +671,7 @@ const RUNTIME = String.raw`(function () {
       schedule();
       if (active && detail) {
         var list = kind === "photo" ? detail.photos : detail.findings;
+        // Hallazgo de una grabación (sin GPS): no se mueve la cámara; se resalta su zona con toda la huerta a la vista.
         for (var i = 0; i < list.length; i++) if (list[i].id === id) { go(list[i]); break; }
       }
     },

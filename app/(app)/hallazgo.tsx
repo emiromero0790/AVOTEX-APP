@@ -36,6 +36,8 @@ import {
 } from '../../services/escaneos';
 import { getDiagnostico } from '../../services/diagnosticos';
 import SatThumb from '../../components/escaneos/SatThumb';
+import ZoneBoard from '../../components/grabacion/ZoneBoard';
+import { parseZonas, zonasDeHuerta } from '../../services/grabacion';
 import PhotoViewer from '../../components/hallazgo/PhotoViewer';
 import ScansMap from '../../components/ScansMap';
 import { FINDING_COLOR, type ScansMapData, type ScansMapDetail } from '../../components/scansMapHtml';
@@ -86,6 +88,12 @@ const T: TranslationResource = {
   viewMap: { es: 'Ver en mapa', en: 'View on map' },
   noLocation: { es: 'Ubicación no disponible', en: 'Location unavailable' },
   noLocationBody: { es: 'Esta foto no guardó GPS al tomarse.', en: 'This photo had no GPS when taken.' },
+  zoneTitle: { es: 'Zona {z} de la huerta', en: 'Orchard zone {z}' },
+  zoneShare: { es: '{pct} % de la huerta', en: '{pct}% of the orchard' },
+  zoneBody: { es: 'Grabación sin GPS: tú indicaste de qué zona viene esta foto.', en: 'Recording without GPS: you set which zone this photo came from.' },
+  zoneLabel: { es: 'Zona', en: 'Zone' },
+  recKind: { es: 'Grabación subida', en: 'Uploaded recording' },
+  othersRec: { es: 'Otros hallazgos en esta grabación', en: 'Other findings in this recording' },
   evidenceTitle: { es: 'Evidencia del hallazgo', en: 'Finding evidence' },
   thumbCaption: { es: 'Miniatura guardada del hallazgo', en: 'Saved thumbnail of the finding' },
   groupNote: { es: 'Este hallazgo agrupa {count} fotos tomadas en el mismo punto; después del análisis se conserva una miniatura.', en: 'This finding groups {count} photos taken at the same spot; one thumbnail is kept after analysis.' },
@@ -228,6 +236,9 @@ export default function HallazgoScreen() {
   const Icon = cat === 'enfermo' ? Bug : cat === 'sano' ? Leaf : cat === 'revisar' ? AlertTriangle : CircleHelp;
   const route = cleanRoute(rec?.ruta);
   const orchardPts = (orchard?.coordinates ?? []).filter(c => validCoord(c.latitude, c.longitude)).map(c => ({ lat: c.latitude, lng: c.longitude }));
+  // Hallazgo de una grabación: zonas guardadas con la grabación (o, si faltan, las actuales de la huerta).
+  const zonas = h.zona ? (parseZonas(rec?.zonas).length ? parseZonas(rec?.zonas) : orchard ? zonasDeHuerta(orchard.coordinates, orchard.id) ?? [] : []) : [];
+  const zone = zonas.find(z => z.id === h.zona) ?? null;
   const enter = (i: number) => (reduced ? undefined : FadeInDown.duration(260).delay(80 + i * 50).easing(EASE_OUT));
 
   const share = async () => {
@@ -367,7 +378,10 @@ export default function HallazgoScreen() {
           <Reanimated.View entering={enter(5)}>
             <SectionTitle icon={<MapPin size={18} color={DEEP} />} title={t('location')} />
             <View style={st.locCard}>
-              {point ? (
+              {zone ? (
+                <ZoneBoard zonas={zonas} outline={orchardPts.length >= 3 ? orchardPts : null} highlight={zone.id}
+                  width={Math.min(190, (width - 64) * 0.5)} height={124} compact />
+              ) : point ? (
                 <Pressable onPress={openMap} accessibilityRole="button" accessibilityLabel={t('viewMap')}>
                   <SatThumb route={[]} pin={point} pinColor={FINDING_COLOR[cat]} size={Math.min(190, (width - 64) * 0.5)} height={124} radius={14} minMeters={60} />
                 </Pressable>
@@ -381,8 +395,13 @@ export default function HallazgoScreen() {
                 <View style={st.locRow}>
                   <MapPin size={15} color={DEEP} />
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={st.locLabel}>{t('coords')}</Text>
-                    {point ? (
+                    <Text style={st.locLabel}>{h.zona ? t('zoneLabel') : t('coords')}</Text>
+                    {h.zona ? (
+                      <>
+                        <Text style={st.locValue}>{t('zoneTitle', { z: h.zona })}{zone ? ` · ${t('zoneShare', { pct: Math.round(zone.share) })}` : ''}</Text>
+                        <Text style={st.muted}>{t('zoneBody')}</Text>
+                      </>
+                    ) : point ? (
                       <>
                         <Text style={st.locValue} selectable>Lat: {point.lat.toFixed(5)}</Text>
                         <Text style={st.locValue} selectable>Lng: {point.lng.toFixed(5)}</Text>
@@ -432,11 +451,12 @@ export default function HallazgoScreen() {
               <Pressable onPress={() => { tick(); router.navigate({ pathname: '/(app)/escaneos', params: { focus: `remote:${rec.id}`, n: String(Date.now()) } }); }}
                 accessibilityRole="button" style={({ pressed }) => [st.walkCard, pressed && { opacity: 0.9 }]}>
                 <View style={st.walkTop}>
-                  {route.length > 1 || point ? (
+                  {zone ? <ZoneBoard zonas={zonas} outline={orchardPts.length >= 3 ? orchardPts : null} highlight={zone.id} width={92} height={92} compact />
+                  : route.length > 1 || point ? (
                     <SatThumb route={route} outline={orchardPts} pin={point} pinColor={FINDING_COLOR[cat]} size={92} radius={14} minMeters={30} />
                   ) : <View style={[st.walkThumbEmpty]}><Route size={22} color="#94A3B8" /></View>}
                   <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-                    <Text style={st.walkTitle} numberOfLines={1}>{t('walkKind')}</Text>
+                    <Text style={st.walkTitle} numberOfLines={1}>{rec.tipo === 'grabacion' ? t('recKind') : t('walkKind')}</Text>
                     <Text style={st.muted} numberOfLines={1}>{orchard?.nombre ?? t('noOrchard')}</Text>
                     <View style={[st.row, { gap: 6 }]}><Calendar size={13} color={MUTED} />
                       <Text style={st.muted}>{new Date(rec.iniciado_at).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })} · {new Date(rec.iniciado_at).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })}</Text>
@@ -458,7 +478,7 @@ export default function HallazgoScreen() {
           {/* ── Otros hallazgos del mismo recorrido ── */}
           {others.length > 0 && (
             <Reanimated.View entering={enter(8)}>
-              <SectionTitle icon={<Target size={18} color={DEEP} />} title={t('others')} />
+              <SectionTitle icon={<Target size={18} color={DEEP} />} title={(rec?.tipo === 'grabacion' ? t('othersRec') : t('others'))} />
               {others.slice(0, 6).map(o => {
                 const c = categoria(o);
                 return (

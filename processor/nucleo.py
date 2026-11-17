@@ -227,7 +227,7 @@ class Grupo:
 
 
 def agrupar(detecciones: list[Deteccion], max_dist_m: float = 10.0, max_seg: float = 30.0) -> list[Grupo]:
-    """Une fotos seguidas, cercanas y con el mismo diagnóstico en un solo hallazgo
+    """Une fotos seguidas, cercanas, de la misma zona y con el mismo diagnóstico en un solo hallazgo
     (el mismo fruto suele salir en varias fotos). Se queda con la de mayor confianza."""
     grupos: list[Grupo] = []
     actual: Optional[Grupo] = None
@@ -236,6 +236,8 @@ def agrupar(detecciones: list[Deteccion], max_dist_m: float = 10.0, max_seg: flo
         mismo = (
             actual is not None and previa is not None and
             d.fruto == actual.mejor.fruto and d.estado == actual.mejor.estado and
+            # Grabaciones: nunca se unen fotos de zonas distintas (la zona la eligió el agricultor).
+            d.foto.get("zona") == previa.foto.get("zona") and
             (_fecha(d.foto["tomada_at"]) - _fecha(previa.foto["tomada_at"])).total_seconds() <= max_seg
         )
         if mismo and coordenada_valida(d.foto.get("lat"), d.foto.get("lng")) and coordenada_valida(previa.foto.get("lat"), previa.foto.get("lng")):
@@ -252,9 +254,14 @@ def agrupar(detecciones: list[Deteccion], max_dist_m: float = 10.0, max_seg: flo
     return grupos
 
 
-def resumen_notificacion(nombre_huerta: Optional[str], grupos: list[Grupo]) -> tuple[str, str]:
+def es_grabacion(recorrido: dict) -> bool:
+    """Video subido desde la galería: sin GPS; el agricultor eligió las fotos y su zona."""
+    return (recorrido or {}).get("tipo") == "grabacion"
+
+
+def resumen_notificacion(nombre_huerta: Optional[str], grupos: list[Grupo], grabacion: bool = False) -> tuple[str, str]:
     lugar = f" en {nombre_huerta}" if nombre_huerta else ""
-    titulo = f"Tu recorrido{lugar} está listo"
+    titulo = f"Tu {'grabación' if grabacion else 'recorrido'}{lugar} está {'lista' if grabacion else 'listo'}"
     if not grupos:
         return titulo, "No encontramos frutos en las fotos. Acércate a 30–50 cm de los frutos en el próximo recorrido."
     sanos = sum(1 for g in grupos if es_sano(g.mejor.estado))
@@ -268,4 +275,5 @@ def resumen_notificacion(nombre_huerta: Optional[str], grupos: list[Grupo]) -> t
     for estado, n in sorted(problemas.items(), key=lambda kv: -kv[1]):
         partes.append(f"{n} con {estado}")
     total = len(grupos)
-    return titulo, f"{total} {'hallazgo' if total == 1 else 'hallazgos'}: " + ", ".join(partes) + ". Toca para verlos en el mapa."
+    cierre = "Toca para verlos por zona." if grabacion else "Toca para verlos en el mapa."
+    return titulo, f"{total} {'hallazgo' if total == 1 else 'hallazgos'}: " + ", ".join(partes) + ". " + cierre

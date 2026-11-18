@@ -474,7 +474,7 @@ export default function Scan() {
         // `open`/`fuente` y `n` hacen que la pantalla destino (que sigue montada entre visitas)
         // abra el paso pedido cada vez que se pulsa el botón.
         onWalk={modo => router.push({ pathname: "/(app)/recorrido", params: { open: "prepare", modo: modo ?? "celular", n: String(Date.now()) } })}
-        onUploadRecording={fuente => router.push({ pathname: "/(app)/grabacion", params: { fuente, n: String(Date.now()) } })}
+        onUploadRecording={() => router.push({ pathname: "/(app)/grabacion", params: { n: String(Date.now()) } })}
         onOpenScans={() => router.push({ pathname: "/(app)/escaneos", params: { n: String(Date.now()) } })}
         busyLabel={checkingOrchard ? t("checkingOrchard") : null}
       />

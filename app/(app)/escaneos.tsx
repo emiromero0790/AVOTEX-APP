@@ -27,7 +27,7 @@ import Reanimated, { FadeIn, FadeInDown, FadeOut, FadeOutDown, useAnimatedStyle,
 import Svg, { Polygon } from 'react-native-svg';
 import {
   ArrowLeft, ArrowRight, ArrowUpDown, Bug, Calendar, Camera, Check, ChevronDown, ChevronRight, ChevronUp, CloudUpload, Layers,
-  Leaf, Lock, Maximize2, MapPin, Minimize2, Minus, Navigation, Plane, Plus, Route, SlidersHorizontal, Video, X,
+  AlertTriangle, Film, Leaf, Lock, Maximize2, MapPin, Minimize2, Minus, Navigation, Plane, Plus, Route, ShieldCheck, SlidersHorizontal, Video, X,
 } from 'lucide-react-native';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { auth as firebaseAuth } from '../../firebaseConfig';
@@ -128,6 +128,22 @@ const T: TranslationResource = {
   history: { es: 'Historial', en: 'History' },
   findingsTab: { es: 'Hallazgos ({count})', en: 'Findings ({count})' },
   photosTab: { es: 'Fotos ({count})', en: 'Photos ({count})' },
+  procTab: { es: 'En proceso ({count})', en: 'In progress ({count})' },
+  procTabPlain: { es: 'En proceso', en: 'In progress' },
+  procIntro: { es: 'Tus recorridos y grabaciones están a salvo: se guardan en el celular hasta subirse y aquí ves en qué paso va cada uno. Se actualiza solo.', en: 'Your walks and recordings are safe: they stay on your phone until uploaded, and here you see each one’s step. It updates on its own.' },
+  procEmpty: { es: 'No hay nada en proceso. Cuando hagas un recorrido o subas una grabación, aquí verás su avance.', en: 'Nothing in progress. When you do a walk or upload a recording, its progress shows here.' },
+  pStep1: { es: 'En el celular', en: 'On phone' },
+  pStep2: { es: 'Subido', en: 'Uploaded' },
+  pStep3: { es: 'Analizando', en: 'Analyzing' },
+  pStep4: { es: 'Listo', en: 'Done' },
+  pLocal: { es: 'Guardado en tu celular. Se subirá con WiFi (o toca «Subir ahora»).', en: 'Saved on your phone. It uploads on WiFi (or tap “Upload now”).' },
+  pUploading: { es: 'Subiendo fotos: {done} de {total}', en: 'Uploading photos: {done} of {total}' },
+  pQueue: { es: 'Subido. En fila para el análisis de IA ({n} fotos).', en: 'Uploaded. Waiting for AI analysis ({n} photos).' },
+  pProcessing: { es: 'La IA está revisando {n} fotos…', en: 'AI is reviewing {n} photos…' },
+  pDone: { es: 'Listo: {n} hallazgos. Ya puedes verlos.', en: 'Done: {n} findings. You can view them now.' },
+  pError: { es: 'No se pudo analizar. Lo volveremos a intentar; si sigue, contáctanos.', en: 'Could not be analyzed. We will retry; if it persists, contact us.' },
+  pSince: { es: 'hace {t}', en: '{t} ago' },
+  kindRecVideo: { es: 'Grabación de video', en: 'Video recording' },
   recent: { es: 'Historial reciente', en: 'Recent history' },
   records: { es: '{count} registros', en: '{count} records' },
   records1: { es: '1 registro', en: '1 record' },
@@ -219,7 +235,7 @@ const T: TranslationResource = {
   signIn: { es: 'Crear cuenta / Iniciar sesión', en: 'Create account / Sign in' },
 };
 
-type Tab = 'history' | 'findings' | 'photos';
+type Tab = 'history' | 'findings' | 'photos' | 'processing';
 type TypeFilter = 'all' | 'walk' | 'photo';
 type StatusFilter = 'all' | 'listo' | 'progress' | 'local' | 'error';
 type OrchardFilter = 'all' | 'none' | string;
@@ -255,7 +271,8 @@ const zonesCenter = (z: ZonaSnapshot[]): LatLng | null =>
 type Row =
   | { k: 'scan'; key: string; it: ScanItem }
   | { k: 'finding'; key: string; h: HallazgoMapa }
-  | { k: 'photo'; key: string; p: FotoPunto; i: number; total: number };
+  | { k: 'photo'; key: string; p: FotoPunto; i: number; total: number }
+  | { k: 'proc'; key: string; it: ScanItem };
 
 function remoteStatus(estado: RecorridoRemoto['estado']): ScanStatus {
   return estado === 'listo' ? 'listo' : estado === 'procesando' ? 'proceso' : estado === 'error' ? 'error' : 'cola';
@@ -276,7 +293,7 @@ export default function MisEscaneos() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const reduced = useReducedMotion();
-  const params = useLocalSearchParams<{ n?: string; focus?: string; point?: string }>();
+  const params = useLocalSearchParams<{ n?: string; focus?: string; point?: string; tab?: string }>();
   const isTablet = width >= 768;
 
   const [user, setUser] = useState<User | null>(auth.currentUser);
@@ -339,6 +356,8 @@ export default function MisEscaneos() {
   const [progress, setProgress] = useState<Record<string, { done: number; total: number }>>({});
   const [syncNote, setSyncNote] = useState<'offline' | 'wifi-required' | null>(null);
   const [syncing, setSyncing] = useState(false);
+  /** Hora de la última carga: «hace N min» y lo terminado en las últimas 24 h (sin Date.now() al dibujar). */
+  const [now, setNow] = useState(() => Date.now());
   const mapRef = useRef<ScansMapHandle>(null);
   const sheetRef = useRef<HistorySheetHandle>(null);
   const autoScope = useRef<string | null>(null);
@@ -370,6 +389,7 @@ export default function MisEscaneos() {
     setSingles(sc);
     setHallazgos(hz);
     setTokens(tk);
+    setNow(Date.now());
     setLoadError(failed);
     setLoading(false);
   }, [email, uid]);
@@ -389,6 +409,8 @@ export default function MisEscaneos() {
 
   useFocusEffect(useCallback(() => {
     if (!email || isGuest) return;
+    // Al llegar desde «Grabación enviada» se abre directo la pestaña «En proceso».
+    if (params.tab === 'processing') { setTab('processing'); setSheetIdx(2); }
     load().then(() => sync(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email, isGuest, params.n]));
@@ -397,7 +419,7 @@ export default function MisEscaneos() {
   useEffect(() => {
     if (!email || !remotes.some(r => r.estado === 'pendiente' || r.estado === 'procesando')) return;
     const id = setInterval(() => {
-      listRemote(email, 80).then(setRemotes).catch(() => {});
+      listRemote(email, 80).then(r => { setRemotes(r); setNow(Date.now()); }).catch(() => {});
       listUserHallazgos(email).then(setHallazgos).catch(() => {});
     }, 30000);
     return () => clearInterval(id);
@@ -459,7 +481,7 @@ export default function MisEscaneos() {
       const fruit = it.result?.fruto ? localizeDomainLabel(it.result.fruto, language) : null;
       return fruit ? t('kindPhoto', { fruit: language === 'es' ? fruit.toLowerCase() : fruit }) : t('kindPhotoPlain');
     }
-    if (it.tipo === 'grabacion') return it.fuente === 'dron' ? t('kindRecDrone') : it.fuente === 'camara' ? t('kindRecCam') : t('kindRec');
+    if (it.tipo === 'grabacion') return t('kindRecVideo');
     return it.fuente === 'dron' ? t('kindDrone') : it.fuente === 'camara' ? t('kindCam') : t('kindWalk');
   }, [language, t]);
   const orchardText = useCallback((id: string | null) => (id && orchardById[id]?.nombre) || t('noOrchard'), [orchardById, t]);
@@ -658,6 +680,7 @@ export default function MisEscaneos() {
   const tabFindings = selected?.remoteId ? selectedFindings : hallazgos.filter(h => visible.some(v => v.remoteId === h.recorrido_id));
   const tabPhotos = selected && selected.kind !== 'foto' ? selectedPhotos : [];
   const photoScans = visible.filter(v => v.kind === 'foto');
+  const remoteById = useMemo(() => Object.fromEntries(remotes.map(r => [r.id, r])) as Record<string, RecorridoRemoto>, [remotes]);
 
   // Métricas de la vista: cada escaneo cuenta una vez; hallazgos y metros solo de recorridos.
   const kpis = useMemo(() => ({
@@ -666,13 +689,22 @@ export default function MisEscaneos() {
     meters: visible.reduce((n, v) => n + (v.route.length > 1 ? routeMeters(v.route) : 0), 0),
   }), [visible]);
 
+  // «En proceso»: lo que aún no termina (en el celular, subiendo, en fila, analizando, con error) y lo
+  // terminado en las últimas 24 h, para que el usuario vea que nada se perdió. No depende de los filtros.
+  const procItems = useMemo(() => {
+    const dayAgo = now - 86400000;
+    return items.filter(it => it.kind !== 'foto' && (it.status !== 'listo' || Date.parse(remoteById[it.remoteId ?? '']?.procesado_at ?? it.endedAt ?? it.date) > dayAgo));
+  }, [items, remoteById, now]);
+  const procActive = procItems.filter(it => it.status !== 'listo').length;
+
   // Filas de la lista según la pestaña (un solo FlatList virtualizado).
   const rows = useMemo<Row[]>(() => {
     if (tab === 'history') return visible.map(it => ({ k: 'scan' as const, key: it.id, it }));
     if (tab === 'findings') return tabFindings.map(h => ({ k: 'finding' as const, key: h.id, h }));
+    if (tab === 'processing') return procItems.map(it => ({ k: 'proc' as const, key: it.id, it }));
     if (selected && selected.kind !== 'foto') return tabPhotos.map((p, i) => ({ k: 'photo' as const, key: p.id, p, i, total: tabPhotos.length }));
     return photoScans.map(it => ({ k: 'scan' as const, key: it.id, it }));
-  }, [tab, visible, tabFindings, tabPhotos, photoScans, selected]);
+  }, [tab, visible, tabFindings, tabPhotos, photoScans, selected, procItems]);
 
   // El botón de ubicación sigue el borde superior del panel y se oculta al expandirlo.
   const fabStyle = useAnimatedStyle(() => {
@@ -793,6 +825,7 @@ export default function MisEscaneos() {
     { key: 'history', label: t('history') },
     { key: 'findings', label: t('findingsTab', { count: tabFindings.length }) },
     { key: 'photos', label: t('photosTab', { count: selected && selected.kind !== 'foto' ? tabPhotos.length : photoScans.length }) },
+    { key: 'processing', label: procActive ? t('procTab', { count: procActive }) : t('procTabPlain') },
   ];
   const tabIdx = tabs.findIndex(x => x.key === tab);
   const listHeader = (
@@ -845,15 +878,18 @@ export default function MisEscaneos() {
       )}
       <View style={st.tabs} accessibilityRole="tablist">
         <Reanimated.View pointerEvents="none" style={[st.tabPillWrap, {
-          left: `${(tabIdx * 100) / 3}%`, transitionProperty: reduced ? 'none' : 'left', transitionDuration: 220, transitionTimingFunction: CSS_EASE_OUT,
+          left: `${(tabIdx * 100) / tabs.length}%`, width: `${100 / tabs.length}%`, transitionProperty: reduced ? 'none' : 'left', transitionDuration: 220, transitionTimingFunction: CSS_EASE_OUT,
         } as object]}><View style={st.tabPill} /></Reanimated.View>
         {tabs.map(x => (
           <Pressable key={x.key} onPress={guard(() => { if (tab !== x.key) { tick(); setTab(x.key); } })} accessibilityRole="tab" accessibilityState={{ selected: tab === x.key }} style={st.tabBtn}>
-            <Text style={[st.tabText, tab === x.key && st.tabTextOn]} numberOfLines={1}>{x.label}</Text>
+            <Text style={[st.tabText, tab === x.key && st.tabTextOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{x.label}</Text>
           </Pressable>
         ))}
       </View>
       {tab === 'photos' && selected && selected.kind !== 'foto' && tabPhotos.length > 0 && !tabPhotos.some(p => p.uri) && <Text style={st.photoNote}>{t('photoGone')}.</Text>}
+      {tab === 'processing' && procItems.length > 0 && (
+        <View style={st.procIntro}><ShieldCheck size={16} color={D.accent} /><Text style={st.procIntroText}>{t('procIntro')}</Text></View>
+      )}
     </View>
   );
 
@@ -870,6 +906,8 @@ export default function MisEscaneos() {
               </Pressable>
             </>
           ) : <Text style={st.empty}>{t('emptyFilter')}</Text>
+        ) : tab === 'processing' ? (
+          <Text style={st.empty}>{t('procEmpty')}</Text>
         ) : tab === 'findings' ? (
           <Text style={st.empty}>{selected ? (selected.status === 'listo' ? t('noFindingsDone') : t('noFindingsYet')) : t('noFindingsAll')}</Text>
         ) : (
@@ -892,6 +930,60 @@ export default function MisEscaneos() {
             progress={it.localId ? progress[it.localId] : undefined}
             onPress={guard(() => select(it.id))} onAction={guard(() => openResults(it))}
             actionLabel={it.kind === 'local' ? t('uploadNow') : it.kind === 'foto' ? t('viewActivity') : t('viewResults')} />
+        </Reanimated.View>
+      );
+    }
+    if (item.k === 'proc') {
+      const it = item.it;
+      const r = it.remoteId ? remoteById[it.remoteId] : undefined;
+      const up = it.localId ? progress[it.localId] : undefined;
+      const step = it.status === 'local' ? 0 : it.status === 'cola' ? 1 : it.status === 'proceso' ? 2 : 3;
+      const err = it.status === 'error';
+      const n = it.photos ?? r?.fotos_total ?? 0;
+      const msg = err ? t('pError') : up ? t('pUploading', { done: up.done, total: up.total }) : it.status === 'local' ? t('pLocal')
+        : it.status === 'cola' ? t('pQueue', { n }) : it.status === 'proceso' ? t('pProcessing', { n }) : t('pDone', { n: it.findings ?? r?.hallazgos_total ?? 0 });
+      const since = Math.max(0, now - Date.parse(r?.procesado_at && it.status === 'listo' ? r.procesado_at : it.endedAt ?? it.date));
+      const ago = since < 3600000 ? `${Math.max(1, Math.round(since / 60000))} min` : since < 86400000 ? `${Math.round(since / 3600000)} h` : `${Math.round(since / 86400000)} d`;
+      const steps = [t('pStep1'), t('pStep2'), t('pStep3'), t('pStep4')];
+      const Icon = it.tipo === 'grabacion' ? Film : Route;
+      return (
+        <Reanimated.View entering={enter} style={st.rowWrap}>
+          <Pressable onPress={guard(() => (it.status === 'listo' ? openResults(it) : it.kind === 'remoto' ? select(it.id) : undefined))}
+            accessibilityRole="button" accessibilityLabel={`${kindText(it)}, ${orchardText(it.orchardId)}. ${msg}`}
+            style={({ pressed }) => [st.card, st.procCard, err && st.procErr, pressed && st.pressed]}>
+            <View style={st.rowCenter}>
+              <View style={[st.procIcon, err && { backgroundColor: 'rgba(229,72,63,0.12)' }]}>{err ? <AlertTriangle size={18} color={D.coral} /> : <Icon size={18} color={D.accent} />}</View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={st.cardTitle} numberOfLines={1}>{kindText(it)} · {orchardText(it.orchardId)}</Text>
+                <Text style={st.metaSm} numberOfLines={1}>{fmtDate(it.date)} {fmtTime(it.date)} · {t('pSince', { t: ago })}</Text>
+              </View>
+              {it.status === 'local' && !syncing && (
+                <Pressable onPress={guard(() => sync(true))} accessibilityRole="button" style={({ pressed }) => [st.syncBtn, pressed && st.pressed]}>
+                  <Text style={st.syncBtnText}>{t('uploadNow')}</Text>
+                </Pressable>
+              )}
+              {it.status === 'listo' && <ChevronRight size={18} color={D.muted} />}
+            </View>
+            <View style={st.stepper} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+              {steps.map((label, i) => {
+                const done = !err && (i < step || (i === step && step === 3));
+                const now = !err && i === step && step < 3;
+                return (
+                  <View key={label} style={st.stepCol}>
+                    <View style={st.stepTrack}>
+                      {i > 0 && <View style={[st.stepLine, (done || now) && st.stepLineOn]} />}
+                      <View style={[st.stepDot, done && st.stepDotDone, now && st.stepDotNow, err && i === 2 && st.stepDotErr]}>
+                        {done ? <Check size={11} color={D.ink} strokeWidth={3} /> : now ? <ActivityIndicator size="small" color={D.accent} style={{ transform: [{ scale: 0.6 }] }} /> : null}
+                      </View>
+                    </View>
+                    <Text style={[st.stepLabel, (done || now) && st.stepLabelOn]} numberOfLines={1}>{label}</Text>
+                  </View>
+                );
+              })}
+            </View>
+            {up ? <View style={st.track}><View style={[st.fill, { width: `${(up.done / Math.max(1, up.total)) * 100}%` }]} /></View> : null}
+            <Text style={[st.procMsg, err && { color: '#9B2C22' }]}>{msg}</Text>
+          </Pressable>
         </Reanimated.View>
       );
     }
@@ -1411,6 +1503,23 @@ const st = StyleSheet.create({
   toolChipOn: { backgroundColor: D.mint, borderColor: D.mint },
   toolChipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: D.text },
   tabs: { flexDirection: 'row', height: 38, borderRadius: 19, backgroundColor: '#F3F7F4', borderWidth: 1, borderColor: D.border, marginBottom: 4 },
+  procIntro: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', padding: 10, borderRadius: 14, backgroundColor: 'rgba(167,243,208,0.25)', marginTop: 8 },
+  procIntroText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 17, color: D.text },
+  procCard: { flexDirection: 'column', alignItems: 'stretch', gap: 10 },
+  procErr: { borderColor: 'rgba(229,72,63,0.4)' },
+  procIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(15,122,85,0.10)', marginRight: 10 },
+  procMsg: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 17, color: D.text },
+  stepper: { flexDirection: 'row' },
+  stepCol: { flex: 1, alignItems: 'center', gap: 4 },
+  stepTrack: { width: '100%', height: 22, alignItems: 'center', justifyContent: 'center' },
+  stepLine: { position: 'absolute', right: '50%', left: '-50%', top: 10, height: 2, backgroundColor: 'rgba(18,61,42,0.12)' },
+  stepLineOn: { backgroundColor: D.accent },
+  stepDot: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: 'rgba(18,61,42,0.18)' },
+  stepDotDone: { backgroundColor: D.mint, borderColor: D.accent },
+  stepDotNow: { borderColor: D.accent },
+  stepDotErr: { borderColor: D.coral, backgroundColor: 'rgba(229,72,63,0.12)' },
+  stepLabel: { fontFamily: 'Poppins_400Regular', fontSize: 10.5, color: D.muted },
+  stepLabelOn: { fontFamily: 'Poppins_600SemiBold', color: D.text },
   tabPillWrap: { position: 'absolute', top: 0, bottom: 0, width: '33.333%', padding: 3 },
   tabPill: { flex: 1, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(15,122,85,0.35)' },
   tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center' },

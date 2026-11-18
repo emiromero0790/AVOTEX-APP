@@ -114,11 +114,13 @@ type Props = {
   onCancel: () => void;
   /** Sin huertas: ir a Mapeo a registrar una. */
   onRegister?: () => void;
+  /** Texto propio en lugar del motivo del GPS (p. ej. «¿En qué huerta grabaste el video?» al cambiarla). */
+  message?: string;
 };
 
 type Choice = { type: 'orchard'; id: string } | { type: 'none' } | null;
 
-export default function OrchardPickerSheet({ visible, reason, accuracyM, orchards, candidates = [], onConfirm, onCancel, onRegister }: Props) {
+export default function OrchardPickerSheet({ visible, reason, accuracyM, orchards, candidates = [], onConfirm, onCancel, onRegister, message: customMessage }: Props) {
   const t = useTranslations(translations);
   const insets = useSafeAreaInsets();
   const { height: winH, width: winW } = useWindowDimensions();
@@ -162,7 +164,7 @@ export default function OrchardPickerSheet({ visible, reason, accuracyM, orchard
     return [...list].sort((a, b) => Number(candidates.includes(b.id)) - Number(candidates.includes(a.id)));
   }, [orchards, query, candidates]);
 
-  const message = reason === 'outside' ? t('outside')
+  const message = customMessage ? customMessage : reason === 'outside' ? t('outside')
     : reason === 'overlap' ? t('overlap')
       : reason === 'imprecise' ? (accuracyM != null ? t('imprecise', { m: Math.round(accuracyM) }) : t('impreciseNoAcc'))
         : reason === 'no-orchards' ? t('noOrchards')

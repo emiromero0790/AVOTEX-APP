@@ -75,7 +75,8 @@ export type FrameAsignado = { uri: string; timeMs: number; zona: ZoneId | null }
  */
 export async function guardarGrabacion(input: {
   userEmail: string;
-  huertaId: string;
+  /** null: el agricultor eligió «No asignar a ninguna huerta». */
+  huertaId: string | null;
   fuente: Fuente;
   zonas: ZonaSnapshot[] | null;
   frames: FrameAsignado[];

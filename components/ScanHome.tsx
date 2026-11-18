@@ -92,8 +92,8 @@ type Props = {
   onPhoto?: () => void;
   /** Recorrido inteligente; «modo» solo cambia la animación del agricultor. */
   onWalk: (modo?: 'dron' | 'gopro') => void;
-  /** Subir un video ya grabado (sin GPS): sus fotos se asignan a mano a las zonas de la huerta. */
-  onUploadRecording?: (fuente: ScanSource) => void;
+  /** Subir un video ya grabado (sin GPS): sus fotos se asignan a mano a las zonas de la huerta. Cualquier dispositivo. */
+  onUploadRecording?: () => void;
   onOpenScans: () => void;
   /** Mientras se verifica la huerta por GPS: el botón muestra este texto y no responde. */
   busyLabel?: string | null;
@@ -269,13 +269,13 @@ export default function ScanHome({ isGuest, tokensRemaining, email = null, pendi
             </LinearGradient>
           </PressableScale>
 
-          {/* Subir grabación: opción secundaria, más pequeña. Usa la cámara elegida arriba (celular, dron o GoPro). */}
+          {/* Subir grabación: opción secundaria, más pequeña. Sirve para videos de cualquier dispositivo. */}
           {onUploadRecording && (
             <PressableScale onPress={() => {
                 if (busyLabel) return;
                 if (isGuest) { tapLockedWalk(); return; }
                 Haptics.selectionAsync().catch(() => {});
-                onUploadRecording(source);
+                onUploadRecording();
               }}
               accessibilityRole="button" accessibilityLabel={`${t('uploadVideo')}. ${t('uploadVideoHint')}${isGuest ? `, ${t('needsAccount')}` : ''}`}
               style={s.uploadBtn}>

@@ -415,8 +415,10 @@ const RUNTIME = String.raw`(function () {
       var ob = bbox(detail.orchard || []);
       if (ob) {
         var diag = dist({ lat: ob[1], lng: ob[0] }, { lat: ob[3], lng: ob[2] });
-        if (!own.length || diag < 700) own = own.concat(detail.orchard);
+        // Grabación (zonas): siempre la huerta completa; sus hallazgos están dentro de ella.
+        if (!own.length || diag < 700 || (detail.zones && detail.zones.length)) own = own.concat(detail.orchard);
       }
+      if (detail.zones && detail.zones.length) detail.zones.forEach(function (z) { own = own.concat(z.ring || []); });
       return own;
     }
     if (selected && data) {

@@ -19,7 +19,8 @@
  * Datos: Copernicus Sentinel-2 (libres, también para uso comercial), servidos por Microsoft Planetary Computer.
  * Planetary Computer no tiene acuerdo de servicio: si falla, la app muestra «No se pudo cargar el mapa de vigor».
  */
-import { encodeBase64 } from '@std/encoding/base64';
+// Especificador completo: funciona igual con «supabase functions deploy» y pegado en el editor del panel.
+import { encodeBase64 } from 'jsr:@std/encoding@1/base64';
 
 const PC = 'https://planetarycomputer.microsoft.com/api';
 const COLLECTION = 'sentinel-2-l2a';

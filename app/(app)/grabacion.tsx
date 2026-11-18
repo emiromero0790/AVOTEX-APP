@@ -1,7 +1,8 @@
 /**
  * Subir grabación → Ubica tus fotos (video sin GPS → fotos asignadas a zonas de la huerta).
  *
- * Entrada: igual que Recorrido inteligente, la huerta se sugiere con la ubicación del teléfono
+ * Huerta: después de cargar el video, al tocar «Procesar video» (no antes, para no estorbar la carga).
+ * Igual que Recorrido inteligente, la huerta se sugiere con la ubicación del teléfono
  * (services/huertaResolver.ts → resolveScanHuerta) y, si hay duda, se elige en el mismo modal
  * (components/scan/OrchardPickerSheet.tsx), con «No asignar a ninguna huerta». La ubicación SOLO sugiere
  * la huerta: los fotogramas no llevan GPS y su zona se asigna a mano.
@@ -24,12 +25,13 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
 import { onAuthStateChanged, type Auth, type User } from 'firebase/auth';
-import { ArrowLeft, Check, ChevronRight, CloudUpload, Film, ImageIcon, Play, Satellite, Trash2, Unlink } from 'lucide-react-native';
+import { ArrowLeft, Check, ChevronRight, CloudUpload, Film, MapPin, Satellite, Trash2, Unlink, Upload } from 'lucide-react-native';
 import { auth as firebaseAuth } from '../../firebaseConfig';
 import { useGuest } from '../../context/GuestContext';
 import { TranslationResource, useTranslations } from '../../context/LanguageContext';
 import type { Orchard } from '../../services/orchards';
 import { resolveScanHuerta, type HuertaResolution } from '../../services/huertaResolver';
+import { listOrchards } from '../../services/orchards';
 import { frameTimes, guardarGrabacion, MAX_VIDEO_MIN, ZONE_UI, zonasDeHuerta, type ZonaSnapshot } from '../../services/grabacion';
 import { extractFrames } from '../../services/videoFrames';
 import { getMobileDataAllowed, uploadRecorrido } from '../../services/recorridos';
@@ -41,6 +43,7 @@ import { PressableScale } from '../../components/scan/motion';
 
 const auth = firebaseAuth as Auth;
 const COVER = require('../../assets/images/grabacion/portada-huerta.jpg');
+const HEADER_BG = require('../../assets/images/grabacion/avotex-fondo-encabezado.png');
 
 const C = {
   deep: '#0F3D24', deep2: '#0A2B19', lime: '#BEF264', limeStrong: '#A3E635', limeSoft: '#ECFCCB',
@@ -66,6 +69,17 @@ const translations: TranslationResource = {
   limit: { es: 'Videos de hasta {min} min', en: 'Videos up to {min} min' },
   pickVideo: { es: 'Elegir video de la galería', en: 'Choose a video from the gallery' },
   continueN: { es: 'Continuar con {n} fotos', en: 'Continue with {n} photos' },
+  videoTitle: { es: 'Video del recorrido', en: 'Walk video' },
+  videoMeta: { es: 'Hasta {min} min · 4 a 30 fotos extraídas', en: 'Up to {min} min · 4 to 30 photos extracted' },
+  videoReady: { es: 'Video listo', en: 'Video ready' },
+  videoReadyMeta: { es: '{n} fotos extraídas', en: '{n} photos extracted' },
+  chooseVideo: { es: 'Elegir video', en: 'Choose video' },
+  afterHint: { es: 'Después, asigna las fotos a las zonas de tu huerta.', en: 'Next, assign the photos to your orchard zones.' },
+  changeShort: { es: 'Cambiar', en: 'Change' },
+  chooseShort: { es: 'Elegir', en: 'Choose' },
+  processN: { es: 'Procesar video ({n} fotos)', en: 'Process video ({n} photos)' },
+  orchardLater: { es: 'Huerta', en: 'Orchard' },
+  orchardLaterHint: { es: 'Se sugiere al procesar', en: 'Suggested when processing' },
   otherVideo: { es: 'Elegir otro video', en: 'Choose another video' },
   permission: { es: 'Permite el acceso a tus videos para continuar.', en: 'Allow access to your videos to continue.' },
   tooLong: { es: 'El video dura más de {min} min: tomaremos 30 fotos repartidas en todo el video.', en: 'The video is longer than {min} min: we will take 30 photos spread across it.' },
@@ -111,7 +125,7 @@ type Frame = { key: string; uri: string; timeMs: number; zona: ZoneId | null; re
 type Phase = 'resolving' | 'setup' | 'extracting' | 'assign' | 'saving' | 'ask-cellular' | 'uploading' | 'done';
 /** undefined = aún sin decidir; null = «No asignar a ninguna huerta». */
 type OrchardChoice = string | null | undefined;
-type PickState = { mode: 'entry' | 'change'; reason: Extract<HuertaResolution, { kind: 'manual' }>['reason'] | null; accuracyM: number | null; candidates: string[] };
+type PickState = { mode: 'process' | 'change'; reason: Extract<HuertaResolution, { kind: 'manual' }>['reason'] | null; accuracyM: number | null; candidates: string[] };
 
 const fmtTime = (ms: number) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const THUMB = 82;
@@ -137,7 +151,7 @@ function GrabacionScreen() {
   const [choice, setChoice] = useState<OrchardChoice>(undefined);
   const [pick, setPick] = useState<PickState | null>(null);
   const [pendingChange, setPendingChange] = useState<string | null | undefined>(undefined);
-  const [phase, setPhase] = useState<Phase>('resolving');
+  const [phase, setPhase] = useState<Phase>('setup');
   const [frames, setFrames] = useState<Frame[]>([]);
   const [sel, setSel] = useState<string | null>(null);
   const [lastZone, setLastZone] = useState<ZoneId | null>(null);
@@ -146,23 +160,31 @@ function GrabacionScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [result, setResult] = useState<'sent' | 'saved' | 'failed' | null>(null);
+  const [headSize, setHeadSize] = useState({ w: 0, h: 0 });
   const [saved, setSaved] = useState<Awaited<ReturnType<typeof guardarGrabacion>> | null>(null);
   const cancelled = useRef(false);
   useEffect(() => { cancelled.current = false; return () => { cancelled.current = true; }; }, []);
 
-  // ───────── entrada: misma resolución de huerta que Recorrido inteligente ─────────
+  // Huertas en segundo plano (solo para la tarjeta y el cambio manual; sin GPS ni modal al entrar).
   useEffect(() => {
     if (!email || isGuest) return;
     let alive = true;
-    resolveScanHuerta(email).then(res => {
-      if (!alive) return;
-      setOrchards(res.orchards);
-      if (res.kind === 'auto') { setChoice(res.huerta.id); setPhase('setup'); return; }
-      setPhase('setup');
-      setPick({ mode: 'entry', reason: res.reason, accuracyM: res.accuracyM, candidates: res.candidates });
-    });
+    listOrchards(email).then(list => { if (alive) setOrchards(list); }).catch(() => {});
     return () => { alive = false; };
   }, [email, isGuest]);
+
+  /** «Procesar video»: misma resolución de huerta que Recorrido inteligente; si hay duda, el mismo modal. */
+  const proceed = async () => {
+    if (!email || phase !== 'setup') return;
+    if (choice !== undefined) { setPhase('assign'); return; }
+    setPhase('resolving');
+    const res = await resolveScanHuerta(email, orchards.length ? orchards : undefined);
+    if (cancelled.current) return;
+    if (res.orchards.length) setOrchards(res.orchards);
+    if (res.kind === 'auto') { applyChoice(res.huerta.id); setPhase('assign'); return; }
+    setPhase('setup');
+    setPick({ mode: 'process', reason: res.reason, accuracyM: res.accuracyM, candidates: res.candidates });
+  };
 
   const orchard = typeof choice === 'string' ? orchards.find(o => o.id === choice) ?? null : null;
   const zonas = useMemo<ZonaSnapshot[] | null>(() => (orchard ? zonasDeHuerta(orchard.coordinates, orchard.id) : null), [orchard]);
@@ -188,13 +210,11 @@ function GrabacionScreen() {
     setPick(null);
     if (mode === 'change' && id !== choice && frames.some(f => f.zona)) { setPendingChange(id); return; }
     if (id !== choice) applyChoice(id);
+    // Desde «Procesar video»: con la huerta elegida se pasa a ubicar las fotos.
+    if (mode === 'process') setPhase('assign');
   };
-  const onPickCancel = () => {
-    const mode = pick?.mode;
-    setPick(null);
-    // Al entrar hay que decidir: cerrar el modal sin elegir regresa a Escanear.
-    if (mode === 'entry' && choice === undefined) router.back();
-  };
+  // Cerrar el modal sin elegir deja al usuario en el paso 1 con su video cargado.
+  const onPickCancel = () => setPick(null);
   const openChange = () => {
     if (phase === 'saving' || phase === 'uploading') return;
     Haptics.selectionAsync().catch(() => {});
@@ -224,7 +244,8 @@ function GrabacionScreen() {
       setFrames(list);
       setSel(list[0].key);
       setLastZone(null);
-      setPhase('assign');
+      // Se queda en el paso 1 con la portada del video: la huerta se pregunta al tocar «Procesar video».
+      setPhase('setup');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch {
       setPhase('setup');
@@ -339,10 +360,10 @@ function GrabacionScreen() {
     if (router.canGoBack()) router.back(); else router.navigate('/(app)/scan');
   };
   const header = (stepLabel: string | null, title: string, subtitle: string) => (
-    <LinearGradient colors={[C.deep, C.deep2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.header, { paddingTop: insets.top + 8 }]}>
-      {/* Motivo sutil: franjas diagonales claras */}
-      <View pointerEvents="none" style={[s.stripe, { right: -60, top: -10 }]} />
-      <View pointerEvents="none" style={[s.stripe, { right: 30, top: -40, opacity: 0.05 }]} />
+    <View style={[s.header, { paddingTop: insets.top + 8 }]} onLayout={e => setHeadSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+      {/* Fondo (cover) anclado a la derecha, donde están las ondas: en un teléfono vertical el recorte centrado las dejaba fuera. */}
+      <Image source={HEADER_BG} resizeMode="cover" accessibilityIgnoresInvertColors
+        style={{ position: 'absolute', top: 0, right: 0, height: headSize.h || 260, width: Math.max(headSize.w, (headSize.h || 260) * 2) }} />
       <View style={s.brandRow}>
         <PressableScale onPress={goBack} accessibilityRole="button" accessibilityLabel={t('back')} hitSlop={8} style={s.backBtn}>
           <ArrowLeft size={20} color="#FFFFFF" />
@@ -353,7 +374,7 @@ function GrabacionScreen() {
       {stepLabel ? <View style={s.stepPill}><Text style={s.stepText}>{stepLabel}</Text></View> : null}
       <Text style={s.hTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} accessibilityRole="header">{title}</Text>
       <Text style={s.hSub} numberOfLines={1}>{subtitle}</Text>
-    </LinearGradient>
+    </View>
   );
 
   if (isGuest || !email) {
@@ -395,15 +416,17 @@ function GrabacionScreen() {
       <View style={s.orchThumb}>
         {phase === 'resolving' ? <ActivityIndicator color={C.deep} />
           : zonas ? <ZoneBoard zonas={zonas} outline={outline} width={76} height={62} compact />
-            : orchard ? <Film size={22} color={C.muted} /> : <Unlink size={22} color={C.muted} />}
+            : orchard ? <Film size={22} color={C.muted} /> : choice === undefined ? <MapPin size={22} color={C.muted} /> : <Unlink size={22} color={C.muted} />}
       </View>
+      <View style={s.orchDivider} />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={s.orchName} numberOfLines={1}>{phase === 'resolving' ? t('finding') : orchard ? orchard.nombre : t('noOrchard')}</Text>
+        <Text style={s.orchName} numberOfLines={1}>{phase === 'resolving' ? t('finding') : orchard ? orchard.nombre : choice === undefined ? t('orchardLater') : t('noOrchard')}</Text>
         {phase !== 'resolving' && (
-          <Text style={s.orchMeta} numberOfLines={1}>{orchard ? `${haLabel(orchard.area_m2)} · ${zonas ? t('zonesN', { n: zonas.length }) : t('noZonesShort')}` : t('noOrchardHint')}</Text>
+          <Text style={s.orchMeta} numberOfLines={1}>{orchard ? `${haLabel(orchard.area_m2)} · ${zonas ? t('zonesN', { n: zonas.length }) : t('noZonesShort')}` : choice === undefined ? t('orchardLaterHint') : t('noOrchardHint')}</Text>
         )}
       </View>
-      <ChevronRight size={22} color={C.ink} />
+      {phase !== 'resolving' && <Text style={s.changeText}>{orchard || choice === null ? t('changeShort') : t('chooseShort')}</Text>}
+      <ChevronRight size={20} color={C.deep} />
     </PressableScale>
   );
 
@@ -428,46 +451,44 @@ function GrabacionScreen() {
 
   // ───────── paso 1 · Subir grabación ─────────
   if (!step2) {
-    const coverH = Math.round(Math.max(170, Math.min(height < 720 ? height * 0.27 : height * 0.33, width * 0.78)));
     const hasFrames = live.length > 0;
     const busy = phase === 'extracting' || phase === 'resolving';
+    const cardW = Math.min(width, 640) - 32;
     return (
       <View style={s.screen}>
         {header(t('step1'), t('title1'), t('sub1'))}
         <View style={s.body}>
-          <RNScrollView contentContainerStyle={{ padding: 16, paddingTop: 18, gap: 14 }} showsVerticalScrollIndicator={false}>
-            <Pressable onPress={pickVideo} disabled={busy || hasFrames} accessibilityRole="button" accessibilityLabel={t('uploadVideo')} style={[s.cover, { height: coverH }]}>
-              <Image source={hasFrames ? { uri: live[0].uri } : COVER} style={StyleSheet.absoluteFill} resizeMode="cover" />
-              <LinearGradient colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.25)']} style={StyleSheet.absoluteFill} />
-              {phase === 'extracting' ? (
-                <View style={s.coverCenter}>
-                  <View style={s.playBtn}><ActivityIndicator color="#FFFFFF" /><Text style={s.playText}>{t('extracting', progress)}</Text></View>
-                </View>
-              ) : !hasFrames ? (
-                <View style={s.coverCenter}>
-                  <View style={s.playBtn}><Play size={34} color="#FFFFFF" fill="#FFFFFF" /><Text style={s.playText}>{t('uploadVideo')}</Text></View>
-                </View>
-              ) : null}
-            </Pressable>
+          <RNScrollView contentContainerStyle={{ padding: 16, paddingTop: 20, gap: 16, paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false}>
             {orchardCard}
-            <View style={s.limitRow}><Film size={17} color={C.muted} /><Text style={s.limitText}>{t('limit', { min: MAX_VIDEO_MIN })}</Text></View>
+            <View style={s.videoCard}>
+              <FilmStack width={cardW - 34} image={hasFrames ? { uri: live[0].uri } : COVER} />
+              <View style={{ gap: 2 }}>
+                <Text style={s.videoTitle}>{hasFrames ? t('videoReady') : t('videoTitle')}</Text>
+                <Text style={s.videoMeta}>{phase === 'extracting' ? t('extracting', progress) : hasFrames ? t('videoReadyMeta', { n: live.length }) : t('videoMeta', { min: MAX_VIDEO_MIN })}</Text>
+              </View>
+              {phase === 'extracting' && (
+                <View style={s.trackSm}><View style={[s.fillSm, { width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }]} /></View>
+              )}
+              {hasFrames ? (
+                <PressableScale onPress={proceed} disabled={busy} style={[s.primary, busy && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ disabled: busy, busy: phase === 'resolving' }}>
+                  {phase === 'resolving' ? <ActivityIndicator color="#FFFFFF" /> : null}
+                  <Text style={s.primaryText}>{phase === 'resolving' ? t('finding') : t('processN', { n: live.length })}</Text>
+                  {phase === 'resolving' ? null : <ChevronRight size={20} color="#FFFFFF" />}
+                </PressableScale>
+              ) : (
+                <PressableScale onPress={pickVideo} disabled={busy} style={[s.primary, busy && { opacity: 0.6 }]} accessibilityRole="button" accessibilityLabel={t('chooseVideo')} accessibilityState={{ disabled: busy, busy: phase === 'extracting' }}>
+                  {phase === 'extracting' ? <ActivityIndicator color="#FFFFFF" /> : <Upload size={22} color="#FFFFFF" />}
+                  <Text style={s.primaryText}>{t('chooseVideo')}</Text>
+                </PressableScale>
+              )}
+              {hasFrames && !busy ? (
+                <Pressable onPress={() => { setFrames([]); setSel(null); void pickVideo(); }} style={[s.linkBtn, { paddingVertical: 2 }]} accessibilityRole="button"><Text style={s.link}>{t('otherVideo')}</Text></Pressable>
+              ) : null}
+              <View style={s.afterRow}><MapPin size={20} color={C.deep} /><Text style={s.afterText}>{t('afterHint')}</Text></View>
+            </View>
             {notice ? <Text style={s.notice}>{notice}</Text> : null}
             {error ? <Text style={s.error}>{error}</Text> : null}
           </RNScrollView>
-          <View style={[s.bottom, { paddingBottom: insets.bottom + 12 }]}>
-            {hasFrames ? (
-              <>
-                <PressableScale onPress={() => setPhase('assign')} style={s.primary} accessibilityRole="button">
-                  <Text style={s.primaryText}>{t('continueN', { n: live.length })}</Text><ChevronRight size={20} color="#FFFFFF" />
-                </PressableScale>
-                <Pressable onPress={() => { setFrames([]); setSel(null); void pickVideo(); }} style={s.linkBtn} accessibilityRole="button"><Text style={s.link}>{t('otherVideo')}</Text></Pressable>
-              </>
-            ) : (
-              <PressableScale onPress={pickVideo} disabled={busy} style={[s.primary, busy && { opacity: 0.6 }]} accessibilityRole="button" accessibilityState={{ disabled: busy }}>
-                <ImageIcon size={20} color="#FFFFFF" /><Text style={s.primaryText}>{t('pickVideo')}</Text>
-              </PressableScale>
-            )}
-          </View>
         </View>
         {picker}
         {changeConfirm}
@@ -568,6 +589,39 @@ function GrabacionScreen() {
   );
 }
 
+/** Ilustración de fotogramas: dos tiras de película inclinadas con la foto de la huerta, sobre una mancha verde suave. */
+function FilmStack({ width, image }: { width: number; image: React.ComponentProps<typeof Image>['source'] }) {
+  const w = Math.min(width, 520) * 0.8;
+  const h = w * 0.62;
+  const holes = (n: number) => (
+    <View style={fs.holes}>{Array.from({ length: n }, (_, i) => <View key={i} style={fs.hole} />)}</View>
+  );
+  const strip = (front: boolean) => (
+    <View style={[fs.strip, { width: w, height: h }, front ? fs.front : fs.back]}>
+      {holes(10)}
+      <View style={fs.photo}>{front ? <Image source={image} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}</View>
+      {holes(10)}
+    </View>
+  );
+  return (
+    <View style={{ width, height: h + 64, alignItems: 'center', justifyContent: 'center' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View style={[fs.blob, { width: width * 0.92, height: h + 40, borderRadius: (h + 40) / 2 }]} />
+      <View style={{ position: 'absolute', transform: [{ translateX: w * 0.05 }, { translateY: -h * 0.12 }, { rotate: '3deg' }] }}>{strip(false)}</View>
+      <View style={{ transform: [{ translateY: h * 0.05 }, { rotate: '-5deg' }] }}>{strip(true)}</View>
+    </View>
+  );
+}
+
+const fs = StyleSheet.create({
+  blob: { position: 'absolute', backgroundColor: '#E2ECD3', transform: [{ rotate: '-8deg' }] },
+  strip: { borderRadius: 14, backgroundColor: '#24452F', paddingHorizontal: 10, paddingVertical: 8, justifyContent: 'space-between' },
+  back: { opacity: 0.92 },
+  front: { shadowColor: '#0B1A12', shadowOpacity: 0.25, shadowRadius: 14, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+  holes: { flexDirection: 'row', justifyContent: 'space-between' },
+  hole: { width: 11, height: 11, borderRadius: 3, backgroundColor: '#F3F1E6' },
+  photo: { flex: 1, marginVertical: 7, borderRadius: 6, overflow: 'hidden', backgroundColor: '#4D7A3E' },
+});
+
 type DragValues = {
   dragX: SharedValue<number>; dragY: SharedValue<number>; dragOn: SharedValue<number>; hover: SharedValue<number>;
   origin: SharedValue<{ rx: number; ry: number; bx: number; by: number }>; polys: SharedValue<[number, number][][]>;
@@ -617,8 +671,7 @@ const TrayItem = memo(function TrayItem({ frame, on, zoneColor, label, draggable
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.deep2 },
-  header: { paddingHorizontal: 20, paddingBottom: 40, overflow: 'hidden' },
-  stripe: { position: 'absolute', width: 120, height: 320, backgroundColor: '#FFFFFF', opacity: 0.04, transform: [{ rotate: '35deg' }] },
+  header: { paddingHorizontal: 20, paddingBottom: 40, overflow: 'hidden', backgroundColor: '#0A2618' },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   backBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)', marginRight: 2 },
   brand: { fontFamily: 'Poppins_700Bold', fontSize: 17, letterSpacing: 3, color: '#FFFFFF' },
@@ -638,6 +691,15 @@ const s = StyleSheet.create({
   coverCenter: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   playBtn: { width: 132, height: 132, borderRadius: 66, alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: 'rgba(15,61,36,0.55)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.45)', paddingHorizontal: 10 },
   playText: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#FFFFFF', textAlign: 'center' },
+  orchDivider: { width: 1, alignSelf: 'stretch', marginVertical: 6, backgroundColor: 'rgba(15,61,36,0.15)' },
+  changeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: C.deep },
+  videoCard: { borderRadius: 26, borderWidth: 1.5, borderColor: '#DCE3D4', backgroundColor: '#FBFAF4', padding: 16, gap: 14, alignItems: 'stretch' },
+  videoTitle: { fontFamily: 'Poppins_700Bold', fontSize: 22, color: C.ink },
+  videoMeta: { fontFamily: 'Poppins_400Regular', fontSize: 14.5, color: C.muted },
+  trackSm: { height: 8, borderRadius: 4, backgroundColor: '#D7DCD3', overflow: 'hidden' },
+  fillSm: { height: 8, borderRadius: 4, backgroundColor: C.limeStrong },
+  afterRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, backgroundColor: '#E6EEDB' },
+  afterText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 13.5, color: C.ink },
   orchCard: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 12, borderRadius: 22, backgroundColor: '#E9EFE4' },
   orchThumb: { width: 76, height: 62, borderRadius: 16, backgroundColor: '#DDE7D6', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   orchName: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: C.ink },

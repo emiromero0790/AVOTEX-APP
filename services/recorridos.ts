@@ -338,17 +338,15 @@ async function uploadRecorridoInner(
         ruta: simplifyRoute(current.ruta),
       };
       const grabacion = current.tipo === 'grabacion';
-      let { data, error } = await supabase
-        .from('recorridos')
-        .insert({ ...row, fuente: current.fuente ?? 'celular', ...(grabacion ? { tipo: 'grabacion', zonas: current.zonas ?? null } : {}) })
-        .select('id')
-        .single();
+      // tipo/zonas (migración 20261117) se conservan en TODOS los intentos: antes, si faltaba la columna
+      // opcional «fuente» (20261105), el reintento las quitaba y la grabación quedaba como recorrido sin zonas.
+      const grab = grabacion ? { tipo: 'grabacion', zonas: current.zonas ?? null } : {};
+      const insert = (extra: Record<string, unknown>) => supabase.from('recorridos').insert({ ...row, ...grab, ...extra }).select('id').single();
+      let { data, error } = await insert({ fuente: current.fuente ?? 'celular' });
+      // Si la base de datos aún no tiene la columna "fuente", se guarda sin ella (no se pierde el escaneo).
+      if (error && isMissingColumn(error, 'fuente')) ({ data, error } = await insert({}));
       // Una grabación SIN las columnas nuevas perdería sus zonas: mejor no subirla y avisar.
       if (error && grabacion && (isMissingColumn(error, 'tipo') || isMissingColumn(error, 'zonas'))) throw new Error(MIGRATION_MSG);
-      // Si la base de datos aún no tiene la columna "fuente", se guarda sin ella (no se pierde el escaneo).
-      if (error && isMissingColumn(error, 'fuente')) {
-        ({ data, error } = await supabase.from('recorridos').insert(row).select('id').single());
-      }
       if (error || !data) throw error ?? new Error('No se creó el recorrido');
       current = { ...current, remoteId: data.id as string };
       await saveLocal(current);

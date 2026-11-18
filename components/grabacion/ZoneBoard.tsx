@@ -93,11 +93,11 @@ export default function ZoneBoard({ zonas, outline = null, width, height, highli
           return (
             <G key={`l${z.id}`} opacity={dim ? 0.45 : 1} onPress={onZonePress ? () => onZonePress(z.id) : undefined}>
               <Circle cx={z.label[0]} cy={z.label[1]} r={r} fill="#FFFFFF" stroke={ui.line} strokeWidth={2} />
-              <SvgText x={z.label[0]} y={z.label[1] + (compact ? 3.5 : 5)} fontSize={compact ? 10 : 14} fontWeight="700" fill={ui.ink} textAnchor="middle">{z.id}</SvgText>
+              <SvgText x={z.label[0]} y={z.label[1] + (compact ? 3.5 : 5)} fontSize={compact ? 10 : 14} fontWeight="700" fontFamily="Poppins_700Bold" fill={ui.ink} textAnchor="middle">{z.id}</SvgText>
               {n !== undefined && !compact && (
                 <G>
                   <Rect x={z.label[0] + r - 4} y={z.label[1] - r - 8} width={n > 9 ? 26 : 20} height={18} rx={9} fill={ui.line} />
-                  <SvgText x={z.label[0] + r - 4 + (n > 9 ? 13 : 10)} y={z.label[1] - r + 5} fontSize={11} fontWeight="700" fill="#FFFFFF" textAnchor="middle">{String(n)}</SvgText>
+                  <SvgText x={z.label[0] + r - 4 + (n > 9 ? 13 : 10)} y={z.label[1] - r + 5} fontSize={11} fontWeight="700" fontFamily="Poppins_700Bold" fill="#FFFFFF" textAnchor="middle">{String(n)}</SvgText>
                 </G>
               )}
             </G>

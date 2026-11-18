@@ -51,6 +51,25 @@ export function shade(hex: string, amount: number): string {
   return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
 
+/** Identidad AVOTEX (verde bosque + lima). Fuente única de color para Actividad → Resumen. */
+export const P = {
+  forest: '#083D25',
+  deep: '#064B2C',
+  agri: '#17843A',
+  leaf: '#38A34A',
+  lime: '#B9F62F',
+  limeSoft: '#D8FF79',
+  ivory: '#F7F7F0',
+  white: '#FFFFFF',
+  ink: '#102D22',
+  muted: '#65746D',
+  amber: '#F6B72D',
+  coral: '#ED6254',
+  neutral: '#A8B5C5',
+  line: '#E7ECE2',
+  mint: '#EAF5E1',
+} as const;
+
 export const A = {
   ink: '#10231A',
   inkSoft: '#3B4A42',
@@ -70,7 +89,9 @@ export const A = {
 /** Paleta agrícola para segmentos (verde → lima → amarillo → naranja → coral). */
 export const SLICE_COLORS = ['#22A447', '#8CCB2E', '#F2C230', '#F28C28', '#EF5A4C'] as const;
 /** Estados: saludable, revisar (confianza baja), con problema. */
-export const CAT_COLORS = { sano: '#2BA84A', revisar: '#F2B630', enfermo: '#EF5A4C' } as const;
+export const CAT_COLORS = { sano: '#2E9E46', revisar: '#F6B72D', enfermo: '#ED6254' } as const;
+/** Degradados (claro → base) de cada estado, para dar volumen a las barras. */
+export const CAT_GRADIENTS = { sano: ['#4CC064', '#17843A'], revisar: ['#FFD25C', '#F2A61C'], enfermo: ['#FF8A78', '#E4493B'] } as const;
 /** Clases de problema en el detalle por cultivo. */
 export const PROBLEM_COLORS = ['#EF5A4C', '#F28C28', '#C2410C', '#D9467A', '#8B5CF6', '#A16207'] as const;
 
@@ -90,7 +111,7 @@ export type BotanicalProps = {
  * Hojas semitransparentes para las esquinas de las tarjetas (SVG original, nítido a cualquier escala).
  * No reciben toques (pointerEvents="none") y quedan detrás del contenido.
  */
-export function BotanicalCardDecoration({ variant = 'leaf', corner = 'tr', size = 90, opacity = 0.5, color = '#5DB84A', rotate = 0 }: BotanicalProps) {
+export function BotanicalCardDecoration({ variant = 'leaf', corner = 'tr', size = 90, opacity = 0.5, color = '#7CC24A', rotate = 0 }: BotanicalProps) {
   const pos: ViewStyle = {
     position: 'absolute', width: size, height: size,
     ...(corner.includes('t') ? { top: -size * 0.22 } : { bottom: -size * 0.24 }),
@@ -149,9 +170,9 @@ export function BotanicalCardDecoration({ variant = 'leaf', corner = 'tr', size 
 
 // ───────── Tarjeta ─────────
 
-export function ChartCard({ icon, title, subtitle, onMore, moreLabel, decorations, children, style, tint }: {
+export function ChartCard({ icon, title, subtitle, onMore, moreLabel, decorations, children, style, tint, iconBg }: {
   icon: React.ReactNode; title: string; subtitle?: string; onMore?: () => void; moreLabel?: string;
-  decorations?: BotanicalProps[]; children: React.ReactNode; style?: StyleProp<ViewStyle>; tint?: string;
+  decorations?: BotanicalProps[]; children: React.ReactNode; style?: StyleProp<ViewStyle>; tint?: string; iconBg?: string;
 }) {
   return (
     <View style={[s.card, tint ? { backgroundColor: tint } : null, style]}>
@@ -159,7 +180,7 @@ export function ChartCard({ icon, title, subtitle, onMore, moreLabel, decoration
         {decorations?.map((d, i) => <BotanicalCardDecoration key={i} {...d} />)}
       </View>
       <View style={s.head}>
-        <View style={s.headIcon}>{icon}</View>
+        <View style={[s.headIcon, iconBg ? { backgroundColor: iconBg } : null]}>{icon}</View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={s.title} numberOfLines={2} accessibilityRole="header" maxFontSizeMultiplier={1.25}>{title}</Text>
           {subtitle ? <Text style={s.subtitle} numberOfLines={2} maxFontSizeMultiplier={1.25}>{subtitle}</Text> : null}
@@ -167,7 +188,7 @@ export function ChartCard({ icon, title, subtitle, onMore, moreLabel, decoration
         {onMore && (
           <Pressable onPress={onMore} hitSlop={10} accessibilityRole="button" accessibilityLabel={moreLabel ?? title}
             style={({ pressed }) => [s.more, pressed && { transform: [{ scale: 0.94 }] }]}>
-            <ChevronRight size={18} color={A.green} />
+            <ChevronRight size={18} color={P.agri} />
           </Pressable>
         )}
       </View>
@@ -186,16 +207,16 @@ export function EmptyChart({ text }: { text: string }) {
 
 const s = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF', borderRadius: 24, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 14,
-    borderWidth: 1, borderColor: '#EEF2EC',
-    shadowColor: '#2F4A35', shadowOpacity: 0.09, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 3,
+    backgroundColor: '#FFFFFF', borderRadius: 24, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16,
+    borderWidth: 1, borderColor: '#EDF1E6',
+    shadowColor: '#1C3A26', shadowOpacity: 0.08, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 3,
   },
   clip: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 24, overflow: 'hidden' },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  headIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEF8EA' },
-  title: { fontFamily: 'Poppins_600SemiBold', fontSize: 17.5, lineHeight: 23, color: A.ink, letterSpacing: -0.2 },
-  subtitle: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, lineHeight: 15, color: A.muted },
-  more: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F2F8EF' },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  headIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: P.mint },
+  title: { fontFamily: 'Poppins_600SemiBold', fontSize: 17, lineHeight: 23, color: P.ink, letterSpacing: -0.2 },
+  subtitle: { fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 16, color: P.muted },
+  more: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEF7E4' },
   empty: { minHeight: 90, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 16 },
-  emptyText: { fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 19, color: A.muted, textAlign: 'center' },
+  emptyText: { fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 19, color: P.muted, textAlign: 'center' },
 });

@@ -1,13 +1,13 @@
 /**
- * Frutas más analizadas: barras horizontales con volumen (degradado, reflejo superior y sombra inferior).
- * Cada barra mide exactamente su porcentaje del total; crece al aparecer y se desplaza al filtrar.
- * Tocar una fila elige ese cultivo como filtro de todas las gráficas (otro toque lo quita) y muestra la
- * cantidad exacta.
+ * Frutas más analizadas: barras horizontales con volumen (degradado vertical, reflejo superior y base más
+ * oscura). Cada barra mide exactamente su porcentaje del total; crece al aparecer y se ajusta al filtrar.
+ * Tocar una fila elige ese cultivo como filtro del Resumen (otro toque lo quita) y muestra la cantidad exacta.
  */
 import React, { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Defs, Ellipse, G, LinearGradient as SvgLinear, Path, Rect, Stop } from 'react-native-svg';
-import { A, useSvgId, useTween } from './core';
+import Svg, { Circle, Defs, Ellipse, G, LinearGradient as SvgLinear, Path, Stop } from 'react-native-svg';
+import { P, useSvgId } from './core';
+import GrowBar from './GrowBar';
 
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
@@ -69,59 +69,30 @@ export function FruitIcon({ crop, size = 28 }: { crop: string; size?: number }) 
 
 export type FruitRow = { crop: string; label: string; count: number; pct: number };
 
-const GREENS = [['#16833A', '#43C25B'], ['#239647', '#5FCC69'], ['#3BA84F', '#7BD57B'], ['#5DB863', '#98DE93'], ['#7EC67D', '#B3E6AC']] as const;
+const GREENS = [['#5CD06E', '#17843A'], ['#6BD579', '#2A9443'], ['#82DC8A', '#38A34A'], ['#9BE29E', '#4DAE57'], ['#B2E8B0', '#62B866']] as const;
 
-function FruitBars({ rows, width, selected, onSelect, reduced, countLabel }: {
-  rows: FruitRow[]; width: number; selected: string | null; onSelect: (crop: string) => void; reduced: boolean;
+function FruitBars({ rows, selected, onSelect, reduced, countLabel }: {
+  rows: FruitRow[]; selected: string | null; onSelect: (crop: string) => void; reduced: boolean;
   countLabel: (n: number) => string;
 }) {
-  const gid = useSvgId('fb');
-  const vals = useTween(rows.map(r => r.pct), reduced, 700);
-  const nameW = Math.min(92, Math.max(74, width * 0.24));
-  const barW = Math.max(80, width - 34 - nameW - 52);
-  const H = 22;
   return (
-    <View style={{ gap: 6 }} accessibilityRole="radiogroup">
+    <View style={{ gap: 4 }} accessibilityRole="radiogroup">
       {rows.map((row, i) => {
         const on = selected === row.crop;
-        // Largo exacto del porcentaje (sin mínimo que exagere los valores pequeños).
-        const w = (barW * Math.max(0, vals[i] ?? 0)) / 100;
-        const rr = Math.min(H / 2, w / 2);
-        const [c1, c2] = GREENS[Math.min(i, GREENS.length - 1)];
+        const dim = selected !== null && !on;
         return (
           <Pressable key={row.crop} onPress={() => onSelect(row.crop)} accessibilityRole="radio" accessibilityState={{ selected: on }}
-            accessibilityLabel={`${row.label}: ${Math.round(row.pct)} %, ${countLabel(row.count)}`}
-            style={({ pressed }) => [st.row, on && st.rowOn, pressed && { opacity: 0.85 }]}>
-            <FruitIcon crop={row.crop} size={28} />
-            <View style={{ width: nameW }}>
+            accessibilityLabel={`${row.label}: ${Math.round(row.pct)} %, ${countLabel(row.count)}`} hitSlop={2}
+            style={({ pressed }) => [st.row, on && st.rowOn, dim && { opacity: 0.6 }, pressed && { transform: [{ scale: 0.985 }] }]}>
+            <FruitIcon crop={row.crop} size={30} />
+            <View style={st.nameBox}>
               <Text style={st.name} numberOfLines={1} maxFontSizeMultiplier={1.2}>{row.label}</Text>
               {on && <Text style={st.count} numberOfLines={1}>{countLabel(row.count)}</Text>}
             </View>
-            <Svg width={barW} height={H + 8}>
-              <Defs>
-                <SvgLinear id={`${gid}f${i}`} x1="0" y1="0" x2="1" y2="0">
-                  <Stop offset="0" stopColor={c1} />
-                  <Stop offset="1" stopColor={c2} />
-                </SvgLinear>
-                <SvgLinear id={`${gid}h`} x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor="#FFFFFF" stopOpacity={0.6} />
-                  <Stop offset="1" stopColor="#FFFFFF" stopOpacity={0} />
-                </SvgLinear>
-                <SvgLinear id={`${gid}t`} x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor="#E3E9E4" />
-                  <Stop offset="1" stopColor="#F4F7F4" />
-                </SvgLinear>
-              </Defs>
-              {/* canal */}
-              <Rect x={0} y={2} width={barW} height={H} rx={H / 2} fill={`url(#${gid}t)`} />
-              {/* sombra bajo la barra */}
-              <Ellipse cx={w / 2} cy={H + 4} rx={w / 2} ry={3} fill={c1} opacity={0.18} />
-              {/* cuerpo, base más oscura (volumen) y reflejo */}
-              <Rect x={0} y={2} width={w} height={H} rx={rr} fill={`url(#${gid}f${i})`} />
-              <Rect x={0} y={2 + H * 0.55} width={w} height={H * 0.45} rx={Math.min(H * 0.22, w / 2)} fill="#0B3D1C" opacity={0.16} />
-              {w > 12 && <Rect x={4} y={4} width={w - 8} height={H * 0.38} rx={H * 0.19} fill={`url(#${gid}h)`} />}
-            </Svg>
-            <Text style={st.pct} maxFontSizeMultiplier={1.2}>{Math.round(vals[i] ?? 0)}%</Text>
+            <View style={{ flex: 1 }}>
+              <GrowBar pct={row.pct} height={18} colors={GREENS[Math.min(i, GREENS.length - 1)]} reduced={reduced} delay={80 + i * 60} />
+            </View>
+            <Text style={st.pct} maxFontSizeMultiplier={1.2}>{Math.round(row.pct)}%</Text>
           </Pressable>
         );
       })}
@@ -132,9 +103,10 @@ function FruitBars({ rows, width, selected, onSelect, reduced, countLabel }: {
 export default memo(FruitBars);
 
 const st = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3, paddingHorizontal: 4, borderRadius: 14 },
-  rowOn: { backgroundColor: '#EEF8EA' },
-  name: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: A.ink },
-  count: { fontFamily: 'Poppins_400Regular', fontSize: 10.5, color: A.muted, marginTop: -3 },
-  pct: { width: 44, textAlign: 'right', fontFamily: 'Poppins_700Bold', fontSize: 14, color: A.ink, fontVariant: ['tabular-nums'] },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, paddingHorizontal: 6, borderRadius: 16 },
+  rowOn: { backgroundColor: '#EEF8E4' },
+  nameBox: { width: 84 },
+  name: { fontFamily: 'Poppins_600SemiBold', fontSize: 14.5, color: P.ink },
+  count: { fontFamily: 'Poppins_400Regular', fontSize: 10.5, color: P.muted, marginTop: -3 },
+  pct: { width: 42, textAlign: 'right', fontFamily: 'Poppins_700Bold', fontSize: 14.5, color: P.ink, fontVariant: ['tabular-nums'] },
 });

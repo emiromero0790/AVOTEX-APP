@@ -35,7 +35,8 @@ import { supabase } from '../../supabaseConfig';
 import { useGuest } from '../../context/GuestContext';
 import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 import { listOrchards, Orchard } from '../../services/orchards';
-import { parseZonas, ZONE_UI, type ZonaSnapshot } from '../../services/grabacion';
+import { parseZonas, ZONE_UI, zonasDeHuerta, type ZonaSnapshot } from '../../services/grabacion';
+import ZoneMap3D from '../../components/grabacion/ZoneMap3D';
 import { Fuente, RecorridoLocal, RecorridoRemoto, listLocal, listRemote, recoverInterrupted, uploadPending } from '../../services/recorridos';
 import {
   categoria, cleanRoute, listRecorridoFotos, listSingleScans, listUserHallazgos, routeMeters, storageImage,
@@ -144,6 +145,14 @@ const T: TranslationResource = {
   pError: { es: 'No se pudo analizar. Lo volveremos a intentar; si sigue, contáctanos.', en: 'Could not be analyzed. We will retry; if it persists, contact us.' },
   pSince: { es: 'hace {t}', en: '{t} ago' },
   kindRecVideo: { es: 'Grabación de video', en: 'Video recording' },
+  zonesTitle: { es: 'Hallazgos por zona', en: 'Findings by zone' },
+  zonesHint: { es: 'Toca una zona para ver sus hallazgos.', en: 'Tap a zone to see its findings.' },
+  zonesPending: { es: 'Las zonas mostrarán sus hallazgos cuando termine el análisis.', en: 'Zones will show their findings once the analysis finishes.' },
+  zonesNone: { es: 'Grabación sin huerta asignada: sus hallazgos no tienen zona.', en: 'Recording without an orchard: its findings have no zone.' },
+  zoneFindings: { es: 'Zona {z} · {n} {h}', en: 'Zone {z} · {n} {h}' },
+  hallazgo1: { es: 'hallazgo', en: 'finding' }, hallazgoN: { es: 'hallazgos', en: 'findings' },
+  zoneProblems: { es: '{n} con problema', en: '{n} with issues' },
+  zoneHealthy: { es: 'sin problemas', en: 'no issues' },
   recent: { es: 'Historial reciente', en: 'Recent history' },
   records: { es: '{count} registros', en: '{count} records' },
   records1: { es: '1 registro', en: '1 record' },
@@ -820,6 +829,56 @@ export default function MisEscaneos() {
     </Pressable>
   );
 
+  // ── Grabación: mapa de zonas semi‑3D (igual que al asignar las fotos) con sus hallazgos ──
+  const selZonas = selected?.tipo === 'grabacion'
+    ? (selected.zonas.length ? selected.zonas : selected.orchardId && orchardById[selected.orchardId] ? zonasDeHuerta(orchardById[selected.orchardId].coordinates, selected.orchardId) ?? [] : [])
+    : [];
+  const zoneCounts: Partial<Record<ZonaSnapshot['id'], number>> = {};
+  const zoneProblems: Partial<Record<ZonaSnapshot['id'], number>> = {};
+  for (const h of selectedFindings) if (h.zona) {
+    zoneCounts[h.zona] = (zoneCounts[h.zona] ?? 0) + 1;
+    const c = categoria(h);
+    if (c === 'enfermo' || c === 'revisar') zoneProblems[h.zona] = (zoneProblems[h.zona] ?? 0) + 1;
+  }
+  const pointZone = point?.kind === 'finding' ? selectedFindings.find(h => h.id === point.id)?.zona ?? null : null;
+  const zoneMapW = Math.min(width, 720) - 36 - 26; // márgenes de la lista + relleno y borde de la tarjeta
+  const pickZone = (z: ZonaSnapshot['id']) => {
+    const first = selectedFindings.find(h => h.zona === z);
+    tick();
+    if (first) { setTab('findings'); setPoint({ kind: 'finding', id: first.id }); }
+  };
+  const zoneCard = selected?.tipo === 'grabacion' ? (
+    <View style={st.zoneCard}>
+      <View style={[st.rowCenter, { justifyContent: 'space-between', marginBottom: 8 }]}>
+        <Text style={st.zoneCardTitle}>{t('zonesTitle')}</Text>
+        {selZonas.length > 0 && selected.status === 'listo' && <Text style={st.metaSm}>{t('zonesHint')}</Text>}
+      </View>
+      {selZonas.length ? (
+        <>
+          <ZoneMap3D zonas={selZonas} outline={selected.orchardId ? (orchardById[selected.orchardId]?.coordinates ?? []).map(c => ({ lat: c.latitude, lng: c.longitude })) : null}
+            width={zoneMapW} height={Math.round(Math.min(240, zoneMapW * 0.62))} counts={zoneCounts} activeZone={pointZone} dropTick={0}
+            activeText={(z, n) => t('zoneFindings', { z, n, h: n === 1 ? t('hallazgo1') : t('hallazgoN') })} onZonePress={pickZone} />
+          {selected.status === 'listo' ? (
+            <View style={st.zoneChips}>
+              {selZonas.map(z => {
+                const n = zoneCounts[z.id] ?? 0, bad = zoneProblems[z.id] ?? 0;
+                return (
+                  <Pressable key={z.id} onPress={guard(() => pickZone(z.id))} accessibilityRole="button" style={({ pressed }) => [st.zoneChipBtn, { borderColor: ZONE_UI[z.color].line }, pressed && st.pressed]}>
+                    <View style={[st.zoneDot, { backgroundColor: ZONE_UI[z.color].fill }]}><Text style={st.zoneDotText}>{z.id}</Text></View>
+                    <View style={{ flexShrink: 1 }}>
+                      <Text style={st.zoneChipN}>{n} {n === 1 ? t('hallazgo1') : t('hallazgoN')}</Text>
+                      <Text style={[st.metaSm, bad ? { color: D.coral } : null]} numberOfLines={1}>{n ? (bad ? t('zoneProblems', { n: bad }) : t('zoneHealthy')) : '—'}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : <Text style={[st.metaSm, { marginTop: 8 }]}>{t('zonesPending')}</Text>}
+        </>
+      ) : <Text style={st.meta}>{t('zonesNone')}</Text>}
+    </View>
+  ) : null;
+
   // ── Encabezado de la lista ──
   const tabs: { key: Tab; label: string }[] = [
     { key: 'history', label: t('history') },
@@ -876,6 +935,7 @@ export default function MisEscaneos() {
           </View>
         </Reanimated.View>
       )}
+      {selected?.tipo === 'grabacion' && zoneCard}
       <View style={st.tabs} accessibilityRole="tablist">
         <Reanimated.View pointerEvents="none" style={[st.tabPillWrap, {
           left: `${(tabIdx * 100) / tabs.length}%`, width: `${100 / tabs.length}%`, transitionProperty: reduced ? 'none' : 'left', transitionDuration: 220, transitionTimingFunction: CSS_EASE_OUT,
@@ -1503,6 +1563,13 @@ const st = StyleSheet.create({
   toolChipOn: { backgroundColor: D.mint, borderColor: D.mint },
   toolChipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: D.text },
   tabs: { flexDirection: 'row', height: 38, borderRadius: 19, backgroundColor: '#F3F7F4', borderWidth: 1, borderColor: D.border, marginBottom: 4 },
+  zoneCard: { marginTop: 10, marginBottom: 6, padding: 12, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: D.border },
+  zoneCardTitle: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: D.text },
+  zoneChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  zoneChipBtn: { flexGrow: 1, flexBasis: '46%', flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, borderRadius: 14, borderWidth: 1.5, backgroundColor: '#FFFFFF' },
+  zoneDot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  zoneDotText: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#0B1A12' },
+  zoneChipN: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: D.text },
   procIntro: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', padding: 10, borderRadius: 14, backgroundColor: 'rgba(167,243,208,0.25)', marginTop: 8 },
   procIntroText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 17, color: D.text },
   procCard: { flexDirection: 'column', alignItems: 'stretch', gap: 10 },

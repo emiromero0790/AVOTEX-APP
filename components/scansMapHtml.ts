@@ -367,7 +367,9 @@ const RUNTIME = String.raw`(function () {
     // Árboles: en la huerta del recorrido elegido, en la huerta filtrada o, si son pocas, en todas.
     var treePolys = [];
     if (show.orchards !== false) {
-      if (detail && detail.orchard && detail.orchard.length >= 3) treePolys = [ring(detail.orchard)];
+      // Grabación: sin árboles 3D (taparían las zonas y las verían «cortadas»).
+      if (detailZones) treePolys = [];
+      else if (detail && detail.orchard && detail.orchard.length >= 3) treePolys = [ring(detail.orchard)];
       else if (focusId) treePolys = data.orchards.filter(function (o) { return o.id === focusId; }).map(function (o) { return ring(o.points); });
       else if (data.orchards.length <= 6) treePolys = data.orchards.map(function (o) { return ring(o.points); });
     }
@@ -571,10 +573,6 @@ const RUNTIME = String.raw`(function () {
       map.addSource(id, opts);
     });
     var add = function (id, type, source, paint, extra) { map.addLayer(Object.assign({ id: id, type: type, source: source, paint: paint }, extra || {})); };
-    add("zones-fill", "fill", "zones", { "fill-color": ["get", "color"], "fill-opacity": ["coalesce", ["get", "op"], 0.3] });
-    add("zones-line", "line", "zones", { "line-color": ["get", "color"], "line-width": ["coalesce", ["get", "w"], 1], "line-opacity": 0.9 });
-    add("zonelabels", "symbol", "zonelabels", { "text-color": "#0B1A12", "text-halo-color": "#FFFFFF", "text-halo-width": 2, "text-opacity": ["case", ["==", ["get", "dim"], 1], 0.45, 1] },
-      { layout: { "text-field": ["get", "t"], "text-font": ["Noto Sans Bold"], "text-size": 13, "text-allow-overlap": true, "text-ignore-placement": true } });
     // Huerta: relleno suave + contorno neón con brillo.
     add("orchards-fill", "fill", "orchards", { "fill-color": NEON, "fill-opacity": ["case", ["==", ["get", "dim"], 1], 0.025, 0.09] });
     add("orchards-glow", "line", "orchards", { "line-color": NEON, "line-width": 9, "line-blur": 7, "line-opacity": ["case", ["==", ["get", "dim"], 1], 0.08, 0.42] });
@@ -582,6 +580,11 @@ const RUNTIME = String.raw`(function () {
       { layout: { "line-join": "round" } });
     add("trees", "fill-extrusion", "trees", { "fill-extrusion-color": ["get", "c"], "fill-extrusion-height": ["get", "h"], "fill-extrusion-base": ["get", "b"],
       "fill-extrusion-opacity": 0.95, "fill-extrusion-vertical-gradient": true }, { minzoom: 14.5 });
+    // Zonas encima de la huerta y de los árboles (grabaciones y capa Zonas).
+    add("zones-fill", "fill", "zones", { "fill-color": ["get", "color"], "fill-opacity": ["coalesce", ["get", "op"], 0.3] });
+    add("zones-line", "line", "zones", { "line-color": ["get", "color"], "line-width": ["coalesce", ["get", "w"], 1], "line-opacity": 0.9 });
+    add("zonelabels", "symbol", "zonelabels", { "text-color": "#0B1A12", "text-halo-color": "#FFFFFF", "text-halo-width": 2, "text-opacity": ["case", ["==", ["get", "dim"], 1], 0.45, 1] },
+      { layout: { "text-field": ["get", "t"], "text-font": ["Noto Sans Bold"], "text-size": 13, "text-allow-overlap": true, "text-ignore-placement": true } });
     add("routes-line", "line", "routes", { "line-color": TEAL, "line-width": 2.5, "line-opacity": 0.7 }, { layout: { "line-cap": "round", "line-join": "round" } });
     add("heat", "line", "routes", { "line-color": "#FB923C", "line-width": 14, "line-blur": 9, "line-opacity": 0.5 }, { layout: { visibility: "none" } });
     add("detail-glow", "line", "detail", { "line-width": 16, "line-blur": 10, "line-opacity": 0.55, "line-gradient": ["interpolate", ["linear"], ["line-progress"], 0, NEON, 1, CYAN] },

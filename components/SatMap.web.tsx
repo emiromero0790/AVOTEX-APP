@@ -42,9 +42,10 @@ const SatMap = forwardRef<SatMapHandle, SatMapProps>(function SatMap(
   }), []);
 
   useEffect(() => { if (ready) avx()?.setLayer(layer); }, [ready, layer]);
+  // Primero el contorno y después el mapa de vigor (que se recorta con ese contorno).
+  useEffect(() => { if (ready && data) { avx()?.setData(data); avx()?.select(selectedZone); } }, [ready, data]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ready) avx()?.setNdvi(ndvi); }, [ready, ndvi]);
   useEffect(() => { if (ready) avx()?.setNdviLoading(ndviLoading); }, [ready, ndviLoading, data]);
-  useEffect(() => { if (ready && data) { avx()?.setData(data); avx()?.select(selectedZone); } }, [ready, data]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ready) avx()?.select(selectedZone); }, [ready, selectedZone]);
 
   return (

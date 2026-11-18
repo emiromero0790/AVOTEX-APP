@@ -17,11 +17,13 @@ import { useEvent } from 'expo';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused } from 'expo-router';
 import { useReducedMotion } from 'react-native-reanimated';
-import { ArrowLeft, Satellite } from 'lucide-react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import { PressableScale } from '../scan/motion';
 
 const VIDEO = require('../../assets/images/grabacion/avotex-header-carga.mp4');
 /** Primer fotograma del mismo video: respaldo mientras carga y fondo fijo con «Reducir movimiento». */
+/** El mismo logotipo del encabezado de Escanear. */
+const WORDMARK = require('../../assets/images/escanear/avotex-wordmark.png');
 const POSTER = require('../../assets/images/grabacion/avotex-header-carga-poster.jpg');
 /** Proporción del video (2160×960). */
 const RATIO = 2160 / 960;
@@ -126,8 +128,7 @@ export default function GrabacionHeader({ topInset, stepLabel, title, subtitle, 
         <PressableScale onPress={onBack} accessibilityRole="button" accessibilityLabel={backLabel} hitSlop={8} style={st.backBtn}>
           <ArrowLeft size={20} color="#FFFFFF" />
         </PressableScale>
-        <Satellite size={22} color="#BEF264" />
-        <Text style={st.brand}>{brand}</Text>
+        <Image source={WORDMARK} style={st.logo} resizeMode="contain" accessibilityRole="image" accessibilityLabel={brand} />
       </View>
       {stepLabel ? <View style={st.stepPill}><Text style={st.stepText}>{stepLabel}</Text></View> : null}
       <View style={{ width: textW }}>
@@ -146,7 +147,8 @@ const st = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 40, backgroundColor: 'transparent' },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   backBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)', marginRight: 2 },
-  brand: { fontFamily: 'Poppins_700Bold', fontSize: 17, letterSpacing: 3, color: '#FFFFFF', ...shadow },
+  // Mismo tamaño que en Escanear (ScanHeader).
+  logo: { width: 124, height: 124 * 139 / 600 },
   stepPill: { alignSelf: 'flex-start', backgroundColor: '#BEF264', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 4, marginBottom: 8 },
   stepText: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#14231A' },
   // Misma fuente y peso que los títulos sobre imagen de Inicio y Escanear: Poppins Bold cursiva.

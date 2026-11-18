@@ -37,7 +37,7 @@ import { extractFrames } from '../../services/videoFrames';
 import { getMobileDataAllowed, uploadRecorrido } from '../../services/recorridos';
 import type { ZoneId } from '../../services/satZones';
 import ZoneBoard, { pointInPolygon } from '../../components/grabacion/ZoneBoard';
-import ZoneMap3D, { project3D } from '../../components/grabacion/ZoneMap3D';
+import ZoneMap3D, { project3D, zoneMapSatelliteUrl } from '../../components/grabacion/ZoneMap3D';
 import OrchardPickerSheet, { haLabel } from '../../components/scan/OrchardPickerSheet';
 import GrabacionHeader, { HEADER_VIDEO_BG, HeaderVideoBackdrop } from '../../components/grabacion/GrabacionHeader';
 import { PressableScale } from '../../components/scan/motion';
@@ -76,6 +76,7 @@ const translations: TranslationResource = {
   chooseVideo: { es: 'Elegir video', en: 'Choose video' },
   afterHint: { es: 'Después, asigna las fotos a las zonas de tu huerta.', en: 'Next, assign the photos to your orchard zones.' },
   topView: { es: 'Vista superior', en: 'Top view' },
+  satLoading: { es: 'Cargando satélite…', en: 'Loading satellite…' },
   perspective: { es: 'Perspectiva', en: 'Perspective' },
   needOrchard: { es: 'Para ubicar tus fotos por zona necesitas una huerta. Regístrala en Mapeo y vuelve a subir el video.', en: 'To place your photos by zone you need an orchard. Register it in Mapping and upload the video again.' },
   changeShort: { es: 'Cambiar', en: 'Change' },
@@ -287,6 +288,21 @@ function GrabacionScreen() {
   const mapH = Math.round(Math.max(220, Math.min(height * 0.38, mapW * 0.82)));
   const [flat, setFlat] = useState(false);
   const faces = useMemo(() => (zonas ? project3D(zonas, outline, mapW, mapH, flat) : []), [zonas, outline, mapW, mapH, flat]);
+  // El fondo satelital de «Ubica tus fotos» es una imagen que Esri genera al momento para esta caja exacta (no son
+  // mosaicos en caché como en Leaflet): tarda en llegar. Se descarga desde el Paso 1, en cuanto se conocen las huertas,
+  // para que al llegar al Paso 2 ya esté en caché y no se vea la caja oscura.
+  useEffect(() => {
+    const list = orchard ? [orchard] : orchards.slice(0, 6);
+    for (const o of list) {
+      const z = zonasDeHuerta(o.coordinates, o.id);
+      if (!z) continue;
+      const ol = o.coordinates.map(p => ({ lat: p.latitude, lng: p.longitude }));
+      for (const f of orchard ? [false, true] : [false]) {
+        const url = zoneMapSatelliteUrl(z, ol, mapW, mapH, f);
+        if (url) Image.prefetch(url).catch(() => {});
+      }
+    }
+  }, [orchard, orchards, mapW, mapH]);
   const polys = useSharedValue<[number, number][][]>([]);
   useEffect(() => { polys.set(faces.map(f => f.top)); }, [faces, polys]);
   const rootRef = useRef<React.ComponentRef<typeof View>>(null);
@@ -515,7 +531,7 @@ function GrabacionScreen() {
             {withZones && zonas ? (
               <View ref={mapRef} onLayout={measure} style={[s.mapCard, { alignSelf: 'center' }]}>
                 <ZoneMap3D zonas={zonas} outline={outline} width={mapW} height={mapH} counts={counts} activeZone={lastZone} dropTick={dropTick}
-                  hover={hover} activeText={zoneText} flat={flat} onToggleFlat={() => setFlat(v => !v)} flatLabel={flat ? t('perspective') : t('topView')} onZonePress={id => selected && !busy && assign(selected.key, id)} />
+                  hover={hover} activeText={zoneText} flat={flat} onToggleFlat={() => setFlat(v => !v)} flatLabel={flat ? t('perspective') : t('topView')} loadingLabel={t('satLoading')} onZonePress={id => selected && !busy && assign(selected.key, id)} />
               </View>
             ) : (
               <View style={[s.mapCard, s.previewCard, { height: mapH }]}>

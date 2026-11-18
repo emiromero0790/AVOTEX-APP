@@ -25,9 +25,10 @@ const SatMap = forwardRef<SatMapHandle, SatMapProps>(function SatMap(
   }), [run]);
 
   useEffect(() => { if (ready) run(`avx.setLayer(${safeJson(layer)})`); }, [ready, layer, run]);
+  // Primero el contorno y después el mapa de vigor (que se recorta con ese contorno).
+  useEffect(() => { if (ready && data) run(`avx.setData(${safeJson(data)});avx.select(${safeJson(selectedZone)})`); }, [ready, data, run]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ready) run(`avx.setNdvi(${safeJson(ndvi)})`); }, [ready, ndvi, run]);
   useEffect(() => { if (ready) run(`avx.setNdviLoading(${safeJson(ndviLoading)})`); }, [ready, ndviLoading, data, run]);
-  useEffect(() => { if (ready && data) run(`avx.setData(${safeJson(data)});avx.select(${safeJson(selectedZone)})`); }, [ready, data, run]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ready) run(`avx.select(${safeJson(selectedZone)})`); }, [ready, selectedZone, run]);
 
   return (

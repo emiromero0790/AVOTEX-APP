@@ -17,7 +17,8 @@
  * del banner. Con «Reducir movimiento» no hay desplazamientos.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Image, Linking, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+
 import { ArrowRight, BarChart3, Camera, ChartLine as LineChart, ChevronRight, Droplets, Leaf, Lock, Map as MapIcon, Satellite, Settings, Sprout, Sun, Wind } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import Svg, { Polygon as SvgPolygon } from 'react-native-svg';
@@ -37,6 +38,9 @@ import { PressableScale, EASE_OUT } from '../../components/scan/motion';
 import { useGuest } from '../../context/GuestContext';
 import { TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 import { listOrchards, Orchard } from '../../services/orchards';
+
+/** Huerta virtual en la página web de AVOTEX (sección de acceso). */
+const VIRTUAL_ORCHARD_URL = 'https://vex-mx.com/avotex.html#acceso';
 
 const OPENWEATHER_API_KEY = process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY!;
 /** Huerta seleccionada en Inicio (la última que se abrió desde aquí). */
@@ -483,8 +487,9 @@ export default function Home() {
 
           {/* ── Banner: índices satelitales ── */}
           <Reanimated.View entering={reduced ? undefined : FadeInUp.duration(420).delay(260).easing(EASE_OUT)} style={{ marginTop: 18 }}>
-            <PressableScale onPress={isGuest ? undefined : () => router.push('/(app)/satelite')} disabled={isGuest} accessibilityRole="button"
-              accessibilityLabel={`${t('bannerA')} ${t('bannerB')}${t('bannerC')}. ${t('bannerSub')}${isGuest ? `, ${t('needsAccount')}` : ''}`}
+            {/* Lleva a la huerta virtual en la página web (acceso), no a la pestaña Satélite. */}
+            <PressableScale onPress={() => { Linking.openURL(VIRTUAL_ORCHARD_URL).catch(() => {}); }} accessibilityRole="link"
+              accessibilityLabel={`${t('bannerA')} ${t('bannerB')}${t('bannerC')}. ${t('bannerSub')}`}
               style={[s.banner, narrowBanner && { minHeight: 196 }]}>
               <Image source={IMG.banner} style={s.fill} resizeMode="cover" accessibilityIgnoresInvertColors />
               <LinearGradient colors={['rgba(4,40,26,0.92)', 'rgba(4,40,26,0.72)', 'rgba(4,40,26,0.1)']} locations={[0, 0.45, 0.9]}
@@ -504,7 +509,6 @@ export default function Home() {
                   </View>
                 </View>
               </View>
-              {isGuest && <View style={s.bannerLock}><Lock size={13} color={C.white} /></View>}
             </PressableScale>
           </Reanimated.View>
         </View>
@@ -601,5 +605,4 @@ const s = StyleSheet.create({
   glassLabel: { fontFamily: 'Poppins_400Regular', fontSize: 9, letterSpacing: 0.6, color: 'rgba(255,255,255,0.75)' },
   glassMain: { fontFamily: 'Poppins_600SemiBold', fontSize: 11.5, lineHeight: 15, color: C.white },
   glassSub: { fontFamily: 'Poppins_400Regular', fontSize: 10.5, lineHeight: 14, color: 'rgba(255,255,255,0.85)' },
-  bannerLock: { position: 'absolute', top: 10, right: 10, width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' },
 });

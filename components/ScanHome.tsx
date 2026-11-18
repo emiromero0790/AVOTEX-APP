@@ -21,7 +21,7 @@ import * as Haptics from 'expo-haptics';
 import Reanimated, { FadeIn, FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { router } from 'expo-router';
-import { Camera, Check, ChevronRight, Footprints, History, Lock, Plane, ScanLine, Smartphone, Video } from 'lucide-react-native';
+import { Camera, Check, ChevronRight, Film, Footprints, History, Lock, Plane, ScanLine, Smartphone, Video } from 'lucide-react-native';
 import { TranslationResource, useTranslations } from '../context/LanguageContext';
 import ScanHeader from './scan/ScanHeader';
 import { CSS_EASE_OUT, EASE_OUT, PressableScale } from './scan/motion';
@@ -69,6 +69,8 @@ const translations: TranslationResource = {
   capDrone: { es: 'Recorrido inteligente en modo dron: tu dron te acompaña en la animación.', en: 'Smart walk in drone mode: your drone follows you in the animation.' },
   capGopro: { es: 'Recorrido inteligente en modo GoPro: con tu casco y GoPro en la animación.', en: 'Smart walk in GoPro mode: with your helmet and GoPro in the animation.' },
   locked: { es: 'Crea una cuenta para usarlo', en: 'Create an account to use it' },
+  uploadVideo: { es: 'Subir grabación', en: 'Upload recording' },
+  uploadVideoHint: { es: 'Usa un video que ya tengas: eliges las fotos y su zona', en: 'Use a video you already have: pick the photos and their zone' },
   unlockTitle: { es: 'Recorrido inteligente bloqueado', en: 'Smart walk is locked' },
   unlockBody: { es: 'Se desbloquea al crear una cuenta o al suscribirte a un plan de pago. Con él caminas tu huerta y el celular toma las fotos solo.', en: 'Unlock it by creating an account or subscribing to a paid plan. Walk your orchard and the phone takes the photos for you.' },
   account: { es: 'Crear cuenta', en: 'Create account' },
@@ -90,6 +92,8 @@ type Props = {
   onPhoto?: () => void;
   /** Recorrido inteligente; «modo» solo cambia la animación del agricultor. */
   onWalk: (modo?: 'dron' | 'gopro') => void;
+  /** Subir un video ya grabado (sin GPS): sus fotos se asignan a mano a las zonas de la huerta. */
+  onUploadRecording?: (fuente: ScanSource) => void;
   onOpenScans: () => void;
   /** Mientras se verifica la huerta por GPS: el botón muestra este texto y no responde. */
   busyLabel?: string | null;
@@ -138,7 +142,7 @@ function SourceCard({ kind, icon, title, desc, large, selected, locked, onPress,
   );
 }
 
-export default function ScanHome({ isGuest, tokensRemaining, email = null, pendingCount, onPhoto, onWalk, onOpenScans, busyLabel = null }: Props) {
+export default function ScanHome({ isGuest, tokensRemaining, email = null, pendingCount, onPhoto, onWalk, onUploadRecording, onOpenScans, busyLabel = null }: Props) {
   const t = useTranslations(translations);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -265,6 +269,25 @@ export default function ScanHome({ isGuest, tokensRemaining, email = null, pendi
             </LinearGradient>
           </PressableScale>
 
+          {/* Subir grabación: opción secundaria, más pequeña. Usa la cámara elegida arriba (celular, dron o GoPro). */}
+          {onUploadRecording && (
+            <PressableScale onPress={() => {
+                if (busyLabel) return;
+                if (isGuest) { tapLockedWalk(); return; }
+                Haptics.selectionAsync().catch(() => {});
+                onUploadRecording(source);
+              }}
+              accessibilityRole="button" accessibilityLabel={`${t('uploadVideo')}. ${t('uploadVideoHint')}${isGuest ? `, ${t('needsAccount')}` : ''}`}
+              style={s.uploadBtn}>
+              <View style={s.uploadIcon}><Film size={17} color={C.deep} /></View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.uploadText} numberOfLines={1} maxFontSizeMultiplier={1.2}>{t('uploadVideo')}</Text>
+                <Text style={s.uploadHint} numberOfLines={1} maxFontSizeMultiplier={1.15}>{t('uploadVideoHint')}</Text>
+              </View>
+              {isGuest ? <View style={s.lockBadge}><Lock size={13} color="#FFFFFF" /></View> : <ChevronRight size={18} color={C.deep} />}
+            </PressableScale>
+          )}
+
           {/* Invitado: el recorrido inteligente se ve, con candado; al tocarlo se explica cómo desbloquearlo. */}
           {isGuest && (
             <>
@@ -371,6 +394,13 @@ const s = StyleSheet.create({
   unlockPrimary: { backgroundColor: C.deep, borderColor: C.deep },
   unlockPrimaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: '#FFFFFF' },
   unlockBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: C.ink },
+  uploadBtn: {
+    marginTop: 10, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1.5, borderColor: 'rgba(132,204,22,0.45)',
+  },
+  uploadIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(236,252,203,0.95)' },
+  uploadText: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: C.ink },
+  uploadHint: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: SCAN.muted },
   secondary: {
     marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 46,
     borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: C.white,

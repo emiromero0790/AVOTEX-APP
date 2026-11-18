@@ -10,6 +10,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Network from 'expo-network';
 import { supabase } from '../supabaseConfig';
+import type { ZoneId } from './satZones';
+import type { ZonaSnapshot } from './grabacion';
 
 const SUPABASE_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '');
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -34,6 +36,8 @@ export type FotoLocal = {
   lng: number | null;
   precision: number | null;
   subida: boolean;
+  /** Solo grabaciones: zona de la huerta que eligió el agricultor (no hay GPS). */
+  zona?: ZoneId | null;
 };
 
 /** f: 1 = punto ya filtrado al grabar (services/gpsFilter.ts); las rutas antiguas no lo traen. */
@@ -48,6 +52,9 @@ export type EstadoLocal = 'grabando' | 'guardado' | 'subiendo' | 'enviado';
  */
 export type Fuente = 'celular' | 'dron' | 'camara';
 
+/** recorrido: con GPS (recorrido inteligente). grabacion: video subido, fotos asignadas a zonas. */
+export type TipoEscaneo = 'recorrido' | 'grabacion';
+
 export type RecorridoLocal = {
   localId: string;
   userEmail: string;
@@ -61,6 +68,10 @@ export type RecorridoLocal = {
   error?: string | null;
   /** Ausente en recorridos guardados antes de existir el campo: se toma como 'celular'. */
   fuente?: Fuente;
+  /** Ausente = 'recorrido'. */
+  tipo?: TipoEscaneo;
+  /** Solo grabaciones: zonas de la huerta usadas al clasificar las fotos. */
+  zonas?: ZonaSnapshot[] | null;
 };
 
 export type EstadoRemoto = 'subiendo' | 'pendiente' | 'procesando' | 'listo' | 'error';
@@ -81,6 +92,9 @@ export type RecorridoRemoto = {
   created_at: string;
   /** Null si la columna aún no existe en la base de datos (migración 20261105). */
   fuente?: Fuente | null;
+  /** Migración 20261117: ausente o 'recorrido' en los recorridos con GPS. */
+  tipo?: TipoEscaneo | null;
+  zonas?: unknown;
 };
 
 export type Hallazgo = {
@@ -95,6 +109,8 @@ export type Hallazgo = {
   confianza: number;
   fotos_en_grupo: number;
   miniatura_path: string | null;
+  /** Solo hallazgos de grabaciones (migración 20261117). */
+  zona?: ZoneId | null;
 };
 
 // ───────────────────────── utilidades ─────────────────────────
@@ -288,6 +304,9 @@ export function isUploading(localId: string): boolean {
   return uploading.has(localId);
 }
 
+/** Mensaje cuando falta ejecutar supabase/migrations/20261117_grabaciones_zonas.sql. */
+export const MIGRATION_MSG = 'Falta actualizar la base de datos para grabaciones (migración 20261117). La grabación quedó guardada en tu celular.';
+
 function isMissingColumn(error: { code?: string; message?: string } | null, column: string): boolean {
   if (!error) return false;
   const msg = `${error.message ?? ''}`.toLowerCase();
@@ -318,11 +337,14 @@ async function uploadRecorridoInner(
         fotos_total: current.fotos.length,
         ruta: simplifyRoute(current.ruta),
       };
+      const grabacion = current.tipo === 'grabacion';
       let { data, error } = await supabase
         .from('recorridos')
-        .insert({ ...row, fuente: current.fuente ?? 'celular' })
+        .insert({ ...row, fuente: current.fuente ?? 'celular', ...(grabacion ? { tipo: 'grabacion', zonas: current.zonas ?? null } : {}) })
         .select('id')
         .single();
+      // Una grabación SIN las columnas nuevas perdería sus zonas: mejor no subirla y avisar.
+      if (error && grabacion && (isMissingColumn(error, 'tipo') || isMissingColumn(error, 'zonas'))) throw new Error(MIGRATION_MSG);
       // Si la base de datos aún no tiene la columna "fuente", se guarda sin ella (no se pierde el escaneo).
       if (error && isMissingColumn(error, 'fuente')) {
         ({ data, error } = await supabase.from('recorridos').insert(row).select('id').single());
@@ -343,6 +365,7 @@ async function uploadRecorridoInner(
       const { error } = await supabase
         .from('recorrido_fotos')
         .upsert(pendingRows, { onConflict: 'recorrido_id,storage_path', ignoreDuplicates: true });
+      if (error && isMissingColumn(error, 'zona')) throw new Error(MIGRATION_MSG);
       if (error) throw error;
       pendingRows = [];
       await saveLocal(current);
@@ -360,6 +383,7 @@ async function uploadRecorridoInner(
         lng: foto.lng,
         precision_m: foto.precision,
         orden: i,
+        ...(current.tipo === 'grabacion' ? { zona: foto.zona ?? null } : {}),
       });
       current.fotos[i] = { ...foto, subida: true };
       done += 1;
@@ -399,7 +423,8 @@ export async function listRemote(userEmail: string, limit = 30): Promise<Recorri
     .neq('estado', 'subiendo')
     .order('created_at', { ascending: false })
     .limit(limit);
-  let { data, error } = await query(`${REMOTE_COLUMNS},fuente`);
+  let { data, error } = await query(`${REMOTE_COLUMNS},fuente,tipo,zonas`);
+  if (error && (isMissingColumn(error, 'tipo') || isMissingColumn(error, 'zonas'))) ({ data, error } = await query(`${REMOTE_COLUMNS},fuente`));
   if (error && isMissingColumn(error, 'fuente')) ({ data, error } = await query(REMOTE_COLUMNS));
   if (error) throw error;
   return (data ?? []) as unknown as RecorridoRemoto[];
@@ -443,19 +468,23 @@ export async function getRemote(id: string, userEmail: string): Promise<Recorrid
     .eq('id', id)
     .eq('user_email', userEmail)
     .maybeSingle();
-  let { data, error } = await query(`${REMOTE_COLUMNS},fuente`);
+  let { data, error } = await query(`${REMOTE_COLUMNS},fuente,tipo,zonas`);
+  if (error && (isMissingColumn(error, 'tipo') || isMissingColumn(error, 'zonas'))) ({ data, error } = await query(`${REMOTE_COLUMNS},fuente`));
   if (error && isMissingColumn(error, 'fuente')) ({ data, error } = await query(REMOTE_COLUMNS));
   if (error) throw error;
   return (data as unknown as RecorridoRemoto) ?? null;
 }
 
 export async function listHallazgos(recorridoId: string, userEmail: string): Promise<Hallazgo[]> {
-  const { data, error } = await supabase
+  const query = (columns: string) => supabase
     .from('hallazgos')
-    .select('id,recorrido_id,huerta_id,tomada_at,lat,lng,fruto,estado,confianza,fotos_en_grupo,miniatura_path')
+    .select(columns)
     .eq('recorrido_id', recorridoId)
     .eq('user_email', userEmail)
     .order('tomada_at', { ascending: true });
+  const base = 'id,recorrido_id,huerta_id,tomada_at,lat,lng,fruto,estado,confianza,fotos_en_grupo,miniatura_path';
+  let { data, error } = await query(`${base},zona`);
+  if (error && isMissingColumn(error, 'zona')) ({ data, error } = await query(base));
   if (error) throw error;
-  return (data ?? []) as Hallazgo[];
+  return (data ?? []) as unknown as Hallazgo[];
 }

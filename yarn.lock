@@ -4425,6 +4425,11 @@ expo-system-ui@~58.0.7:
     "@react-native/normalize-colors" "0.88.1"
     debug "^4.3.2"
 
+expo-video-thumbnails@~58.0.3:
+  version "58.0.3"
+  resolved "https://registry.npmjs.org/expo-video-thumbnails/-/expo-video-thumbnails-58.0.3.tgz#84c0616c2dd9d800c5d2824c92a80ddbb226b6cd"
+  integrity sha512-gYWxxEyrRyXQpiUOmiffnBmnfNrbpY0M4djNaLft1ue4k0r8OgC4bQgJhYv+Y+XNsyaoVIlNT3bd61pJqr9pDA==
+
 expo-video@~58.0.13:
   version "58.0.13"
   resolved "https://registry.npmjs.org/expo-video/-/expo-video-58.0.13.tgz#b2174781ce322e3e1a508e8744b856694630bd6a"

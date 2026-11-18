@@ -35,6 +35,7 @@ import { supabase } from '../../supabaseConfig';
 import { useGuest } from '../../context/GuestContext';
 import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 import { listOrchards, Orchard } from '../../services/orchards';
+import { parseZonas, ZONE_UI, type ZonaSnapshot } from '../../services/grabacion';
 import { Fuente, RecorridoLocal, RecorridoRemoto, listLocal, listRemote, recoverInterrupted, uploadPending } from '../../services/recorridos';
 import {
   categoria, cleanRoute, listRecorridoFotos, listSingleScans, listUserHallazgos, routeMeters, storageImage,
@@ -152,6 +153,10 @@ const T: TranslationResource = {
   kindCam: { es: 'Cámara de acción', en: 'Action camera' },
   kindPhoto: { es: 'Escaneo de {fruit}', en: '{fruit} scan' },
   kindPhotoPlain: { es: 'Foto individual', en: 'Single photo' },
+  kindRec: { es: 'Grabación del celular', en: 'Phone recording' },
+  kindRecDrone: { es: 'Grabación de dron', en: 'Drone recording' },
+  kindRecCam: { es: 'Grabación de GoPro', en: 'GoPro recording' },
+  zoneLabel: { es: 'Zona {z}', en: 'Zone {z}' },
   kpiScans: { es: 'Escaneos', en: 'Scans' },
   kpiFindings: { es: 'Hallazgos', en: 'Findings' },
   kpiDistance: { es: 'Recorrido', en: 'Walked' },
@@ -239,7 +244,13 @@ type ScanItem = {
   remoteId?: string;
   localId?: string;
   result?: { fruto: string | null; label: string | null; score: number | null };
+  /** grabacion: video subido sin GPS; sus hallazgos llevan zona (A–D) en lugar de ubicación. */
+  tipo: 'recorrido' | 'grabacion';
+  zonas: ZonaSnapshot[];
 };
+/** Punto medio de las etiquetas de zona (pin de una grabación en el mapa). */
+const zonesCenter = (z: ZonaSnapshot[]): LatLng | null =>
+  z.length ? { lat: z.reduce((a, x) => a + x.label.lat, 0) / z.length, lng: z.reduce((a, x) => a + x.label.lng, 0) / z.length } : null;
 
 type Row =
   | { k: 'scan'; key: string; it: ScanItem }
@@ -407,10 +418,12 @@ export default function MisEscaneos() {
       const pts: FotoPunto[] = rec.fotos.filter(f => validCoord(f.lat, f.lng))
         .map((f, i) => ({ id: f.id, lat: f.lat as number, lng: f.lng as number, orden: i, tomada_at: f.tomadaAt, uri: f.uri || null }));
       const first = rec.fotos.find(f => f.uri);
+      const zonasL = rec.tipo === 'grabacion' ? parseZonas(rec.zonas) : [];
       out.push({
+        tipo: rec.tipo === 'grabacion' ? 'grabacion' : 'recorrido', zonas: zonasL,
         id: `local:${rec.localId}`, kind: 'local', status: 'local', date: rec.iniciadoAt, endedAt: rec.terminadoAt, fuente: rec.fuente ?? 'celular',
         photos: rec.fotos.length, findings: null, orchardId: rec.huertaId, route, localPhotos: pts,
-        loc: route[0] ?? (pts[0] ? { lat: pts[0].lat, lng: pts[0].lng } : null),
+        loc: route[0] ?? (pts[0] ? { lat: pts[0].lat, lng: pts[0].lng } : zonesCenter(zonasL)),
         thumb: first ? { uri: first.uri } : null, localId: rec.localId,
       });
     }
@@ -419,15 +432,18 @@ export default function MisEscaneos() {
       const hs = findingsBy[r.id] ?? [];
       const geo = hs.find(h => validCoord(h.lat, h.lng));
       const thumbPath = hs.find(h => h.miniatura_path)?.miniatura_path;
+      const zonasR = r.tipo === 'grabacion' ? parseZonas(r.zonas) : [];
       out.push({
+        tipo: r.tipo === 'grabacion' ? 'grabacion' : 'recorrido', zonas: zonasR,
         id: `remote:${r.id}`, kind: 'remoto', status: remoteStatus(r.estado), date: r.iniciado_at, endedAt: r.terminado_at, fuente: r.fuente ?? 'celular',
         photos: r.fotos_total, findings: r.estado === 'listo' ? r.hallazgos_total : null, orchardId: r.huerta_id, route, localPhotos: [],
-        loc: route[0] ?? (geo ? { lat: geo.lat as number, lng: geo.lng as number } : null),
+        loc: route[0] ?? (geo ? { lat: geo.lat as number, lng: geo.lng as number } : zonesCenter(zonasR)),
         thumb: thumbPath ? storageImage(thumbPath) : null, remoteId: r.id,
       });
     }
     singles.forEach((sc, i) => {
       out.push({
+        tipo: 'recorrido', zonas: [],
         id: `foto:${sc.id ?? `${sc.created_at}:${i}`}`, kind: 'foto', status: 'listo', date: sc.created_at, endedAt: null, fuente: 'foto', photos: 1, findings: null,
         orchardId: sc.huerta_id, route: [], localPhotos: [],
         loc: sc.lat != null && sc.lng != null ? { lat: sc.lat, lng: sc.lng } : null,
@@ -443,6 +459,7 @@ export default function MisEscaneos() {
       const fruit = it.result?.fruto ? localizeDomainLabel(it.result.fruto, language) : null;
       return fruit ? t('kindPhoto', { fruit: language === 'es' ? fruit.toLowerCase() : fruit }) : t('kindPhotoPlain');
     }
+    if (it.tipo === 'grabacion') return it.fuente === 'dron' ? t('kindRecDrone') : it.fuente === 'camara' ? t('kindRecCam') : t('kindRec');
     return it.fuente === 'dron' ? t('kindDrone') : it.fuente === 'camara' ? t('kindCam') : t('kindWalk');
   }, [language, t]);
   const orchardText = useCallback((id: string | null) => (id && orchardById[id]?.nombre) || t('noOrchard'), [orchardById, t]);
@@ -549,11 +566,20 @@ export default function MisEscaneos() {
     if (!selected || selected.kind === 'foto') return null;
     const photos = selectedPhotos.map((p, i) => ({ id: p.id, lat: p.lat, lng: p.lng, n: i + 1 }));
     const findings = selectedFindings.filter(h => validCoord(h.lat, h.lng)).map(h => ({ id: h.id, lat: h.lat as number, lng: h.lng as number, cat: categoria(h) }));
-    if (selected.route.length < 2 && !photos.length && !findings.length) return null;
     const o = selected.orchardId ? orchardById[selected.orchardId] : null;
     const orchard = (o?.coordinates ?? []).filter(c => validCoord(c.latitude, c.longitude)).map(c => ({ lat: c.latitude, lng: c.longitude }));
+    // Grabación: sin ruta ni GPS; se muestra la huerta con sus zonas y cuántos hallazgos tiene cada una.
+    if (selected.tipo === 'grabacion' && selected.zonas.length) {
+      const zoneOf: Record<string, string> = {};
+      const cnt: Record<string, number> = {};
+      for (const h of selectedFindings) if (h.zona) { zoneOf[h.id] = h.zona; cnt[h.zona] = (cnt[h.zona] ?? 0) + 1; }
+      const zones = selected.zonas.map(z => ({ key: z.id, label: t('zoneLabel', { z: z.id }), color: ZONE_UI[z.color].fill, ring: z.ring, at: z.label, count: cnt[z.id] ?? 0 }));
+      const ring = orchard.length >= 3 ? orchard : selected.zonas.flatMap(z => z.ring);
+      return { id: selected.id, route: [], photos: [], findings, orchard: ring, speedRange: null, zones, zoneOf };
+    }
+    if (selected.route.length < 2 && !photos.length && !findings.length) return null;
     return { id: selected.id, route: selected.route, photos, findings, orchard, speedRange: speedRangeOf(selected.route) };
-  }, [selected, selectedPhotos, selectedFindings, orchardById]);
+  }, [selected, selectedPhotos, selectedFindings, orchardById, t]);
 
   // ───────── selección (mapa ↔ historial) ─────────
   const select = useCallback((id: string | null) => {
@@ -877,7 +903,7 @@ export default function MisEscaneos() {
       const parent = items.find(v => v.remoteId === h.recorrido_id);
       return (
         <Reanimated.View entering={enter} style={st.rowWrap}>
-          <Pressable onPress={guard(() => { tick(); if (parent && parent.id !== selectedId) setSelectedId(parent.id); setPoint({ kind: 'finding', id: h.id }); if (geo) setSheetIdx(i => (i === 2 ? 1 : i)); })}
+          <Pressable onPress={guard(() => { tick(); if (parent && parent.id !== selectedId) setSelectedId(parent.id); setPoint({ kind: 'finding', id: h.id }); if (geo || h.zona) setSheetIdx(i => (i === 2 ? 1 : i)); })}
             accessibilityRole="button" accessibilityState={{ selected: on }}
             accessibilityLabel={`${findingLabel(h)}, ${catText(c)}, ${t('confidence', { pct: Math.round(h.confianza * 100) })}`}
             style={({ pressed }) => [st.card, on && st.cardOn, pressed && st.pressed]}>
@@ -887,7 +913,14 @@ export default function MisEscaneos() {
             <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
               <View style={[st.rowCenter, { gap: 6 }]}><FindingGlyph cat={c} /><Text style={st.cardTitle} numberOfLines={1}>{findingLabel(h)}</Text></View>
               <Text style={st.meta} numberOfLines={1}>{catText(c)} · {t('confidence', { pct: Math.round(h.confianza * 100) })}</Text>
-              <Text style={st.metaSm} numberOfLines={1}>{localizeDomainLabel(h.fruto, language)} · {fmtDate(h.tomada_at)} {fmtTime(h.tomada_at)}{geo ? '' : ` · ${t('noLocation')}`}</Text>
+              {h.zona ? (
+                <View style={[st.rowCenter, { gap: 6 }]}>
+                  <ZoneChip zona={h.zona} color={parent?.zonas.find(z => z.id === h.zona)?.color ?? null} label={t('zoneLabel', { z: h.zona })} />
+                  <Text style={[st.metaSm, { flexShrink: 1 }]} numberOfLines={1}>{localizeDomainLabel(h.fruto, language)} · {fmtDate(h.tomada_at)}</Text>
+                </View>
+              ) : (
+                <Text style={st.metaSm} numberOfLines={1}>{localizeDomainLabel(h.fruto, language)} · {fmtDate(h.tomada_at)} {fmtTime(h.tomada_at)}{geo ? '' : ` · ${t('noLocation')}`}</Text>
+              )}
             </View>
             {parent?.kind === 'remoto' && (
               <Pressable onPress={guard(() => openFinding(h.id))} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('viewFinding')} style={({ pressed }) => [st.go, pressed && st.pressed]}>
@@ -1126,6 +1159,17 @@ function Kpi({ icon, tint, value, label }: { icon: React.ReactNode; tint: string
       <View style={[st.kpiIcon, { backgroundColor: tint }]}>{icon}</View>
       <Text style={st.kpiValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{value}</Text>
       <Text style={st.kpiLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
+    </View>
+  );
+}
+
+/** Chip con la letra y color de la zona (hallazgos de grabaciones). */
+function ZoneChip({ zona, color, label }: { zona: string; color: ZonaSnapshot['color'] | null; label: string }) {
+  const ui = color ? ZONE_UI[color] : null;
+  return (
+    <View accessibilityLabel={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, height: 20, borderRadius: 10, backgroundColor: ui?.soft ?? 'rgba(18,61,42,0.08)', borderWidth: 1, borderColor: ui?.line ?? D.border }}>
+      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: ui?.fill ?? D.muted }} />
+      <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: ui?.ink ?? D.text }}>{label}</Text>
     </View>
   );
 }

@@ -89,7 +89,9 @@ export default function TabLayout() {
     pathname === '/(app)/recorrido' ||
     pathname === '/recorrido' ||
     pathname === '/(app)/hallazgo' ||
-    pathname === '/hallazgo';
+    pathname === '/hallazgo' ||
+    pathname === '/(app)/grabacion' ||
+    pathname === '/grabacion';
   // Escanear, Mis escaneos e Importar: sin el botón flotante del chatbot (taparía los botones de abajo).
   const scanSection = ['/scan', '/(app)/scan', '/escaneos', '/(app)/escaneos'].includes(pathname);
   const shouldHideChatbot =
@@ -276,6 +278,7 @@ export default function TabLayout() {
         <Tabs.Screen name="notifications" options={HIDDEN_TAB} />
         <Tabs.Screen name="recorrido" options={HIDDEN_TAB} />
         <Tabs.Screen name="escaneos" options={HIDDEN_TAB} />
+        <Tabs.Screen name="grabacion" options={HIDDEN_TAB} />
         <Tabs.Screen name="hallazgo" options={HIDDEN_TAB} />
       </Tabs>
 

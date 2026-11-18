@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -6,14 +6,20 @@ import Reanimated, { FadeIn, FadeInDown, LinearTransition, useReducedMotion } fr
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Calendar as CalendarIcon, ChevronRight as ChevronRightIcon, Layers, Map as MapIcon, Settings, Sprout, X } from 'lucide-react-native';
-import StatsHero from '../../components/actividad/StatsHero';
+import Toast from 'react-native-toast-message';
+import * as Network from 'expo-network';
+import { Calendar as CalendarIcon, CalendarClock, ClipboardCheck, Layers, Map as MapIcon, RefreshCw, Sprout, WifiOff, X } from 'lucide-react-native';
+import ConfidenceHero from '../../components/actividad/ConfidenceHero';
+import ActividadHeader from '../../components/actividad/ActividadHeader';
+import ActividadTabs, { type TabItem } from '../../components/actividad/ActividadTabs';
+import QuickMetrics from '../../components/actividad/QuickMetrics';
+import RecommendedActions, { type ActionItem } from '../../components/actividad/RecommendedActions';
 import { SectionSkeleton } from '../../components/actividad/Skeleton';
 import OrchardFilterSheet, { type OrchardFilter } from '../../components/actividad/OrchardFilterSheet';
-import { A, CAT_COLORS, ChartCard, EmptyChart, PROBLEM_COLORS, SLICE_COLORS } from '../../components/actividad/charts/core';
-import Donut3D, { type DonutSlice } from '../../components/actividad/charts/Donut3D';
+import { CAT_GRADIENTS, ChartCard, EmptyChart, P } from '../../components/actividad/charts/core';
+import OrchardShareBar, { NONE_GRADIENT, ORCHARD_GRADIENTS, OTHER_GRADIENT, type ShareSeg } from '../../components/actividad/charts/OrchardShareBar';
 import FruitBars from '../../components/actividad/charts/FruitBars';
-import Columns3D, { type Column } from '../../components/actividad/charts/Columns3D';
+import { ClassBars, StatusStackBars, type ClassBar, type StackRow } from '../../components/actividad/charts/StatusStackBars';
 import TrendLine, { type TrendPoint } from '../../components/actividad/charts/TrendLine';
 import AttentionPanel from '../../components/actividad/charts/AttentionPanel';
 import { attention, classRows, cropRows as buildCropRows, matchOrchard, orchardShare, sinceOf, timeline, type Granularity, type PeriodKey } from '../../services/actividadStats';
@@ -21,9 +27,9 @@ import { listRemote, type RecorridoRemoto } from '../../services/recorridos';
 import { Footprints, Unlink } from 'lucide-react-native';
 import { listOrchards, type Orchard } from '../../services/orchards';
 import { categoria, listUserHallazgos, type CategoriaHallazgo, type HallazgoMapa } from '../../services/escaneos';
-import { CSS_EASE_OUT, EASE_IN_OUT, EASE_OUT, PressableScale } from '../../components/scan/motion';
+import { EASE_IN_OUT, EASE_OUT, PressableScale } from '../../components/scan/motion';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { AlertCircle, AlertTriangle, BarChart3, CalendarDays, CheckCircle2, Circle, Microscope, PieChart, TrendingUp, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Clock, Leaf, Plus, ScanLine, ShieldCheck, Trash2 } from 'lucide-react-native';
+import { AlertCircle, AlertTriangle, BarChart3, CalendarDays, CheckCircle2, Circle, Microscope, TrendingUp, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Clock, Plus, ScanLine, Trash2 } from 'lucide-react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -93,29 +99,50 @@ const translations: TranslationResource = {
   emptyNoneTitle: { es: 'No hay escaneos sin huerta', en: 'There are no scans without an orchard' },
   doScan: { es: 'Realizar escaneo', en: 'Scan now' },
   noOrchardNote: { es: '{count} fotos individuales sin huerta asignada no se incluyen al filtrar por huerta.', en: '{count} single photos without an orchard are excluded when filtering by orchard.' },
-  legendHealthy: { es: 'Saludable', en: 'Healthy' }, legendReview: { es: 'Revisar (confianza baja)', en: 'Review (low confidence)' }, legendProblem: { es: 'Posible problema', en: 'Possible issue' },
+  legendHealthy: { es: 'Saludable', en: 'Healthy' }, legendReview: { es: 'Revisar', en: 'Review' }, legendProblem: { es: 'Con problema', en: 'With issue' },
   close: { es: 'Cerrar', en: 'Close' },
   scansTab: { es: 'Escaneos', en: 'Scans' },
   noOrchardOpt: { es: 'Sin huerta asignada', en: 'No orchard assigned' },
   months: { es: '{count} meses', en: '{count} months' }, year: { es: '12 meses', en: '12 months' },
   byOrchard: { es: 'Estado por huerta', en: 'Status by orchard' },
-  byOrchardSub: { es: 'Reparto de análisis entre huertas · no aplica el filtro de huerta', en: 'Analyses split by orchard · orchard filter not applied' },
+  byOrchardSub: { es: 'Reparto de análisis entre huertas', en: 'How analyses split across orchards' },
   analyses: { es: 'análisis', en: 'analyses' }, other: { es: 'Otras', en: 'Others' },
-  topFruits: { es: 'Frutas más analizadas', en: 'Most analyzed fruit' }, topFruitsSub: { es: 'Toca un cultivo para filtrar todas las gráficas', en: 'Tap a crop to filter every chart' },
+  topFruits: { es: 'Frutas más analizadas', en: 'Most analyzed fruit' }, topFruitsSub: { es: 'Toca un cultivo para ver el detalle', en: 'Tap a crop to see the details' },
   nAnalyses: { es: '{count} análisis', en: '{count} analyses' }, nAnalysis1: { es: '1 análisis', en: '1 analysis' },
   diseases: { es: 'Enfermedades por fruto', en: 'Diseases by fruit' },
-  diseasesSub: { es: 'Toca un cultivo para ver sus diagnósticos', en: 'Tap a crop to see its diagnoses' },
+  diseasesSub: { es: 'Diagnósticos por cultivo', en: 'Diagnoses by crop' },
   diseasesDetail: { es: 'Diagnósticos de la IA en {crop}', en: 'AI diagnoses in {crop}' },
   backGeneral: { es: 'Vista general', en: 'Overview' },
   catHealthy: { es: 'Saludable', en: 'Healthy' }, catReview: { es: 'Revisar', en: 'Review' }, catProblem: { es: 'Con problema', en: 'With issue' },
   lowConf: { es: 'Confianza baja (revisar)', en: 'Low confidence (review)' },
   sample: { es: 'n = {count}', en: 'n = {count}' },
   perDay: { es: 'Escaneos por día', en: 'Scans per day' }, perWeek: { es: 'Escaneos por semana', en: 'Scans per week' }, perMonth: { es: 'Escaneos por mes', en: 'Scans per month' },
-  trendSub: { es: 'Análisis de IA en el periodo y filtros elegidos', en: 'AI analyses in the chosen period and filters' },
+  trendSub: { es: 'Análisis de IA en el periodo', en: 'AI analyses in the period' },
   weekOf: { es: 'Semana del {date}', en: 'Week of {date}' },
   vsPrev: { es: '{sign}{pct}% vs. periodo anterior', en: '{sign}{pct}% vs. previous period' }, samePrev: { es: 'Igual que el periodo anterior', en: 'Same as previous period' },
   attention: { es: 'Hallazgos que requieren atención', en: 'Findings that need attention' },
-  attentionSub: { es: 'Problemas detectados por la IA con confianza suficiente; no es un diagnóstico definitivo', en: 'Issues the AI detected with enough confidence; not a definitive diagnosis' },
+  attentionSub: { es: 'Problemas detectados por la IA', en: 'Issues detected by the AI' },
+  frequent: { es: 'Más frecuentes', en: 'Most frequent' },
+  disclaimer: { es: 'Resultados orientativos de la IA: confírmalos en campo o con un especialista antes de aplicar un tratamiento.', en: 'AI results are indicative: confirm them in the field or with a specialist before applying any treatment.' },
+  recSub: { es: 'Sugerencias a partir de tus análisis', en: 'Suggestions based on your analyses' },
+  inPlan: { es: 'En tu plan · ver', en: 'In your plan · view' }, saving: { es: 'Guardando…', en: 'Saving…' },
+  taskAdded: { es: 'Añadida al plan de trabajo', en: 'Added to your work plan' }, taskError: { es: 'No se pudo guardar la tarea', en: 'Could not save the task' },
+  taskCtxOrchard: { es: 'Huerta', en: 'Orchard' },
+  back: { es: 'Volver', en: 'Back' }, orchardHint: { es: 'Cambia la huerta del resumen', en: 'Changes the summary orchard' },
+  periodHint: { es: 'Cambia el periodo', en: 'Changes the period' },
+  errorTitle: { es: 'No pudimos cargar tu actividad', en: 'We could not load your activity' },
+  errorText: { es: 'Ocurrió un error al consultar tus análisis. Inténtalo de nuevo.', en: 'Something went wrong while loading your analyses. Please try again.' },
+  offlineTitle: { es: 'Sin conexión', en: 'You are offline' },
+  offlineText: { es: 'Conéctate a internet para ver tus estadísticas actualizadas.', en: 'Connect to the internet to see your up-to-date statistics.' },
+  retry: { es: 'Reintentar', en: 'Retry' },
+  noScansTitle: { es: 'Aún no tienes escaneos', en: 'You have no scans yet' },
+  emptyNone: { es: 'No hay análisis sin huerta asignada en este periodo', en: 'There are no analyses without an orchard in this period' },
+  emptyCropTitle: { es: 'Sin resultados para este cultivo', en: 'No results for this crop' },
+  emptyCropText: { es: 'Este cultivo no tiene análisis con la huerta y el periodo elegidos.', en: 'This crop has no analyses for the chosen orchard and period.' },
+  clearCrop: { es: 'Ver todos los cultivos', en: 'Show all crops' }, clearFilters: { es: 'Limpiar', en: 'Clear' },
+  noOrchardsYet: { es: 'Aún no registras huertas: tus análisis aparecen como «Sin huerta asignada».', en: 'You have no orchards yet: your analyses appear as “No orchard assigned”.' },
+  moreOrchards: { es: 'Ver todas las huertas', en: 'See all orchards' },
+  partialData: { es: 'Algunos datos no se pudieron actualizar.', en: 'Some data could not be refreshed.' },
   ofAnalyses: { es: 'de los análisis con problema', en: 'of analyses with an issue' },
   nFindings: { es: '{count} hallazgos', en: '{count} findings' }, nFinding1: { es: '1 hallazgo', en: '1 finding' },
   topCrop: { es: 'Cultivo con más hallazgos', en: 'Crop with most findings' },
@@ -131,6 +158,9 @@ const translations: TranslationResource = {
 const cap = (v: string) => (v ? v.charAt(0).toUpperCase() + v.slice(1) : v);
 const normalize = (value = '') => value.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
 const healthy = isHealthyLabel;
+/** Degradados de las clases de problema en el detalle por cultivo (coral → ámbar → vino). */
+const PROBLEM_GRADIENTS = [['#FF8A78', '#E4493B'], ['#FFB06B', '#EE7D2A'], ['#E77A9A', '#C2416A'], ['#C4A1F2', '#8B5CF6'], ['#E0B36A', '#A16207']] as const;
+const NO_FRUIT_LABELS = new Set(['ninguno', 'none', 'nofruta', 'no fruta', 'no_fruta']);
 const diagnosisName = (label = '') => healthy(label) ? 'Saludable' : label.trim() || 'Sin diagnóstico';
 const dateText = (value: string, locale: string) => new Date(value).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
 const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -234,31 +264,44 @@ export default function ResultsScreen() {
   useEffect(() => {
     setSection(view === 'list' ? 'history' : view === 'plan' ? 'plan' : 'summary');
   }, [view]);
+  // Estado de la consulta del Resumen: null = bien; 'offline' = sin red; 'error' = falló la consulta principal.
+  const [loadError, setLoadError] = useState<null | 'offline' | 'error'>(null);
+  const [partial, setPartial] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   useFocusEffect(useCallback(() => {
     if (!user) { setLoading(false); return; }
     let cancelled = false;
     const load = async () => {
       setLoading(true);
       const email = user.email ?? '';
+      let failedSide = false;
+      const side = <T,>(p: Promise<T>, fallback: T) => p.catch(() => { failedSide = true; return fallback; });
       const [scanResult, taskResult, hz, orch, walkList] = await Promise.all([
         supabase.from('scans').select('*').eq('user_id', user.uid).order('created_at', { ascending: false }),
         supabase.from('tasks').select('*').eq('user_id', user.uid).order('created_at', { ascending: false }),
-        email ? listUserHallazgos(email).catch(() => [] as HallazgoMapa[]) : Promise.resolve([] as HallazgoMapa[]),
-        email ? listOrchards(email).catch(() => [] as Orchard[]) : Promise.resolve([] as Orchard[]),
-        email ? listRemote(email, 300).catch(() => [] as RecorridoRemoto[]) : Promise.resolve([] as RecorridoRemoto[]),
+        email ? side(listUserHallazgos(email), [] as HallazgoMapa[]) : Promise.resolve([] as HallazgoMapa[]),
+        email ? side(listOrchards(email), [] as Orchard[]) : Promise.resolve([] as Orchard[]),
+        email ? side(listRemote(email, 300), [] as RecorridoRemoto[]) : Promise.resolve([] as RecorridoRemoto[]),
       ]);
+      let offline = false;
+      if (scanResult.error || failedSide) {
+        try { const net = await Network.getNetworkStateAsync(); offline = net.isConnected === false || net.isInternetReachable === false; } catch { /* sin dato de red */ }
+      }
       if (!cancelled) {
+        // Si falla una consulta se conservan los datos anteriores (no se muestran ceros ficticios).
         if (!scanResult.error) setScans((scanResult.data ?? []) as Scan[]);
         if (!taskResult.error) setTasks((taskResult.data ?? []) as Task[]);
-        setHallazgos(hz);
-        setOrchards(orch);
-        setWalks(walkList);
+        if (!failedSide || hz.length) setHallazgos(hz);
+        if (!failedSide || orch.length) setOrchards(orch);
+        if (!failedSide || walkList.length) setWalks(walkList);
+        setLoadError(scanResult.error ? (offline ? 'offline' : 'error') : null);
+        setPartial(!scanResult.error && failedSide);
         setLoading(false);
       }
     };
     load();
     return () => { cancelled = true; };
-  }, [user]));
+  }, [user, reloadKey]));
 
   const validScans = useMemo(() => scans.filter(scan => !['nofruta', 'no fruta'].includes(normalize(scan.fruto))), [scans]);
   const fruits = useMemo(() => ['Todos', ...Array.from(new Set(validScans.map(scan => scan.fruto || 'Aguacate'))).sort()], [validScans]);
@@ -284,14 +327,17 @@ export default function ResultsScreen() {
   const records = useMemo<Rec[]>(() => {
     const cropOf = (f?: string | null) => localizeDomainLabel(f || 'Aguacate', 'es') ?? (f || 'Aguacate');
     const out: Rec[] = [];
+    // «ninguno»/«none» es la clase del modelo para «aquí no hay fruto» (processor/nucleo.py): no es una
+    // enfermedad ni un resultado de cultivo, así que no entra al Resumen (igual que «no fruta»).
+    const noFruit = (label?: string | null) => NO_FRUIT_LABELS.has(normalize(label ?? ''));
     for (const sc of scans) {
       const cat = categoria({ fruto: sc.fruto ?? '', estado: sc.label ?? '', confianza: Number(sc.score) });
-      if (cat === 'otro') continue; // "no es fruto": no cuenta como resultado de un cultivo
+      if (cat === 'otro' || noFruit(sc.label)) continue; // "no es fruto": no cuenta como resultado de un cultivo
       out.push({ source: 'foto', crop: cropOf(sc.fruto), cat, conf: Math.max(0, Math.min(1, Number(sc.score) || 0)), date: new Date(sc.created_at).getTime(), huertaId: sc.huerta_id ?? null, label: sc.label ?? '' });
     }
     for (const h of hallazgos) {
       const cat = categoria(h);
-      if (cat === 'otro') continue;
+      if (cat === 'otro' || noFruit(h.estado)) continue;
       out.push({ source: 'recorrido', crop: cropOf(h.fruto), cat, conf: Math.max(0, Math.min(1, Number(h.confianza) || 0)), date: new Date(h.tomada_at).getTime(), huertaId: h.huerta_id, label: h.estado ?? '' });
     }
     return out;
@@ -363,39 +409,37 @@ export default function ResultsScreen() {
 
   // ───────── Gráficas del Resumen (todas desde los mismos registros filtrados) ─────────
   const orchardNames = useMemo(() => Object.fromEntries(orchards.map(o => [o.id, o.nombre])), [orchards]);
-  const donut = useMemo(() => {
+  // 1. Estado por huerta: base sin filtro de huerta (es el reparto entre huertas); sí respeta cultivo y periodo.
+  const shareSegs = useMemo<ShareSeg[]>(() => {
     const base = crop ? inPeriod.filter(r => r.crop === crop) : inPeriod;
     const sl = orchardShare(base, orchardNames, { none: t('noOrchardOpt'), other: t('other') }, 4);
     let ci = 0;
-    return sl.map(x => ({ ...x, color: x.kind === 'orchard' ? SLICE_COLORS[ci++ % SLICE_COLORS.length] : x.kind === 'other' ? A.gray : A.slate }));
+    return sl.map(x => ({
+      key: x.key, name: x.name, count: x.count, pct: x.pct, kind: x.kind,
+      colors: x.kind === 'orchard' ? ORCHARD_GRADIENTS[ci++ % ORCHARD_GRADIENTS.length] : x.kind === 'other' ? OTHER_GRADIENT : NONE_GRADIENT,
+    }));
   }, [inPeriod, crop, orchardNames, t]);
-  const donutSlices = useMemo<DonutSlice[]>(() => donut.map(d => ({ key: d.key, color: d.color, value: d.count })), [donut]);
-  const donutSel = orchardF === 'all' ? null : orchardF === 'none' ? '__none' : orchardF;
+  const shareSel = orchardF === 'all' ? null : orchardF === 'none' ? '__none' : orchardF;
   const fruitRows = useMemo(() => buildCropRows(scoped).map(r => ({ crop: r.crop, label: cropName(r.crop), count: r.count, pct: r.pct })), [scoped, cropName]);
   const openCrop = crop ?? (detailCrop && scoped.some(r => r.crop === detailCrop) ? detailCrop : null);
-  const columns = useMemo<Column[]>(() => {
-    if (openCrop) {
-      const rows = classRows(scoped, openCrop, normalize).slice().reverse(); // base: saludable abajo
-      let pi = 0;
-      const n = scoped.filter(r => r.crop === openCrop).length;
-      return [{
-        key: openCrop, crop: openCrop, label: cropName(openCrop), n,
-        segs: rows.map(r => ({
-          key: r.key, pct: r.pct,
-          color: r.healthy ? CAT_COLORS.sano : r.lowConfidence ? CAT_COLORS.revisar : PROBLEM_COLORS[pi++ % PROBLEM_COLORS.length],
-          label: r.healthy ? t('catHealthy') : r.lowConfidence ? t('lowConf') : cap(localizeDomainLabel(r.label, language) ?? r.label),
-        })),
-      }];
-    }
-    return buildCropRows(scoped).slice(0, 4).map(r => ({
-      key: r.crop, crop: r.crop, label: cropName(r.crop), n: r.count,
-      segs: [
-        { key: 'enfermo', color: CAT_COLORS.enfermo, pct: (r.enfermo / r.count) * 100, label: t('catProblem') },
-        { key: 'revisar', color: CAT_COLORS.revisar, pct: (r.revisar / r.count) * 100, label: t('catReview') },
-        { key: 'sano', color: CAT_COLORS.sano, pct: (r.sano / r.count) * 100, label: t('catHealthy') },
-      ],
+  // 3. Enfermedades por fruto: general (un cultivo por fila, tres estados) o detalle (clases del modelo).
+  const stackRows = useMemo<StackRow[]>(() => buildCropRows(scoped).slice(0, 6).map(r => ({
+    crop: r.crop, label: cropName(r.crop), n: r.count,
+    segs: [
+      { key: 'sano', pct: (r.sano / r.count) * 100, colors: CAT_GRADIENTS.sano, label: t('catHealthy') },
+      { key: 'revisar', pct: (r.revisar / r.count) * 100, colors: CAT_GRADIENTS.revisar, label: t('catReview') },
+      { key: 'enfermo', pct: (r.enfermo / r.count) * 100, colors: CAT_GRADIENTS.enfermo, label: t('catProblem') },
+    ],
+  })), [scoped, cropName, t]);
+  const classBars = useMemo<ClassBar[]>(() => {
+    if (!openCrop) return [];
+    let pi = 0;
+    return classRows(scoped, openCrop, normalize).map(r => ({
+      key: r.key, pct: r.pct, count: r.count,
+      colors: r.healthy ? CAT_GRADIENTS.sano : r.lowConfidence ? CAT_GRADIENTS.revisar : PROBLEM_GRADIENTS[pi++ % PROBLEM_GRADIENTS.length],
+      label: r.healthy ? t('catHealthy') : r.lowConfidence ? t('lowConf') : cap(localizeDomainLabel(r.label, language) ?? r.label),
     }));
-  }, [openCrop, scoped, cropName, language, t]);
+  }, [openCrop, scoped, language, t]);
   const trend = useMemo(() => {
     const fmtShort = (start: number, g: Granularity) => new Date(start).toLocaleDateString(locale, g === 'month' ? { month: 'short' } : { day: 'numeric', month: 'short' });
     const { g, buckets } = timeline(sel, effPeriod, fmtShort);
@@ -407,7 +451,7 @@ export default function ResultsScreen() {
     }));
     return { g, points };
   }, [sel, effPeriod, locale, t]);
-  const attn = useMemo(() => attention(sel, normalize), [sel]);
+  const attn = useMemo(() => attention(sel, normalize, 3), [sel]);
   const fmtNum = useCallback((n: number) => n.toLocaleString(locale), [locale]);
   const compare = useCallback((cur: number, prev: number) => {
     if (prev <= 0) return null;
@@ -415,7 +459,7 @@ export default function ResultsScreen() {
     return d === 0 ? t('samePrev') : t('vsPrev', { sign: d > 0 ? '+' : '', pct: d });
   }, [t]);
   const cardW = Math.min(width, 1100) - 32;
-  const chartW = cardW - 30;
+  const chartW = cardW - 34; // padding 16 + borde 1 por lado
   const enter = (i: number) => (reduced ? undefined : FadeInDown.duration(320).delay(80 + i * 70));
   const tap = () => { if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {}); };
 
@@ -476,12 +520,46 @@ export default function ResultsScreen() {
     const { error } = await supabase.from('tasks').delete().eq('id', id);
     if (!error) setTasks(current => current.filter(task => task.id !== id));
   };
-  const prepareTask = (item: Recommendation) => {
-    setTaskTitle(item.title);
-    setTaskDetail(item.text);
-    setShowForm(true);
-    changeSection('plan');
+  // «Añadir al plan de trabajo» desde una recomendación: inserta en la tabla real `tasks` (programada para la
+  // próxima hora, como el formulario del plan). Un candado por recomendación evita duplicados por toques
+  // repetidos mientras se guarda, y una tarea pendiente con el mismo título cuenta como «ya en el plan».
+  // La tabla no tiene huerta ni cultivo: si hay filtros activos se anotan en el detalle de la tarea.
+  const savingRef = useRef(new Set<string>());
+  const [savingKeys, setSavingKeys] = useState<string[]>([]);
+  const planTitles = useMemo(() => new Set(tasks.filter(task => !task.completed).map(task => task.title)), [tasks]);
+  const addRecommendation = async (key: string) => {
+    const item = recommendations.find(r => r.title === key);
+    if (!user || !item || savingRef.current.has(key) || planTitles.has(item.title)) return;
+    savingRef.current.add(key);
+    setSavingKeys(cur => [...cur, key]);
+    const when = new Date();
+    when.setMinutes(0, 0, 0);
+    when.setHours(when.getHours() + 1);
+    const ctx = [orchardF !== 'all' ? `${t('taskCtxOrchard')}: ${orchardLabel}` : null, crop ? `${t('crop')}: ${cropName(crop)}` : null].filter(Boolean).join(' · ');
+    try {
+      const { data, error } = await supabase.from('tasks').insert({
+        title: item.title,
+        detail: ctx ? `${item.text}\n${ctx}` : item.text,
+        user_id: user.uid,
+        completed: false,
+        scheduled_at: when.toISOString(),
+      }).select().single();
+      if (error || !data) throw error ?? new Error('no data');
+      setTasks(current => [data as Task, ...current]);
+      if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      Toast.show({ type: 'success', text1: t('taskAdded'), text2: item.title });
+    } catch {
+      if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      Toast.show({ type: 'error', text1: t('taskError') });
+    } finally {
+      savingRef.current.delete(key);
+      setSavingKeys(cur => cur.filter(k => k !== key));
+    }
   };
+  const actionItems = useMemo<ActionItem[]>(() => recommendations.map(r => ({
+    key: r.title, title: r.title, text: r.text, tone: r.tone,
+    state: savingKeys.includes(r.title) ? 'saving' : planTitles.has(r.title) ? 'added' : 'idle',
+  })), [recommendations, savingKeys, planTitles]);
   const changeScheduledDate = (_event: DateTimePickerEvent, value?: Date) => {
     setShowDatePicker(false);
     if (!value) return;
@@ -516,13 +594,31 @@ export default function ResultsScreen() {
     requestAnimationFrame(() => setTimeout(() => setPending(false), 0));
   };
   const heroW = Math.min(width, 1100) - 32;
-  const heroH = Math.round(Math.max(220, Math.min(260, heroW * 0.62)));
+  const heroH = Math.round(Math.max(240, Math.min(260, heroW * 0.7)));
   if (!fontsLoaded) return null;
   if (!user) return <View style={styles.center}><Text style={styles.emptyTitle}>{t('loginToSee')}</Text></View>;
   const plan = section === 'plan';
+  const summary = section === 'summary';
+  // Fondo de cada sección: marfil en Resumen; Historial conserva el blanco; Plan, su fotografía.
+  const pageBg = summary ? P.ivory : plan ? 'transparent' : '#FFFFFF';
+  const tabItems: TabItem<Section | 'scans'>[] = [
+    { key: 'summary', label: t('summary'), Icon: BarChart3 },
+    { key: 'scans', label: t('scansTab'), Icon: ScanLine },
+    { key: 'history', label: t('history'), Icon: CalendarClock },
+    { key: 'plan', label: t('workPlan'), Icon: ClipboardCheck },
+  ];
+  const pressTab = (key: Section | 'scans') => {
+    // «Escaneos» abre Mis escaneos (mapa y recorridos) a pantalla completa; al regresar se vuelve a la
+    // sección en la que estabas (la pantalla de Actividad conserva su estado).
+    if (key === 'scans') { tap(); router.push({ pathname: '/(app)/escaneos', params: { n: String(Date.now()) } }); return; }
+    if (key !== section) { tap(); changeSection(key); }
+  };
+  const filtersActive = orchardF !== 'all' || crop !== null || period !== null;
+  const emptyTitle = records.length === 0 ? t('noScansTitle') : orchardF === 'none' ? t('emptyNone') : orchardId ? t('emptyOrchard') : t('emptyPeriod');
+  const bottomPad = 150 + insets.bottom;
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={[styles.screen, summary && { backgroundColor: P.ivory }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Stack.Screen options={{ title: t('activity') }} />
       {/* Plan de trabajo: huerta fotográfica detrás de toda la pantalla (cover, sin deformar). Es fija: el
           contenido se desplaza encima. Los degradados dan legibilidad al encabezado y al título. */}
@@ -537,7 +633,7 @@ export default function ResultsScreen() {
         </View>
       )}
       <ScrollView
-        contentContainerStyle={[styles.content, tablet && styles.contentTablet, plan && { backgroundColor: 'transparent', paddingBottom: 140 + insets.bottom }]}
+        contentContainerStyle={[styles.content, tablet && styles.contentTablet, { backgroundColor: pageBg }, summary && { paddingBottom: bottomPad }, plan && { backgroundColor: 'transparent', paddingBottom: 140 + insets.bottom }]}
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={200}
         onScroll={e => {
@@ -547,180 +643,171 @@ export default function ResultsScreen() {
           if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 600) setHistoryLimit(n => n + 25);
         }}
       >
-        {/* Encabezado compacto: respeta la barra de estado; el engrane abre Ajustes (no flota sobre el contenido). */}
-        <View style={[styles.header, { paddingTop: insets.top + 12 }, plan && { backgroundColor: 'transparent' }]}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.title} accessibilityRole="header">{t('activity')}</Text>
-            <Text style={styles.subtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('clearDecisions')}</Text>
-          </View>
-          <Pressable onPress={() => { tap(); router.navigate('/(app)/settings'); }} accessibilityRole="button" accessibilityLabel={t('settings')} hitSlop={6}
-            style={({ pressed }) => [styles.gear, pressed && { transform: [{ scale: 0.95 }] }]}>
-            <Settings size={20} color="#0F172A" />
-          </Pressable>
-        </View>
-        <View style={[styles.navigator, plan && pl.navigator]} accessibilityRole="tablist">{([
-           ['summary', t('summary'), BarChart3], ['scans', t('scansTab'), ScanLine], ['history', t('history'), ClipboardList], ['plan', t('workPlan'), Check],
-        ] as const).map(([key, label, Icon]) => {
-          const on = section === key;
-          // «Escaneos» abre Mis escaneos (mapa y recorridos) a pantalla completa; al regresar se vuelve a la
-          // sección en la que estabas (la pantalla de Actividad conserva su estado).
-          const press = key === 'scans'
-            ? () => { tap(); router.push({ pathname: '/(app)/escaneos', params: { n: String(Date.now()) } }); }
-            : () => { if (!on) { tap(); changeSection(key); } };
-          return (
-            <Pressable key={key} onPress={press} accessibilityRole="tab" accessibilityState={{ selected: on }}
-              style={[styles.navItem, { flex: key === 'plan' ? 1.35 : 1 }, on && { backgroundColor: colors.primary }, { transitionProperty: 'backgroundColor', transitionDuration: 180, transitionTimingFunction: CSS_EASE_OUT } as object]}>
-              {width >= 400 && <Icon size={15} color={on ? '#fff' : colors.primary} />}
-              <Text style={[styles.navText, on && styles.navTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{label}</Text>
-            </Pressable>
-          );
-        })}</View>
-        {loading || pending ? <SectionSkeleton kind={section} heroH={heroH} /> : section === 'summary' ? (
+        {/* Encabezado fotográfico (foto + capa verde + fundido al fondo) con el selector montado encima. */}
+        <ActividadHeader topInset={insets.top} title={t('activity')} subtitle={t('clearDecisions')} fadeTo={pageBg}
+          onSettings={() => { tap(); router.navigate('/(app)/settings'); }} settingsLabel={t('settings')}
+          onBack={() => { tap(); if (router.canGoBack()) router.back(); else router.navigate('/(app)'); }} backLabel={t('back')}>
+          <ActividadTabs items={tabItems} active={section} onPress={pressTab} />
+        </ActividadHeader>
+        <View style={{ height: 16 }} />
+        {loading || pending ? <SectionSkeleton kind={section} heroH={heroH} /> : summary ? (
           <Reanimated.View entering={reduced ? undefined : FadeIn.duration(200)}>
+            {loadError && records.length === 0 ? (
+              // Error de consulta o sin conexión: no se muestran estadísticas ficticias.
+              <View style={styles.cards}>
+                <ChartCard icon={loadError === 'offline' ? <WifiOff size={19} color={P.coral} /> : <AlertTriangle size={19} color={P.coral} />} iconBg="#FDE7E1"
+                  title={loadError === 'offline' ? t('offlineTitle') : t('errorTitle')}
+                  decorations={[{ variant: 'leaf', corner: 'tr', size: 86, opacity: 0.22 }]}>
+                  <Text style={[styles.body, { fontSize: 13, marginBottom: 14 }]}>{loadError === 'offline' ? t('offlineText') : t('errorText')}</Text>
+                  <PressableScale onPress={() => { tap(); setReloadKey(k => k + 1); }} style={sm.retry} accessibilityRole="button">
+                    <RefreshCw size={16} color="#FFFFFF" /><Text style={sm.retryText}>{t('retry')}</Text>
+                  </PressableScale>
+                </ChartCard>
+              </View>
+            ) : (
+            <>
             <View style={{ paddingHorizontal: 16 }}>
-              <StatsHero
+              <ConfidenceHero
                 width={heroW} height={heroH}
                 confidence={stat.conf} healthy={stat.healthy} problem={stat.problem} review={stat.review}
                 orchardLabel={orchardLabel}
                 onOrchard={() => { tap(); setPicker('orchard'); }}
-                labels={{ confidence: t('avgConfidence'), healthy: t('healthyCap'), problem: t('withProblem'), review: t('toReview'), empty: t('noData') }}
+                labels={{ confidence: t('avgConfidence'), healthy: t('healthyCap'), problem: t('withProblem'), review: t('toReview'), empty: t('noData'), orchardHint: t('orchardHint') }}
                 reduced={reduced}
-                animKey={`${orchardF}|${crop}|${effPeriod}`}
               />
             </View>
 
-            {/* Indicadores rápidos */}
-            <Reanimated.View entering={enter(0)} style={styles.quick}>
-              <Quick icon={<Layers size={20} color="#16A34A" />} value={stat.n.toLocaleString(locale)} label={t('scansCap')} />
-              <View style={styles.quickSep} />
-              <Quick icon={<Sprout size={20} color="#16A34A" />} value={String(new Set(sel.map(r => r.crop)).size)} label={t('crops')} />
-              <View style={styles.quickSep} />
-              <Quick icon={<MapIcon size={20} color="#16A34A" />} value={areaHa > 0 ? `${areaHa.toFixed(2)} ha` : '—'} label={t('area')} />
-              <View style={styles.quickSep} />
-              <Quick icon={<CalendarIcon size={20} color="#16A34A" />} value={periodLabel} label={t('period')} onPress={() => { tap(); setPicker('period'); }} />
+            {/* Métricas rápidas (datos reales de la selección) */}
+            <Reanimated.View entering={enter(0)} style={{ marginHorizontal: 16, marginTop: 14 }}>
+              <QuickMetrics items={[
+                { key: 'scans', Icon: Layers, value: stat.n.toLocaleString(locale), label: t('scansCap') },
+                { key: 'crops', Icon: Sprout, value: String(new Set(sel.map(r => r.crop)).size), label: t('crops') },
+                { key: 'area', Icon: MapIcon, value: areaHa > 0 ? `${areaHa.toFixed(2)} ha` : '—', label: t('area') },
+                { key: 'period', Icon: CalendarIcon, value: periodLabel, label: t('period'), onPress: () => { tap(); setPicker('period'); }, hint: t('periodHint') },
+              ]} />
             </Reanimated.View>
             {stat.n > 0 && <Text style={styles.sources}>{t('sources', { photos: stat.photos, walk: stat.walk })}</Text>}
             {excludedNoOrchard > 0 && <Text style={styles.sources}>{t('noOrchardNote', { count: excludedNoOrchard })}</Text>}
+            {(partial || (loadError && records.length > 0)) && <Text style={[styles.sources, { color: '#A0522D' }]}>{loadError === 'offline' ? t('offlineText') : t('partialData')}</Text>}
 
-            {/* Filtros: huerta, cultivo y periodo (todas las gráficas usan los mismos) */}
+            {/* Filtros secundarios: la huerta se elige en el hero (mismo estado: orchardF). */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-              <Pressable onPress={() => { tap(); setPicker('orchard'); }} accessibilityRole="button" style={({ pressed }) => [styles.filterPill, orchardF !== 'all' && styles.filterPillOn, pressed && { opacity: 0.85 }]}>
-                <Text style={[styles.filterText, orchardF !== 'all' && styles.filterTextOn]} numberOfLines={1}>{orchardLabel}</Text>
-                <ChevronDown size={15} color={orchardF !== 'all' ? '#166534' : '#475569'} />
-              </Pressable>
-              <Pressable onPress={() => { tap(); setPicker('crop'); }} accessibilityRole="button" style={({ pressed }) => [styles.filterPill, crop && styles.filterPillOn, pressed && { opacity: 0.85 }]}>
+              <Pressable onPress={() => { tap(); setPicker('crop'); }} accessibilityRole="button" style={({ pressed }) => [styles.filterPill, crop && styles.filterPillOn, pressed && { transform: [{ scale: 0.97 }] }]}>
+                <Sprout size={15} color={crop ? P.deep : P.agri} />
                 <Text style={[styles.filterText, crop && styles.filterTextOn]} numberOfLines={1}>{t('crop')}: {crop ? cropName(crop) : t('allCrops')}</Text>
-                <ChevronDown size={15} color={crop ? '#166534' : '#475569'} />
+                <ChevronDown size={15} color={P.deep} />
               </Pressable>
-              <Pressable onPress={() => { tap(); setPicker('period'); }} accessibilityRole="button" style={({ pressed }) => [styles.filterPill, pressed && { opacity: 0.85 }]}>
-                <Text style={styles.filterText} numberOfLines={1}>{t('period')}: {periodLong}</Text>
-                <ChevronDown size={15} color="#475569" />
+              <Pressable onPress={() => { tap(); setPicker('period'); }} accessibilityRole="button" style={({ pressed }) => [styles.filterPill, period !== null && styles.filterPillOn, pressed && { transform: [{ scale: 0.97 }] }]}>
+                <CalendarIcon size={15} color={period !== null ? P.deep : P.agri} />
+                <Text style={[styles.filterText, period !== null && styles.filterTextOn]} numberOfLines={1}>{t('period')}: {periodLong}</Text>
+                <ChevronDown size={15} color={P.deep} />
               </Pressable>
+              {filtersActive && (
+                <Pressable onPress={() => { tap(); setOrchardF('all'); setCrop(null); setPeriod(null); setDetailCrop(null); }} accessibilityRole="button"
+                  style={({ pressed }) => [styles.filterPill, styles.filterClear, pressed && { transform: [{ scale: 0.97 }] }]}>
+                  <X size={14} color={P.muted} /><Text style={[styles.filterText, { color: P.muted }]}>{t('clearFilters')}</Text>
+                </Pressable>
+              )}
             </ScrollView>
 
             {scoped.length === 0 ? (
               <Reanimated.View entering={enter(1)} style={styles.cards}>
-                <ChartCard icon={<ScanLine size={18} color={A.green} />} title={orchardId ? t('emptyOrchard') : t('emptyPeriod')}
-                  decorations={[{ variant: 'leaf', corner: 'tr', size: 92, opacity: 0.35 }, { variant: 'fern', corner: 'bl', size: 84, opacity: 0.18 }]}>
-                  <Text style={[styles.body, { marginBottom: 12 }]}>{t('emptyOrchardText')}</Text>
-                  <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary, marginHorizontal: 0 }]} onPress={() => router.navigate('/(app)/scan')}>
-                    <ScanLine size={18} color="#fff" /><Text style={styles.buttonText}>{t('doScan')}</Text>
-                  </TouchableOpacity>
+                <ChartCard icon={<ScanLine size={19} color={P.agri} />} title={emptyTitle}
+                  decorations={[{ variant: 'leaf', corner: 'tr', size: 92, opacity: 0.3 }, { variant: 'fern', corner: 'bl', size: 84, opacity: 0.16 }]}>
+                  <Text style={[styles.body, { fontSize: 13, marginBottom: 14 }]}>{t('emptyOrchardText')}</Text>
+                  <PressableScale onPress={() => router.navigate('/(app)/scan')} style={sm.retry} accessibilityRole="button">
+                    <ScanLine size={17} color={P.lime} /><Text style={sm.retryText}>{t('doScan')}</Text>
+                  </PressableScale>
+                </ChartCard>
+              </Reanimated.View>
+            ) : sel.length === 0 ? (
+              // Cultivo elegido sin análisis en la huerta/periodo actuales.
+              <Reanimated.View entering={enter(1)} style={styles.cards}>
+                <ChartCard icon={<Sprout size={19} color={P.agri} />} title={t('emptyCropTitle')}>
+                  <Text style={[styles.body, { fontSize: 13, marginBottom: 14 }]}>{t('emptyCropText')}</Text>
+                  <PressableScale onPress={() => { tap(); setCrop(null); }} style={sm.retry} accessibilityRole="button">
+                    <Text style={sm.retryText}>{t('clearCrop')}</Text>
+                  </PressableScale>
                 </ChartCard>
               </Reanimated.View>
             ) : (
+              // UNA SOLA COLUMNA: cada tarjeta ocupa todo el ancho disponible.
               <View style={styles.cards}>
-                {/* 1. Estado por huerta: dona 3D */}
+                {/* 1. Estado por huerta: barra segmentada */}
                 <Reanimated.View entering={enter(1)}>
-                  <ChartCard icon={<PieChart size={18} color={A.green} />} title={t('byOrchard')} subtitle={t('byOrchardSub')}
-                    onMore={() => { tap(); setPicker('orchard'); }} moreLabel={t('pickOrchard')}
-                    decorations={[{ variant: 'leaf', corner: 'tr', size: 96, opacity: 0.32 }, { variant: 'sprig', corner: 'bl', size: 88, opacity: 0.22 }]}>
-                    {donut.length ? (
-                      <View style={[styles.donutRow, chartW < 300 && { flexDirection: 'column' }]}>
-                        <Donut3D size={Math.min(180, chartW < 300 ? chartW : chartW * 0.52)} slices={donutSlices} selected={donutSel} reduced={reduced}
-                          total={donut.reduce((a, d) => a + d.count, 0).toLocaleString(locale)} totalLabel={t('analyses')}
-                          onSelect={key => {
-                            tap();
-                            if (key === '__other') { setPicker('orchard'); return; }
-                            const next: OrchardFilter = key === '__none' ? 'none' : key;
-                            setOrchardF(f => (f === next ? 'all' : next));
-                          }} />
-                        <View style={styles.legendCol}>
-                          {donut.map(d => {
-                            const on = donutSel === d.key;
-                            return (
-                              <Pressable key={d.key} onPress={() => { tap(); if (d.kind === 'other') { setPicker('orchard'); return; } const next: OrchardFilter = d.kind === 'none' ? 'none' : d.key; setOrchardF(f => (f === next ? 'all' : next)); }}
-                                accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`${d.name}: ${Math.round(d.pct)} %, ${nA(d.count)}`}
-                                style={[styles.legendRow, on && styles.legendRowOn]}>
-                                <View style={[styles.legendSwatch, { backgroundColor: d.color }]} />
-                                <View style={{ flex: 1, minWidth: 0 }}>
-                                  <Text style={styles.legendName} numberOfLines={1}>{d.name}</Text>
-                                  {on && <Text style={styles.legendCount} numberOfLines={1}>{nA(d.count)}</Text>}
-                                </View>
-                                <Text style={styles.legendPct}>{Math.round(d.pct)}%</Text>
-                              </Pressable>
-                            );
-                          })}
-                        </View>
-                      </View>
+                  <ChartCard icon={<MapIcon size={19} color={P.agri} />} title={t('byOrchard')} subtitle={t('byOrchardSub')}
+                    onMore={() => { tap(); setPicker('orchard'); }} moreLabel={t('moreOrchards')}
+                    decorations={[{ variant: 'leaf', corner: 'tr', size: 78, opacity: 0.16 }]}>
+                    {shareSegs.length ? (
+                      <OrchardShareBar segs={shareSegs} selected={shareSel} reduced={reduced} countLabel={nA}
+                        onSelect={seg => {
+                          tap();
+                          if (seg.kind === 'other') { setPicker('orchard'); return; }
+                          const next: OrchardFilter = seg.kind === 'none' ? 'none' : seg.key;
+                          setOrchardF(f => (f === next ? 'all' : next));
+                        }} />
                     ) : <EmptyChart text={t('notEnough')} />}
+                    {orchards.length === 0 && <Text style={sm.note}>{t('noOrchardsYet')}</Text>}
                   </ChartCard>
                 </Reanimated.View>
 
                 {/* 2. Frutas más analizadas: barras volumétricas */}
                 <Reanimated.View entering={enter(2)}>
-                  <ChartCard icon={<Sprout size={18} color={A.green} />} title={t('topFruits')} subtitle={t('topFruitsSub')}
+                  <ChartCard icon={<Sprout size={19} color={P.agri} />} title={t('topFruits')} subtitle={t('topFruitsSub')}
                     onMore={() => { tap(); setPicker('crop'); }} moreLabel={t('crop')}
-                    decorations={[{ variant: 'leaf', corner: 'br', size: 90, opacity: 0.3 }]}>
-                    <FruitBars rows={fruitRows} width={chartW} selected={crop} reduced={reduced} countLabel={nA}
+                    decorations={[{ variant: 'sprig', corner: 'br', size: 80, opacity: 0.14 }]}>
+                    <FruitBars rows={fruitRows} selected={crop} reduced={reduced} countLabel={nA}
                       onSelect={c => { tap(); setCrop(cur => (cur === c ? null : c)); setDetailCrop(null); }} />
                   </ChartCard>
                 </Reanimated.View>
 
-                {/* 3. Enfermedades por fruto: columnas apiladas 3D (general → detalle) */}
+                {/* 3. Enfermedades por fruto: barras apiladas (general → detalle por cultivo) */}
                 <Reanimated.View entering={enter(3)}>
-                  <ChartCard icon={<Microscope size={18} color={A.green} />} title={t('diseases')}
+                  <ChartCard icon={<Microscope size={19} color={P.agri} />} title={t('diseases')}
                     subtitle={openCrop ? t('diseasesDetail', { crop: cropName(openCrop) }) : t('diseasesSub')}
-                    decorations={[{ variant: 'sprig', corner: 'tr', size: 84, opacity: 0.22 }]}>
+                    onMore={openCrop ? undefined : () => { tap(); if (stackRows[0]) setDetailCrop(stackRows[0].crop); }} moreLabel={t('seeDetail')}
+                    decorations={[{ variant: 'leaf', corner: 'tr', size: 72, opacity: 0.14, rotate: 15 }]}>
                     {openCrop && !crop && (
                       <Pressable onPress={() => { tap(); setDetailCrop(null); }} accessibilityRole="button" style={styles.backChip}>
-                        <ChevronLeft size={14} color={A.green} /><Text style={styles.backChipText}>{t('backGeneral')}</Text>
+                        <ChevronLeft size={14} color={P.agri} /><Text style={styles.backChipText}>{t('backGeneral')}</Text>
                       </Pressable>
                     )}
-                    {columns.length && columns[0].n > 0 ? (
+                    {openCrop ? (
+                      classBars.length ? <ClassBars rows={classBars} reduced={reduced} countLabel={nA} /> : <EmptyChart text={t('notEnough')} />
+                    ) : stackRows.length ? (
                       <>
-                        <View style={styles.colLegend}>
-                          {(openCrop ? columns[0].segs.slice().reverse() : columns[0].segs.slice().reverse()).map(sg => (
-                            <View key={sg.key} style={styles.colLegendItem}>
-                              <View style={[styles.colLegendDot, { backgroundColor: sg.color }]} />
-                              <Text style={styles.colLegendText} numberOfLines={1}>{sg.label}{openCrop ? ` · ${Math.round(sg.pct)}%` : ''}</Text>
+                        <StatusStackBars rows={stackRows} reduced={reduced} onPick={c => { tap(); setDetailCrop(c); }}
+                          a11yLabel={row => `${row.label}: ${row.segs.map(sg => `${sg.label} ${Math.round(sg.pct)} %`).join(', ')}. ${nA(row.n)}`} />
+                        <View style={sm.legend}>
+                          {([['sano', t('legendHealthy')], ['revisar', t('legendReview')], ['enfermo', t('legendProblem')]] as const).map(([k, label]) => (
+                            <View key={k} style={sm.legendItem}>
+                              <View style={[sm.legendDot, { backgroundColor: CAT_GRADIENTS[k][1] }]} />
+                              <Text style={sm.legendText}>{label}</Text>
                             </View>
                           ))}
                         </View>
-                        <Columns3D columns={columns} width={chartW} reduced={reduced} sampleLabel={n => t('sample', { count: n })}
-                          onPick={openCrop ? undefined : c => { tap(); setDetailCrop(c); }} />
                       </>
                     ) : <EmptyChart text={t('notEnough')} />}
                   </ChartCard>
                 </Reanimated.View>
 
-                {/* 4. Evolución: línea con degradado */}
+                {/* 4. Escaneos por semana (o día/mes según el periodo): línea con degradado y tooltip */}
                 <Reanimated.View entering={enter(4)}>
-                  <ChartCard icon={<TrendingUp size={18} color={A.green} />} title={trend.g === 'day' ? t('perDay') : trend.g === 'week' ? t('perWeek') : t('perMonth')} subtitle={t('trendSub')}
-                    decorations={[{ variant: 'leaf', corner: 'tr', size: 70, opacity: 0.2, rotate: 20 }]}>
+                  <ChartCard icon={<TrendingUp size={19} color={P.agri} />} title={trend.g === 'day' ? t('perDay') : trend.g === 'week' ? t('perWeek') : t('perMonth')} subtitle={t('trendSub')}
+                    decorations={[{ variant: 'leaf', corner: 'tr', size: 66, opacity: 0.12, rotate: 20 }]}>
                     {trend.points.length >= 2 ? (
                       <TrendLine points={trend.points} width={chartW} reduced={reduced} fmt={fmtNum} compareLabel={compare} />
                     ) : <EmptyChart text={t('notEnough')} />}
                   </ChartCard>
                 </Reanimated.View>
 
-                {/* 5. Hallazgos que requieren atención */}
+                {/* 5. Hallazgos que requieren atención (tarjeta destacada, acentos coral) */}
                 <Reanimated.View entering={enter(5)}>
-                  <ChartCard icon={<AlertTriangle size={18} color={A.coral} />} title={t('attention')} subtitle={t('attentionSub')}
-                    tint="#FFFBF8" onMore={() => { tap(); changeSection('history'); }} moreLabel={t('seeDetail')}
-                    decorations={[{ variant: 'leaf', corner: 'tr', size: 80, opacity: 0.16, color: '#E07A5F' }]}>
+                  <ChartCard icon={<AlertTriangle size={19} color={P.coral} />} iconBg="#FDE7E1" title={t('attention')} subtitle={t('attentionSub')}
+                    tint="#FFFBF5" style={sm.attention} onMore={() => { tap(); changeSection('history'); }} moreLabel={t('seeDetail')}
+                    decorations={[{ variant: 'leaf', corner: 'tr', size: 80, opacity: 0.14, color: '#E07A5F' }]}>
                     {attn.total > 0 ? (
-                      <AttentionPanel pct={attn.pct} total={attn.total} width={chartW} reduced={reduced}
+                      <AttentionPanel pct={attn.pct} total={attn.total} reduced={reduced}
                         top={attn.top.map(x => ({ ...x, label: cap(localizeDomainLabel(x.label, language) ?? x.label) }))}
                         topCrop={attn.topCrop ? { label: cropName(attn.topCrop.crop), count: attn.topCrop.count } : null}
                         lowConfidence={attn.lowConfidence}
@@ -728,6 +815,7 @@ export default function ResultsScreen() {
                         labels={{
                           ofAnalyses: t('ofAnalyses'), findings: n => (n === 1 ? t('nFinding1') : t('nFindings', { count: n })),
                           topCrop: t('topCrop'), low: n => t('lowNote', { count: n }), ofProblems: t('ofProblems'),
+                          frequent: t('frequent'), disclaimer: t('disclaimer'),
                         }} />
                     ) : <EmptyChart text={t('noAttention')} />}
                   </ChartCard>
@@ -736,9 +824,23 @@ export default function ResultsScreen() {
               </View>
             )}
 
-             <Text style={styles.subheading}>{t('recommendedActions')}</Text>
-             {recommendations.map((item, index) => <View key={item.title} style={[styles.recommendation, { backgroundColor: item.tone === 'warning' ? '#FFF4E1' : item.tone === 'info' ? '#EAF4FC' : colors.soft }]}><View style={[styles.priorityBadge, { backgroundColor: item.tone === 'warning' ? '#C78335' : colors.primary }]}><Text style={styles.priorityText}>{index + 1}</Text></View><View style={{ flex: 1 }}><Text style={styles.headingSmall}>{item.title}</Text><Text style={styles.body}>{item.text}</Text><TouchableOpacity onPress={() => prepareTask(item)}><Text style={[styles.actionText, { color: colors.primary }]}>{t('addToPlan')}</Text></TouchableOpacity></View></View>)}
-             <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => router.push('/(app)/scan')}><ScanLine size={18} color="#fff" /><Text style={styles.buttonText}>{t('scanFruit')}</Text></TouchableOpacity>
+            {/* 6. Acciones recomendadas (última tarjeta de la columna) */}
+            <Reanimated.View entering={enter(6)} style={{ marginHorizontal: 16, marginTop: 14 }}>
+              <RecommendedActions title={t('recommendedActions')} subtitle={t('recSub')} items={actionItems}
+                onAdd={key => { tap(); addRecommendation(key); }}
+                onOpenPlan={() => { tap(); changeSection('plan'); }}
+                labels={{ add: t('addToPlan'), added: t('inPlan'), saving: t('saving') }} />
+            </Reanimated.View>
+            </>
+            )}
+
+            {/* CTA existente «Escanear un fruto», con la paleta verde bosque + lima */}
+            <PressableScale onPress={() => router.push('/(app)/scan')} style={sm.ctaWrap} accessibilityRole="button" accessibilityLabel={t('scanFruit')}>
+              <LinearGradient colors={['#1D8E42', P.deep, P.forest]} locations={[0, 0.55, 1]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={sm.cta}>
+                <View style={sm.ctaIcon}><ScanLine size={19} color={P.forest} strokeWidth={2.4} /></View>
+                <Text style={sm.ctaText}>{t('scanFruit')}</Text>
+              </LinearGradient>
+            </PressableScale>
           </Reanimated.View>
         ) : section === 'history' ? (
            <View>
@@ -957,12 +1059,6 @@ export default function ResultsScreen() {
     </KeyboardAvoidingView>
   );
 }
-function Quick({ icon, value, label, onPress }: { icon: React.ReactNode; value: string; label: string; onPress?: () => void }) {
-  const body = <>{icon}<Text style={styles.quickValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{value}</Text><Text style={styles.quickLabel} numberOfLines={1}>{label}</Text></>;
-  return onPress
-    ? <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} style={styles.quickItem}>{body}</Pressable>
-    : <View style={styles.quickItem} accessible accessibilityLabel={`${label}: ${value}`}>{body}</View>;
-}
 function PickRow({ on, title, meta, onPress }: { on: boolean; title: string; meta: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: on }} style={({ pressed }) => [styles.pickRow, on && styles.pickRowOn, pressed && { opacity: 0.85 }]}>
@@ -976,6 +1072,29 @@ function PickRow({ on, title, meta, onPress }: { on: boolean; title: string; met
 }
 function Metric({ value, label }: { value: string; label: string }) { return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.muted}>{label}</Text></View>; }
 function Empty({ text }: { text: string }) { const t = useTranslations(translations); return <View style={styles.empty}><Text style={styles.emptyTitle}>{text}</Text><Text style={styles.muted}>{t('goScan')}</Text></View>; }
+// Resumen (rediseño verde bosque + lima): estilos propios de la sección.
+const sm = StyleSheet.create({
+  note: { marginTop: 10, fontFamily: 'Poppins_400Regular', fontSize: 11.5, lineHeight: 16, color: '#65746D' },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 16, rowGap: 4, marginTop: 12 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendText: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#102D22' },
+  attention: { borderColor: '#F6DDD5' },
+  retry: {
+    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 18, borderRadius: 22,
+    backgroundColor: '#064B2C', borderWidth: 1, borderColor: 'rgba(185,246,47,0.5)',
+  },
+  retryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: '#FFFFFF' },
+  ctaWrap: { marginHorizontal: 16, marginTop: 18 },
+  cta: {
+    minHeight: 58, borderRadius: 29, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12,
+    borderWidth: 1.5, borderColor: 'rgba(185,246,47,0.7)',
+    shadowColor: '#06301B', shadowOpacity: 0.3, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 6,
+  },
+  ctaIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: '#B9F62F' },
+  ctaText: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#FFFFFF', letterSpacing: -0.2 },
+});
+
 // Plan de trabajo (rediseño: huerta de fondo + tarjetas glassmorphism).
 const pl = StyleSheet.create({
   bg: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
@@ -1055,7 +1174,7 @@ const styles = StyleSheet.create({
   quickSep: { width: 1, alignSelf: 'stretch', backgroundColor: '#EDF0EE' },
   quickValue: { color: '#0F172A', fontFamily: 'Poppins_700Bold', fontSize: 17, lineHeight: 22 },
   quickLabel: { color: '#64748B', fontFamily: 'Poppins_400Regular', fontSize: 11 },
-  sources: { marginHorizontal: 20, marginTop: 6, color: '#64748B', fontFamily: 'Poppins_400Regular', fontSize: 11 },
+  sources: { marginHorizontal: 20, marginTop: 8, color: '#65746D', fontFamily: 'Poppins_400Regular', fontSize: 11 },
   cards: { marginHorizontal: 16, marginTop: 14, gap: 14 },
   donutRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   legendCol: { flex: 1, minWidth: 0, gap: 2, alignSelf: 'stretch', justifyContent: 'center' },
@@ -1066,16 +1185,17 @@ const styles = StyleSheet.create({
   legendCount: { fontFamily: 'Poppins_400Regular', fontSize: 10.5, color: '#6B7A72', marginTop: -2 },
   legendPct: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#10231A', fontVariant: ['tabular-nums'] },
   backChip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 2, height: 30, paddingHorizontal: 10, borderRadius: 15, backgroundColor: '#EEF8EA', marginBottom: 6 },
-  backChipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#15803D' },
+  backChipText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#17843A' },
   colLegend: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 4, marginBottom: 6 },
   colLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: '100%' },
   colLegendDot: { width: 10, height: 10, borderRadius: 3 },
   colLegendText: { fontFamily: 'Poppins_400Regular', fontSize: 11.5, color: '#3B4A42', flexShrink: 1 },
-  unitNote: { marginHorizontal: 4, fontFamily: 'Poppins_400Regular', fontSize: 11, lineHeight: 15, color: '#6B7A72' },
-  filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginTop: 12 },
-  filterPill: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 36, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF' },
-  filterPillOn: { backgroundColor: '#ECFCCB', borderColor: '#BEF264' },
-  filterText: { flexShrink: 1, color: '#334155', fontFamily: 'Poppins_600SemiBold', fontSize: 12 }, filterTextOn: { color: '#166534' },
+  unitNote: { marginHorizontal: 4, fontFamily: 'Poppins_400Regular', fontSize: 11, lineHeight: 15, color: '#65746D' },
+  filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginTop: 14 },
+  filterPill: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: '#D6E6C6', backgroundColor: '#FCFCF6' },
+  filterPillOn: { backgroundColor: '#E9FFB8', borderColor: '#B9F62F' },
+  filterClear: { backgroundColor: 'transparent', borderColor: '#DCE3D8', borderStyle: 'dashed' },
+  filterText: { flexShrink: 1, color: '#083D25', fontFamily: 'Poppins_600SemiBold', fontSize: 12.5 }, filterTextOn: { color: '#064B2C' },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 18, marginTop: 20, marginBottom: 8 },
   sectionTitle: { color: '#0F172A', fontFamily: 'Poppins_700Bold', fontSize: 17, letterSpacing: -0.3 },
   seeDetail: { flexDirection: 'row', alignItems: 'center', gap: 2 }, seeDetailText: { color: '#15803D', fontFamily: 'Poppins_600SemiBold', fontSize: 13 },

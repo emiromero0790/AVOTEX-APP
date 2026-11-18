@@ -169,7 +169,7 @@ export type Attention = {
 };
 
 /** «Requiere atención» = el modelo detectó un problema con confianza suficiente (categoría 'enfermo'). */
-export function attention(recs: Rec[], normalize: (s: string) => string): Attention {
+export function attention(recs: Rec[], normalize: (s: string) => string, limit = 2): Attention {
   const bad = recs.filter(r => r.cat === 'enfermo');
   const byLabel = new Map<string, { label: string; count: number }>();
   const byCrop = new Map<string, number>();
@@ -180,7 +180,7 @@ export function attention(recs: Rec[], normalize: (s: string) => string): Attent
     byLabel.set(k, e);
     byCrop.set(r.crop, (byCrop.get(r.crop) ?? 0) + 1);
   }
-  const top = [...byLabel.values()].sort((a, b) => b.count - a.count).slice(0, 2).map(e => ({ ...e, pct: pct(e.count, bad.length) }));
+  const top = [...byLabel.values()].sort((a, b) => b.count - a.count).slice(0, limit).map(e => ({ ...e, pct: pct(e.count, bad.length) }));
   const crop = [...byCrop.entries()].sort((a, b) => b[1] - a[1])[0];
   return {
     total: bad.length,

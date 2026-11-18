@@ -1,13 +1,16 @@
 /**
  * Contenido de «Hallazgos que requieren atención»: porcentaje de análisis con un problema detectado
- * (confianza suficiente), los dos diagnósticos más frecuentes con su barra, y el cultivo con más hallazgos.
- * No hay criterio de severidad en la base: no se habla de «riesgo» ni de diagnósticos definitivos.
+ * (confianza suficiente), cantidad de hallazgos, diagnósticos más frecuentes con su barra de prevalencia
+ * (sobre los análisis con problema) y el cultivo con más hallazgos.
+ * No hay criterio de severidad en la base: no se habla de «riesgo» ni de diagnósticos definitivos, y se
+ * recuerda que el resultado de la IA es orientativo.
  */
 import React, { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, LinearGradient as SvgLinear, Path, Stop } from 'react-native-svg';
-import { AlertTriangle, Bug } from 'lucide-react-native';
-import { A, useSvgId, useTween } from './core';
+import { Info } from 'lucide-react-native';
+import { P, useSvgId } from './core';
+import GrowBar from './GrowBar';
 
 /** Hoja con manchas (ilustración vectorial original). */
 export function SickLeaf({ size = 92 }: { size?: number }) {
@@ -41,51 +44,56 @@ export function SickLeaf({ size = 92 }: { size?: number }) {
   );
 }
 
-function AttentionPanel({ pct, total, top, topCrop, lowConfidence, reduced, labels, onOpen, width }: {
+const BARS = [['#FF8A78', '#E4493B'], ['#FFB06B', '#EE7D2A'], ['#F9C989', '#E39B45']] as const;
+
+function AttentionPanel({ pct, total, top, topCrop, lowConfidence, reduced, labels, onOpen }: {
   pct: number; total: number; top: { label: string; pct: number; count: number }[];
-  topCrop: { label: string; count: number } | null; lowConfidence: number; reduced: boolean; width: number;
-  labels: { ofAnalyses: string; findings: (n: number) => string; topCrop: string; low: (n: number) => string; ofProblems: string };
+  topCrop: { label: string; count: number } | null; lowConfidence: number; reduced: boolean;
+  labels: {
+    ofAnalyses: string; findings: (n: number) => string; topCrop: string; low: (n: number) => string; ofProblems: string;
+    frequent: string; disclaimer: string;
+  };
   onOpen?: () => void;
 }) {
-  const vals = useTween([pct, ...top.map(t => t.pct)], reduced, 700);
-  const narrow = width < 330;
   return (
-    <View style={{ gap: 10 }}>
-      <View style={[st.row, narrow && { flexDirection: 'column', alignItems: 'stretch' }]}>
-        <View style={st.hero}>
-          <SickLeaf size={76} />
-          <View style={{ flexShrink: 1 }}>
-            <Text style={st.big} maxFontSizeMultiplier={1.15}>{Math.round(vals[0] ?? 0)}%</Text>
-            <Text style={st.bigLabel} numberOfLines={2} maxFontSizeMultiplier={1.2}>{labels.ofAnalyses}</Text>
-            <Text style={st.count} numberOfLines={1}>{labels.findings(total)}</Text>
-          </View>
+    <View style={{ gap: 14 }}>
+      <View style={st.hero}>
+        <View style={st.leafBubble}><SickLeaf size={70} /></View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={st.big} maxFontSizeMultiplier={1.15}>{Math.round(pct)}%</Text>
+          <Text style={st.bigLabel} numberOfLines={2} maxFontSizeMultiplier={1.2}>{labels.ofAnalyses}</Text>
+          <View style={st.countChip}><Text style={st.countText} numberOfLines={1}>{labels.findings(total)}</Text></View>
         </View>
-        <View style={[st.tops, narrow ? null : { flex: 1 }]}>
+      </View>
+
+      {top.length > 0 && (
+        <View style={st.box}>
+          <Text style={st.boxTitle}>{labels.frequent}</Text>
           {top.map((t, k) => (
-            <Pressable key={t.label} onPress={onOpen} disabled={!onOpen} accessibilityRole="button"
-              accessibilityLabel={`${t.label}: ${Math.round(t.pct)} % ${labels.ofProblems}`} style={st.mini}>
-              <View style={[st.miniIcon, k === 1 && { backgroundColor: '#FFF1DE' }]}>
-                {k === 0 ? <Bug size={16} color={A.coral} /> : <AlertTriangle size={15} color={A.orange} />}
+            <Pressable key={t.label} onPress={onOpen} disabled={!onOpen} accessibilityRole={onOpen ? 'button' : undefined}
+              accessibilityLabel={`${t.label}: ${Math.round(t.pct)} % ${labels.ofProblems}, ${labels.findings(t.count)}`}
+              style={({ pressed }) => [st.item, pressed && { opacity: 0.8 }]}>
+              <View style={st.itemHead}>
+                <Text style={st.itemLabel} numberOfLines={1} maxFontSizeMultiplier={1.2}>{t.label}</Text>
+                <Text style={st.itemCount} numberOfLines={1}>{labels.findings(t.count)}</Text>
+                <Text style={[st.itemPct, { color: BARS[k][1] }]}>{Math.round(t.pct)}%</Text>
               </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={st.miniLabel} numberOfLines={1} maxFontSizeMultiplier={1.2}>{t.label}</Text>
-                <View style={st.miniBarRow}>
-                  <View style={st.track}>
-                    <View style={[st.fill, { width: `${Math.max(0, Math.min(100, vals[k + 1] ?? 0))}%`, backgroundColor: k === 0 ? A.coral : A.orange }]} />
-                  </View>
-                  <Text style={[st.miniPct, { color: k === 0 ? '#C2412F' : '#C2650F' }]}>{Math.round(vals[k + 1] ?? 0)}%</Text>
-                </View>
-              </View>
+              <GrowBar pct={t.pct} height={12} colors={BARS[Math.min(k, BARS.length - 1)]} track="#F8E7E2" reduced={reduced} delay={100 + k * 70} />
             </Pressable>
           ))}
         </View>
-      </View>
+      )}
+
       {(topCrop || lowConfidence > 0) && (
-        <View style={st.footer}>
+        <View style={{ gap: 3 }}>
           {topCrop && <Text style={st.footText} numberOfLines={1}>{labels.topCrop}: <Text style={st.footStrong}>{topCrop.label}</Text> ({topCrop.count})</Text>}
           {lowConfidence > 0 && <Text style={st.footMuted} numberOfLines={2}>{labels.low(lowConfidence)}</Text>}
         </View>
       )}
+      <View style={st.note} accessible accessibilityRole="text">
+        <Info size={15} color="#9A5B0F" />
+        <Text style={st.noteText} maxFontSizeMultiplier={1.25}>{labels.disclaimer}</Text>
+      </View>
     </View>
   );
 }
@@ -93,25 +101,25 @@ function AttentionPanel({ pct, total, top, topCrop, lowConfidence, reduced, labe
 export default memo(AttentionPanel);
 
 const st = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  hero: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  big: { fontFamily: 'Poppins_700Bold', fontSize: 30, lineHeight: 36, color: '#E0473A', letterSpacing: -0.8 },
-  bigLabel: { fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 15, color: A.inkSoft, maxWidth: 110 },
-  count: { fontFamily: 'Poppins_600SemiBold', fontSize: 10.5, color: A.muted, marginTop: 2 },
-  tops: { gap: 8 },
-  mini: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 16,
-    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F6DED8',
-    shadowColor: '#9A3412', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 1,
+  hero: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  leafBubble: { width: 86, height: 86, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDEBE5' },
+  big: { fontFamily: 'Poppins_700Bold', fontSize: 34, lineHeight: 40, color: '#D9493B', letterSpacing: -1 },
+  bigLabel: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, lineHeight: 16, color: P.ink },
+  countChip: { alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, backgroundColor: '#FDE3DC' },
+  countText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11.5, color: '#B23A2D' },
+  box: {
+    gap: 10, padding: 12, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F6DDD5',
+    shadowColor: '#9A3412', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 1,
   },
-  miniIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDE7E3' },
-  miniLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: A.ink },
-  miniBarRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  track: { flex: 1, height: 6, borderRadius: 3, backgroundColor: '#F7E3DF', overflow: 'hidden' },
-  fill: { height: 6, borderRadius: 3 },
-  miniPct: { fontFamily: 'Poppins_700Bold', fontSize: 12.5, minWidth: 34, textAlign: 'right' },
-  footer: { paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F5E4DF', gap: 2 },
-  footText: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: A.inkSoft },
-  footStrong: { fontFamily: 'Poppins_600SemiBold', color: A.ink },
-  footMuted: { fontFamily: 'Poppins_400Regular', fontSize: 11, lineHeight: 15, color: A.muted },
+  boxTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, letterSpacing: 0.6, textTransform: 'uppercase', color: P.muted },
+  item: { gap: 5 },
+  itemHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  itemLabel: { flex: 1, fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: P.ink },
+  itemCount: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: P.muted },
+  itemPct: { width: 42, textAlign: 'right', fontFamily: 'Poppins_700Bold', fontSize: 13.5, fontVariant: ['tabular-nums'] },
+  footText: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: P.ink },
+  footStrong: { fontFamily: 'Poppins_600SemiBold', color: P.ink },
+  footMuted: { fontFamily: 'Poppins_400Regular', fontSize: 11, lineHeight: 15, color: P.muted },
+  note: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 14, backgroundColor: '#FFF4DA' },
+  noteText: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 11.5, lineHeight: 16, color: '#6E4A0E' },
 });

@@ -6,13 +6,14 @@ type Avx = {
   setData: (d: unknown) => void;
   setLayer: (l: string) => void;
   setNdvi: (n: unknown) => void;
+  setNdviLoading: (t: string | null) => void;
   select: (id: string | null) => void;
   zoom: (d: number) => void;
   fit: () => void;
 };
 
 const SatMap = forwardRef<SatMapHandle, SatMapProps>(function SatMap(
-  { data, layer, ndvi = null, selectedZone, onSelectZone, onError },
+  { data, layer, ndvi = null, ndviLoading = null, selectedZone, onSelectZone, onError },
   ref,
 ) {
   const frame = useRef<HTMLIFrameElement>(null);
@@ -42,6 +43,7 @@ const SatMap = forwardRef<SatMapHandle, SatMapProps>(function SatMap(
 
   useEffect(() => { if (ready) avx()?.setLayer(layer); }, [ready, layer]);
   useEffect(() => { if (ready) avx()?.setNdvi(ndvi); }, [ready, ndvi]);
+  useEffect(() => { if (ready) avx()?.setNdviLoading(ndviLoading); }, [ready, ndviLoading, data]);
   useEffect(() => { if (ready && data) { avx()?.setData(data); avx()?.select(selectedZone); } }, [ready, data]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ready) avx()?.select(selectedZone); }, [ready, selectedZone]);
 

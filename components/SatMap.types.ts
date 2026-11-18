@@ -6,6 +6,8 @@ export type SatMapProps = {
   layer: SatLayer;
   /** Mapa de vigor (NDVI) de Sentinel-2; se ve solo en la capa «Satélite». */
   ndvi?: SatNdviOverlay;
+  /** Texto de carga del mapa de vigor (pulso dentro del polígono); null cuando no se está cargando. */
+  ndviLoading?: string | null;
   selectedZone: ZoneId | null;
   onSelectZone: (id: ZoneId | null) => void;
   onError?: () => void;

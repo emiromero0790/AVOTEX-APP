@@ -51,6 +51,13 @@ export function buildSatMapHtml(): string {
 <style>
 html,body,#map{height:100%;width:100%;margin:0;background:#0b1f17}
 .ndvi{transition:opacity .35s ease-out}
+.ndvipulse{animation:ndvipulse 1.6s ease-in-out infinite;transition:opacity .35s ease-out}
+.ndvipulse.out{opacity:0}
+@keyframes ndvipulse{0%,100%{fill-opacity:.08}50%{fill-opacity:.34}}
+.calm .ndvipulse{animation:none;fill-opacity:.16}
+.ndviload{transform:translate(-50%,-50%);white-space:nowrap;padding:4px 10px;border-radius:12px;background:rgba(6,20,15,.78);color:#e8f5d0;font-size:11px;font-weight:600;letter-spacing:.1px;border:1px solid rgba(255,255,255,.25);transition:opacity .35s ease-out}
+.ndviload.out{opacity:0}
+@media (prefers-reduced-motion: reduce){.ndvipulse{animation:none;fill-opacity:.16}}
 .leaflet-container{background:#0b1f17;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
 .leaflet-control-attribution{background:rgba(6,20,15,.6)!important;color:#a7b8ad!important;font-size:8px;border-radius:6px 0 0 0}
 .leaflet-control-attribution a{color:#cfe0d4!important}
@@ -90,7 +97,28 @@ map.createPane('zones').style.zIndex=410;
 map.createPane('rows').style.zIndex=415;map.getPane('rows').style.pointerEvents='none';
 map.createPane('outline').style.zIndex=430;map.getPane('outline').style.pointerEvents='none';
 var zoneLayer=L.layerGroup(),rowLayer=L.layerGroup(),labelLayer=L.layerGroup(),outlineLayer=L.layerGroup().addTo(map);
-var data=null,layer='zonas',selected=null,zonePaths={},zoneLabels={},lastKey=null,ndvi=null;
+var data=null,layer='satelite',selected=null,zonePaths={},zoneLabels={},lastKey=null,ndvi=null;
+// Carga del mapa de vigor: pulso blanco dentro del contorno + texto cerca del polígono.
+var loadText=null,pulse=null,pulseLabel=null;
+function clearPulse(fade){
+  var p=pulse,l=pulseLabel;pulse=null;pulseLabel=null;
+  if(!p&&!l)return;
+  if(!fade){if(p)map.removeLayer(p);if(l)map.removeLayer(l);return;}
+  var pe=p&&p.getElement&&p.getElement(),le=l&&l.getElement&&l.getElement();
+  if(pe)pe.classList.add('out');if(le){var d=le.querySelector('.ndviload');if(d)d.classList.add('out');}
+  setTimeout(function(){if(p)map.removeLayer(p);if(l)map.removeLayer(l);},380);
+}
+function drawPulse(){
+  clearPulse(false);
+  if(!loadText||layer!=='satelite'||!data||data.outline.length<3)return;
+  var pts=data.outline.map(ll);
+  pulse=L.polygon(pts,{pane:'ndvi',stroke:false,fill:true,fillColor:'#ffffff',fillOpacity:.2,interactive:false,className:'ndvipulse'}).addTo(map);
+  // Al centro de la huerta (siempre visible: el mapa encuadra la huerta), no en un vértice que puede quedar al borde.
+  var cb=L.latLngBounds(pts).getCenter();
+  var top={lat:cb.lat};var lngC=cb.lng;
+  var txt=String(loadText).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});
+  pulseLabel=L.marker([top.lat,lngC],{interactive:false,keyboard:false,icon:L.divIcon({className:'',html:'<div class="ndviload">'+txt+'</div>',iconSize:[0,0]})}).addTo(map);
+}
 function ll(p){return[p.lat,p.lng];}
 function padOpts(){var p=(data&&data.pad)||{top:0,right:0,bottom:0,left:0};return{paddingTopLeft:[p.left+8,p.top+8],paddingBottomRight:[p.right+8,p.bottom+8],maxZoom:19};}
 function bounds(){return data&&data.outline.length?L.latLngBounds(data.outline.map(ll)):null;}
@@ -133,6 +161,8 @@ function applyLayer(){
   var zonesOn=layer!=='satelite';
   // Mapa de vigor (NDVI): solo en «Satélite».
   if(ndvi){var on=layer==='satelite';if(on&&!map.hasLayer(ndvi))ndvi.addTo(map);if(!on&&map.hasLayer(ndvi))map.removeLayer(ndvi);}
+  // Fuera de «Satélite» no hay pulso de carga.
+  if(layer!=='satelite')clearPulse(false);else if(loadText&&!pulse)drawPulse();
   [zoneLayer,rowLayer,labelLayer].forEach(function(g){if(zonesOn&&!map.hasLayer(g))g.addTo(map);if(!zonesOn&&map.hasLayer(g))map.removeLayer(g);});
   var hy=layer==='hibrido';
   [shade,roads,labels].forEach(function(t){if(hy&&!map.hasLayer(t))t.addTo(map);if(!hy&&map.hasLayer(t))map.removeLayer(t);});
@@ -147,6 +177,12 @@ window.avx={
     var b=bounds();
     if(b&&fresh){if(animOn()&&map._loaded&&lastFit){map.flyToBounds(b,Object.assign(padOpts(),{duration:.8}));}else{map.fitBounds(b,padOpts());}lastFit=true;}
     drawOutline();drawZones(fresh&&animOn());applyLayer();
+    if(loadText)drawPulse();
+  },
+  /** Texto mientras se carga el mapa de vigor de la huerta actual; null = terminó (se desvanece). */
+  setNdviLoading:function(text){
+    var was=loadText;loadText=text||null;
+    if(loadText){drawPulse();}else if(was){clearPulse(true);}
   },
   setLayer:function(name){if(name!=='satelite'&&name!=='zonas'&&name!=='hibrido')return;layer=name;applyLayer();},
   select:function(id){selected=id||null;

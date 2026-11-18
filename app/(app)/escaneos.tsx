@@ -35,7 +35,7 @@ import { supabase } from '../../supabaseConfig';
 import { useGuest } from '../../context/GuestContext';
 import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 import { listOrchards, Orchard } from '../../services/orchards';
-import { parseZonas, ZONE_UI, zonasDeHuerta, type ZonaSnapshot } from '../../services/grabacion';
+import { parseZonas, puntosEnZona, ZONE_UI, zonasDeHuerta, type ZonaSnapshot } from '../../services/grabacion';
 import ZoneMap3D from '../../components/grabacion/ZoneMap3D';
 import { Fuente, RecorridoLocal, RecorridoRemoto, listLocal, listRemote, recoverInterrupted, uploadPending } from '../../services/recorridos';
 import {
@@ -482,7 +482,9 @@ export default function MisEscaneos() {
         result: { fruto: sc.fruto, label: sc.label, score: sc.score },
       });
     });
-    return out.sort((a, b) => b.date.localeCompare(a.date));
+    // Más recientes primero. Se compara la fecha real (no el texto): no depende del formato ni del idioma del teléfono.
+    const ts = (d: string) => { const n = Date.parse(d); return Number.isFinite(n) ? n : 0; };
+    return out.sort((a, b) => ts(b.date) - ts(a.date));
   }, [locals, remotes, singles, findingsBy]);
 
   const kindText = useCallback((it: ScanItem) => {
@@ -608,9 +610,17 @@ export default function MisEscaneos() {
       const zoneOf: Record<string, string> = {};
       const cnt: Record<string, number> = {};
       for (const h of selectedFindings) if (h.zona) { zoneOf[h.id] = h.zona; cnt[h.zona] = (cnt[h.zona] ?? 0) + 1; }
+      // Los hallazgos de una grabación no tienen GPS, pero sí zona: se dibujan dentro de su zona, repartidos.
+      const byZone: Record<string, HallazgoMapa[]> = {};
+      for (const h of selectedFindings) if (h.zona) (byZone[h.zona] ??= []).push(h);
+      const placed = zonasSel.flatMap(z => {
+        const hs = byZone[z.id] ?? [];
+        const spots = puntosEnZona(z.ring, z.label, hs.length);
+        return hs.map((h, i) => ({ id: h.id, lat: spots[i].lat, lng: spots[i].lng, cat: categoria(h) }));
+      });
       const zones = zonasSel.map(z => ({ key: z.id, label: t('zoneLabel', { z: z.id }), color: ZONE_UI[z.color].fill, ring: z.ring, at: z.label, count: cnt[z.id] ?? 0 }));
       const ring = orchard.length >= 3 ? orchard : zonasSel.flatMap(z => z.ring);
-      return { id: selected.id, route: [], photos: [], findings, orchard: ring, speedRange: null, zones, zoneOf };
+      return { id: selected.id, route: [], photos: [], findings: placed, orchard: ring, speedRange: null, zones, zoneOf };
     }
     if (selected.route.length < 2 && !photos.length && !findings.length) return null;
     return { id: selected.id, route: selected.route, photos, findings, orchard, speedRange: speedRangeOf(selected.route) };

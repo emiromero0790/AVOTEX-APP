@@ -66,6 +66,48 @@ export function parseZonas(raw: unknown): ZonaSnapshot[] {
 export const zoneColorOf = (zonas: ZonaSnapshot[], id: string | null | undefined): ZoneColor | null =>
   zonas.find(z => z.id === id)?.color ?? null;
 
+/**
+ * Lugares para dibujar `n` hallazgos DENTRO de una zona (las fotos de un video no tienen GPS: solo se sabe la zona).
+ * Determinista (siempre los mismos puntos), repartidos por la zona, lejos del borde y de la etiqueta de la zona.
+ */
+export function puntosEnZona(ring: LatLng[], label: LatLng, n: number): LatLng[] {
+  if (n <= 0 || ring.length < 3) return [];
+  const lat0 = ring.reduce((a, p) => a + p.lat, 0) / ring.length;
+  const k = Math.cos((lat0 * Math.PI) / 180);
+  // Coordenadas planas (x = lng corregida por latitud) para medir distancias.
+  const xy = (p: LatLng): [number, number] => [p.lng * k, p.lat];
+  const poly = ring.map(xy);
+  const inside = (x: number, y: number) => {
+    let r = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [xi, yi] = poly[i], [xj, yj] = poly[j];
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi || 1e-12) + xi) r = !r;
+    }
+    return r;
+  };
+  const xs = poly.map(p => p[0]), ys = poly.map(p => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const size = Math.max(maxX - minX, maxY - minY);
+  const L = xy(label);
+  // Rejilla fina; se quedan los puntos con margen al borde (los 4 vecinos también dentro).
+  const G = 24, m = size * 0.06, cands: [number, number][] = [];
+  for (let i = 0; i <= G; i++) for (let j = 0; j <= G; j++) {
+    const x = minX + ((maxX - minX) * i) / G, y = minY + ((maxY - minY) * j) / G;
+    if (inside(x, y) && inside(x + m, y) && inside(x - m, y) && inside(x, y + m) && inside(x, y - m)) cands.push([x, y]);
+  }
+  const pool = cands.length ? cands : [L];
+  const d2 = (a: [number, number], b: [number, number]) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
+  // Muestreo del punto más lejano: cada hallazgo se aleja de los anteriores y de la etiqueta.
+  const chosen: [number, number][] = [];
+  const near = (c: [number, number]) => Math.min(d2(c, L) * 0.6, ...chosen.map(q => d2(c, q)));
+  for (let t = 0; t < n; t++) {
+    let best = pool[0], bestD = -1;
+    for (const c of pool) { const d = near(c); if (d > bestD) { bestD = d; best = c; } }
+    chosen.push(best);
+  }
+  return chosen.map(([x, y]) => ({ lat: y, lng: x / k }));
+}
+
 export type FrameAsignado = { uri: string; timeMs: number; zona: ZoneId | null };
 
 /**

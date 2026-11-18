@@ -413,6 +413,25 @@ async function uploadRecorridoInner(
 
 const REMOTE_COLUMNS = 'id,user_email,huerta_id,estado,iniciado_at,terminado_at,fotos_total,fotos_analizadas,hallazgos_total,ruta,procesado_at,error,created_at';
 
+/**
+ * Pide las columnas base + las opcionales (fuente: migración 20261105; tipo/zonas: 20261117) y quita SOLO la que
+ * falte en la base de datos. Antes, si faltaba «fuente», el reintento también quitaba tipo y zonas: las grabaciones
+ * llegaban como recorridos normales (sin zonas, con el mapa mal encuadrado).
+ */
+async function selectOptional<T extends { data: unknown; error: { code?: string; message?: string } | null }>(
+  query: (columns: string) => PromiseLike<T>,
+): Promise<T> {
+  let optional = ['fuente', 'tipo', 'zonas'];
+  for (;;) {
+    const res = await query([REMOTE_COLUMNS, ...optional].join(','));
+    const missing = res.error ? optional.filter(c => isMissingColumn(res.error, c)) : [];
+    if (!missing.length) return res;
+    // tipo y zonas vienen de la misma migración: sin una no sirve la otra.
+    const drop = new Set(missing.some(c => c === 'tipo' || c === 'zonas') ? [...missing, 'tipo', 'zonas'] : missing);
+    optional = optional.filter(c => !drop.has(c));
+  }
+}
+
 export async function listRemote(userEmail: string, limit = 30): Promise<RecorridoRemoto[]> {
   const query = (columns: string) => supabase
     .from('recorridos')
@@ -421,9 +440,7 @@ export async function listRemote(userEmail: string, limit = 30): Promise<Recorri
     .neq('estado', 'subiendo')
     .order('created_at', { ascending: false })
     .limit(limit);
-  let { data, error } = await query(`${REMOTE_COLUMNS},fuente,tipo,zonas`);
-  if (error && (isMissingColumn(error, 'tipo') || isMissingColumn(error, 'zonas'))) ({ data, error } = await query(`${REMOTE_COLUMNS},fuente`));
-  if (error && isMissingColumn(error, 'fuente')) ({ data, error } = await query(REMOTE_COLUMNS));
+  const { data, error } = await selectOptional(query);
   if (error) throw error;
   return (data ?? []) as unknown as RecorridoRemoto[];
 }
@@ -466,9 +483,7 @@ export async function getRemote(id: string, userEmail: string): Promise<Recorrid
     .eq('id', id)
     .eq('user_email', userEmail)
     .maybeSingle();
-  let { data, error } = await query(`${REMOTE_COLUMNS},fuente,tipo,zonas`);
-  if (error && (isMissingColumn(error, 'tipo') || isMissingColumn(error, 'zonas'))) ({ data, error } = await query(`${REMOTE_COLUMNS},fuente`));
-  if (error && isMissingColumn(error, 'fuente')) ({ data, error } = await query(REMOTE_COLUMNS));
+  const { data, error } = await selectOptional(query);
   if (error) throw error;
   return (data as unknown as RecorridoRemoto) ?? null;
 }

@@ -70,6 +70,9 @@ const translations: TranslationResource = {
   capGopro: { es: 'Recorrido inteligente en modo GoPro: con tu casco y GoPro en la animación.', en: 'Smart walk in GoPro mode: with your helmet and GoPro in the animation.' },
   locked: { es: 'Crea una cuenta para usarlo', en: 'Create an account to use it' },
   uploadVideo: { es: 'Subir grabación', en: 'Upload recording' },
+  splitWalk: { es: 'Iniciar recorrido', en: 'Start walk' },
+  splitWalkDrone: { es: 'Recorrido con dron', en: 'Walk with drone' },
+  splitWalkGopro: { es: 'Recorrido con GoPro', en: 'Walk with GoPro' },
   uploadVideoHint: { es: 'Usa un video que ya tengas: eliges las fotos y su zona', en: 'Use a video you already have: pick the photos and their zone' },
   unlockTitle: { es: 'Recorrido inteligente bloqueado', en: 'Smart walk is locked' },
   unlockBody: { es: 'Se desbloquea al crear una cuenta o al suscribirte a un plan de pago. Con él caminas tu huerta y el celular toma las fotos solo.', en: 'Unlock it by creating an account or subscribing to a paid plan. Walk your orchard and the phone takes the photos for you.' },
@@ -256,36 +259,62 @@ export default function ScanHome({ isGuest, tokensRemaining, email = null, pendi
           {/* ── Cámara: Celular (la principal, más grande) arriba; Dron y GoPro debajo de los botones. ── */}
           <View accessibilityRole="radiogroup">{renderCard(SOURCES[0], 0)}</View>
 
-          <Text style={[s.caption, { marginTop: 14 }]} maxFontSizeMultiplier={1.15}>{caption}</Text>
-          {/* ── Acción principal: recorrido (con cuenta) o foto individual (invitado) ── */}
-          <PressableScale onPress={start} accessibilityRole="button" accessibilityLabel={busyLabel ?? `${ctaLabel}. ${caption}`} accessibilityState={{ busy: !!busyLabel }} style={s.ctaWrap}>
-            <LinearGradient colors={[...LIME_GRADIENT]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.cta}>
-              {busyLabel ? <ActivityIndicator color={C.ink} /> : isGuest ? <Camera size={22} color={C.ink} /> : <Footprints size={22} color={C.ink} />}
-              <Reanimated.Text key={busyLabel ? 'busy' : isGuest ? 'photo' : 'walk'} entering={reduced ? undefined : TEXT_IN}
-                style={[s.ctaText, !!busyLabel && { fontSize: 16 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.15}>
-                {busyLabel ?? ctaLabel}
-              </Reanimated.Text>
-              <ChevronRight size={22} color={C.ink} />
-            </LinearGradient>
-          </PressableScale>
-
-          {/* Subir grabación: opción secundaria, más pequeña. Sirve para videos de cualquier dispositivo. */}
-          {onUploadRecording && (
-            <PressableScale onPress={() => {
-                if (busyLabel) return;
-                if (isGuest) { tapLockedWalk(); return; }
-                Haptics.selectionAsync().catch(() => {});
-                onUploadRecording();
-              }}
-              accessibilityRole="button" accessibilityLabel={`${t('uploadVideo')}. ${t('uploadVideoHint')}${isGuest ? `, ${t('needsAccount')}` : ''}`}
-              style={s.uploadBtn}>
-              <View style={s.uploadIcon}><Film size={17} color={C.deep} /></View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={s.uploadText} numberOfLines={1} maxFontSizeMultiplier={1.2}>{t('uploadVideo')}</Text>
-                <Text style={s.uploadHint} numberOfLines={1} maxFontSizeMultiplier={1.15}>{t('uploadVideoHint')}</Text>
-              </View>
-              {isGuest ? <View style={s.lockBadge}><Lock size={13} color="#FFFFFF" /></View> : <ChevronRight size={18} color={C.deep} />}
-            </PressableScale>
+          {isGuest ? (
+            <>
+              <Text style={[s.caption, { marginTop: 14 }]} maxFontSizeMultiplier={1.15}>{caption}</Text>
+              {/* Invitado: foto individual. */}
+              <PressableScale onPress={start} accessibilityRole="button" accessibilityLabel={busyLabel ?? `${ctaLabel}. ${caption}`} accessibilityState={{ busy: !!busyLabel }} style={s.ctaWrap}>
+                <LinearGradient colors={[...LIME_GRADIENT]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.cta}>
+                  {busyLabel ? <ActivityIndicator color={C.ink} /> : <Camera size={22} color={C.ink} />}
+                  <Reanimated.Text key={busyLabel ? 'busy' : 'photo'} entering={reduced ? undefined : TEXT_IN}
+                    style={[s.ctaText, !!busyLabel && { fontSize: 16 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.15}>
+                    {busyLabel ?? ctaLabel}
+                  </Reanimated.Text>
+                  <ChevronRight size={22} color={C.ink} />
+                </LinearGradient>
+              </PressableScale>
+              {onUploadRecording && (
+                <PressableScale onPress={tapLockedWalk}
+                  accessibilityRole="button" accessibilityLabel={`${t('uploadVideo')}. ${t('uploadVideoHint')}, ${t('needsAccount')}`}
+                  style={s.uploadBtn}>
+                  <View style={s.uploadIcon}><Film size={17} color={C.deep} /></View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={s.uploadText} numberOfLines={1} maxFontSizeMultiplier={1.2}>{t('uploadVideo')}</Text>
+                    <Text style={s.uploadHint} numberOfLines={1} maxFontSizeMultiplier={1.15}>{t('uploadVideoHint')}</Text>
+                  </View>
+                  <View style={s.lockBadge}><Lock size={13} color="#FFFFFF" /></View>
+                </PressableScale>
+              )}
+            </>
+          ) : (
+            /* Con cuenta: un solo botón partido a la mitad. Izquierda, recorrido inteligente (acción principal);
+               derecha, subir una grabación que ya se tiene. Ahorra altura para que se asome la tarjeta de Dron. */
+            <View style={s.split}>
+              <PressableScale onPress={start} accessibilityRole="button" accessibilityLabel={busyLabel ?? ctaLabel} accessibilityState={{ busy: !!busyLabel }} style={s.splitHalf}>
+                <LinearGradient colors={[...LIME_GRADIENT]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.splitFill}>
+                  {busyLabel ? <ActivityIndicator color={C.ink} /> : <Footprints size={20} color={C.ink} />}
+                  <Reanimated.Text key={busyLabel ? 'busy' : source} entering={reduced ? undefined : TEXT_IN}
+                    style={s.splitText} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.15}>
+                    {busyLabel ?? (source === 'dron' ? t('splitWalkDrone') : source === 'camara' ? t('splitWalkGopro') : t('splitWalk'))}
+                  </Reanimated.Text>
+                </LinearGradient>
+              </PressableScale>
+              <View style={s.splitDivider} />
+              {onUploadRecording && (
+                <PressableScale onPress={() => {
+                    if (busyLabel) return;
+                    Haptics.selectionAsync().catch(() => {});
+                    onUploadRecording();
+                  }}
+                  accessibilityRole="button" accessibilityLabel={`${t('uploadVideo')}. ${t('uploadVideoHint')}`}
+                  style={s.splitHalf}>
+                  <View style={[s.splitFill, s.splitFillAlt]}>
+                    <Film size={20} color={C.deep} />
+                    <Text style={[s.splitText, { color: C.deep }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.15}>{t('uploadVideo')}</Text>
+                  </View>
+                </PressableScale>
+              )}
+            </View>
           )}
 
           {/* Invitado: el recorrido inteligente se ve, con candado; al tocarlo se explica cómo desbloquearlo. */}
@@ -394,6 +423,15 @@ const s = StyleSheet.create({
   unlockPrimary: { backgroundColor: C.deep, borderColor: C.deep },
   unlockPrimaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: '#FFFFFF' },
   unlockBtnText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: C.ink },
+  split: {
+    marginTop: 14, flexDirection: 'row', alignItems: 'stretch', height: 60, borderRadius: 22, overflow: 'hidden',
+    backgroundColor: C.white, borderWidth: 1.5, borderColor: 'rgba(132,204,22,0.55)',
+  },
+  splitHalf: { flex: 1 },
+  splitFill: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12 },
+  splitFillAlt: { backgroundColor: 'rgba(247,254,231,0.9)' },
+  splitDivider: { width: 1.5, backgroundColor: 'rgba(132,204,22,0.55)' },
+  splitText: { flexShrink: 1, fontFamily: 'Poppins_700Bold', fontSize: 15, lineHeight: 19, color: C.ink },
   uploadBtn: {
     marginTop: 10, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 8,
     borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1.5, borderColor: 'rgba(132,204,22,0.45)',

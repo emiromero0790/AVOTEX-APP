@@ -11,7 +11,7 @@
  *   La zona activa muestra «Zona D · 3 fotos».
  */
 import React, { memo, useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, ClipPath, Defs, Ellipse, G, Line, LinearGradient as SvgGradient, Path, Pattern, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import Reanimated, { type SharedValue, useAnimatedProps, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Layers } from 'lucide-react-native';
@@ -59,6 +59,14 @@ export function project3D(zonas: ZonaSnapshot[], outline: LatLng[] | null, w: nu
 function satelliteUrl(sw: LatLng, ne: LatLng, w: number, h: number) {
   const W = Math.min(1600, Math.round(w * 2)), H = Math.min(1600, Math.round(h * 2));
   return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${sw.lng},${sw.lat},${ne.lng},${ne.lat}&bboxSR=4326&imageSR=4326&size=${W},${H}&format=jpg&f=image`;
+}
+
+/** URL del fondo satelital tal como la pide ZoneMap3D; sirve para descargarla antes (Image.prefetch) y que no tarde. */
+export function zoneMapSatelliteUrl(zonas: ZonaSnapshot[], outline: LatLng[] | null, width: number, height: number, flat = false): string | null {
+  const g = geoOf(zonas, outline, width, height, flat);
+  if (!g) return null;
+  const tl = toLatLng(g, 0, 0), br = toLatLng(g, width, height);
+  return satelliteUrl({ lat: br.lat, lng: tl.lng }, { lat: tl.lat, lng: br.lng }, width, height);
 }
 
 const pathOf = (pts: [number, number][], dy = 0) => pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${(p[1] + dy).toFixed(1)}`).join(' ') + ' Z';
@@ -150,9 +158,11 @@ type Props = {
   flatLabel?: string;
   /** Fondo satelital de la ubicación real (por defecto sí). */
   satellite?: boolean;
+  /** Texto mientras carga la imagen satelital. */
+  loadingLabel?: string;
 };
 
-export default function ZoneMap3D({ zonas, outline = null, width, height, counts, activeZone, dropTick, hover, onZonePress, activeText, flat = false, onToggleFlat, flatLabel, satellite = true }: Props) {
+export default function ZoneMap3D({ zonas, outline = null, width, height, counts, activeZone, dropTick, hover, onZonePress, activeText, flat = false, onToggleFlat, flatLabel, satellite = true, loadingLabel = 'Cargando satélite…' }: Props) {
   const g = useMemo(() => geoOf(zonas, outline, width, height, flat), [zonas, outline, width, height, flat]);
   const faces = useMemo(() => (g ? zonas.map(z => ({ id: z.id, top: z.ring.map(p => toXY(g, p)), label: toXY(g, z.label) })) : []), [g, zonas]);
   const outlinePts = useMemo(() => (g && outline && outline.length >= 3 ? outline.map(p => toXY(g, p)) : null), [g, outline]);
@@ -162,12 +172,15 @@ export default function ZoneMap3D({ zonas, outline = null, width, height, counts
 
   // Imagen satelital de TODA la caja visible (mismo sistema de coordenadas que el polígono).
   const [satFailed, setSatFailed] = useState(false);
+  // URL ya cargada (si cambia la vista, se espera la nueva sin dejar la caja en negro).
+  const [satLoaded, setSatLoaded] = useState<string | null>(null);
   const sat = useMemo(() => {
     if (!satellite || !g) return null;
     const tl = toLatLng(g, 0, 0), br = toLatLng(g, width, height);
     return satelliteUrl({ lat: br.lat, lng: tl.lng }, { lat: tl.lat, lng: br.lng }, width, height);
   }, [satellite, g, width, height]);
   const showSat = !!sat && !satFailed;
+  const satReady = showSat && satLoaded === sat;
 
   // Aguacates: uno por foto, hasta 6 por zona.
   const pins = useMemo(() => faces.flatMap(f => {
@@ -178,7 +191,8 @@ export default function ZoneMap3D({ zonas, outline = null, width, height, counts
   return (
     <View style={{ width, height, borderRadius: 22, overflow: 'hidden', backgroundColor: '#0A2618' }}>
       {/* Satélite debajo del SVG, estirado exactamente a la caja (mismo sistema de coordenadas que las zonas). */}
-      {showSat && <Image source={{ uri: sat! }} style={StyleSheet.absoluteFill} resizeMode="stretch" onError={() => setSatFailed(true)} accessibilityIgnoresInvertColors />}
+      {showSat && <Image source={{ uri: sat! }} style={[StyleSheet.absoluteFill, { opacity: satReady ? 1 : 0 }]} resizeMode="stretch"
+        onLoad={() => setSatLoaded(sat)} onError={() => setSatFailed(true)} accessibilityIgnoresInvertColors />}
       <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
         <Defs>
           <Pattern id="grid" width={22} height={22} patternUnits="userSpaceOnUse">
@@ -196,8 +210,8 @@ export default function ZoneMap3D({ zonas, outline = null, width, height, counts
           <ClipPath id="card"><Rect x={0} y={0} width={width} height={height} rx={22} /></ClipPath>
         </Defs>
         <G clipPath="url(#card)">
-          {!showSat && <Rect x={0} y={0} width={width} height={height} fill="url(#bg)" />}
-          {!showSat && <Rect x={0} y={0} width={width} height={height} fill="url(#grid)" />}
+          {!satReady && <Rect x={0} y={0} width={width} height={height} fill="url(#bg)" />}
+          {!satReady && <Rect x={0} y={0} width={width} height={height} fill="url(#grid)" />}
           {showSat && <Rect x={0} y={0} width={width} height={height} fill="url(#vig)" />}
           {/* Contorno real de la huerta */}
           {outlinePts && <Path d={pathOf(outlinePts)} fill="none" stroke="#FFFFFF" strokeOpacity={0.5} strokeWidth={1.2} strokeDasharray="4 3" />}
@@ -252,6 +266,11 @@ export default function ZoneMap3D({ zonas, outline = null, width, height, counts
         </G>
       </Svg>
       {pins.map(p => <AvocadoPin key={p.key} x={p.x} y={p.y} fresh={p.zone === activeZone && p.last} tick={dropTick} />)}
+      {showSat && !satReady && (
+        <View style={st.loading} pointerEvents="none" accessibilityLiveRegion="polite">
+          <ActivityIndicator size="small" color="#FFFFFF" /><Text style={st.loadingText}>{loadingLabel}</Text>
+        </View>
+      )}
       {onToggleFlat && (
         <Pressable onPress={onToggleFlat} accessibilityRole="switch" accessibilityState={{ checked: flat }} hitSlop={6} style={st.toggle}>
           <Layers size={15} color="#FFFFFF" /><Text style={st.toggleText}>{flatLabel}</Text>
@@ -264,6 +283,8 @@ export default function ZoneMap3D({ zonas, outline = null, width, height, counts
 const st = StyleSheet.create({
   pin: { position: 'absolute', width: 30, height: AVO * 1.25 + 5 },
   ring: { position: 'absolute', left: 1, bottom: 0, width: 28, height: 10, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.55)', borderWidth: 2, borderColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  loading: { position: 'absolute', left: 10, bottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, height: 30, borderRadius: 15, backgroundColor: 'rgba(11,38,24,0.82)' },
+  loadingText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#FFFFFF' },
   toggle: { position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 32, borderRadius: 16, backgroundColor: 'rgba(11,38,24,0.82)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' },
   toggleText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#FFFFFF' },
 });

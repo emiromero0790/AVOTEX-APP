@@ -97,7 +97,15 @@ map.createPane('zones').style.zIndex=410;
 map.createPane('rows').style.zIndex=415;map.getPane('rows').style.pointerEvents='none';
 map.createPane('outline').style.zIndex=430;map.getPane('outline').style.pointerEvents='none';
 var zoneLayer=L.layerGroup(),rowLayer=L.layerGroup(),labelLayer=L.layerGroup(),outlineLayer=L.layerGroup().addTo(map);
-var data=null,layer='satelite',selected=null,zonePaths={},zoneLabels={},lastKey=null,ndvi=null;
+var data=null,layer='satelite',selected=null,zonePaths={},zoneLabels={},lastKey=null,ndvi=null,ndviBounds=null;
+function clipNdvi(){
+  var el=ndvi&&ndvi.getElement();if(!el)return;
+  if(!data||!data.outline||data.outline.length<3||!ndviBounds){el.style.visibility='hidden';return;}
+  var b=ndviBounds,X=function(lng){return lng*Math.PI/180;},Y=function(lat){return Math.log(Math.tan(Math.PI/4+lat*Math.PI/360));};
+  var x0=X(b.west),x1=X(b.east),y0=Y(b.north),y1=Y(b.south);
+  var pts=data.outline.map(function(p){return((X(p.lng)-x0)/(x1-x0)*100).toFixed(3)+'% '+((y0-Y(p.lat))/(y0-y1)*100).toFixed(3)+'%';}).join(',');
+  el.style.clipPath='polygon('+pts+')';el.style.webkitClipPath='polygon('+pts+')';el.style.imageRendering='auto';el.style.visibility='';
+}
 // Carga del mapa de vigor: pulso blanco dentro del contorno + texto cerca del polígono.
 var loadText=null,pulse=null,pulseLabel=null;
 function clearPulse(fade){
@@ -176,7 +184,7 @@ window.avx={
     if(fresh)selected=null;
     var b=bounds();
     if(b&&fresh){if(animOn()&&map._loaded&&lastFit){map.flyToBounds(b,Object.assign(padOpts(),{duration:.8}));}else{map.fitBounds(b,padOpts());}lastFit=true;}
-    drawOutline();drawZones(fresh&&animOn());applyLayer();
+    drawOutline();drawZones(fresh&&animOn());applyLayer();clipNdvi();
     if(loadText)drawPulse();
   },
   /** Texto mientras se carga el mapa de vigor de la huerta actual; null = terminó (se desvanece). */
@@ -191,17 +199,15 @@ window.avx={
     Object.keys(zoneLabels).forEach(function(k){var x=zoneLabels[k];x.mk.setIcon(L.divIcon({className:'zlw',html:labelHtml(x.z),iconSize:[0,0]}));x.mk.setZIndexOffset(k===selected?900:500);});
   },
   setNdvi:function(n){
-    if(ndvi){map.removeLayer(ndvi);ndvi=null;}
+    if(ndvi){map.removeLayer(ndvi);ndvi=null;ndviBounds=null;}
     if(!n||!n.image||!n.bounds)return;
     var b=n.bounds;
     ndvi=L.imageOverlay('data:image/png;base64,'+n.image,[[b.south,b.west],[b.north,b.east]],{pane:'ndvi',opacity:.88,interactive:false,className:'ndvi',attribution:'Vigor: Copernicus Sentinel-2'});
-    // La imagen llega a 10 m por píxel y sin recortar: el navegador la estira con interpolación suave y aquí se
-    // recorta al contorno con clip-path (porcentajes en Web Mercator dentro de la caja: borde nítido).
-    ndvi.on('add',function(){var el=ndvi&&ndvi.getElement();if(!el||!data||data.outline.length<3)return;
-      var X=function(lng){return lng*Math.PI/180;},Y=function(lat){return Math.log(Math.tan(Math.PI/4+lat*Math.PI/360));};
-      var x0=X(b.west),x1=X(b.east),y0=Y(b.north),y1=Y(b.south);
-      var pts=data.outline.map(function(p){return((X(p.lng)-x0)/(x1-x0)*100).toFixed(3)+'% '+((y0-Y(p.lat))/(y0-y1)*100).toFixed(3)+'%';}).join(',');
-      el.style.clipPath='polygon('+pts+')';el.style.webkitClipPath='polygon('+pts+')';el.style.imageRendering='auto';});
+    ndviBounds=b;
+    // La imagen llega a 10 m por píxel y sin recortar: se recorta al contorno con clip-path. Antes solo se recortaba
+    // al agregarse, y si el contorno (setData) llegaba después, se veía el rectángulo completo. Ahora se recorta
+    // cada vez que cambia algo y, sin contorno, no se muestra.
+    ndvi.on('add',clipNdvi);
     applyLayer();
   },
   zoom:function(d){d>0?map.zoomIn():map.zoomOut();},

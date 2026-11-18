@@ -1,7 +1,8 @@
 /**
  * Subir grabación → Ubica tus fotos (video sin GPS → fotos asignadas a zonas de la huerta).
  *
- * Entrada: igual que Recorrido inteligente, la huerta se sugiere con la ubicación del teléfono
+ * Huerta: después de cargar el video, al tocar «Procesar video» (no antes, para no estorbar la carga).
+ * Igual que Recorrido inteligente, la huerta se sugiere con la ubicación del teléfono
  * (services/huertaResolver.ts → resolveScanHuerta) y, si hay duda, se elige en el mismo modal
  * (components/scan/OrchardPickerSheet.tsx), con «No asignar a ninguna huerta». La ubicación SOLO sugiere
  * la huerta: los fotogramas no llevan GPS y su zona se asigna a mano.
@@ -24,12 +25,13 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
 import { onAuthStateChanged, type Auth, type User } from 'firebase/auth';
-import { ArrowLeft, Check, ChevronRight, CloudUpload, Film, ImageIcon, Play, Satellite, Trash2, Unlink } from 'lucide-react-native';
+import { ArrowLeft, Check, ChevronRight, CloudUpload, Film, ImageIcon, MapPin, Play, Satellite, Trash2, Unlink } from 'lucide-react-native';
 import { auth as firebaseAuth } from '../../firebaseConfig';
 import { useGuest } from '../../context/GuestContext';
 import { TranslationResource, useTranslations } from '../../context/LanguageContext';
 import type { Orchard } from '../../services/orchards';
 import { resolveScanHuerta, type HuertaResolution } from '../../services/huertaResolver';
+import { listOrchards } from '../../services/orchards';
 import { frameTimes, guardarGrabacion, MAX_VIDEO_MIN, ZONE_UI, zonasDeHuerta, type ZonaSnapshot } from '../../services/grabacion';
 import { extractFrames } from '../../services/videoFrames';
 import { getMobileDataAllowed, uploadRecorrido } from '../../services/recorridos';
@@ -66,6 +68,9 @@ const translations: TranslationResource = {
   limit: { es: 'Videos de hasta {min} min', en: 'Videos up to {min} min' },
   pickVideo: { es: 'Elegir video de la galería', en: 'Choose a video from the gallery' },
   continueN: { es: 'Continuar con {n} fotos', en: 'Continue with {n} photos' },
+  processN: { es: 'Procesar video ({n} fotos)', en: 'Process video ({n} photos)' },
+  orchardLater: { es: 'Huerta: se elige al procesar', en: 'Orchard: chosen when processing' },
+  orchardLaterHint: { es: 'Usaremos tu ubicación para sugerirla', en: 'We will use your location to suggest it' },
   otherVideo: { es: 'Elegir otro video', en: 'Choose another video' },
   permission: { es: 'Permite el acceso a tus videos para continuar.', en: 'Allow access to your videos to continue.' },
   tooLong: { es: 'El video dura más de {min} min: tomaremos 30 fotos repartidas en todo el video.', en: 'The video is longer than {min} min: we will take 30 photos spread across it.' },
@@ -111,7 +116,7 @@ type Frame = { key: string; uri: string; timeMs: number; zona: ZoneId | null; re
 type Phase = 'resolving' | 'setup' | 'extracting' | 'assign' | 'saving' | 'ask-cellular' | 'uploading' | 'done';
 /** undefined = aún sin decidir; null = «No asignar a ninguna huerta». */
 type OrchardChoice = string | null | undefined;
-type PickState = { mode: 'entry' | 'change'; reason: Extract<HuertaResolution, { kind: 'manual' }>['reason'] | null; accuracyM: number | null; candidates: string[] };
+type PickState = { mode: 'process' | 'change'; reason: Extract<HuertaResolution, { kind: 'manual' }>['reason'] | null; accuracyM: number | null; candidates: string[] };
 
 const fmtTime = (ms: number) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const THUMB = 82;
@@ -137,7 +142,7 @@ function GrabacionScreen() {
   const [choice, setChoice] = useState<OrchardChoice>(undefined);
   const [pick, setPick] = useState<PickState | null>(null);
   const [pendingChange, setPendingChange] = useState<string | null | undefined>(undefined);
-  const [phase, setPhase] = useState<Phase>('resolving');
+  const [phase, setPhase] = useState<Phase>('setup');
   const [frames, setFrames] = useState<Frame[]>([]);
   const [sel, setSel] = useState<string | null>(null);
   const [lastZone, setLastZone] = useState<ZoneId | null>(null);
@@ -150,19 +155,26 @@ function GrabacionScreen() {
   const cancelled = useRef(false);
   useEffect(() => { cancelled.current = false; return () => { cancelled.current = true; }; }, []);
 
-  // ───────── entrada: misma resolución de huerta que Recorrido inteligente ─────────
+  // Huertas en segundo plano (solo para la tarjeta y el cambio manual; sin GPS ni modal al entrar).
   useEffect(() => {
     if (!email || isGuest) return;
     let alive = true;
-    resolveScanHuerta(email).then(res => {
-      if (!alive) return;
-      setOrchards(res.orchards);
-      if (res.kind === 'auto') { setChoice(res.huerta.id); setPhase('setup'); return; }
-      setPhase('setup');
-      setPick({ mode: 'entry', reason: res.reason, accuracyM: res.accuracyM, candidates: res.candidates });
-    });
+    listOrchards(email).then(list => { if (alive) setOrchards(list); }).catch(() => {});
     return () => { alive = false; };
   }, [email, isGuest]);
+
+  /** «Procesar video»: misma resolución de huerta que Recorrido inteligente; si hay duda, el mismo modal. */
+  const proceed = async () => {
+    if (!email || phase !== 'setup') return;
+    if (choice !== undefined) { setPhase('assign'); return; }
+    setPhase('resolving');
+    const res = await resolveScanHuerta(email, orchards.length ? orchards : undefined);
+    if (cancelled.current) return;
+    if (res.orchards.length) setOrchards(res.orchards);
+    if (res.kind === 'auto') { applyChoice(res.huerta.id); setPhase('assign'); return; }
+    setPhase('setup');
+    setPick({ mode: 'process', reason: res.reason, accuracyM: res.accuracyM, candidates: res.candidates });
+  };
 
   const orchard = typeof choice === 'string' ? orchards.find(o => o.id === choice) ?? null : null;
   const zonas = useMemo<ZonaSnapshot[] | null>(() => (orchard ? zonasDeHuerta(orchard.coordinates, orchard.id) : null), [orchard]);
@@ -188,13 +200,11 @@ function GrabacionScreen() {
     setPick(null);
     if (mode === 'change' && id !== choice && frames.some(f => f.zona)) { setPendingChange(id); return; }
     if (id !== choice) applyChoice(id);
+    // Desde «Procesar video»: con la huerta elegida se pasa a ubicar las fotos.
+    if (mode === 'process') setPhase('assign');
   };
-  const onPickCancel = () => {
-    const mode = pick?.mode;
-    setPick(null);
-    // Al entrar hay que decidir: cerrar el modal sin elegir regresa a Escanear.
-    if (mode === 'entry' && choice === undefined) router.back();
-  };
+  // Cerrar el modal sin elegir deja al usuario en el paso 1 con su video cargado.
+  const onPickCancel = () => setPick(null);
   const openChange = () => {
     if (phase === 'saving' || phase === 'uploading') return;
     Haptics.selectionAsync().catch(() => {});
@@ -224,7 +234,8 @@ function GrabacionScreen() {
       setFrames(list);
       setSel(list[0].key);
       setLastZone(null);
-      setPhase('assign');
+      // Se queda en el paso 1 con la portada del video: la huerta se pregunta al tocar «Procesar video».
+      setPhase('setup');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch {
       setPhase('setup');
@@ -395,12 +406,12 @@ function GrabacionScreen() {
       <View style={s.orchThumb}>
         {phase === 'resolving' ? <ActivityIndicator color={C.deep} />
           : zonas ? <ZoneBoard zonas={zonas} outline={outline} width={76} height={62} compact />
-            : orchard ? <Film size={22} color={C.muted} /> : <Unlink size={22} color={C.muted} />}
+            : orchard ? <Film size={22} color={C.muted} /> : choice === undefined ? <MapPin size={22} color={C.muted} /> : <Unlink size={22} color={C.muted} />}
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={s.orchName} numberOfLines={1}>{phase === 'resolving' ? t('finding') : orchard ? orchard.nombre : t('noOrchard')}</Text>
+        <Text style={s.orchName} numberOfLines={1}>{phase === 'resolving' ? t('finding') : orchard ? orchard.nombre : choice === undefined ? t('orchardLater') : t('noOrchard')}</Text>
         {phase !== 'resolving' && (
-          <Text style={s.orchMeta} numberOfLines={1}>{orchard ? `${haLabel(orchard.area_m2)} · ${zonas ? t('zonesN', { n: zonas.length }) : t('noZonesShort')}` : t('noOrchardHint')}</Text>
+          <Text style={s.orchMeta} numberOfLines={1}>{orchard ? `${haLabel(orchard.area_m2)} · ${zonas ? t('zonesN', { n: zonas.length }) : t('noZonesShort')}` : choice === undefined ? t('orchardLaterHint') : t('noOrchardHint')}</Text>
         )}
       </View>
       <ChevronRight size={22} color={C.ink} />
@@ -457,8 +468,10 @@ function GrabacionScreen() {
           <View style={[s.bottom, { paddingBottom: insets.bottom + 12 }]}>
             {hasFrames ? (
               <>
-                <PressableScale onPress={() => setPhase('assign')} style={s.primary} accessibilityRole="button">
-                  <Text style={s.primaryText}>{t('continueN', { n: live.length })}</Text><ChevronRight size={20} color="#FFFFFF" />
+                <PressableScale onPress={proceed} disabled={busy} style={[s.primary, busy && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ disabled: busy, busy: phase === 'resolving' }}>
+                  {phase === 'resolving' ? <ActivityIndicator color="#FFFFFF" /> : null}
+                  <Text style={s.primaryText}>{phase === 'resolving' ? t('finding') : t('processN', { n: live.length })}</Text>
+                  {phase === 'resolving' ? null : <ChevronRight size={20} color="#FFFFFF" />}
                 </PressableScale>
                 <Pressable onPress={() => { setFrames([]); setSel(null); void pickVideo(); }} style={s.linkBtn} accessibilityRole="button"><Text style={s.link}>{t('otherVideo')}</Text></Pressable>
               </>

@@ -25,7 +25,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
 import { onAuthStateChanged, type Auth, type User } from 'firebase/auth';
-import { ArrowLeft, Check, ChevronRight, CloudUpload, Film, MapPin, Satellite, Trash2, Unlink, Upload } from 'lucide-react-native';
+import { Check, ChevronRight, CloudUpload, Film, MapPin, Trash2, Unlink, Upload } from 'lucide-react-native';
 import { auth as firebaseAuth } from '../../firebaseConfig';
 import { useGuest } from '../../context/GuestContext';
 import { TranslationResource, useTranslations } from '../../context/LanguageContext';
@@ -39,11 +39,11 @@ import type { ZoneId } from '../../services/satZones';
 import ZoneBoard, { pointInPolygon } from '../../components/grabacion/ZoneBoard';
 import ZoneMap3D, { project3D } from '../../components/grabacion/ZoneMap3D';
 import OrchardPickerSheet, { haLabel } from '../../components/scan/OrchardPickerSheet';
+import GrabacionHeader, { HEADER_VIDEO_BG, HeaderVideoBackdrop } from '../../components/grabacion/GrabacionHeader';
 import { PressableScale } from '../../components/scan/motion';
 
 const auth = firebaseAuth as Auth;
 const COVER = require('../../assets/images/grabacion/portada-huerta.jpg');
-const HEADER_BG = require('../../assets/images/grabacion/avotex-fondo-encabezado.png');
 
 const C = {
   deep: '#0F3D24', deep2: '#0A2B19', lime: '#BEF264', limeStrong: '#A3E635', limeSoft: '#ECFCCB',
@@ -163,7 +163,7 @@ function GrabacionScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [result, setResult] = useState<'sent' | 'saved' | 'failed' | null>(null);
-  const [headSize, setHeadSize] = useState({ w: 0, h: 0 });
+  const [headH, setHeadH] = useState(0);
   const [saved, setSaved] = useState<Awaited<ReturnType<typeof guardarGrabacion>> | null>(null);
   const cancelled = useRef(false);
   useEffect(() => { cancelled.current = false; return () => { cancelled.current = true; }; }, []);
@@ -364,25 +364,19 @@ function GrabacionScreen() {
     if (router.canGoBack()) router.back(); else router.navigate('/(app)/scan');
   };
   const header = (stepLabel: string | null, title: string, subtitle: string) => (
-    <View style={[s.header, { paddingTop: insets.top + 8 }]} onLayout={e => setHeadSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
-      {/* Fondo (cover) anclado a la derecha, donde están las ondas: en un teléfono vertical el recorte centrado las dejaba fuera. */}
-      <Image source={HEADER_BG} resizeMode="cover" accessibilityIgnoresInvertColors
-        style={{ position: 'absolute', top: 0, right: 0, height: headSize.h || 260, width: Math.max(headSize.w, (headSize.h || 260) * 2) }} />
-      <View style={s.brandRow}>
-        <PressableScale onPress={goBack} accessibilityRole="button" accessibilityLabel={t('back')} hitSlop={8} style={s.backBtn}>
-          <ArrowLeft size={20} color="#FFFFFF" />
-        </PressableScale>
-        <Satellite size={22} color={C.lime} />
-        <Text style={s.brand}>{t('brand')}</Text>
-      </View>
-      {stepLabel ? <View style={s.stepPill}><Text style={s.stepText}>{stepLabel}</Text></View> : null}
-      <Text style={s.hTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} accessibilityRole="header">{title}</Text>
-      <Text style={s.hSub} numberOfLines={1}>{subtitle}</Text>
-    </View>
+    <GrabacionHeader topInset={insets.top} stepLabel={stepLabel} title={title} subtitle={subtitle} brand={t('brand')}
+      backLabel={t('back')} onBack={goBack} height={headH} onHeight={setHeadH} />
+  );
+  // Todos los pasos comparten esta raíz: el video de fondo queda en el mismo lugar del árbol y no se reinicia al avanzar.
+  const shell = (content: React.ReactNode) => (
+    <GestureHandlerRootView style={s.screen}>
+      <HeaderVideoBackdrop height={headH || 240} />
+      {content}
+    </GestureHandlerRootView>
   );
 
   if (isGuest || !email) {
-    return <View style={s.screen}>{header(null, t('title1'), t('sub1'))}<View style={[s.body, s.center]}><Text style={s.text}>{t('guest')}</Text></View></View>;
+    return shell(<View style={{ flex: 1 }}>{header(null, t('title1'), t('sub1'))}<View style={[s.body, s.center]}><Text style={s.text}>{t('guest')}</Text></View></View>);
   }
 
   const picker = (
@@ -438,8 +432,8 @@ function GrabacionScreen() {
   // ───────── listo ─────────
   if (phase === 'done') {
     const ok = result === 'sent';
-    return (
-      <View style={s.screen}>
+    return shell(
+      <View style={{ flex: 1 }}>
         {header(null, ok ? t('doneTitle') : t('savedTitle'), orchard?.nombre ?? t('noOrchard'))}
         <Reanimated.View entering={reduced ? undefined : FadeInDown.duration(220)} style={[s.body, s.center, { paddingHorizontal: 24 }]}>
           <View style={[s.doneIcon, !ok && { backgroundColor: '#FEF3C7' }]}>{ok ? <Check size={34} color="#3F6212" strokeWidth={3} /> : <CloudUpload size={30} color={C.amber} />}</View>
@@ -459,8 +453,8 @@ function GrabacionScreen() {
     const hasFrames = live.length > 0;
     const busy = phase === 'extracting' || phase === 'resolving';
     const cardW = Math.min(width, 640) - 32;
-    return (
-      <View style={s.screen}>
+    return shell(
+      <View style={{ flex: 1 }}>
         {header(t('step1'), t('title1'), t('sub1'))}
         <View style={s.body}>
           <RNScrollView contentContainerStyle={{ padding: 16, paddingTop: 20, gap: 16, paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false}>
@@ -506,8 +500,8 @@ function GrabacionScreen() {
   const blocked = busy || !live.length || unassigned > 0;
   const label = busy ? (phase === 'saving' ? t('saving') : t('uploading', progress)) : live.length === 1 ? t('uploadOne') : t('upload', { n: live.length });
   const zoneText = (z: ZoneId, n: number) => t('zoneCount', { z, n, fotos: n === 1 ? t('foto1') : t('fotoN') });
-  return (
-    <GestureHandlerRootView style={s.screen}>
+  return shell(
+    <View style={{ flex: 1 }}>
       <View ref={rootRef} style={{ flex: 1 }} onLayout={measure}>
         {header(t('step2'), withZones ? t('title2') : t('title2none'), orchard?.nombre ?? t('noOrchard'))}
         <View style={s.body}>
@@ -590,7 +584,7 @@ function GrabacionScreen() {
       </View>
       {picker}
       {changeConfirm}
-    </GestureHandlerRootView>
+    </View>
   );
 }
 
@@ -677,15 +671,7 @@ const TrayItem = memo(function TrayItem({ frame, on, zoneColor, label, draggable
 });
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: C.deep2 },
-  header: { paddingHorizontal: 20, paddingBottom: 40, overflow: 'hidden', backgroundColor: '#0A2618' },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
-  backBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)', marginRight: 2 },
-  brand: { fontFamily: 'Poppins_700Bold', fontSize: 17, letterSpacing: 3, color: '#FFFFFF' },
-  stepPill: { alignSelf: 'flex-start', backgroundColor: C.lime, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 4, marginBottom: 8 },
-  stepText: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: C.ink },
-  hTitle: { fontFamily: 'Poppins_700Bold', fontSize: 32, lineHeight: 40, color: '#FFFFFF', letterSpacing: -0.5 },
-  hSub: { fontFamily: 'Poppins_400Regular', fontSize: 14.5, color: 'rgba(255,255,255,0.82)' },
+  screen: { flex: 1, backgroundColor: HEADER_VIDEO_BG },
   body: { flex: 1, backgroundColor: C.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -26, overflow: 'hidden' },
   center: { alignItems: 'center', justifyContent: 'center', padding: 24 },
   text: { fontFamily: 'Poppins_400Regular', fontSize: 14, lineHeight: 20, color: '#334155' },

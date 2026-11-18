@@ -196,7 +196,8 @@ export default function SateliteScreen() {
   const [unassigned, setUnassigned] = useState<number | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [layer, setLayer] = useState<SatLayer>('zonas');
+  // Entrada: Satélite + Textura (mapa de vigor), que se pide en cuanto hay huerta.
+  const [layer, setLayer] = useState<SatLayer>('satelite');
   const [zone, setZone] = useState<ZoneId | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -320,6 +321,8 @@ export default function SateliteScreen() {
     if (ndvi && ndvi.huertaId === orchard.id) return;
     fetchNdvi();
   }, [layer, orchard, geometry, ndvi, fetchNdvi]);
+  // Pulso de carga dentro del polígono: solo para la huerta actual, en «Satélite» y mientras su solicitud siga en curso.
+  const ndviLoadingText = layer === 'satelite' && !!orchard && ndvi?.huertaId === orchard.id && ndvi.status === 'loading' ? t('ndviLoading') : null;
   const ndviForMap = useMemo<SatNdviOverlay>(() => {
     if (!orchard || !ndvi || ndvi.huertaId !== orchard.id || ndvi.status !== 'done' || !ndvi.result.ok) return null;
     return { image: ndvi.result.image, bounds: ndvi.result.bounds };
@@ -452,7 +455,7 @@ export default function SateliteScreen() {
                   onTouchCancel={() => setScrollEnabled(true)}
                 >
                   {mapData && !mapFailed ? (
-                    <SatMap ref={mapRef} data={mapData} layer={layer} ndvi={ndviForMap} selectedZone={zone} onSelectZone={clearZoneFromMap} onError={() => setMapFailed(true)} />
+                    <SatMap ref={mapRef} data={mapData} layer={layer} ndvi={ndviForMap} ndviLoading={ndviLoadingText} selectedZone={zone} onSelectZone={clearZoneFromMap} onError={() => setMapFailed(true)} />
                   ) : (
                     <View style={s.mapFallback}>
                       <MapIcon size={26} color={SAT.muted} />
@@ -508,11 +511,10 @@ export default function SateliteScreen() {
                       </View>
 
                       {/* Leyenda del mapa de vigor (capa «Satélite») */}
-                      {layer === 'satelite' && ndvi && ndvi.huertaId === orchard.id && (
+                      {/* Mientras carga, el aviso va dentro del mapa (pulso en el polígono); aquí solo el resultado. */}
+                      {layer === 'satelite' && ndvi && ndvi.huertaId === orchard.id && ndvi.status === 'done' && (
                         <Reanimated.View entering={reduced ? undefined : FadeIn.duration(200)} style={s.ndviCard}>
-                          {ndvi.status === 'loading' ? (
-                            <View style={s.ndviRow}><ActivityIndicator size="small" color="#BEF264" /><Text style={s.ndviMeta}>{t('ndviLoading')}</Text></View>
-                          ) : ndvi.result.ok ? (
+                          {ndvi.result.ok ? (
                             <>
                               <View style={s.ndviRow}>
                                 <Text style={s.ndviTitle}>{t('ndviTitle')}</Text>

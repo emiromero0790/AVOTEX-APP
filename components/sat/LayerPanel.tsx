@@ -235,8 +235,8 @@ export default function LayerPanel({ open, onToggle, layer, onLayer, outline, zo
   }
   const inner = width - 12;
   const art: Size = { w: inner, h: Math.round(inner * 0.72) };
+  // Orden: Textura (mapa de vigor, capa «Satélite»), Zonas, Relieve.
   const sections: { key: SatLayer; label: string; node: React.ReactNode; extra?: React.ReactNode }[] = [
-    { key: 'zonas', label: labels.zones, node: <ZoneBlocks outline={outline} zones={zones} {...art} /> },
     {
       key: 'satelite', label: labels.outline,
       node: <TexturedOutline outline={outline} seed={seed} clipId={`clip${seed}`} {...art} />,
@@ -247,6 +247,7 @@ export default function LayerPanel({ open, onToggle, layer, onLayer, outline, zo
         </View>
       ),
     },
+    { key: 'zonas', label: labels.zones, node: <ZoneBlocks outline={outline} zones={zones} {...art} /> },
     { key: 'hibrido', label: labels.relief, node: <Image source={RELIEF} style={{ width: art.w, height: Math.round(art.w * 0.75), borderRadius: 8 }} resizeMode="cover" accessibilityIgnoresInvertColors /> },
   ];
   return (

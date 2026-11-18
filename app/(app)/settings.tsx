@@ -158,7 +158,7 @@ export default function SettingsScreen() {
               <Switch
                 value={shareLocation}
                 onValueChange={updateLocationSetting}
-                trackColor={{ false: '#D1D1D6', true: '#007AFF' }}
+                trackColor={{ false: '#D1D1D6', true: '#4D7C0F' }}
                 thumbColor="#FFFFFF"
                 ios_backgroundColor="#D1D1D6"
               />
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 11,
   },
-  languageButtonTextActive: { color: '#007AFF' },
+  languageButtonTextActive: { color: '#4D7C0F' },
   footer: {
     color: '#8E8E93',
     fontFamily: 'Poppins_400Regular',

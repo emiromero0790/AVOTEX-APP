@@ -75,6 +75,9 @@ const translations: TranslationResource = {
   videoReadyMeta: { es: '{n} fotos extraídas', en: '{n} photos extracted' },
   chooseVideo: { es: 'Elegir video', en: 'Choose video' },
   afterHint: { es: 'Después, asigna las fotos a las zonas de tu huerta.', en: 'Next, assign the photos to your orchard zones.' },
+  topView: { es: 'Vista superior', en: 'Top view' },
+  perspective: { es: 'Perspectiva', en: 'Perspective' },
+  needOrchard: { es: 'Para ubicar tus fotos por zona necesitas una huerta. Regístrala en Mapeo y vuelve a subir el video.', en: 'To place your photos by zone you need an orchard. Register it in Mapping and upload the video again.' },
   changeShort: { es: 'Cambiar', en: 'Change' },
   chooseShort: { es: 'Elegir', en: 'Choose' },
   processN: { es: 'Procesar video ({n} fotos)', en: 'Process video ({n} photos)' },
@@ -282,7 +285,8 @@ function GrabacionScreen() {
   // ───────── arrastre (hilo de UI) ─────────
   const mapW = Math.min(width - 32, 560);
   const mapH = Math.round(Math.max(220, Math.min(height * 0.38, mapW * 0.82)));
-  const faces = useMemo(() => (zonas ? project3D(zonas, outline, mapW, mapH) : []), [zonas, outline, mapW, mapH]);
+  const [flat, setFlat] = useState(false);
+  const faces = useMemo(() => (zonas ? project3D(zonas, outline, mapW, mapH, flat) : []), [zonas, outline, mapW, mapH, flat]);
   const polys = useSharedValue<[number, number][][]>([]);
   useEffect(() => { polys.set(faces.map(f => f.top)); }, [faces, polys]);
   const rootRef = useRef<React.ComponentRef<typeof View>>(null);
@@ -388,7 +392,8 @@ function GrabacionScreen() {
       accuracyM={pick?.accuracyM}
       orchards={orchards}
       candidates={pick?.candidates}
-      message={pick?.mode === 'change' && orchards.length ? t('changeMsg') : undefined}
+      message={!orchards.length ? t('needOrchard') : pick?.mode === 'change' ? t('changeMsg') : undefined}
+      allowNone={false}
       onCancel={onPickCancel}
       onRegister={() => { setPick(null); router.navigate('/(app)/mapping'); }}
       onConfirm={onPickConfirm}
@@ -516,7 +521,7 @@ function GrabacionScreen() {
             {withZones && zonas ? (
               <View ref={mapRef} onLayout={measure} style={[s.mapCard, { alignSelf: 'center' }]}>
                 <ZoneMap3D zonas={zonas} outline={outline} width={mapW} height={mapH} counts={counts} activeZone={lastZone} dropTick={dropTick}
-                  hover={hover} activeText={zoneText} onZonePress={id => selected && !busy && assign(selected.key, id)} />
+                  hover={hover} activeText={zoneText} flat={flat} onToggleFlat={() => setFlat(v => !v)} flatLabel={flat ? t('perspective') : t('topView')} onZonePress={id => selected && !busy && assign(selected.key, id)} />
               </View>
             ) : (
               <View style={[s.mapCard, s.previewCard, { height: mapH }]}>
@@ -596,10 +601,12 @@ function FilmStack({ width, image }: { width: number; image: React.ComponentProp
   const holes = (n: number) => (
     <View style={fs.holes}>{Array.from({ length: n }, (_, i) => <View key={i} style={fs.hole} />)}</View>
   );
+  // Tamaño explícito de la foto: con absoluteFill la imagen no se escalaba y se veía un acercamiento pixelado.
+  const photoW = w - 20, photoH = h - 16 - 22 - 14;
   const strip = (front: boolean) => (
     <View style={[fs.strip, { width: w, height: h }, front ? fs.front : fs.back]}>
       {holes(10)}
-      <View style={fs.photo}>{front ? <Image source={image} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}</View>
+      <View style={[fs.photo, { width: photoW, height: photoH }]}>{front ? <Image source={image} style={{ width: photoW, height: photoH }} resizeMode="cover" /> : null}</View>
       {holes(10)}
     </View>
   );
@@ -619,7 +626,7 @@ const fs = StyleSheet.create({
   front: { shadowColor: '#0B1A12', shadowOpacity: 0.25, shadowRadius: 14, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
   holes: { flexDirection: 'row', justifyContent: 'space-between' },
   hole: { width: 11, height: 11, borderRadius: 3, backgroundColor: '#F3F1E6' },
-  photo: { flex: 1, marginVertical: 7, borderRadius: 6, overflow: 'hidden', backgroundColor: '#4D7A3E' },
+  photo: { marginVertical: 7, borderRadius: 6, overflow: 'hidden', backgroundColor: '#4D7A3E' },
 });
 
 type DragValues = {

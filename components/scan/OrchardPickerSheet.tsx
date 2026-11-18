@@ -116,11 +116,13 @@ type Props = {
   onRegister?: () => void;
   /** Texto propio en lugar del motivo del GPS (p. ej. «¿En qué huerta grabaste el video?» al cambiarla). */
   message?: string;
+  /** false: oculta «No asignar a ninguna huerta» (Subir grabación exige una huerta para ubicar las fotos por zona). */
+  allowNone?: boolean;
 };
 
 type Choice = { type: 'orchard'; id: string } | { type: 'none' } | null;
 
-export default function OrchardPickerSheet({ visible, reason, accuracyM, orchards, candidates = [], onConfirm, onCancel, onRegister, message: customMessage }: Props) {
+export default function OrchardPickerSheet({ visible, reason, accuracyM, orchards, candidates = [], onConfirm, onCancel, onRegister, message: customMessage, allowNone = true }: Props) {
   const t = useTranslations(translations);
   const insets = useSafeAreaInsets();
   const { height: winH, width: winW } = useWindowDimensions();
@@ -235,14 +237,14 @@ export default function OrchardPickerSheet({ visible, reason, accuracyM, orchard
               </Reanimated.View>
             ))}
             {query.trim() !== '' && ordered.length === 0 && <Text style={s.noMatch}>{t('noMatch', { q: query.trim() })}</Text>}
-            {reason === 'no-orchards' && onRegister && (
+            {(reason === 'no-orchards' || (!allowNone && orchards.length === 0)) && onRegister && (
               <Pressable onPress={() => close(onRegister)} accessibilityRole="button" style={({ pressed }) => [s.register, pressed && { opacity: 0.8 }]}>
                 <Sprout size={18} color={PICK_COLORS.teal2} />
                 <Text style={s.registerText} maxFontSizeMultiplier={1.2}>{t('register')}</Text>
                 <ArrowRight size={16} color={PICK_COLORS.teal2} />
               </Pressable>
             )}
-            <Reanimated.View entering={enter(Math.min(ordered.length, 6) + 1)}>
+            {allowNone && <Reanimated.View entering={enter(Math.min(ordered.length, 6) + 1)}>
               <Pressable onPress={() => pick({ type: 'none' })} accessibilityRole="radio" accessibilityState={{ selected: choice?.type === 'none' }} accessibilityLabel={`${t('none')}. ${t('noneDesc')}`}
               >
                 {({ pressed }) => (
@@ -256,7 +258,7 @@ export default function OrchardPickerSheet({ visible, reason, accuracyM, orchard
                 </Reanimated.View>
                 )}
               </Pressable>
-            </Reanimated.View>
+            </Reanimated.View>}
           </ScrollView>
 
           <View style={s.footer}>

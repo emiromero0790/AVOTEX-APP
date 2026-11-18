@@ -31,14 +31,28 @@ acuerdo de servicio: si falla, la app muestra «No se pudo cargar el mapa de vig
 
 ## Puesta en marcha
 
-Solo hay que desplegar la función (no lleva secretos):
+La función **tiene que estar publicada** en el proyecto de Supabase (no lleva secretos). Si no lo está, Supabase
+responde 404 y la capa «Satélite» muestra «Mapa de vigor no disponible por ahora»; lo demás funciona igual.
+
+Cualquiera de estas tres opciones:
+
+1. **Panel de Supabase (sin instalar nada)**: Edge Functions → *Deploy a new function* → *Via Editor* →
+   nombre **`ndvi-huerta`** → pegar todo `supabase/functions/ndvi-huerta/index.ts` → *Deploy function*.
+   Dejar activado *Verify JWT* (la app llama con la clave anon).
+2. **CLI**: `supabase functions deploy ndvi-huerta --project-ref rnlnomhgtscmdqqyyyyz`
+3. **GitHub Actions** (`.github/workflows/desplegar-funciones.yml`): con el secreto `SUPABASE_ACCESS_TOKEN`
+   en el repositorio, se publica sola al cambiar `supabase/functions` en main, o a mano con *Run workflow*.
+
+Comprobar que quedó publicada (debe responder `200` con `"ok": true`):
 
 ```bash
-supabase functions deploy ndvi-huerta
+curl -X POST https://rnlnomhgtscmdqqyyyyz.supabase.co/functions/v1/ndvi-huerta \
+  -H "Authorization: Bearer <clave anon>" -H "Content-Type: application/json" \
+  -d '{"outline":[{"lat":19.4650,"lng":-101.7225},{"lat":19.4650,"lng":-101.7215},{"lat":19.4660,"lng":-101.7215}]}'
 ```
 
-Mientras no esté desplegada, la capa «Satélite» muestra «Mapa de vigor no disponible por ahora» y lo demás
-funciona igual.
+La app guarda en el celular «sin imagen despejada» hasta 6 h, pero **no** guarda el «no disponible»: en cuanto la
+función esté publicada, el mapa de vigor aparece al volver a abrir la capa «Satélite».
 
 ## Datos y atribución
 

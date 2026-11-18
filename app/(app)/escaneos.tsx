@@ -600,12 +600,16 @@ export default function MisEscaneos() {
     const o = selected.orchardId ? orchardById[selected.orchardId] : null;
     const orchard = (o?.coordinates ?? []).filter(c => validCoord(c.latitude, c.longitude)).map(c => ({ lat: c.latitude, lng: c.longitude }));
     // Grabación: sin ruta ni GPS; se muestra la huerta con sus zonas y cuántos hallazgos tiene cada una.
-    if (selected.tipo === 'grabacion' && selected.zonas.length) {
+    // Si la grabación no trae sus zonas guardadas, se recalculan de la huerta (mismo cálculo que al grabar).
+    const zonasSel = selected.tipo === 'grabacion'
+      ? (selected.zonas.length ? selected.zonas : o ? zonasDeHuerta(o.coordinates, o.id) ?? [] : [])
+      : [];
+    if (selected.tipo === 'grabacion' && zonasSel.length) {
       const zoneOf: Record<string, string> = {};
       const cnt: Record<string, number> = {};
       for (const h of selectedFindings) if (h.zona) { zoneOf[h.id] = h.zona; cnt[h.zona] = (cnt[h.zona] ?? 0) + 1; }
-      const zones = selected.zonas.map(z => ({ key: z.id, label: t('zoneLabel', { z: z.id }), color: ZONE_UI[z.color].fill, ring: z.ring, at: z.label, count: cnt[z.id] ?? 0 }));
-      const ring = orchard.length >= 3 ? orchard : selected.zonas.flatMap(z => z.ring);
+      const zones = zonasSel.map(z => ({ key: z.id, label: t('zoneLabel', { z: z.id }), color: ZONE_UI[z.color].fill, ring: z.ring, at: z.label, count: cnt[z.id] ?? 0 }));
+      const ring = orchard.length >= 3 ? orchard : zonasSel.flatMap(z => z.ring);
       return { id: selected.id, route: [], photos: [], findings, orchard: ring, speedRange: null, zones, zoneOf };
     }
     if (selected.route.length < 2 && !photos.length && !findings.length) return null;

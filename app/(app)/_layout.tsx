@@ -7,7 +7,7 @@ import {
   Modal,
 } from 'react-native';
 import { Tabs, router, usePathname } from 'expo-router';
-import { MessageCircle, Lock } from 'lucide-react-native';
+import { Lock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_600SemiBold, Poppins_400Regular, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import { useGuest } from '../../context/GuestContext';
@@ -17,6 +17,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { configureNotifications, recorridoIdFrom } from '../../services/push';
 import { AvotexTabBar, useAvotexTabBarMetrics } from '../../components/tabbar/AvotexTabBar';
+import { ChatbotFloatingButton } from '../../components/chatbot/ChatbotFloatingButton';
 
 /** Opciones que un invitado ve con candado. */
 const GUEST_LOCKED: ReadonlySet<string> = new Set(['mapping', 'results', 'satelite']);
@@ -167,21 +168,11 @@ export default function TabLayout() {
       </Tabs>
 
       {!shouldHideChatbot && !isGuest && (
-        <TouchableOpacity
-          style={[
-            styles.fab,
-            { bottom: nav.barTop + (isTablet ? 46 : 40) },
-            isTablet && styles.fabTablet,
-          ]}
+        <ChatbotFloatingButton
+          size={isTablet ? 70 : 58}
           onPress={() => router.push('/(app)/chatbot')}
-        >
-          <LinearGradient
-            colors={['#34d399', '#14b8a6']}
-            style={[styles.fabGradient, isTablet && styles.fabGradientTablet]}
-          >
-            <MessageCircle size={isTablet ? 30 : 26} color="#ffffff" />
-          </LinearGradient>
-        </TouchableOpacity>
+          style={[styles.fab, { bottom: nav.barTop + (isTablet ? 46 : 40) }, isTablet && styles.fabTablet]}
+        />
       )}
     </View>
   );
@@ -215,27 +206,9 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 22,
-    borderRadius: 30,
-    shadowColor: '#0f766e',
-    shadowOpacity: 0.32,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
   },
   fabTablet: {
     right: 44,
-  },
-  fabGradient: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  fabGradientTablet: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
   },
 
   lockOverlay: {

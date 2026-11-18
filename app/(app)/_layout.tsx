@@ -5,19 +5,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   Modal,
-  useWindowDimensions,
 } from 'react-native';
 import { Tabs, router, usePathname } from 'expo-router';
-import {
-  Home,
-  Camera,
-  Map,
-  BarChart3,
-  Satellite,
-  Settings,
-  MessageCircle,
-  Lock,
-} from 'lucide-react-native';
+import { MessageCircle, Lock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Poppins_600SemiBold, Poppins_400Regular, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import { useGuest } from '../../context/GuestContext';
@@ -26,6 +16,10 @@ import { TranslationResource, useTranslations } from '../../context/LanguageCont
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { configureNotifications, recorridoIdFrom } from '../../services/push';
+import { AvotexTabBar, useAvotexTabBarMetrics } from '../../components/tabbar/AvotexTabBar';
+
+/** Opciones que un invitado ve con candado. */
+const GUEST_LOCKED: ReadonlySet<string> = new Set(['mapping', 'results', 'satelite']);
 
 const translations: TranslationResource = {
   locked: { es: 'Función bloqueada', en: 'Feature locked' },
@@ -104,10 +98,8 @@ export default function TabLayout() {
   const { isGuest } = useGuest();
   const t = useTranslations(translations);
   const [showLockModal, setShowLockModal] = useState(false);
-  const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
-  // Seis opciones: en teléfonos angostos la barra gana ancho y las etiquetas bajan un punto.
-  const compact = !isTablet && width < 400;
+  const nav = useAvotexTabBarMetrics();
+  const isTablet = nav.tablet;
 
   const [fontsLoaded] = useFonts({ Poppins_600SemiBold, Poppins_400Regular, Poppins_700Bold });
 
@@ -126,20 +118,9 @@ export default function TabLayout() {
 
   if (!fontsLoaded) return null;
 
-  const tabHeight = isTablet ? 82 : 72;
-  const tabBottom = isTablet ? 24 : 18;
-  const tabLabelSize = isTablet ? 13 : compact ? 10 : 11;
-  const iconSize = isTablet ? 26 : compact ? 21 : 22;
-
   const handleLockedPress = () => {
     if (isGuest) setShowLockModal(true);
   };
-
-  const LockedTabIcon = ({ color, focused }: { color: string; focused?: boolean }) => (
-    <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
-      <Lock size={iconSize} color={isGuest ? '#cbd5e1' : color} />
-    </View>
-  );
 
   return (
     <View style={{ flex: 1, backgroundColor: 'transparent' }}>
@@ -148,129 +129,32 @@ export default function TabLayout() {
       <Tabs
         // "Volver" regresa a la pantalla anterior (p. ej. de Recorrido a Escanear) en lugar de ir siempre a Inicio.
         backBehavior="history"
-        screenOptions={{
-          headerShown: false,
-          tabBarStyle: shouldHideTabs ? { display: 'none' } : [
-            styles.tabBar,
-            {
-              bottom: tabBottom,
-              height: tabHeight,
-            },
-            compact && styles.tabBarCompact,
-            isTablet && styles.tabBarTablet,
-          ],
-          tabBarActiveTintColor: '#0f766e',
-          tabBarInactiveTintColor: '#94a3b8',
-          tabBarShowLabel: true,
-          tabBarLabelStyle: [styles.tabBarLabel, { fontSize: tabLabelSize }, compact && styles.tabBarLabelCompact],
-          tabBarItemStyle: styles.tabBarItem,
-          tabBarBackground: () => (
-            <LinearGradient
-              colors={['rgba(236,253,245,0.98)', 'rgba(240,253,250,0.98)']}
-              style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
-            />
-          ),
-        }}
+        // Barra propia (plataforma vegetal + aguacate). Respeta tabPress/tabLongPress y la navegación del router.
+        tabBar={(props) => (
+          <AvotexTabBar
+            {...props}
+            hidden={shouldHideTabs}
+            locked={isGuest ? GUEST_LOCKED : undefined}
+            onLocked={handleLockedPress}
+            labels={{
+              index: t('home'),
+              scan: t('scan'),
+              mapping: t('mapping'),
+              results: t('activity'),
+              satelite: t('satellite'),
+              settings: t('settings'),
+            }}
+          />
+        )}
+        screenOptions={{ headerShown: false }}
       >
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: t('home'),
-            tabBarIcon: ({ color, focused }) => (
-              <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
-                <Home size={iconSize} color={focused ? '#0f766e' : color} />
-              </View>
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="scan"
-          options={{
-            title: t('scan'),
-            tabBarIcon: () => (
-              <View style={[styles.scanIconContainer, isTablet && styles.scanIconContainerTablet]}>
-                <LinearGradient
-                  colors={['#34d399', '#14b8a6']}
-                  style={[styles.scanGradient, isTablet && styles.scanGradientTablet]}
-                >
-                  <Camera size={isTablet ? 28 : 24} color="#ffffff" />
-                </LinearGradient>
-              </View>
-            ),
-            tabBarLabelStyle: [styles.tabBarLabel, { color: '#0f766e', fontSize: tabLabelSize }, compact && styles.tabBarLabelCompact],
-          }}
-        />
-        <Tabs.Screen
-          name="mapping"
-          options={{
-            title: t('mapping'),
-            tabBarIcon: ({ color, focused }) => isGuest ? (
-              <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
-                <Lock size={iconSize} color="#cbd5e1" />
-              </View>
-            ) : (
-              <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
-                <Map size={iconSize} color={focused ? '#0f766e' : color} />
-              </View>
-            ),
-            tabBarButton: isGuest ? (props) => (
-              <TouchableOpacity style={props.style} onPress={handleLockedPress} activeOpacity={0.7}>
-                {props.children}
-              </TouchableOpacity>
-            ) : undefined,
-          }}
-        />
-        <Tabs.Screen
-          name="results"
-          options={{
-            title: t('activity'),
-            tabBarIcon: ({ color, focused }) => isGuest ? (
-              <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
-                <Lock size={iconSize} color="#cbd5e1" />
-              </View>
-            ) : (
-              <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
-                <BarChart3 size={iconSize} color={focused ? '#0f766e' : color} />
-              </View>
-            ),
-            tabBarButton: isGuest ? (props) => (
-              <TouchableOpacity style={props.style} onPress={handleLockedPress} activeOpacity={0.7}>
-                {props.children}
-              </TouchableOpacity>
-            ) : undefined,
-          }}
-        />
-        <Tabs.Screen
-          name="satelite"
-          options={{
-            title: t('satellite'),
-            tabBarAccessibilityLabel: t('satellite'),
-            tabBarIcon: ({ color, focused }) => (
-              <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
-                {isGuest
-                  ? <Lock size={iconSize} color="#cbd5e1" />
-                  : <Satellite size={iconSize} color={focused ? '#0f766e' : color} />}
-              </View>
-            ),
-            tabBarButton: isGuest ? (props) => (
-              <TouchableOpacity style={props.style} onPress={handleLockedPress} activeOpacity={0.7}>
-                {props.children}
-              </TouchableOpacity>
-            ) : undefined,
-          }}
-        />
+        <Tabs.Screen name="index" options={{ title: t('home') }} />
+        <Tabs.Screen name="scan" options={{ title: t('scan') }} />
+        <Tabs.Screen name="mapping" options={{ title: t('mapping') }} />
+        <Tabs.Screen name="results" options={{ title: t('activity') }} />
+        <Tabs.Screen name="satelite" options={{ title: t('satellite'), tabBarAccessibilityLabel: t('satellite') }} />
         <Tabs.Screen name="agenda" options={HIDDEN_TAB} />
-        <Tabs.Screen
-          name="settings"
-          options={{
-            title: t('settings'),
-            tabBarIcon: ({ color, focused }) => (
-              <View style={[styles.iconWrap, compact && styles.iconWrapCompact, focused && styles.iconWrapActive]}>
-                <Settings size={iconSize} color={focused ? '#111827' : color} />
-              </View>
-            ),
-          }}
-        />
+        <Tabs.Screen name="settings" options={{ title: t('settings') }} />
         <Tabs.Screen name="chatbot" options={HIDDEN_TAB} />
         <Tabs.Screen name="privacy" options={HIDDEN_TAB} />
         <Tabs.Screen name="profile" options={HIDDEN_TAB} />
@@ -286,7 +170,7 @@ export default function TabLayout() {
         <TouchableOpacity
           style={[
             styles.fab,
-            { bottom: tabBottom + tabHeight + (isTablet ? 20 : 14) },
+            { bottom: nav.barTop + (isTablet ? 46 : 40) },
             isTablet && styles.fabTablet,
           ]}
           onPress={() => router.push('/(app)/chatbot')}
@@ -304,84 +188,6 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    elevation: 0,
-    borderRadius: 24,
-    shadowColor: '#0f766e',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
-    borderTopWidth: 0,
-    paddingBottom: 0,
-    paddingHorizontal: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(20,184,166,0.12)',
-  },
-  tabBarCompact: {
-    left: 10,
-    right: 10,
-    paddingHorizontal: 2,
-  },
-  tabBarLabelCompact: {
-    letterSpacing: -0.2,
-  },
-  iconWrapCompact: {
-    width: 34,
-    height: 34,
-  },
-  tabBarTablet: {
-    left: 40,
-    right: 40,
-    borderRadius: 28,
-    paddingHorizontal: 16,
-  },
-  tabBarLabel: {
-    fontFamily: 'Poppins_600SemiBold',
-    marginBottom: 6,
-  },
-  tabBarItem: {
-    paddingTop: 6,
-  },
-  iconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  iconWrapActive: {
-    backgroundColor: 'rgba(20,184,166,0.12)',
-  },
-  scanIconContainer: {
-    marginTop: -18,
-    shadowColor: '#0f766e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.32,
-    shadowRadius: 8,
-    elevation: 8,
-    borderRadius: 28,
-  },
-  scanIconContainerTablet: {
-    marginTop: -22,
-  },
-  scanGradient: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.8)',
-  },
-  scanGradientTablet: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-  },
-
   guestBanner: {
     position: 'absolute',
     top: 0,

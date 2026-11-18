@@ -301,7 +301,10 @@ export default function Home() {
 
   return (
     <View style={s.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: bottomSpace }} showsVerticalScrollIndicator={false}>
+      {/* iOS: sin rebote. Con el rebote, al volver arriba con impulso se veía el fondo claro sobre el héroe
+          (un hueco blanco arriba de la pantalla). Android no rebota (overScrollMode never por si acaso). */}
+      <ScrollView contentContainerStyle={{ paddingBottom: bottomSpace }} showsVerticalScrollIndicator={false}
+        bounces={false} overScrollMode="never" contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false}>
         {/* ── Héroe ── */}
         <View style={[s.hero, { height: heroH }]}>
           <Image source={IMG.hero} style={s.fill} resizeMode="cover" accessibilityIgnoresInvertColors />

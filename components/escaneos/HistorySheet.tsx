@@ -260,14 +260,14 @@ const s = StyleSheet.create({
   sheet: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     overflow: 'hidden',
-    backgroundColor: 'rgba(14,20,24,0.97)',
+    backgroundColor: 'rgba(255,255,255,0.98)',
     borderTopLeftRadius: 30, borderTopRightRadius: 30,
-    borderWidth: 1, borderBottomWidth: 0, borderColor: 'rgba(255,255,255,0.10)',
-    shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 22, shadowOffset: { width: 0, height: -6 }, elevation: 18,
+    borderWidth: 1, borderBottomWidth: 0, borderColor: 'rgba(18,61,42,0.10)',
+    shadowColor: '#0B1A12', shadowOpacity: 0.16, shadowRadius: 22, shadowOffset: { width: 0, height: -6 }, elevation: 18,
   },
   handleZone: { height: 40, alignItems: 'center', justifyContent: 'center' },
   handleHit: { paddingVertical: 10, paddingHorizontal: 40 },
   accessory: { position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' },
-  handle: { width: 42, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.32)' },
+  handle: { width: 42, height: 5, borderRadius: 3, backgroundColor: 'rgba(18,61,42,0.22)' },
   body: { flex: 1, overflow: 'hidden' },
 });

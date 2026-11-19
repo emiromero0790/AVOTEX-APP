@@ -164,7 +164,7 @@ export default function PlansScreen() {
               const isCurrent = current === p.key;
               return (
                 <Pressable key={p.key} onPress={() => pick(p.key)} accessibilityRole="radio" accessibilityState={{ selected: on }}
-                  accessibilityLabel={t('plans.selectLabel', { plan: name(p), price: p.price, tokens: `${tokens(p.key)} ${t('plans.tokens')} ${t('plans.monthly')}` }) + (isCurrent ? `. ${t('plans.current')}` : '')}
+                  accessibilityLabel={t('plans.selectLabel', { plan: name(p), price: `${p.price} MXN`, tokens: `${tokens(p.key)} ${t('plans.tokens')} ${t('plans.monthly')}` }) + (isCurrent ? `. ${t('plans.current')}` : '')}
                   style={({ pressed }) => [{ flex: 1 }, pressed && !reduced && { transform: [{ scale: 0.97 }] }]}>
                   <Reanimated.View style={[s.card, on && s.cardOn, reduced ? null : ({ transitionProperty: ['borderColor', 'backgroundColor'], transitionDuration: 180, transitionTimingFunction: CSS_OUT } as object)]}>
                     {/* Etiqueta flotante del borde superior: «Plan actual» tiene prioridad sobre «Más popular». */}
@@ -183,6 +183,8 @@ export default function PlansScreen() {
                     <View style={[s.planIcon, on && { backgroundColor: 'rgba(185,246,47,0.3)' }]}><p.Icon size={18} color={P.agri} strokeWidth={2.2} /></View>
                     <Text style={s.planName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} maxFontSizeMultiplier={1.15}>{name(p)}</Text>
                     <Text style={[s.price, compact && { fontSize: 20 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} maxFontSizeMultiplier={1.1}>{p.price}</Text>
+                    {/* Precios en pesos mexicanos. */}
+                    <Text style={s.currency} maxFontSizeMultiplier={1.1}>MXN</Text>
                     <View style={[s.tokens, on && { backgroundColor: '#E6F7D2' }]}>
                       <Text style={s.tokensValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} maxFontSizeMultiplier={1.1}>{tokens(p.key)}</Text>
                       <Text style={s.tokensUnit} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.1}>{t('plans.tokens')} {t('plans.monthly')}</Text>
@@ -273,6 +275,7 @@ const s = StyleSheet.create({
   planIcon: { width: 32, height: 32, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEF7E4', marginBottom: 2 },
   planName: { alignSelf: 'stretch', fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, lineHeight: 18, color: P.ink, textAlign: 'center' },
   price: { fontFamily: 'Poppins_700Bold', fontSize: 22, lineHeight: 27, color: P.deep, letterSpacing: -0.6 },
+  currency: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, lineHeight: 12, letterSpacing: 0.6, color: P.muted, marginTop: -2 },
   tokens: { alignSelf: 'stretch', alignItems: 'center', paddingVertical: 4, paddingHorizontal: 4, marginTop: 4, borderRadius: 11, backgroundColor: '#F2F5EE' },
   tokensValue: { fontFamily: 'Poppins_700Bold', fontSize: 13, lineHeight: 17, color: P.ink },
   tokensUnit: { alignSelf: 'stretch', fontFamily: 'Poppins_400Regular', fontSize: 9.5, lineHeight: 12, color: P.muted, textAlign: 'center' },

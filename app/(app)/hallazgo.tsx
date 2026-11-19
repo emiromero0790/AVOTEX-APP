@@ -38,6 +38,7 @@ import { getDiagnostico } from '../../services/diagnosticos';
 import SatThumb from '../../components/escaneos/SatThumb';
 import ZoneBoard from '../../components/grabacion/ZoneBoard';
 import { parseZonas, zonasDeHuerta } from '../../services/grabacion';
+import { contornoGrabacion } from '../../services/grabacionContorno';
 import PhotoViewer from '../../components/hallazgo/PhotoViewer';
 import ScansMap from '../../components/ScansMap';
 import { FINDING_COLOR, type ScansMapData, type ScansMapDetail } from '../../components/scansMapHtml';
@@ -237,9 +238,12 @@ export default function HallazgoScreen() {
   const Icon = cat === 'enfermo' ? Bug : cat === 'sano' ? Leaf : cat === 'revisar' ? AlertTriangle : CircleHelp;
   const route = cleanRoute(rec?.ruta);
   const orchardPts = (orchard?.coordinates ?? []).filter(c => validCoord(c.latitude, c.longitude)).map(c => ({ lat: c.latitude, lng: c.longitude }));
-  // Hallazgo de una grabación: zonas guardadas con la grabación (o, si faltan, las actuales de la huerta).
-  const zonas = h.zona ? (parseZonas(rec?.zonas).length ? parseZonas(rec?.zonas) : orchard ? zonasDeHuerta(orchard.coordinates, orchard.id, orchard.zonas_cortes) ?? [] : []) : [];
+  // Hallazgo de una grabación: zonas guardadas con la grabación (o, si faltan, las automáticas de la huerta,
+  // que eran las vigentes al clasificarla).
+  const zonas = h.zona ? (parseZonas(rec?.zonas).length ? parseZonas(rec?.zonas) : orchard ? zonasDeHuerta(orchard.coordinates, orchard.id) ?? [] : []) : [];
   const zone = zonas.find(z => z.id === h.zona) ?? null;
+  // Contorno de cuando se subió la grabación (de su copia de zonas), aunque la huerta se haya redibujado.
+  const zoneOutline = h.zona ? contornoGrabacion(parseZonas(rec?.zonas), orchardPts) : null;
   const enter = (i: number) => (reduced ? undefined : FadeInDown.duration(260).delay(80 + i * 50).easing(EASE_OUT));
 
   const share = async () => {
@@ -380,7 +384,7 @@ export default function HallazgoScreen() {
             <SectionTitle icon={<MapPin size={18} color={DEEP} />} title={t('location')} />
             <View style={st.locCard}>
               {zone ? (
-                <ZoneBoard zonas={zonas} outline={orchardPts.length >= 3 ? orchardPts : null} highlight={zone.id}
+                <ZoneBoard zonas={zonas} outline={zoneOutline} highlight={zone.id}
                   width={Math.min(190, (width - 64) * 0.5)} height={124} compact />
               ) : point ? (
                 <Pressable onPress={openMap} accessibilityRole="button" accessibilityLabel={t('viewMap')}>
@@ -452,7 +456,7 @@ export default function HallazgoScreen() {
               <Pressable onPress={() => { tick(); router.navigate({ pathname: '/(app)/escaneos', params: { focus: `remote:${rec.id}`, n: String(Date.now()) } }); }}
                 accessibilityRole="button" style={({ pressed }) => [st.walkCard, pressed && { opacity: 0.9 }]}>
                 <View style={st.walkTop}>
-                  {zone ? <ZoneBoard zonas={zonas} outline={orchardPts.length >= 3 ? orchardPts : null} highlight={zone.id} width={92} height={92} compact />
+                  {zone ? <ZoneBoard zonas={zonas} outline={zoneOutline} highlight={zone.id} width={92} height={92} compact />
                   : route.length > 1 || point ? (
                     <SatThumb route={route} outline={orchardPts} pin={point} pinColor={FINDING_COLOR[cat]} size={92} radius={14} minMeters={30} />
                   ) : <View style={[st.walkThumbEmpty]}><Route size={22} color="#94A3B8" /></View>}

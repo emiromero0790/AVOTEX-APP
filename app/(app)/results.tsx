@@ -3,9 +3,7 @@ import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressa
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import Reanimated, { FadeIn, FadeInDown, LinearTransition, useReducedMotion } from 'react-native-reanimated';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { StyleProp, ViewStyle } from 'react-native';
 import Toast from 'react-native-toast-message';
 import * as Network from 'expo-network';
 import { Calendar as CalendarIcon, CalendarClock, ClipboardCheck, Layers, Map as MapIcon, RefreshCw, Sprout, WifiOff, X } from 'lucide-react-native';
@@ -14,6 +12,7 @@ import ActividadHeader from '../../components/actividad/ActividadHeader';
 import ActividadTabs, { type TabItem } from '../../components/actividad/ActividadTabs';
 import QuickMetrics from '../../components/actividad/QuickMetrics';
 import RecommendedActions, { type ActionItem } from '../../components/actividad/RecommendedActions';
+import { DaySummary, EmptyDay, PlanIntro, TaskCard, WeekCalendar } from '../../components/actividad/WorkPlanParts';
 import { SectionSkeleton } from '../../components/actividad/Skeleton';
 import OrchardFilterSheet, { type OrchardFilter } from '../../components/actividad/OrchardFilterSheet';
 import { CAT_GRADIENTS, ChartCard, EmptyChart, P } from '../../components/actividad/charts/core';
@@ -69,7 +68,13 @@ const translations: TranslationResource = {
   analysisHistory: { es: 'Historial de análisis', en: 'Analysis history' }, noRisk: { es: 'Sin señales de riesgo', en: 'No signs of risk' }, reviewRecommended: { es: 'Revisión recomendada', en: 'Review recommended' }, score: { es: 'confianza IA', en: 'AI confidence' }, noScans: { es: 'Aún no tienes escaneos.', en: 'You do not have any scans yet.' },
   organizeWeek: { es: 'Organiza tus acciones de esta semana y da seguimiento a cada lote.', en: 'Organize this week’s actions and track each batch.' },
   previousWeek: { es: 'Semana anterior', en: 'Previous week' }, nextWeek: { es: 'Semana siguiente', en: 'Next week' }, tasksFor: { es: 'Tareas para {date}', en: 'Tasks for {date}' },
-  addTask: { es: 'Añadir tarea', en: 'Add task' },
+  addTask: { es: 'Crear nueva tarea', en: 'Create new task' }, closeForm: { es: 'Cerrar', en: 'Close' },
+  today: { es: 'Hoy', en: 'Today' }, nTasks: { es: '{count} tareas', en: '{count} tasks' }, nTask1: { es: '1 tarea', en: '1 task' },
+  nPending: { es: '{count} pendientes', en: '{count} pending' }, nDone: { es: '{count} completadas', en: '{count} done' }, nOverdue: { es: '{count} atrasadas', en: '{count} overdue' },
+  nPending1: { es: '1 pendiente', en: '1 pending' }, nDone1: { es: '1 completada', en: '1 done' }, nOverdue1: { es: '1 atrasada', en: '1 overdue' },
+  dayFree: { es: 'Día libre', en: 'Free day' }, allDone: { es: 'Todo completado', en: 'All done' },
+  dayA11y: { es: '{date}: {count}', en: '{date}: {count}' }, createOne: { es: 'Crear una tarea', en: 'Create a task' },
+  newTaskTitle: { es: 'Nueva tarea', en: 'New task' }, savingTask: { es: 'Guardando…', en: 'Saving…' },
   statusOverdue: { es: 'Atrasada', en: 'Overdue' }, statusToday: { es: 'Hoy', en: 'Today' }, statusPending: { es: 'Pendiente', en: 'Pending' }, statusDone: { es: 'Completada', en: 'Done' },
   markDone: { es: 'Marcar como completada: {title}', en: 'Mark as done: {title}' }, markPending: { es: 'Marcar como pendiente: {title}', en: 'Mark as pending: {title}' }, scheduledFor: { es: 'Se programará para {date}', en: 'Scheduled for {date}' },
   date: { es: 'Fecha', en: 'Date' }, time: { es: 'Hora', en: 'Time' }, taskSchedule: { es: '{date} a las {time}', en: '{date} at {time}' },
@@ -188,21 +193,6 @@ const TASK_TONE: Record<TaskStatus, { label: string; tile: string; pill: string;
 const TASK_IN = FadeInDown.duration(260).easing(EASE_OUT);
 const TASK_REFLOW = LinearTransition.duration(240).easing(EASE_IN_OUT);
 const FORM_IN = FadeInDown.duration(220).easing(EASE_OUT);
-const PLAN_BG = require('../../assets/images/actividad/plan-bg.jpg');
-
-/**
- * Tarjeta «glassmorphism»: blanco translúcido con desenfoque real en iOS. En Android el desenfoque sobre una
- * foto es costoso (y experimental en expo-blur), así que se usa un blanco algo más opaco con la misma forma.
- */
-function Glass({ style, children }: { style?: StyleProp<ViewStyle>; children: React.ReactNode }) {
-  return (
-    <View style={[pl.glass, style]}>
-      {Platform.OS === 'ios' && <BlurView intensity={28} tint="light" style={StyleSheet.absoluteFill} />}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: Platform.OS === 'ios' ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.86)' }]} />
-      {children}
-    </View>
-  );
-}
 
 export default function ResultsScreen() {
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold });
@@ -497,10 +487,31 @@ export default function ResultsScreen() {
     () => tasks.filter(task => taskDate(task) === selectedDateKey || (!taskDate(task) && selectedDateKey === todayKey)),
     [selectedDateKey, tasks, todayKey],
   );
-  const scheduledDates = useMemo(() => new Set(tasks.map(taskDate).filter(Boolean)), [tasks]);
+  // Marcas del calendario: tareas por día (total y completadas). Las tareas sin fecha cuentan para hoy,
+  // igual que en la lista del día.
+  const dayMarks = useMemo(() => {
+    const m = new Map<string, { total: number; done: number }>();
+    tasks.forEach(task => {
+      const k = taskDate(task) ?? todayKey;
+      const e = m.get(k) ?? { total: 0, done: 0 };
+      e.total++; if (task.completed) e.done++;
+      m.set(k, e);
+    });
+    return m;
+  }, [tasks, todayKey]);
+  const dayCounts = useMemo(() => {
+    const c = { total: tasksForSelectedDay.length, pending: 0, done: 0, overdue: 0 };
+    tasksForSelectedDay.forEach(task => {
+      const st = taskStatus(task, todayKey);
+      if (st === 'done') c.done++; else if (st === 'overdue') c.overdue++; else c.pending++;
+    });
+    return c;
+  }, [tasksForSelectedDay, todayKey]);
+  const [savingTask, setSavingTask] = useState(false);
 
   const addTask = async () => {
-    if (!user || !taskTitle.trim()) return;
+    if (!user || !taskTitle.trim() || savingTask) return;
+    setSavingTask(true);
     const { data, error } = await supabase.from('tasks').insert({
       title: taskTitle.trim(),
       detail: taskDetail.trim(),
@@ -508,7 +519,9 @@ export default function ResultsScreen() {
       completed: false,
       scheduled_at: scheduledAt.toISOString(),
     }).select().single();
-    if (!error && data) setTasks(current => [data as Task, ...current]);
+    setSavingTask(false);
+    if (error || !data) { Toast.show({ type: 'error', text1: t('taskError') }); return; }
+    setTasks(current => [data as Task, ...current]);
     setTaskTitle(''); setTaskDetail(''); setShowForm(false);
   };
   const updateTask = async (task: Task) => {
@@ -599,8 +612,8 @@ export default function ResultsScreen() {
   if (!user) return <View style={styles.center}><Text style={styles.emptyTitle}>{t('loginToSee')}</Text></View>;
   const plan = section === 'plan';
   const summary = section === 'summary';
-  // Fondo de cada sección: marfil en Resumen; Historial conserva el blanco; Plan, su fotografía.
-  const pageBg = summary ? P.ivory : plan ? 'transparent' : '#FFFFFF';
+  // Fondo de cada sección: marfil en Resumen y Plan (la única foto es el encabezado); Historial conserva el blanco.
+  const pageBg = summary || plan ? P.ivory : '#FFFFFF';
   const tabItems: TabItem<Section | 'scans'>[] = [
     { key: 'summary', label: t('summary'), Icon: BarChart3 },
     { key: 'scans', label: t('scansTab'), Icon: ScanLine },
@@ -618,22 +631,10 @@ export default function ResultsScreen() {
   const bottomPad = 150 + insets.bottom;
 
   return (
-    <KeyboardAvoidingView style={[styles.screen, summary && { backgroundColor: P.ivory }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={[styles.screen, (summary || plan) && { backgroundColor: P.ivory }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Stack.Screen options={{ title: t('activity') }} />
-      {/* Plan de trabajo: huerta fotográfica detrás de toda la pantalla (cover, sin deformar). Es fija: el
-          contenido se desplaza encima. Los degradados dan legibilidad al encabezado y al título. */}
-      {plan && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          {/* Ancho y alto explícitos: con solo absoluteFill la imagen tomaba su tamaño original (900×1599)
-              y se veía acercada (solo la esquina de las hojas). Así cubre la pantalla completa sin deformarse. */}
-          <Image source={PLAN_BG} style={pl.bg} resizeMode="cover" fadeDuration={0} />
-          <LinearGradient colors={['rgba(255,255,255,0.86)', 'rgba(255,255,255,0.55)', 'rgba(255,255,255,0)']} locations={[0, 0.55, 1]}
-            style={[pl.topFade, { height: insets.top + 190 }]} />
-          <LinearGradient colors={['rgba(8,24,16,0)', 'rgba(8,24,16,0.18)', 'rgba(8,24,16,0.32)']} locations={[0, 0.5, 1]} style={pl.bottomFade} />
-        </View>
-      )}
       <ScrollView
-        contentContainerStyle={[styles.content, tablet && styles.contentTablet, { backgroundColor: pageBg }, summary && { paddingBottom: bottomPad }, plan && { backgroundColor: 'transparent', paddingBottom: 140 + insets.bottom }]}
+        contentContainerStyle={[styles.content, tablet && styles.contentTablet, { backgroundColor: pageBg }, summary && { paddingBottom: bottomPad }, plan && { paddingBottom: bottomPad }]}
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={200}
         onScroll={e => {
@@ -908,121 +909,80 @@ export default function ResultsScreen() {
                onChange={v => { setHistOrchard(v); setHistoryLimit(25); }} onClose={() => setHistPicker(false)} />
            </View>
         ) : (
-           <View style={pl.wrap}>
-             <Text style={pl.title} accessibilityRole="header">{t('workPlan')}</Text>
-             <Text style={pl.intro}>{t('organizeWeek')}</Text>
-             <Glass style={pl.calendar}>
-               <View style={styles.calendarHeader}>
-                 <TouchableOpacity accessibilityLabel={t('previousWeek')} onPress={() => setWeekOffset(value => value - 1)} hitSlop={10}>
-                   <ChevronLeft size={22} color={colors.primary} />
-                 </TouchableOpacity>
-                 <Text style={pl.month}>{weekDays[0].toLocaleDateString(locale, { month: 'long', year: 'numeric' })}</Text>
-                 <TouchableOpacity accessibilityLabel={t('nextWeek')} onPress={() => setWeekOffset(value => value + 1)} hitSlop={10}>
-                   <ChevronRight size={22} color={colors.primary} />
-                 </TouchableOpacity>
-               </View>
-               <View style={styles.week}>
-                 {weekDays.map((day, index) => {
-                   const hasTasks = scheduledDates.has(dateKey(day));
-                   const on = selectedDay === index;
-                   return (
-                     <TouchableOpacity key={day.toISOString()} onPress={() => setSelectedDay(index)} accessibilityState={{ selected: on }}
-                       style={[pl.day, on && pl.dayOn]}>
-                       <Text style={[pl.dayName, on && { color: colors.primary }]}>{day.toLocaleDateString(locale, { weekday: 'narrow' })}</Text>
-                       <Text style={[pl.dayNumber, on && { color: colors.primary }]}>{day.getDate()}</Text>
-                       {hasTasks || on ? <View style={[pl.dayDot, { backgroundColor: hasTasks ? colors.primary : 'transparent' }]} /> : <View style={pl.dayDotSpace} />}
-                     </TouchableOpacity>
-                   );
-                 })}
-               </View>
-             </Glass>
-             <Text style={pl.selectedDate}>{t('tasksFor', { date: selectedDateLabel })}</Text>
+           <View>
+             {/* Plan de trabajo sobre fondo marfil limpio: la única fotografía es el encabezado de Actividad. */}
+             <PlanIntro title={t('workPlan')} subtitle={t('organizeWeek')} />
+             <WeekCalendar
+               days={weekDays} selected={selectedDay} onSelect={i => { tap(); setSelectedDay(i); }}
+               monthLabel={cap(weekDays[0].toLocaleDateString(locale, { month: 'long', year: 'numeric' }))}
+               onPrev={() => { tap(); setWeekOffset(v => v - 1); }} onNext={() => { tap(); setWeekOffset(v => v + 1); }}
+               onToday={weekOffset !== 0 ? () => { tap(); setWeekOffset(0); setSelectedDay((new Date().getDay() + 6) % 7); } : undefined}
+               todayKey={todayKey} marks={dayMarks} keyOf={dateKey}
+               weekdayOf={d => d.toLocaleDateString(locale, { weekday: 'narrow' })}
+               labels={{
+                 prev: t('previousWeek'), next: t('nextWeek'), today: t('today'),
+                 day: (d, mark) => t('dayA11y', { date: d.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' }), count: !mark?.total ? t('noTasks') : mark.total === 1 ? t('nTask1') : t('nTasks', { count: mark.total }) }),
+               }}
+             />
+             <DaySummary title={t('tasksFor', { date: selectedDateLabel })} counts={dayCounts}
+               labels={{
+                 tasks: n => (n === 1 ? t('nTask1') : t('nTasks', { count: n })),
+                 pending: n => (n === 1 ? t('nPending1') : t('nPending', { count: n })), done: n => (n === 1 ? t('nDone1') : t('nDone', { count: n })),
+                 overdue: n => (n === 1 ? t('nOverdue1') : t('nOverdue', { count: n })),
+                 free: t('dayFree'), allDone: t('allDone'),
+               }} />
+             <View style={{ height: 12 }} />
              {tasksForSelectedDay.length ? tasksForSelectedDay.map((task, index) => {
-               const taskDateValue = task.scheduled_at ? new Date(task.scheduled_at) : null;
-               const taskDateLabel = taskDateValue
-                 ? t('taskSchedule', {
-                   date: taskDateValue.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' }),
-                   time: taskDateValue.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
-                 })
-                 : taskDate(task) ?? '';
-               // En la tarjeta, fecha corta (el día ya está elegido arriba): «9 nov · 08:00».
-               const shortDate = taskDateValue
-                 ? `${taskDateValue.toLocaleDateString(locale, { day: 'numeric', month: 'short' })} · ${taskDateValue.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}`
-                 : taskDateLabel;
+               const when = task.scheduled_at ? new Date(task.scheduled_at) : null;
                const status = taskStatus(task, todayKey);
-               const tone = TASK_TONE[status];
-               const StatusIcon = tone.icon;
-               const detail = visibleTaskDetail(task.detail);
                return (
                  <Reanimated.View key={`${task.id}-${index}`} entering={reduced ? undefined : TASK_IN.delay(Math.min(index, 6) * 45)} layout={reduced ? undefined : TASK_REFLOW}>
-                   <Glass style={[pl.task, status === 'overdue' && pl.taskOverdue]}>
-                     {status === 'overdue' && <View style={pl.stripe} />}
-                     <PressableScale onPress={() => { tap(); updateTask(task); }} style={[pl.taskIcon, { backgroundColor: tone.tile }]} pressedScale={0.94}
-                       accessibilityRole="checkbox" accessibilityState={{ checked: task.completed }}
-                       accessibilityLabel={task.completed ? t('markPending', { title: task.title }) : t('markDone', { title: task.title })}>
-                       {task.completed ? <Check size={22} color={tone.ink} strokeWidth={2.6} /> : <StatusIcon size={21} color={tone.ink} strokeWidth={2.2} />}
-                     </PressableScale>
-                     <View style={pl.divider} />
-                     <View style={pl.taskBody}>
-                       <Text style={[pl.taskTitle, task.completed && pl.taskTitleDone]} numberOfLines={2}>{task.title}</Text>
-                       {taskDateLabel ? (
-                         <View style={pl.metaRow}>
-                           <CalendarDays size={13} color="#475569" />
-                           <Text style={pl.metaText} numberOfLines={1} accessibilityLabel={taskDateLabel}>{shortDate}</Text>
-                         </View>
-                       ) : null}
-                       {detail ? <Text style={pl.detail} numberOfLines={2}>{detail}</Text> : null}
-                     </View>
-                     <View style={pl.taskRight}>
-                       <View style={[pl.pill, { backgroundColor: tone.pill }]}>
-                         <StatusIcon size={13} color={tone.ink} strokeWidth={2.4} />
-                         <Text style={[pl.pillText, { color: tone.ink }]} numberOfLines={1}>{t(tone.label)}</Text>
-                       </View>
-                       <Pressable accessibilityRole="button" accessibilityLabel={t('delete', { title: task.title })} onPress={() => { tap(); deleteTask(task.id); }} hitSlop={10}
-                         style={({ pressed }) => [pl.trash, pressed && { opacity: 0.6 }]}>
-                         <Trash2 size={16} color="#64748B" />
-                       </Pressable>
-                     </View>
-                   </Glass>
+                   <TaskCard title={task.title} detail={visibleTaskDetail(task.detail)} completed={task.completed}
+                     time={when ? when.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) : null}
+                     status={status} statusLabel={t(TASK_TONE[status].label)}
+                     onToggle={() => { tap(); updateTask(task); }} onDelete={() => { tap(); deleteTask(task.id); }}
+                     labels={{
+                       toggle: task.completed ? t('markPending', { title: task.title }) : t('markDone', { title: task.title }),
+                       remove: t('delete', { title: task.title }),
+                     }} />
                  </Reanimated.View>
                );
              }) : (
-               <Glass style={pl.empty}>
-                 <ClipboardList size={22} color={colors.primary} />
-                 <Text style={pl.emptyTitle}>{t('noTasks')}</Text>
-                 <Text style={pl.emptyBody}>{t('createAction')}</Text>
-               </Glass>
+               <EmptyDay title={t('noTasks')} body={t('createAction')} action={t('createOne')} onAction={() => { tap(); setShowForm(true); }} />
              )}
-             <PressableScale onPress={() => { tap(); setShowForm(value => !value); }} style={pl.addWrap} accessibilityRole="button" accessibilityState={{ expanded: showForm }}>
-               <LinearGradient colors={['#14B8A6', '#0E9F6E', '#0B7D5C']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={pl.add}>
-                 <Plus size={22} color="#fff" strokeWidth={2.6} />
-                 <Text style={pl.addText}>{t('addTask')}</Text>
+             <PressableScale onPress={() => { tap(); setShowForm(value => !value); }} style={sm.ctaWrap} accessibilityRole="button" accessibilityState={{ expanded: showForm }}>
+               <LinearGradient colors={['#1D8E42', P.deep, P.forest]} locations={[0, 0.55, 1]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={sm.cta}>
+                 <View style={sm.ctaIcon}>{showForm ? <X size={19} color={P.forest} strokeWidth={2.6} /> : <Plus size={20} color={P.forest} strokeWidth={2.8} />}</View>
+                 <Text style={sm.ctaText}>{showForm ? t('closeForm') : t('addTask')}</Text>
                </LinearGradient>
              </PressableScale>
              {showForm && (
-               <Reanimated.View entering={reduced ? undefined : FORM_IN}>
-                 <Glass style={pl.form}>
-                   <Text style={styles.formDate}>{t('scheduledFor', { date: scheduledDateLabel })}</Text>
-                   <View style={styles.scheduleFields}>
-                     <TouchableOpacity style={[styles.scheduleField, pl.field]} onPress={requestDate}>
-                       <CalendarDays size={17} color={colors.primary} />
-                       <View><Text style={styles.scheduleFieldLabel}>{t('date')}</Text><Text style={styles.scheduleFieldValue}>{scheduledDateLabel}</Text></View>
-                     </TouchableOpacity>
-                     <TouchableOpacity style={[styles.scheduleField, pl.field]} onPress={requestTime}>
-                       <Clock size={17} color={colors.primary} />
-                       <View><Text style={styles.scheduleFieldLabel}>{t('time')}</Text><Text style={styles.scheduleFieldValue}>{scheduledTimeLabel}</Text></View>
-                     </TouchableOpacity>
-                   </View>
-                   {showDatePicker && Platform.OS !== 'web' && <DateTimePicker value={scheduledAt} mode="date" onChange={changeScheduledDate} />}
-                   {showTimePicker && Platform.OS !== 'web' && <DateTimePicker value={scheduledAt} mode="time" onChange={changeScheduledTime} />}
-                   <TextInput value={taskTitle} onChangeText={setTaskTitle} placeholder={t('taskPlaceholder')} style={[styles.input, pl.input]} placeholderTextColor="#64748B" />
-                   <TextInput value={taskDetail} onChangeText={setTaskDetail} placeholder={t('detailPlaceholder')} style={[styles.input, pl.input]} placeholderTextColor="#64748B" />
-                   <TouchableOpacity onPress={addTask} style={[styles.smallButton, { backgroundColor: colors.primary }]}><Text style={styles.buttonText}>{t('saveTask')}</Text></TouchableOpacity>
-                 </Glass>
+               <Reanimated.View entering={reduced ? undefined : FORM_IN} style={pl.form}>
+                 <Text style={pl.formTitle}>{t('newTaskTitle')}</Text>
+                 <Text style={styles.formDate}>{t('scheduledFor', { date: scheduledDateLabel })}</Text>
+                 <View style={styles.scheduleFields}>
+                   <TouchableOpacity style={[styles.scheduleField, pl.field]} onPress={requestDate}>
+                     <CalendarDays size={17} color={P.agri} />
+                     <View><Text style={styles.scheduleFieldLabel}>{t('date')}</Text><Text style={styles.scheduleFieldValue}>{scheduledDateLabel}</Text></View>
+                   </TouchableOpacity>
+                   <TouchableOpacity style={[styles.scheduleField, pl.field]} onPress={requestTime}>
+                     <Clock size={17} color={P.agri} />
+                     <View><Text style={styles.scheduleFieldLabel}>{t('time')}</Text><Text style={styles.scheduleFieldValue}>{scheduledTimeLabel}</Text></View>
+                   </TouchableOpacity>
+                 </View>
+                 {showDatePicker && Platform.OS !== 'web' && <DateTimePicker value={scheduledAt} mode="date" onChange={changeScheduledDate} />}
+                 {showTimePicker && Platform.OS !== 'web' && <DateTimePicker value={scheduledAt} mode="time" onChange={changeScheduledTime} />}
+                 <TextInput value={taskTitle} onChangeText={setTaskTitle} placeholder={t('taskPlaceholder')} style={[styles.input, pl.input]} placeholderTextColor="#8A9A90" />
+                 <TextInput value={taskDetail} onChangeText={setTaskDetail} placeholder={t('detailPlaceholder')} style={[styles.input, pl.input]} placeholderTextColor="#8A9A90" multiline />
+                 <PressableScale onPress={addTask} disabled={!taskTitle.trim() || savingTask} accessibilityRole="button" accessibilityState={{ disabled: !taskTitle.trim() || savingTask, busy: savingTask }}
+                   style={[pl.save, (!taskTitle.trim() || savingTask) && { opacity: 0.5 }]}>
+                   {savingTask ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Check size={17} color="#FFFFFF" strokeWidth={2.6} />}
+                   <Text style={pl.saveText}>{savingTask ? t('savingTask') : t('saveTask')}</Text>
+                 </PressableScale>
                </Reanimated.View>
              )}
              <TouchableOpacity style={pl.scanLink} onPress={() => router.push('/(app)/scan')}>
-               <AlertTriangle size={17} color="#fff" /><Text style={pl.scanLinkText}>{t('newScanTask')}</Text>
+               <ScanLine size={16} color={P.agri} /><Text style={pl.scanLinkText}>{t('newScanTask')}</Text>
              </TouchableOpacity>
            </View>
         )}
@@ -1095,69 +1055,19 @@ const sm = StyleSheet.create({
   ctaText: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#FFFFFF', letterSpacing: -0.2 },
 });
 
-// Plan de trabajo (rediseño: huerta de fondo + tarjetas glassmorphism).
+// Plan de trabajo: formulario y enlace (el resto vive en components/actividad/WorkPlanParts.tsx).
 const pl = StyleSheet.create({
-  bg: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
-  topFade: { position: 'absolute', left: 0, right: 0, top: 0 },
-  bottomFade: { position: 'absolute', left: 0, right: 0, bottom: 0, top: '35%' },
-  navigator: { backgroundColor: 'rgba(255,255,255,0.78)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)' },
-  wrap: { paddingTop: 6 },
-  title: {
-    fontFamily: 'Poppins_700Bold', fontSize: 30, lineHeight: 36, color: '#FFFFFF', marginHorizontal: 18, marginTop: 10,
-    textShadowColor: 'rgba(0,0,0,0.35)', textShadowRadius: 10, textShadowOffset: { width: 0, height: 1 },
+  form: {
+    marginHorizontal: 16, marginTop: 12, padding: 16, gap: 10, borderRadius: 24, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EDF1E6',
+    shadowColor: '#1C3A26', shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 3,
   },
-  intro: {
-    fontFamily: 'Poppins_400Regular', fontSize: 14, lineHeight: 20, color: 'rgba(255,255,255,0.96)', marginHorizontal: 18, marginTop: 2,
-    textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 8, textShadowOffset: { width: 0, height: 1 },
-  },
-  glass: {
-    borderRadius: 22, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.75)',
-    shadowColor: '#0F2A1D', shadowOpacity: 0.16, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4,
-  },
-  calendar: { marginHorizontal: 16, marginTop: 16, paddingHorizontal: 12, paddingVertical: 12 },
-  month: { color: '#0F172A', fontFamily: 'Poppins_600SemiBold', fontSize: 16, textTransform: 'capitalize' },
-  day: { width: 40, minHeight: 66, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  dayOn: { backgroundColor: 'rgba(16,185,129,0.16)' },
-  dayName: { color: '#64748B', fontFamily: 'Poppins_600SemiBold', fontSize: 11, textTransform: 'uppercase' },
-  dayNumber: { color: '#0F172A', fontFamily: 'Poppins_600SemiBold', fontSize: 17, marginTop: 2 },
-  dayDot: { width: 6, height: 6, borderRadius: 3, marginTop: 3 },
-  dayDotSpace: { height: 9 },
-  selectedDate: {
-    marginHorizontal: 18, marginTop: 16, marginBottom: 8, color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold', fontSize: 13, textTransform: 'capitalize',
-    textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 8, textShadowOffset: { width: 0, height: 1 },
-  },
-  task: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginBottom: 10, paddingVertical: 14, paddingLeft: 14, paddingRight: 12 },
-  taskOverdue: { paddingTop: 18 },
-  stripe: { position: 'absolute', left: 0, right: 0, top: 0, height: 5, backgroundColor: '#FACC15' },
-  taskIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  divider: { width: 1, alignSelf: 'stretch', backgroundColor: 'rgba(15,23,42,0.1)' },
-  taskBody: { flex: 1, minWidth: 0, gap: 3 },
-  taskTitle: { color: '#0F172A', fontFamily: 'Poppins_600SemiBold', fontSize: 15, lineHeight: 20 },
-  taskTitleDone: { color: '#64748B', textDecorationLine: 'line-through' },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  metaText: { color: '#334155', fontFamily: 'Poppins_400Regular', fontSize: 12, flexShrink: 1 },
-  detail: { color: '#475569', fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 17 },
-  taskRight: { alignItems: 'flex-end', gap: 10 },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
-  pillText: { fontFamily: 'Poppins_600SemiBold', fontSize: 11.5 },
-  trash: { padding: 2 },
-  empty: { marginHorizontal: 16, marginBottom: 10, padding: 22, alignItems: 'center', gap: 6 },
-  emptyTitle: { color: '#0F172A', fontFamily: 'Poppins_600SemiBold', fontSize: 14, textAlign: 'center' },
-  emptyBody: { color: '#475569', fontFamily: 'Poppins_400Regular', fontSize: 12, textAlign: 'center' },
-  addWrap: { marginHorizontal: 16, marginTop: 6 },
-  add: {
-    minHeight: 58, borderRadius: 29, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    shadowColor: '#065F46', shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 6,
-  },
-  addText: { color: '#FFFFFF', fontFamily: 'Poppins_700Bold', fontSize: 17 },
-  form: { marginHorizontal: 16, marginTop: 12, padding: 14, gap: 9 },
-  field: { backgroundColor: 'rgba(255,255,255,0.7)' },
-  input: { backgroundColor: 'rgba(255,255,255,0.85)' },
-  scanLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 18, marginHorizontal: 20 },
-  scanLinkText: {
-    color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold', fontSize: 13,
-    textShadowColor: 'rgba(0,0,0,0.45)', textShadowRadius: 8, textShadowOffset: { width: 0, height: 1 },
-  },
+  formTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#102D22' },
+  field: { backgroundColor: '#FAFBF5', borderColor: '#DCE8D2', borderRadius: 14 },
+  input: { backgroundColor: '#FAFBF5', borderColor: '#DCE8D2', borderRadius: 14, color: '#102D22', fontSize: 13.5 },
+  save: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 18, borderRadius: 22, backgroundColor: '#17843A' },
+  saveText: { fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, color: '#FFFFFF' },
+  scanLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 18, marginHorizontal: 20, paddingVertical: 6 },
+  scanLinkText: { color: '#17843A', fontFamily: 'Poppins_600SemiBold', fontSize: 13 },
 });
 
 const styles = StyleSheet.create({

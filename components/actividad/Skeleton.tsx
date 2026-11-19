@@ -45,12 +45,13 @@ export function SectionSkeleton({ kind, heroH }: { kind: 'summary' | 'history' |
       </View>
     );
   }
+  // Plan de trabajo: intro, calendario, resumen del día y tarjetas (marfil y verdes claros).
   return (
     <View style={s.wrap}>
-      <SkeletonBlock w="50%" h={24} r={8} />
-      <SkeletonBlock h={110} r={18} />
-      <SkeletonBlock h={48} r={14} />
-      <SkeletonBlock h={72} r={15} />
+      <View style={s.row}><SkeletonBlock w={70} h={70} r={20} color="#E3F0D6" /><View style={{ flex: 1, gap: 8 }}><SkeletonBlock w="70%" h={24} r={8} color="#E3EDD8" /><SkeletonBlock w="90%" h={12} r={6} color="#EEF2E6" /></View></View>
+      <SkeletonBlock h={130} r={26} color="#E9F1DF" />
+      <SkeletonBlock w="60%" h={20} r={8} color="#E9EFE0" />
+      {[0, 1].map(i => <SkeletonBlock key={i} h={96} r={22} color="#F0F4EA" />)}
     </View>
   );
 }

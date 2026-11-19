@@ -5,7 +5,9 @@ Lo ejecuta GitHub Actions cada ~10 minutos (.github/workflows/procesar-recorrido
   2. Elige las fotos útiles (una cada 2–3 m, sin borrosas).
   3. Las manda en grupos al modelo que ya está en Google Cloud (/predict_batch). El modelo no se modifica.
   4. Agrupa las detecciones en hallazgos, les asigna la huerta por GPS y guarda una miniatura.
-  5. Borra las fotos originales, marca el recorrido como "listo" y envía la notificación push.
+  5. Cobra los tokens: cada foto que el modelo analizó cuesta lo mismo que un escaneo individual
+     (1 unidad de users.tokens = 100 tokens en la app). Solo se analizan tantas fotos como saldo haya.
+  6. Borra las fotos originales, marca el recorrido como "listo" y envía la notificación push.
 
 Variables de entorno (secretos del repositorio en GitHub):
   SUPABASE_URL                 https://<proyecto>.supabase.co
@@ -63,6 +65,9 @@ class Supabase:
             return []
         r = self.s.post(f"{self.url}/rest/v1/{tabla}", json=filas, headers={"Prefer": "return=representation"}, timeout=60)
         return self._check(r).json()
+
+    def rpc(self, funcion: str, args: dict):
+        return self._check(self.s.post(f"{self.url}/rest/v1/rpc/{funcion}", json=args, timeout=30)).json()
 
     def delete(self, tabla: str, filtros: dict) -> None:
         self._check(self.s.delete(f"{self.url}/rest/v1/{tabla}", params=filtros, timeout=30))
@@ -160,6 +165,18 @@ def tomar(sb: Supabase, recorrido: dict) -> bool:
     return bool(filas)
 
 
+def saldo_para_recorrido(sb: Supabase, recorrido: dict) -> Optional[int]:
+    """Fotos que se pueden analizar: saldo actual del usuario + lo ya cobrado a este recorrido (un
+    reintento puede volver a analizar las fotos que ya pagó). None = cobro desactivado porque falta la
+    migración 20261119 (la columna tokens_cobrados no existe): se procesa como antes, sin cobrar."""
+    if "tokens_cobrados" not in recorrido:
+        log("  AVISO: falta la migración 20261119_cobro_tokens_recorridos.sql; no se cobran tokens")
+        return None
+    filas = sb.select("users", {"user_email": f"eq.{recorrido['user_email']}", "select": "tokens"})
+    saldo = int((filas[0].get("tokens") if filas else 0) or 0)
+    return max(0, saldo) + int(recorrido.get("tokens_cobrados") or 0)
+
+
 def procesar(sb: Supabase, modelo: Modelo, recorrido: dict, cfg: dict) -> dict:
     rid = recorrido["id"]
     email = recorrido["user_email"]
@@ -190,12 +207,24 @@ def procesar(sb: Supabase, modelo: Modelo, recorrido: dict, cfg: dict) -> dict:
     nitidas = descargadas if grabacion else ([d for d in descargadas if d[2] >= cfg["umbral_nitidez"]] or descargadas)
     log(f"  {len(nitidas)} fotos nítidas para el modelo")
 
+    # Tokens: cada foto analizada cuesta 1 unidad (igual que un escaneo). Sin saldo suficiente se analizan
+    # solo las primeras fotos (en orden de captura) que alcance a pagar; el resto se reporta.
+    saldo = saldo_para_recorrido(sb, recorrido)
+    sin_saldo = 0
+    if saldo is not None and len(nitidas) > saldo:
+        sin_saldo = len(nitidas) - saldo
+        nitidas = nitidas[:saldo]
+        log(f"  saldo para {saldo} fotos: {sin_saldo} se quedan sin analizar")
+
     detecciones: list[nucleo.Deteccion] = []
     datos_por_foto = {}
+    analizadas = 0  # fotos con respuesta del modelo: son las que se cobran (si el modelo falla, no)
     for i in range(0, len(nitidas), cfg["lote"]):
         lote = nitidas[i:i + cfg["lote"]]
         resultados = modelo.predecir_lote([(f"{f['id']}.jpg", datos) for f, datos, _ in lote])
         for (f, datos, _), res in zip(lote, resultados):
+            if res is not None:
+                analizadas += 1
             pred = nucleo.interpretar_prediccion(res)
             if not pred:
                 continue
@@ -236,16 +265,24 @@ def procesar(sb: Supabase, modelo: Modelo, recorrido: dict, cfg: dict) -> dict:
         filas.append(fila)
     sb.insert("hallazgos", filas)
 
+    # Cobro atómico e idempotente (supabase/migrations/20261119): en un reintento solo cobra la diferencia.
+    cobrados = 0
+    if saldo is not None:
+        cobrados = int(sb.rpc("cobrar_recorrido", {"p_recorrido": rid, "p_fotos": analizadas}) or 0)
+        log(f"  {analizadas} fotos analizadas; cobradas ahora: {cobrados} ({cobrados * 100} tokens en la app)")
+
     # Privacidad y espacio: las fotos originales se borran; solo quedan las miniaturas.
     sb.borrar_archivos([f["storage_path"] for f in fotos])
 
     cambios = {
         "estado": "listo",
-        "fotos_analizadas": len(nitidas),
+        "fotos_analizadas": analizadas,
         "hallazgos_total": len(filas),
         "procesado_at": datetime.now(timezone.utc).isoformat(),
         "error": None,
     }
+    if saldo is not None:
+        cambios["fotos_sin_saldo"] = sin_saldo
     # Solo se escribe la huerta si se detectó para una importación (la del celular ya viene fijada).
     if huerta_id != recorrido.get("huerta_id"):
         cambios["huerta_id"] = huerta_id
@@ -253,9 +290,11 @@ def procesar(sb: Supabase, modelo: Modelo, recorrido: dict, cfg: dict) -> dict:
 
     nombre = next((h.get("nombre") for h in huertas if h.get("id") == huerta_id), None)
     titulo, cuerpo = nucleo.resumen_notificacion(nombre, grupos, grabacion)
+    if sin_saldo:
+        cuerpo += f" {sin_saldo} {'foto no se analizó' if sin_saldo == 1 else 'fotos no se analizaron'} por falta de tokens."
     enviados = enviar_push(sb, email, titulo, cuerpo, {"tipo": "recorrido", "recorridoId": rid})
     log(f"  listo: {len(filas)} hallazgos; notificación a {enviados} dispositivo(s)")
-    return {"hallazgos": len(filas), "analizadas": len(nitidas), "notificados": enviados}
+    return {"hallazgos": len(filas), "analizadas": analizadas, "notificados": enviados, "cobrados": cobrados, "sin_saldo": sin_saldo}
 
 
 def huerta_del_recorrido(recorrido: dict, fotos: list[dict], huertas: list[dict]) -> Optional[str]:

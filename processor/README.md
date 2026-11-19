@@ -9,13 +9,24 @@ GitHub Actions (cada 10 min) → procesar_recorridos.py
   → elige 1 foto cada 2.5 m y descarta las borrosas
   → manda las fotos al modelo de Google Cloud en grupos (/predict_batch; el modelo NO se modifica)
   → agrupa detecciones en "hallazgos" (todos heredan la huerta del recorrido; solo las importaciones de dron/cámara sin huerta la detectan por el GPS de sus fotos) y guarda una miniatura
+  → cobra tokens: 1 unidad de users.tokens (100 tokens en la app, igual que un escaneo) por foto analizada
   → borra las fotos originales → recorrido "listo" → notificación push (Expo, gratis)
 ```
+
+### Cobro de tokens
+Cada foto que el modelo analiza (de un recorrido o de una grabación) cuesta lo mismo que un escaneo individual:
+1 unidad de `users.tokens`, que la app muestra como 100 tokens. Las fotos descartadas (borrosas, muy juntas) o
+en las que el modelo falló no se cobran. Si el saldo no alcanza, se analizan solo las primeras fotos que se
+pueden pagar y el resto se guarda en `recorridos.fotos_sin_saldo` (la notificación lo menciona).
+El cobro lo hace la función `cobrar_recorrido` (migración `20261119_cobro_tokens_recorridos.sql`): es atómica e
+idempotente, así que un recorrido que se reintenta nunca se cobra dos veces. Sin esa migración el procesador
+sigue funcionando como antes, sin cobrar (lo avisa en el log).
 
 ## Puesta en marcha (una sola vez)
 
 1. **Base de datos.** En Supabase → *SQL Editor*, ejecutar `supabase/migrations/20261030_recorridos.sql`.
    Crea las tablas `recorridos`, `recorrido_fotos`, `hallazgos` y `push_tokens`, y el bucket privado `recorridos`.
+   Después, `supabase/migrations/20261119_cobro_tokens_recorridos.sql` (cobro de tokens por foto analizada).
 2. **Secretos en GitHub.** En el repositorio → *Settings → Secrets and variables → Actions → New repository secret*:
    - `SUPABASE_URL`: `https://<proyecto>.supabase.co`
    - `SUPABASE_SERVICE_ROLE_KEY`: Supabase → *Project Settings → API keys* → `service_role`.

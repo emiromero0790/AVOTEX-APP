@@ -140,15 +140,27 @@ class ResultadosTest(unittest.TestCase):
 
 
 class FakeSupabase:
-    def __init__(self, fotos, archivos, huertas, tokens=()):
+    def __init__(self, fotos, archivos, huertas, tokens=(), saldo=0, cobrados=0):
         self.tablas = {
             "recorrido_fotos": fotos,
             "huertas": huertas,
             "push_tokens": [{"token": t, "user_email": "a@b.mx"} for t in tokens],
             "hallazgos": [],
+            "users": [{"user_email": "a@b.mx", "tokens": saldo}],
         }
         self.archivos = dict(archivos)
         self.updates, self.borrados, self.subidos = [], [], {}
+        self.cobrados = cobrados  # recorridos.tokens_cobrados del recorrido en curso
+        self.rpcs = []
+
+    def rpc(self, funcion, args):
+        # Misma lógica que public.cobrar_recorrido (migración 20261119).
+        self.rpcs.append((funcion, args))
+        delta = max(0, args["p_fotos"] - self.cobrados)
+        u = self.tablas["users"][0]
+        u["tokens"] = max(0, u["tokens"] - delta)
+        self.cobrados += delta
+        return delta
 
     def select(self, tabla, params):
         return list(self.tablas.get(tabla, []))
@@ -298,6 +310,65 @@ class ProcesarTest(unittest.TestCase):
         sb = self._procesar_simple({"id": "r7", "user_email": "a@b.mx", "huerta_id": "h1"})
         self.assertTrue(sb.tablas["hallazgos"])
         self.assertTrue(all("zona" not in h for h in sb.tablas["hallazgos"]))
+
+    # ───────── Cobro de tokens por foto analizada ─────────
+
+    def _cobro(self, saldo, cobrados, respuestas=None, n=3, push=False):
+        m = 1 / 111320
+        fotos = [foto(i, i, 19.4652 + 4 * i * m, -101.7220) for i in range(n)]
+        archivos = {f["storage_path"]: jpg_nitida() for f in fotos}
+        sb = FakeSupabase(fotos, archivos, [{"id": "h1", "nombre": "Huerta 1", "coordinates": CUADRO}],
+                          tokens=["ExponentPushToken[x]"] if push else (), saldo=saldo, cobrados=cobrados)
+        modelo = FakeModelo(respuestas if respuestas is not None else {f"f{i}.jpg": res("Aguacate", 0.95, "Saludable", 0.9) for i in range(n)})
+        rec = {"id": "r9", "user_email": "a@b.mx", "huerta_id": "h1", "fuente": "celular", "tokens_cobrados": cobrados}
+        r = mock.Mock(status_code=200)
+        r.raise_for_status = lambda: None
+        r.json.return_value = {"data": [{"status": "ok"}]}
+        with mock.patch.object(pr.requests, "Session") as S:
+            S.return_value.post.return_value = r
+            out = pr.procesar(sb, modelo, rec, {"lote": 4, "min_dist_m": 2.5, "max_fotos": 600, "umbral_nitidez": 60})
+            enviado = S.return_value.post.call_args.kwargs["json"][0] if push else None
+        return sb, modelo, out, enviado
+
+    def test_cobra_una_unidad_por_foto_analizada(self):
+        sb, modelo, out, _ = self._cobro(saldo=10, cobrados=0)
+        self.assertEqual(out["cobrados"], 3)
+        self.assertEqual(sb.tablas["users"][0]["tokens"], 7)  # 300 tokens en la app
+        final = sb.updates[-1][2]
+        self.assertEqual((final["fotos_analizadas"], final["fotos_sin_saldo"]), (3, 0))
+
+    def test_foto_que_el_modelo_no_analiza_no_se_cobra(self):
+        resp = {"f0.jpg": res("Aguacate", 0.95, "Saludable", 0.9), "f1.jpg": None, "f2.jpg": res("Nofruta", 0.97, "ninguno", 0.99)}
+        sb, _, out, _ = self._cobro(saldo=10, cobrados=0, respuestas=resp)
+        # f1 falló en el modelo: no se cobra. f2 sí se analizó (no había fruto), igual que un escaneo.
+        self.assertEqual(out["cobrados"], 2)
+        self.assertEqual(sb.tablas["users"][0]["tokens"], 8)
+
+    def test_sin_saldo_suficiente_solo_analiza_lo_que_alcanza(self):
+        sb, modelo, out, enviado = self._cobro(saldo=2, cobrados=0, push=True)
+        self.assertEqual(sum(len(l) for l in modelo.llamadas), 2)
+        self.assertEqual(sb.tablas["users"][0]["tokens"], 0)
+        self.assertEqual(sb.updates[-1][2]["fotos_sin_saldo"], 1)
+        self.assertIn("1 foto no se analizó por falta de tokens", enviado["body"])
+
+    def test_sin_saldo_no_llama_al_modelo(self):
+        sb, modelo, out, _ = self._cobro(saldo=0, cobrados=0)
+        self.assertEqual(modelo.llamadas, [])
+        self.assertEqual(out["cobrados"], 0)
+        self.assertEqual(sb.updates[-1][2]["estado"], "listo")
+        self.assertEqual(sb.updates[-1][2]["fotos_sin_saldo"], 3)
+
+    def test_reintento_no_cobra_dos_veces(self):
+        # Una corrida anterior ya cobró las 3 fotos y falló después: el reintento las vuelve a analizar gratis.
+        sb, modelo, out, _ = self._cobro(saldo=0, cobrados=3)
+        self.assertEqual(sum(len(l) for l in modelo.llamadas), 3)
+        self.assertEqual(out["cobrados"], 0)
+        self.assertEqual(sb.tablas["users"][0]["tokens"], 0)
+
+    def test_sin_migracion_no_cobra(self):
+        sb = self._procesar_simple({"id": "r7", "user_email": "a@b.mx", "huerta_id": "h1"})
+        self.assertEqual(sb.rpcs, [])
+        self.assertNotIn("fotos_sin_saldo", sb.updates[-1][2])
 
     def test_recorrido_sin_fotos(self):
         sb = FakeSupabase([], {}, [])

@@ -500,7 +500,7 @@ export default function Scan() {
           busy={checkingOrchard}
           onPress={() => { if (!checkingOrchard) void choosePhoto(); }}
           accessibilityLabel={t("fabPhoto")}
-          style={{ position: "absolute", right: isTablet ? 44 : 22, bottom: nav.barTop + (isTablet ? 46 : 40), zIndex: 20 }}
+          style={{ position: "absolute", ...nav.fab(isTablet ? 70 : 58), zIndex: 20 }}
         />
       )}
       <OrchardPickerSheet

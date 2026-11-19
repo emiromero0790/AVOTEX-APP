@@ -34,6 +34,8 @@ const SCAN_WEIGHT = 1.6;
 const MOUND_PAD = 14;
 const SHADOW_PAD = 14;
 const ROW_PAD = 4;
+/** Tamaño del botón flotante (asistente / cámara) en tableta. */
+export const FAB_TABLET = 70;
 
 const ICONS: Record<Exclude<TabName, 'scan'>, (p: NavIconProps) => React.ReactElement> = {
   index: HomeIcon,
@@ -50,7 +52,9 @@ export function useAvotexTabBarMetrics() {
   const tablet = width >= 768;
   const narrow = width < 350;
   const margin = tablet ? 40 : narrow ? 8 : 10;
-  const barW = Math.min(width - margin * 2, tablet ? 760 : 9999);
+  // En tableta la barra deja a cada lado espacio para el botón flotante (asistente o cámara): así el botón
+  // va a la altura de la barra y no tapa contenido de la pantalla.
+  const barW = tablet ? Math.min(width - (FAB_TABLET + 28) * 2, 760) : width - margin * 2;
   const barH = tablet ? 76 : 66;
   // Separación visible bajo la barra, además del área segura (indicador de inicio / barra de gestos).
   const bottom = insets.bottom + (tablet ? 16 : 12);
@@ -75,6 +79,10 @@ export function useAvotexTabBarMetrics() {
     /** Distancia desde el borde inferior hasta lo más alto de la barra (incluye la punta del aguacate).
      *  Lo que se coloque encima de la barra debe quedar arriba de esta altura. */
     clearTop: bottom + barH + avoAbove,
+    /** Posición del botón flotante: en tableta, a un lado de la barra; en celular, arriba de la barra a la derecha. */
+    fab: (size: number) => tablet
+      ? { right: Math.max(8, ((width - barW) / 2 - size) / 2), bottom: bottom + (barH - size) / 2 }
+      : { right: 22, bottom: bottom + barH + 40 },
     labelSize: tablet ? 13 : narrow ? 9.5 : width < 400 ? 10.5 : 11,
     iconSize: tablet ? 27 : narrow ? 21 : 24,
   };

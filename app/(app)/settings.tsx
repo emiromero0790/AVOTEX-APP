@@ -22,6 +22,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { getAuth } from 'firebase/auth';
+import '../../firebaseConfig'; // inicializa Firebase antes de getAuth (Ajustes puede abrirse directo, p. ej. desde un enlace)
 import { useGuest } from '../../context/GuestContext';
 import { TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 import { noOverscroll } from '../../components/ui/noOverscroll';

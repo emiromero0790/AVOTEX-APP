@@ -677,6 +677,9 @@ export default function RecorridoScreen() {
     if (!rec) return;
     const { latitude: lat, longitude: lng, accuracy, speed } = loc.coords;
     const now = Date.now();
+    // Lectura tomada ANTES de empezar (la última ubicación conocida que el teléfono entrega primero): no es
+    // dónde estás ahora; si entraba, el primer fix real quedaba a cientos de metros de ella.
+    if (typeof loc.timestamp === 'number' && loc.timestamp > 0 && loc.timestamp < startedAtRef.current - 5000) return;
     const prev = lastFixRef.current;
     lastFixRef.current = { lat, lng, acc: accuracy ?? null, at: now };
     // Filtro de la traza (services/gpsFilter.ts): el «baile» del GPS estando quieto ya no suma metros
@@ -684,6 +687,8 @@ export default function RecorridoScreen() {
     const track = trackRef.current ?? (trackRef.current = new GpsTrack());
     const step = track.push({ lat, lng, acc: accuracy ?? null, speed: speed ?? null, t: now });
     logGps(track, { lat, lng, acc: accuracy ?? null, speed: speed ?? null, step: step.step, accepted: step.accepted });
+    // El filtro se reubicó antes del primer paso (la posición inicial era vieja): la ruta empieza de nuevo aquí.
+    if (step.restart) rec.ruta = [];
     if (step.accepted && step.point) {
       rec.ruta.push({ lat: step.point.lat, lng: step.point.lng, t: new Date(now).toISOString(), f: 1 });
       if (step.step > 0 && !pausedRef.current) setStats(s => ({ ...s, distance: s.distance + step.step }));

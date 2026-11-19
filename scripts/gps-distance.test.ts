@@ -158,6 +158,29 @@ rows.push('Caso real (logs de Android/Expo Go): 21 s de posición congelada, lue
   check('40 m caminando después', Math.min(...ratios) >= 0.8, `min ${(Math.min(...ratios) * 100).toFixed(0)}% · prom ${(ratios.reduce((a, b) => a + b, 0) / ratios.length * 100).toFixed(0)}%`);
 }
 
+rows.push('Arranque con la última ubicación conocida a 500 m (el teléfono la repite antes del primer fix real):');
+for (const mode of MODES) {
+  const ratios: number[] = [];
+  for (let k = 0; k < SEEDS; k++) {
+    seed = 9000 + k * 7919;
+    const t = new GpsTrack();
+    const lat0 = 19.7754, lng0 = -101.1309;
+    // 1–2 lecturas viejas a 500 m, con buena precisión (es una posición guardada, no ruido).
+    t.push({ lat: lat0 + 500 / M, lng: lng0, acc: 12, speed: mode === 'null' ? null : 0, t: 0 });
+    if (k % 2) t.push({ lat: lat0 + 500 / M, lng: lng0, acc: 12, speed: mode === 'null' ? null : 0, t: 1000 });
+    let bx = 0, by = 0;
+    for (let i = 2; i <= 62; i++) {
+      bx = 0.9 * bx + g() * 0.8; by = 0.9 * by + g() * 0.8;
+      const y = 1.2 * (i - 2);
+      const sp = mode === 'doppler' ? Math.max(0, 1.2 + g() * 0.12) : mode === 'android0' ? 0 : mode === 'null' ? null : i % 3 === 0 ? 1.2 : 0;
+      t.push({ lat: lat0 + (y + by + g() * 1.5) / M, lng: lng0 + (bx + g() * 1.5) / (M * K), acc: 6, speed: sp, t: i * 1000 });
+    }
+    ratios.push(t.distance / 72);
+  }
+  const max = Math.max(...ratios), min = Math.min(...ratios);
+  check(`72 m reales · ${LABEL[mode]}`, max <= 1.35 && min >= 0.6, `min ${(min * 100).toFixed(0)}% · máx ${(max * 100).toFixed(0)}% (antes del arreglo: +500 m)`);
+}
+
 console.log('Distancia del recorrido — GpsTrack');
 console.log(rows.join('\n'));
 assert.equal(failed, 0, `${failed} caso(s) fuera de tolerancia`);

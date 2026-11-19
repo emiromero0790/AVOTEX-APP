@@ -10,7 +10,8 @@
  * 2. Puerta de movimiento: un punto nuevo solo se acepta si el estimado suavizado se alejó del último
  *    punto aceptado más que el error del estimado (2σ, mínimo MIN_STEP_M).
  * 3. Velocidad: si el teléfono informa velocidad Doppler casi cero (< STILL_SPEED), se considera quieto
- *    salvo un desplazamiento claramente grande. Saltos imposibles caminando (> MAX_SPEED) se descartan.
+ *    salvo un desplazamiento claramente grande. Saltos imposibles caminando (> MAX_SPEED) se descartan; si el
+ *    salto se sostiene (el GPS corrigió la posición), el filtro se reubica sin sumar metros.
  *    La velocidad solo se cree después de que el teléfono demostró que la mide (Android manda 0 en las
  *    lecturas sin velocidad: tomarlo como «quieto» dejaba la distancia en 0 m aunque caminaras).
  * 4. Sin velocidad utilizable: la puerta escala con la precisión, el desplazamiento debe sostenerse 2
@@ -78,11 +79,11 @@ export class GpsTrack {
   distance = 0;
   /** Diagnóstico (solo lectura, para la pantalla de diagnóstico GPS del recorrido). */
   readonly debug = {
-    fixes: 0, accepted: 0, rejectedAccuracy: 0, rejectedGate: 0, rejectedSpike: 0, rejectedReversal: 0,
+    fixes: 0, accepted: 0, rejectedAccuracy: 0, rejectedGate: 0, rejectedSpike: 0, rejectedReversal: 0, relocations: 0,
     lastAcc: null as number | null, lastRawSpeed: null as number | null, speedTrusted: false,
     lastGate: 0, lastDist: 0, still: false,
     /** Decisión de la última lectura. */
-    lastReason: '' as '' | 'inicio' | 'aceptada' | 'repetida' | 'precisión' | 'puerta' | 'persistencia' | 'salto' | 'ida-vuelta',
+    lastReason: '' as '' | 'inicio' | 'aceptada' | 'repetida' | 'precisión' | 'puerta' | 'persistencia' | 'salto' | 'ida-vuelta' | 'reubicada',
   };
 
   private toXY(lat: number, lng: number) { return { x: (lng - this.lng0) * this.k * M_PER_DEG, y: (lat - this.lat0) * M_PER_DEG }; }
@@ -98,7 +99,7 @@ export class GpsTrack {
    * Procesa una lectura. Devuelve el punto aceptado (para la ruta) y los metros sumados,
    * o `accepted: false` si se considera ruido.
    */
-  push(f: RawFix): { accepted: boolean; point: TrackPoint | null; step: number } {
+  push(f: RawFix): { accepted: boolean; point: TrackPoint | null; step: number; restart?: boolean } {
     if (!Number.isFinite(f.lat) || !Number.isFinite(f.lng)) return { accepted: false, point: null, step: 0 };
     this.debug.fixes += 1;
     const acc = typeof f.acc === 'number' && f.acc > 0 ? f.acc : 10;
@@ -158,7 +159,19 @@ export class GpsTrack {
     this.over += 1;
     if (speed == null && this.live && this.over < 2) { this.debug.rejectedGate += 1; this.debug.lastReason = 'persistencia'; return { accepted: false, point: null, step: 0 }; }
     const secs = Math.max(0.5, (f.t - a.t) / 1000);
-    if (d / secs > MAX_SPEED && this.spikes < 3) { this.spikes += 1; this.debug.rejectedSpike += 1; this.debug.lastReason = 'salto'; return { accepted: false, point: null, step: 0 }; }
+    if (d / secs > MAX_SPEED) {
+      if (this.spikes < 3) { this.spikes += 1; this.debug.rejectedSpike += 1; this.debug.lastReason = 'salto'; return { accepted: false, point: null, step: 0 }; }
+      // El salto imposible caminando se sostiene: no es ruido, el GPS CORRIGIÓ la posición (p. ej. al arrancar el
+      // teléfono entrega primero la última ubicación conocida, que puede estar a cientos de metros). Antes, a la
+      // cuarta lectura se aceptaba y se sumaba todo el salto (+500 m al empezar). Ahora el filtro se reubica en la
+      // lectura real SIN sumar metros. Si aún no había ningún paso, la ruta debe empezar de nuevo ahí (`restart`).
+      const restart = this.debug.accepted === 0;
+      this.x = z.x; this.y = z.y; this.P = acc * acc;
+      this.spikes = 0; this.over = 0; this.lastVec = null; this.speeds = [];
+      this.anchor = { x: this.x, y: this.y, t: f.t };
+      this.debug.relocations += 1; this.debug.lastReason = 'reubicada';
+      return { accepted: true, point: { lat: f.lat, lng: f.lng, t: f.t }, step: 0, restart };
+    }
     this.spikes = 0;
     this.over = 0;
     const vx = this.x - a.x, vy = this.y - a.y;

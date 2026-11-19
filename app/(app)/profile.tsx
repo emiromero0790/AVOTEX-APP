@@ -163,7 +163,7 @@ export default function ProfileScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <ChevronLeft size={24} color="#007AFF" />
+          <ChevronLeft size={24} color="#4D7C0F" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('profile.title')}</Text>
         <View style={{ width: 40 }} />
@@ -627,7 +627,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#4D7C0F',
   },
   primaryBtnText: {
     fontFamily: 'Poppins_600SemiBold',

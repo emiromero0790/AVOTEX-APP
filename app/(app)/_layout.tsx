@@ -171,7 +171,7 @@ export default function TabLayout() {
         <ChatbotFloatingButton
           size={isTablet ? 70 : 58}
           onPress={() => router.push('/(app)/chatbot')}
-          style={[styles.fab, { bottom: nav.barTop + (isTablet ? 46 : 40) }, isTablet && styles.fabTablet]}
+          style={[styles.fab, nav.fab(isTablet ? 70 : 58)]}
         />
       )}
     </View>
@@ -205,10 +205,6 @@ const styles = StyleSheet.create({
 
   fab: {
     position: 'absolute',
-    right: 22,
-  },
-  fabTablet: {
-    right: 44,
   },
 
   lockOverlay: {

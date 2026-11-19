@@ -123,7 +123,9 @@ export default function GrabacionHeader({ topInset, stepLabel, title, subtitle, 
   // En pantallas angostas el título baja de tamaño para que una palabra como «grabación» quepa completa junto al teléfono.
   const fs = textW ? Math.max(24, Math.min(31, textW / 5.3)) : 31;
   return (
-    <View style={[st.header, { paddingTop: topInset + 8 }]} onLayout={e => onHeight(Math.round(e.nativeEvent.layout.height))}>
+    // En tabletas el texto cabe en menos líneas y el encabezado quedaría bajo: la ilustración (que se escala con
+    // la altura) se vería chica y tapada por el panel. Se le da una altura mínima en pantallas anchas.
+    <View style={[st.header, { paddingTop: topInset + 8 }, width >= 600 && { minHeight: topInset + 250 }]} onLayout={e => onHeight(Math.round(e.nativeEvent.layout.height))}>
       <View style={st.brandRow}>
         <PressableScale onPress={onBack} accessibilityRole="button" accessibilityLabel={backLabel} hitSlop={8} style={st.backBtn}>
           <ArrowLeft size={20} color="#FFFFFF" />

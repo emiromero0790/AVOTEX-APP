@@ -473,7 +473,8 @@ function GrabacionScreen() {
       <View style={{ flex: 1 }}>
         {header(t('step1'), t('title1'), t('sub1'))}
         <View style={s.body}>
-          <RNScrollView contentContainerStyle={{ padding: 16, paddingTop: 20, gap: 16, paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false}>
+          {/* En tableta el contenido no se estira: mismo ancho que las tarjetas (cardW ≤ 640). */}
+          <RNScrollView contentContainerStyle={{ padding: 16, paddingTop: 20, gap: 16, paddingBottom: insets.bottom + 24, width: '100%', maxWidth: 672, alignSelf: 'center' }} showsVerticalScrollIndicator={false}>
             {orchardCard}
             <View style={s.videoCard}>
               <FilmStack width={cardW - 34} image={hasFrames ? { uri: live[0].uri } : COVER} />

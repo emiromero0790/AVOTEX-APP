@@ -602,9 +602,10 @@ export default function MisEscaneos() {
     const o = selected.orchardId ? orchardById[selected.orchardId] : null;
     const orchard = (o?.coordinates ?? []).filter(c => validCoord(c.latitude, c.longitude)).map(c => ({ lat: c.latitude, lng: c.longitude }));
     // Grabación: sin ruta ni GPS; se muestra la huerta con sus zonas y cuántos hallazgos tiene cada una.
-    // Si la grabación no trae sus zonas guardadas, se recalculan de la huerta (mismo cálculo que al grabar).
+    // Si la grabación no trae sus zonas guardadas (grabaciones antiguas), se recalculan las zonas AUTOMÁTICAS
+    // de la huerta: eran las vigentes al clasificarla (las zonas editadas no aplican a grabaciones pasadas).
     const zonasSel = selected.tipo === 'grabacion'
-      ? (selected.zonas.length ? selected.zonas : o ? zonasDeHuerta(o.coordinates, o.id, o.zonas_cortes) ?? [] : [])
+      ? (selected.zonas.length ? selected.zonas : o ? zonasDeHuerta(o.coordinates, o.id) ?? [] : [])
       : [];
     if (selected.tipo === 'grabacion' && zonasSel.length) {
       const zoneOf: Record<string, string> = {};
@@ -845,7 +846,7 @@ export default function MisEscaneos() {
 
   // ── Grabación: mapa de zonas semi‑3D (igual que al asignar las fotos) con sus hallazgos ──
   const selZonas = selected?.tipo === 'grabacion'
-    ? (selected.zonas.length ? selected.zonas : selected.orchardId && orchardById[selected.orchardId] ? zonasDeHuerta(orchardById[selected.orchardId].coordinates, selected.orchardId, orchardById[selected.orchardId].zonas_cortes) ?? [] : [])
+    ? (selected.zonas.length ? selected.zonas : selected.orchardId && orchardById[selected.orchardId] ? zonasDeHuerta(orchardById[selected.orchardId].coordinates, selected.orchardId) ?? [] : [])
     : [];
   const zoneCounts: Partial<Record<ZonaSnapshot['id'], number>> = {};
   const zoneProblems: Partial<Record<ZonaSnapshot['id'], number>> = {};

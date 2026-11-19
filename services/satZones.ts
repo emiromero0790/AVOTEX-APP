@@ -449,17 +449,28 @@ export function checkNewCut(rawCoordinates: unknown, cuts: ZoneCut[], cut: ZoneC
   const toP = (c: ZoneCut): [P, P] => [pr.to(c.a), pr.to(c.b)];
   const before = applyCuts(poly, cuts.map(toP));
   if (before.parts.length >= MAX_ZONES) return { ok: false, reason: 'max-zones' };
+  const [a, b] = toP(cut);
+  const line = lineOf(a, b);
+  if (!line) return { ok: false, reason: 'no-split' };
+
+  // Zonas que la línea divide de verdad (cruza y no deja una franja menor al 2 %).
+  const total = area(poly);
+  const split = before.parts.filter(piece => {
+    if (!segmentTouches(a, b, piece)) return false;
+    const u = clipHalf(piece, line.nx, line.ny, line.c), v = clipHalf(piece, -line.nx, -line.ny, -line.c);
+    return u.length >= 3 && v.length >= 3 && area(u) / total >= MIN_ZONE_SHARE && area(v) / total >= MIN_ZONE_SHARE;
+  });
+  if (!split.length) return { ok: false, reason: 'no-split' };
+  // Una línea que cruza varias zonas las divide todas: si así se pasaría de 4, no se acepta
+  // (antes dividía solo una y la línea quedaba cruzando otra zona sin dividirla, lo que confundía).
+  if (before.parts.length + split.length > MAX_ZONES) return { ok: false, reason: 'max-zones' };
   const after = applyCuts(poly, [...cuts, cut].map(toP));
-  if (!after.applied[after.applied.length - 1]) return { ok: false, reason: after.overflow ? 'max-zones' : 'no-split' };
 
   // El trazo con el dedo rara vez llega justo al borde: se guarda el tramo real del corte, de lado a
   // lado de las zonas que divide (lo que se ve en el mapa coincide con lo que divide).
-  const [a, b] = toP(cut);
-  const line = lineOf(a, b)!;
   const dx = -line.ny, dy = line.nx;
   const ts: number[] = [];
-  for (const piece of before.parts) {
-    if (!segmentTouches(a, b, piece)) continue;
+  for (const piece of split) {
     const ch = chordWithin(piece, line);
     if (ch) for (const q of ch) ts.push(dx * q.x + dy * q.y);
   }
@@ -472,7 +483,7 @@ export function checkNewCut(rawCoordinates: unknown, cuts: ZoneCut[], cut: ZoneC
   // (La recta ajustada puede ir en sentido contrario y dejar las dos mitades en otro orden.)
   const areas = (ps: P[][]) => ps.map(area).sort((u, v) => u - v);
   const ca = areas(check.parts), aa = areas(after.parts);
-  const same = ca.length === aa.length && ca.every((x, i) => Math.abs(x - aa[i]) < 0.01 * area(poly));
+  const same = ca.length === aa.length && ca.every((x, i) => Math.abs(x - aa[i]) < 0.01 * total);
   return { ok: true, cut: same ? { a: pr.from(fitted[0]), b: pr.from(fitted[1]) } : cut };
 }
 

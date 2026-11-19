@@ -7,7 +7,7 @@
  * siempre quedan dentro del contorno. «Automáticas» vuelve a la división original (se guarda NULL).
  */
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Check, RotateCcw, Sparkles, Trash2, Undo2, X } from 'lucide-react-native';
@@ -60,6 +60,11 @@ const tick = () => { if (Platform.OS !== 'web') Haptics.selectionAsync().catch((
 export default function ZoneEditor({ orchard, userEmail, onClose, onSaved }: Props) {
   const t = useTranslations(tr);
   const insets = useSafeAreaInsets();
+  // Celulares angostos (~360 dp): íconos y letra un poco más chicos para que «Automáticas» quepa completa.
+  const narrow = useWindowDimensions().width < 380;
+  const icon = narrow ? 15 : 17;
+  const btnStyle = narrow ? [s.btn, s.btnNarrow] : [s.btn];
+  const txt = narrow ? [s.btnText, s.btnTextNarrow] : [s.btnText];
   const map = useRef<ZoneEditorMapHandle>(null);
 
   const initial = useMemo<Snapshot>(() => {
@@ -211,25 +216,25 @@ export default function ZoneEditor({ orchard, userEmail, onClose, onSaved }: Pro
 
           <View style={s.actions}>
             {selected !== null ? (
-              <Pressable onPress={deleteSelected} accessibilityRole="button" style={({ pressed }) => [s.btn, s.btnDanger, pressed && s.pressed]}>
-                <Trash2 size={17} color="#B42318" />
-                <Text style={[s.btnText, { color: '#B42318' }]}>{t('deleteLine')}</Text>
+              <Pressable onPress={deleteSelected} accessibilityRole="button" style={({ pressed }) => [...btnStyle, s.btnDanger, pressed && s.pressed]}>
+                <Trash2 size={icon} color="#B42318" />
+                <Text style={[...txt, { color: '#B42318' }]} numberOfLines={1}>{t('deleteLine')}</Text>
               </Pressable>
             ) : (
               <Pressable onPress={undo} disabled={!history.length} accessibilityRole="button" accessibilityState={{ disabled: !history.length }}
-                style={({ pressed }) => [s.btn, !history.length && s.btnDisabled, pressed && s.pressed]}>
-                <Undo2 size={17} color="#536238" />
-                <Text style={s.btnText}>{t('undo')}</Text>
+                style={({ pressed }) => [...btnStyle, !history.length && s.btnDisabled, pressed && s.pressed]}>
+                <Undo2 size={icon} color="#536238" />
+                <Text style={txt} numberOfLines={1}>{t('undo')}</Text>
               </Pressable>
             )}
             <Pressable onPress={resetAuto} disabled={state.isAuto} accessibilityRole="button" accessibilityState={{ disabled: state.isAuto }}
-              style={({ pressed }) => [s.btn, state.isAuto && s.btnDisabled, pressed && s.pressed]}>
-              <RotateCcw size={17} color="#536238" />
-              <Text style={s.btnText}>{t('auto')}</Text>
+              style={({ pressed }) => [...btnStyle, s.btnWide, state.isAuto && s.btnDisabled, pressed && s.pressed]}>
+              <RotateCcw size={icon - 1} color="#536238" />
+              <Text style={txt} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{t('auto')}</Text>
             </Pressable>
-            <Pressable onPress={save} disabled={saving} accessibilityRole="button" style={({ pressed }) => [s.btn, s.btnPrimary, pressed && s.pressed]}>
-              {saving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Check size={17} color="#FFFFFF" />}
-              <Text style={[s.btnText, { color: '#FFFFFF' }]}>{saving ? t('saving') : t('save')}</Text>
+            <Pressable onPress={save} disabled={saving} accessibilityRole="button" style={({ pressed }) => [...btnStyle, s.btnPrimary, pressed && s.pressed]}>
+              {saving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Check size={icon} color="#FFFFFF" />}
+              <Text style={[...txt, { color: '#FFFFFF' }]} numberOfLines={1}>{saving ? t('saving') : t('save')}</Text>
             </Pressable>
           </View>
         </View>
@@ -269,12 +274,16 @@ const s = StyleSheet.create({
   note: { color: '#6B7260', fontSize: 11.5, lineHeight: 16, marginTop: 10 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   btn: {
-    flex: 1, height: 48, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    flex: 1, height: 48, paddingHorizontal: 8, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(83,98,56,0.25)',
   },
+  // «Automáticas» es la palabra más larga: un poco más de ancho para que no toque los bordes.
+  btnWide: { flex: 1.35 },
+  btnNarrow: { paddingHorizontal: 5, gap: 4 },
+  btnTextNarrow: { fontSize: 12.5 },
   btnPrimary: { backgroundColor: '#0B6B3A', borderColor: '#0B6B3A' },
   btnDanger: { borderColor: 'rgba(180,35,24,0.35)', backgroundColor: '#FEF3F2' },
   btnDisabled: { opacity: 0.45 },
-  btnText: { color: '#536238', fontSize: 13.5, fontWeight: '700' },
+  btnText: { color: '#536238', fontSize: 13, fontWeight: '700', flexShrink: 1 },
   pressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },
 });

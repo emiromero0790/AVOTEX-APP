@@ -237,8 +237,9 @@ export default function HallazgoScreen() {
   const Icon = cat === 'enfermo' ? Bug : cat === 'sano' ? Leaf : cat === 'revisar' ? AlertTriangle : CircleHelp;
   const route = cleanRoute(rec?.ruta);
   const orchardPts = (orchard?.coordinates ?? []).filter(c => validCoord(c.latitude, c.longitude)).map(c => ({ lat: c.latitude, lng: c.longitude }));
-  // Hallazgo de una grabación: zonas guardadas con la grabación (o, si faltan, las actuales de la huerta).
-  const zonas = h.zona ? (parseZonas(rec?.zonas).length ? parseZonas(rec?.zonas) : orchard ? zonasDeHuerta(orchard.coordinates, orchard.id, orchard.zonas_cortes) ?? [] : []) : [];
+  // Hallazgo de una grabación: zonas guardadas con la grabación (o, si faltan, las automáticas de la huerta,
+  // que eran las vigentes al clasificarla).
+  const zonas = h.zona ? (parseZonas(rec?.zonas).length ? parseZonas(rec?.zonas) : orchard ? zonasDeHuerta(orchard.coordinates, orchard.id) ?? [] : []) : [];
   const zone = zonas.find(z => z.id === h.zona) ?? null;
   const enter = (i: number) => (reduced ? undefined : FadeInDown.duration(260).delay(80 + i * 50).easing(EASE_OUT));
 

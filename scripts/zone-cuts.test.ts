@@ -122,7 +122,13 @@ test('checkNewCut: con 4 zonas ya no se puede agregar otra', () => {
   assert.deepEqual(checkNewCut(rect, four, cut(50, -10, 50, 130)), { ok: false, reason: 'max-zones' });
 });
 
-test('checkNewCut: con 3 zonas, una línea que dividiría 2 zonas a la vez sí entra (divide solo hasta 4)', () => {
+test('checkNewCut: con 3 zonas, una línea que cruza 2 zonas se rechaza (serían 5)', () => {
+  const three = [cut(100, -10, 100, 130), cut(10, 60, 90, 60)];
+  // Horizontal a todo lo ancho: cruzaría la mitad derecha y una zona de la izquierda.
+  assert.deepEqual(checkNewCut(rect, three, cut(-10, 30, 210, 30)), { ok: false, reason: 'max-zones' });
+});
+
+test('checkNewCut: con 3 zonas, una línea que cruza solo 1 zona sí entra', () => {
   const three = [cut(100, -10, 100, 130), cut(10, 60, 90, 60)];
   const r = checkNewCut(rect, three, cut(150, -10, 150, 130));
   assert.equal(r.ok, true);

@@ -33,6 +33,8 @@ import { listLocal } from "../../services/recorridos";
 import { insertSingleScan, uploadScanImage } from "../../services/escaneos";
 import { resolveScanHuerta, type HuertaResolution } from "../../services/huertaResolver";
 import OrchardPickerSheet from "../../components/scan/OrchardPickerSheet";
+import { CameraFloatingButton } from "../../components/scan/CameraFloatingButton";
+import { useAvotexTabBarMetrics } from "../../components/tabbar/AvotexTabBar";
 import * as Location from "expo-location";
 import { CSS_EASE_OUT, EASE_OUT, PressableScale } from "../../components/scan/motion";
 
@@ -91,6 +93,7 @@ const scanTranslations: TranslationResource = {
   savingDetail: { es: "Tu diagnóstico se está guardando...", en: "Your diagnosis is being saved..." },
   flipCamera: { es: "Cambiar cámara", en: "Switch camera" },
   takePhoto: { es: "Tomar foto", en: "Take photo" },
+  fabPhoto: { es: "Tomar una foto individual", en: "Take a single photo" },
   modes: { es: "Modos", en: "Modes" },
   backToModes: { es: "Volver a elegir el modo de escaneo", en: "Back to scan modes" },
   photoMode: { es: "Foto individual", en: "Single photo" },
@@ -149,6 +152,7 @@ export default function Scan() {
 
   const isBusyRef = useRef(false);
   const insets = useSafeAreaInsets();
+  const nav = useAvotexTabBarMetrics();
   const reducedMotion = useReducedMotion();
   // Cada captura cambia la llave y vuelve a montar el destello (una sola reproducción por foto).
   const [flashKey, setFlashKey] = useState(0);
@@ -488,6 +492,17 @@ export default function Scan() {
         onOpenScans={() => router.push({ pathname: "/(app)/escaneos", params: { n: String(Date.now()) } })}
         busyLabel={checkingOrchard ? t("checkingOrchard") : null}
       />
+      {/* Foto individual: botón flotante fijo (no se desplaza con la pantalla), en el mismo lugar y tamaño que el
+          del asistente, que en Escanear no se muestra. Los invitados ya tienen «Tomar fotografía» como acción principal. */}
+      {!isGuest && (
+        <CameraFloatingButton
+          size={isTablet ? 70 : 58}
+          busy={checkingOrchard}
+          onPress={() => { if (!checkingOrchard) void choosePhoto(); }}
+          accessibilityLabel={t("fabPhoto")}
+          style={{ position: "absolute", right: isTablet ? 44 : 22, bottom: nav.barTop + (isTablet ? 46 : 40), zIndex: 20 }}
+        />
+      )}
       <OrchardPickerSheet
         visible={!!orchardPick}
         reason={orchardPick?.reason ?? null}

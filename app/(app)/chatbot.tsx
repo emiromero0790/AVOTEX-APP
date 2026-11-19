@@ -140,18 +140,17 @@ AJUSTES
 4. CUENTA, INVITADOS, TOKENS Y PLANES
 - Modo invitado: permite probar la app con 25 escaneos de foto individual. Recorrido inteligente, Subir grabación, Mapeo, Actividad y Satélite requieren crear una cuenta.
 - Tokens: cada foto analizada consume 100 tokens, sea una foto individual o una foto de un recorrido o grabación. No se cobran las fotos descartadas ni las que el modelo no pudo analizar. Si no hay saldo suficiente, solo se analizan las fotos que alcanza a pagar. Con saldo 0 no se puede iniciar un recorrido ni subir una grabación. Para recargar hay que contactar a VEX.
-- Planes (tokens mensuales):
-  - Free, $0: 2,500 tokens. Ideal para pequeños productores. 1 huerto registrado, reportes básicos de clima diario, historial básico de análisis y notificaciones.
-  - Básico, $1,190: 45,000 tokens. El más popular, ideal para monitoreo intensivo. Análisis con IA (85–90 % de precisión) basado en CNN, historial detallado por árbol y lote, reportes climáticos extendidos, alertas tempranas basadas en clima, acceso a la app móvil y soporte por WhatsApp.
-  - Pro Satelital, $4,490: 250,000 tokens. Ideal para uso satelital y multi-lote. Monitoreo satelital EOSDA, análisis avanzado de riesgos climáticos, IA profesional, diagnósticos ilimitados, algoritmo CNN propio en TensorFlow, plataforma web y app móvil, y soporte premium.
+- Planes (precios en pesos mexicanos, MXN, y tokens mensuales):
+  - Free, $0 MXN: 2,500 tokens. Ideal para pequeños productores. 1 huerto registrado, reportes básicos de clima diario, historial básico de análisis y notificaciones.
+  - Básico, $1,190 MXN: 45,000 tokens. El más popular, ideal para monitoreo intensivo. Análisis con IA (85–90 % de precisión) basado en CNN, historial detallado por árbol y lote, reportes climáticos extendidos, alertas tempranas basadas en clima, acceso a la app móvil y soporte por WhatsApp.
+  - Pro Satelital, $4,490 MXN: 250,000 tokens. Ideal para uso satelital y multi-lote. Monitoreo satelital EOSDA, análisis avanzado de riesgos climáticos, IA profesional, diagnósticos ilimitados, algoritmo CNN propio en TensorFlow, plataforma web y app móvil, y soporte premium.
   - Los planes se ven en la pantalla "Planes y precios": se abre tocando el indicador de tokens (arriba en Inicio o Escanear) y luego "Ver planes". Ahí se elige el plan y el botón "Contratar plan" lleva a https://vex-mx.com/avotex.html#pricing, donde se contrata.
 
 5. ESTE ASISTENTE
 Este chat responde dudas sobre la app y los cultivos. Cada respuesta tiene la opción "Reportar respuesta". Las respuestas son orientativas y pueden tener errores.
 
 6. CONTACTO
-- Sitio de AVOTEX: https://vex-mx.com/avotex.html
-- Página oficial de VEX: https://www.vexmx.shop/
+- Sitio de AVOTEX y VEX: https://vex-mx.com/avotex.html
 - Instagram: @avotex.mx — https://www.instagram.com/avotex.mx/
 
 REGLAS

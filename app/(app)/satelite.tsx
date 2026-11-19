@@ -283,7 +283,7 @@ export default function SateliteScreen() {
   }, [selectedId]);
 
   // ── Geometría y mapa ──
-  const geometry = useMemo(() => (orchard ? buildOrchardGeometry(orchard.coordinates, orchard.id) : null), [orchard]);
+  const geometry = useMemo(() => (orchard ? buildOrchardGeometry(orchard.coordinates, orchard.id, orchard.zonas_cortes) : null), [orchard]);
   const areaM2 = orchard && orchard.area_m2 > 0 ? orchard.area_m2 : geometry && geometry.ok ? geometry.areaM2 : 0;
   const zones = geometry && geometry.ok ? geometry.zones : [];
 

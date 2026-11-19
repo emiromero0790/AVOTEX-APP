@@ -1,7 +1,9 @@
 /**
  * Zonas ilustrativas de Datos Satelitales.
  *
- * Divide el polígono REAL de una huerta en cuatro zonas geométricas (A–D) para la vista de capas.
+ * Divide el polígono REAL de una huerta en hasta cuatro zonas geométricas (A–D) para la vista de capas.
+ * Por defecto se calculan solas; el agricultor puede cambiarlas con líneas de corte (huertas.zonas_cortes,
+ * editor en Mapeo › Editar › Editar zonas).
  * - Son una subdivisión visual del terreno, no mediciones: no llevan NDVI ni niveles de riesgo.
  * - Son estables: la semilla sale del id de la huerta, así que cada huerta conserva su composición.
  * - Siempre quedan dentro del perímetro: cada zona es el polígono recortado por semiplanos.
@@ -156,6 +158,12 @@ function clipHalf(poly: P[], nx: number, ny: number, c: number): P[] {
 
 /** Corta el polígono con una recta de ángulo `theta` que deja `fraction` del área de un lado. */
 function splitByArea(poly: P[], theta: number, fraction: number): [P[], P[]] {
+  const [a, b] = splitByAreaLine(poly, theta, fraction);
+  return [a, b];
+}
+
+/** Igual que splitByArea, y además devuelve la recta usada (n·p = c). */
+function splitByAreaLine(poly: P[], theta: number, fraction: number): [P[], P[], { nx: number; ny: number; c: number }] {
   const nx = Math.cos(theta), ny = Math.sin(theta);
   const proj = poly.map(p => nx * p.x + ny * p.y);
   let lo = Math.min(...proj), hi = Math.max(...proj);
@@ -165,7 +173,7 @@ function splitByArea(poly: P[], theta: number, fraction: number): [P[], P[]] {
     if (area(clipHalf(poly, nx, ny, mid)) / total < fraction) lo = mid; else hi = mid;
   }
   const c = (lo + hi) / 2;
-  return [clipHalf(poly, nx, ny, c), clipHalf(poly, -nx, -ny, -c)];
+  return [clipHalf(poly, nx, ny, c), clipHalf(poly, -nx, -ny, -c), { nx, ny, c }];
 }
 
 function pointInPoly(p: P, poly: P[]): boolean {
@@ -270,35 +278,209 @@ function dominantAngle(poly: P[]): number {
 
 // ───────────────────────── Partición ─────────────────────────
 
-function partition(poly: P[], seedKey: string): P[][] {
+type Line = { nx: number; ny: number; c: number };
+type PartitionResult = { parts: P[][]; cuts: { line: Line; within: P[] }[] };
+
+function partition(poly: P[], seedKey: string): PartitionResult {
   const rand = mulberry32(hashString(seedKey));
   const total = area(poly);
   const base = dominantAngle(poly);
-  let best: P[][] = [];
+  let best: PartitionResult = { parts: [], cuts: [] };
   let bestScore = -1;
   for (let attempt = 0; attempt < 14; attempt++) {
     // Primer corte diagonal respecto al lindero principal; luego un corte en cada mitad con otro ángulo.
     const t1 = base + Math.PI / 2 + (rand() - 0.5) * 1.1;
     const f1 = 0.4 + rand() * 0.22;
-    const [p1, p2] = splitByArea(poly, t1, f1);
+    const [p1, p2, l1] = splitByAreaLine(poly, t1, f1);
     const t2 = t1 + (rand() < 0.5 ? 1 : -1) * (0.55 + rand() * 0.6);
     const t3 = t1 + (rand() < 0.5 ? 1 : -1) * (0.45 + rand() * 0.7);
-    const [a, b] = p1.length >= 3 ? splitByArea(p1, t2, 0.36 + rand() * 0.28) : [[], []];
-    const [c, d] = p2.length >= 3 ? splitByArea(p2, t3, 0.36 + rand() * 0.28) : [[], []];
+    const f2 = 0.36 + rand() * 0.28;
+    const f3 = 0.36 + rand() * 0.28;
+    const s2 = p1.length >= 3 ? splitByAreaLine(p1, t2, f2) : null;
+    const s3 = p2.length >= 3 ? splitByAreaLine(p2, t3, f3) : null;
+    const [a, b] = s2 ? [s2[0], s2[1]] : [[], []];
+    const [c, d] = s3 ? [s3[0], s3[1]] : [[], []];
     const parts = [a, b, c, d];
     // Puntuación: la zona más chica debe ser al menos ~9 % de la huerta.
     const minShare = Math.min(...parts.map(p => (p.length >= 3 ? area(p) : 0))) / total;
-    if (minShare > bestScore) { bestScore = minShare; best = parts; }
+    if (minShare > bestScore) {
+      bestScore = minShare;
+      const cuts: PartitionResult['cuts'] = [{ line: l1, within: poly }];
+      if (s2) cuts.push({ line: s2[2], within: p1 });
+      if (s3) cuts.push({ line: s3[2], within: p2 });
+      best = { parts, cuts };
+    }
     if (minShare >= 0.09) break;
   }
-  return best.filter(p => p.length >= 3 && area(p) / total > 0.01);
+  return { parts: best.parts.filter(p => p.length >= 3 && area(p) / total > 0.01), cuts: best.cuts };
+}
+
+// ───────────────────────── Zonas a partir de líneas de corte (editables) ─────────────────────────
+
+/** Línea de corte dibujada por el agricultor: va de un lado a otro de la zona que divide. */
+export type ZoneCut = { a: LatLng; b: LatLng };
+/** Lo que se guarda en huertas.zonas_cortes. NULL en la base = zonas automáticas. */
+export type ZoneCutsValue = { version: 1; cortes: ZoneCut[] };
+
+export const MAX_ZONES = 4;
+/** Una zona nueva debe ocupar al menos este porcentaje de la huerta (evita tiras sin sentido). */
+export const MIN_ZONE_SHARE = 0.02;
+
+/** Recta que pasa por el segmento a→b, como n·p = c. null si el segmento es casi un punto. */
+function lineOf(a: P, b: P): Line | null {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 0.5) return null;
+  const nx = -dy / len, ny = dx / len;
+  return { nx, ny, c: nx * a.x + ny * a.y };
+}
+
+/** ¿El segmento pasa por dentro de la zona? (al menos dos de 61 puntos del segmento caen dentro). */
+function segmentTouches(a: P, b: P, poly: P[]): boolean {
+  let inside = 0;
+  for (let i = 0; i <= 60; i++) {
+    const t = i / 60;
+    if (pointInPoly({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }, poly) && ++inside >= 2) return true;
+  }
+  return false;
+}
+
+/** Tramo de la recta dentro del polígono (de extremo a extremo), recortado un 3 % en cada punta. */
+function chordWithin(poly: P[], line: Line): [P, P] | null {
+  const dx = -line.ny, dy = line.nx; // dirección de la recta
+  const ts: number[] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i], q = poly[(i + 1) % poly.length];
+    const fp = line.nx * p.x + line.ny * p.y - line.c, fq = line.nx * q.x + line.ny * q.y - line.c;
+    if ((fp <= 0 && fq > 0) || (fp > 0 && fq <= 0)) {
+      const t = fp / (fp - fq);
+      ts.push(dx * (p.x + (q.x - p.x) * t) + dy * (p.y + (q.y - p.y) * t));
+    }
+  }
+  if (ts.length < 2) return null;
+  const lo = Math.min(...ts), hi = Math.max(...ts), m = (hi - lo) * 0.03;
+  const at = (t: number): P => ({ x: line.nx * line.c + dx * t, y: line.ny * line.c + dy * t });
+  return [at(lo + m), at(hi - m)];
+}
+
+type CutOutcome = { parts: P[][]; applied: boolean[]; overflow: boolean };
+
+/**
+ * Aplica los cortes en orden. Cada línea divide, de lado a lado, cada zona por la que pasa.
+ * Una división que dejaría una zona menor al 2 % de la huerta no se hace; nunca hay más de 4 zonas.
+ */
+function applyCuts(poly: P[], cuts: [P, P][]): CutOutcome {
+  const total = area(poly);
+  let parts: P[][] = [poly];
+  const applied: boolean[] = [];
+  let overflow = false;
+  for (const [a, b] of cuts) {
+    const line = lineOf(a, b);
+    let did = false;
+    if (line) {
+      const next: P[][] = [];
+      for (let i = 0; i < parts.length; i++) {
+        const piece = parts[i];
+        const room = MAX_ZONES - (next.length + (parts.length - i));
+        if (!segmentTouches(a, b, piece)) { next.push(piece); continue; }
+        const u = clipHalf(piece, line.nx, line.ny, line.c);
+        const v = clipHalf(piece, -line.nx, -line.ny, -line.c);
+        const ok = u.length >= 3 && v.length >= 3 && area(u) / total >= MIN_ZONE_SHARE && area(v) / total >= MIN_ZONE_SHARE;
+        if (ok && room > 0) { next.push(u, v); did = true; }
+        else { if (ok) overflow = true; next.push(piece); }
+      }
+      parts = next;
+    }
+    applied.push(did);
+  }
+  return { parts, applied, overflow };
+}
+
+/** Lee huertas.zonas_cortes (tolerante a datos dañados). null = zonas automáticas. */
+export function parseZoneCuts(raw: unknown): ZoneCut[] | null {
+  let v: unknown = raw;
+  if (typeof v === 'string') { try { v = JSON.parse(v); } catch { return null; } }
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const list = (v as { cortes?: unknown }).cortes;
+  if (!Array.isArray(list)) return null;
+  const out: ZoneCut[] = [];
+  for (const item of list) {
+    const o = item as { a?: unknown; b?: unknown } | null;
+    const a = readPoint(o?.a), b = readPoint(o?.b);
+    if (a && b) out.push({ a, b });
+    if (out.length >= 12) break; // límite de seguridad ante datos dañados
+  }
+  return out;
+}
+
+export function serializeZoneCuts(cuts: ZoneCut[]): ZoneCutsValue {
+  const r = (p: LatLng) => ({ lat: Math.round(p.lat * 1e7) / 1e7, lng: Math.round(p.lng * 1e7) / 1e7 });
+  return { version: 1, cortes: cuts.map(c => ({ a: r(c.a), b: r(c.b) })) };
+}
+
+/** Líneas equivalentes a las zonas automáticas (para empezar a editar desde lo que ya se ve). */
+export function autoZoneCuts(rawCoordinates: unknown, seedKey: string): ZoneCut[] {
+  const outline = parseCoordinates(rawCoordinates);
+  if (outline.length < 3) return [];
+  const pr = projector(outline);
+  let poly = outline.map(pr.to);
+  if (selfIntersects(poly) || area(poly) < 25) return [];
+  if (signedArea(poly) < 0) poly = [...poly].reverse();
+  const out: ZoneCut[] = [];
+  for (const { line, within } of partition(poly, seedKey).cuts) {
+    const ch = chordWithin(within, line);
+    if (ch) out.push({ a: pr.from(ch[0]), b: pr.from(ch[1]) });
+  }
+  return out;
+}
+
+export type CutCheck =
+  | { ok: true; cut: ZoneCut }
+  | { ok: false; reason: 'no-split' | 'max-zones' | 'no-orchard' };
+
+/** ¿Agregar esta línea divide alguna zona? Se usa en el editor antes de aceptar un trazo. */
+export function checkNewCut(rawCoordinates: unknown, cuts: ZoneCut[], cut: ZoneCut): CutCheck {
+  const outline = parseCoordinates(rawCoordinates);
+  if (outline.length < 3) return { ok: false, reason: 'no-orchard' };
+  const pr = projector(outline);
+  let poly = outline.map(pr.to);
+  if (selfIntersects(poly) || area(poly) < 25) return { ok: false, reason: 'no-orchard' };
+  if (signedArea(poly) < 0) poly = [...poly].reverse();
+  const toP = (c: ZoneCut): [P, P] => [pr.to(c.a), pr.to(c.b)];
+  const before = applyCuts(poly, cuts.map(toP));
+  if (before.parts.length >= MAX_ZONES) return { ok: false, reason: 'max-zones' };
+  const after = applyCuts(poly, [...cuts, cut].map(toP));
+  if (!after.applied[after.applied.length - 1]) return { ok: false, reason: after.overflow ? 'max-zones' : 'no-split' };
+
+  // El trazo con el dedo rara vez llega justo al borde: se guarda el tramo real del corte, de lado a
+  // lado de las zonas que divide (lo que se ve en el mapa coincide con lo que divide).
+  const [a, b] = toP(cut);
+  const line = lineOf(a, b)!;
+  const dx = -line.ny, dy = line.nx;
+  const ts: number[] = [];
+  for (const piece of before.parts) {
+    if (!segmentTouches(a, b, piece)) continue;
+    const ch = chordWithin(piece, line);
+    if (ch) for (const q of ch) ts.push(dx * q.x + dy * q.y);
+  }
+  if (ts.length < 2) return { ok: true, cut };
+  const lo = Math.min(...ts), hi = Math.max(...ts);
+  const at = (t: number): P => ({ x: line.nx * line.c + dx * t, y: line.ny * line.c + dy * t });
+  const fitted: [P, P] = [at(lo), at(hi)];
+  // Solo se usa si divide exactamente lo mismo que el trazo original.
+  const check = applyCuts(poly, [...cuts.map(toP), fitted]);
+  // (La recta ajustada puede ir en sentido contrario y dejar las dos mitades en otro orden.)
+  const areas = (ps: P[][]) => ps.map(area).sort((u, v) => u - v);
+  const ca = areas(check.parts), aa = areas(after.parts);
+  const same = ca.length === aa.length && ca.every((x, i) => Math.abs(x - aa[i]) < 0.01 * area(poly));
+  return { ok: true, cut: same ? { a: pr.from(fitted[0]), b: pr.from(fitted[1]) } : cut };
 }
 
 /**
  * Geometría para la vista de capas: contorno real + zonas ilustrativas estables.
  * @param seedKey id de la huerta (la composición depende solo de este valor y del contorno).
  */
-export function buildOrchardGeometry(rawCoordinates: unknown, seedKey: string): OrchardGeometry {
+export function buildOrchardGeometry(rawCoordinates: unknown, seedKey: string, rawCuts?: unknown): OrchardGeometry {
   const outline = parseCoordinates(rawCoordinates);
   if (outline.length < 3) return { ok: false, reason: 'no-points' };
   const pr = projector(outline);
@@ -308,7 +490,10 @@ export function buildOrchardGeometry(rawCoordinates: unknown, seedKey: string): 
   if (total < 25) return { ok: true, outline, zones: [], marks: [], areaM2: total, zonesNote: 'too-small' };
   if (signedArea(poly) < 0) poly = [...poly].reverse();
 
-  const parts = partition(poly, seedKey);
+  // Zonas editadas por el agricultor (huertas.zonas_cortes); si no hay o ya no dividen nada, automáticas.
+  const custom = parseZoneCuts(rawCuts);
+  const customParts = custom ? applyCuts(poly, custom.map(c => [pr.to(c.a), pr.to(c.b)] as [P, P])).parts : null;
+  const parts = customParts ?? partition(poly, seedKey).parts;
   const size = Math.sqrt(total);
   const gap = Math.max(2.2, size / 30);
   const base = dominantAngle(poly);
@@ -318,7 +503,7 @@ export function buildOrchardGeometry(rawCoordinates: unknown, seedKey: string): 
   const withLabel = parts.map(p => ({ p, l: labelPoint(p) }));
   withLabel.sort((u, v) => (Math.abs(u.l.y - v.l.y) > size * 0.12 ? v.l.y - u.l.y : u.l.x - v.l.x));
 
-  const zones: Zone[] = withLabel.slice(0, 4).map(({ p, l }, i) => {
+  const zones: Zone[] = withLabel.slice(0, MAX_ZONES).map(({ p, l }, i) => {
     const id = ZONE_ORDER[i];
     // Surcos paralelos al lindero o perpendiculares, según la zona (estable por huerta).
     const theta = base + (rand() < 0.5 ? 0 : Math.PI / 2) + (rand() - 0.5) * 0.18;
@@ -353,4 +538,4 @@ export function buildOrchardGeometry(rawCoordinates: unknown, seedKey: string): 
 }
 
 /** Exportado para pruebas. */
-export const __test = { partition, clipHalf, area, pointInPoly, hashString };
+export const __test = { partition, clipHalf, area, pointInPoly, hashString, applyCuts };

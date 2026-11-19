@@ -41,9 +41,12 @@ export function frameTimes(durationMs: number): number[] {
   return Array.from({ length: n }, (_, i) => Math.round(margin + (n === 1 ? span / 2 : (span * i) / (n - 1))));
 }
 
-/** Zonas de la huerta tal como las dibuja Satélite (redondeadas a ~10 cm). null si la huerta no admite zonas. */
-export function zonasDeHuerta(coordinates: unknown, huertaId: string): ZonaSnapshot[] | null {
-  const g = buildOrchardGeometry(coordinates, huertaId);
+/**
+ * Zonas de la huerta tal como las dibuja Satélite (redondeadas a ~10 cm). null si la huerta no admite zonas.
+ * `cortes` = huertas.zonas_cortes (zonas editadas en Mapeo); sin cortes, zonas automáticas.
+ */
+export function zonasDeHuerta(coordinates: unknown, huertaId: string, cortes?: unknown): ZonaSnapshot[] | null {
+  const g = buildOrchardGeometry(coordinates, huertaId, cortes);
   if (!g.ok || !g.zones.length) return null;
   const r = (p: LatLng) => ({ lat: Math.round(p.lat * 1e6) / 1e6, lng: Math.round(p.lng * 1e6) / 1e6 });
   return g.zones.map(z => ({ id: z.id, color: z.color, ring: z.ring.map(r), label: r(z.label), share: Math.round(z.share * 10) / 10 }));

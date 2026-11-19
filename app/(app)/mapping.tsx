@@ -3,11 +3,12 @@ import { ActivityIndicator, Alert, AppState, KeyboardAvoidingView, Linking, Moda
 import { BlurView } from 'expo-blur';
 import { Poppins_400Regular, useFonts } from '@expo-google-fonts/poppins';
 import * as Location from 'expo-location';
-import { ChevronRight, Eraser, MapPin, MapPinOff, MessageSquareText, Navigation, Pencil, Plus, Save, ShieldCheck, Sprout, Trash2, X } from 'lucide-react-native';
+import { ChevronRight, Eraser, LayoutGrid, MapPin, MapPinOff, MessageSquareText, Navigation, Pencil, Plus, Save, ShieldCheck, Spline, Sprout, Trash2, X } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import PolygonMap, { PolygonMapHandle } from '../../components/PolygonMap';
 import ProximityAlert, { type GpsIssue } from '../../components/mapping/ProximityAlert';
+import ZoneEditor from '../../components/mapping/ZoneEditor';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAvotexTabBarMetrics } from '../../components/tabbar/AvotexTabBar';
 import { useReducedMotion } from 'react-native-reanimated';
@@ -60,6 +61,13 @@ const mappingTranslations: TranslationResource = {
   orchardName: { es: 'Nombre de la huerta', en: 'Orchard name' },
   orchardPlaceholder: { es: 'Ej. Huerta norte', en: 'E.g. North orchard' },
   editBoundary: { es: 'Editar', en: 'Edit' },
+  editMenuTitle: { es: '¿Qué quieres editar?', en: 'What do you want to edit?' },
+  editOutline: { es: 'Editar contorno', en: 'Edit outline' },
+  editOutlineSub: { es: 'Mueve los puntos del perímetro de la huerta', en: 'Move the points of the orchard boundary' },
+  editZones: { es: 'Editar zonas', en: 'Edit zones' },
+  editZonesSub: { es: 'Divide la huerta en zonas A–D a tu gusto', en: 'Split the orchard into zones A–D your way' },
+  zonesSaved: { es: 'Zonas guardadas.', en: 'Zones saved.' },
+  cancel: { es: 'Cancelar', en: 'Cancel' },
   saveChanges: { es: 'Guardar cambios', en: 'Save changes' },
   editingBoundary: { es: 'Mueve los puntos del contorno y guarda los cambios.', en: 'Move the boundary points and save your changes.' },
   saved: { es: 'Huerta guardada correctamente.', en: 'Orchard saved successfully.' },
@@ -71,7 +79,6 @@ const mappingTranslations: TranslationResource = {
   deleteTitle: { es: 'Eliminar huerta', en: 'Delete orchard' },
   deleteBody: { es: '¿Quieres eliminar “{name}”? Esta acción no se puede deshacer.', en: 'Delete “{name}”? This action cannot be undone.' },
   deleting: { es: 'Eliminando…', en: 'Deleting…' },
-  cancel: { es: 'Cancelar', en: 'Cancel' },
   delete: { es: 'Eliminar', en: 'Delete' },
   area: { es: '{area} ha', en: '{area} ha' },
   currentOrchard: { es: 'HUERTA SELECCIONADA', en: 'SELECTED ORCHARD' },
@@ -185,6 +192,9 @@ export default function Mapping() {
   const [orchardName, setOrchardName] = useState('');
   const [orchardDetails, setOrchardDetails] = useState('');
   const [commentsVisible, setCommentsVisible] = useState(false);
+  // «Editar» abre un menú: contorno (como antes) o zonas (editor a pantalla completa).
+  const [editMenuVisible, setEditMenuVisible] = useState(false);
+  const [zoneEditorVisible, setZoneEditorVisible] = useState(false);
   const [orchardPendingDelete, setOrchardPendingDelete] = useState<Orchard | null>(null);
   const [deletingOrchard, setDeletingOrchard] = useState(false);
   const [loadingOrchards, setLoadingOrchards] = useState(false);
@@ -852,11 +862,7 @@ export default function Mapping() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('editBoundary')}
-              onPress={() => {
-                mapRef.current?.editDrawing();
-                setEditingBoundary(true);
-                setNotice(t('editingBoundary'));
-              }}
+              onPress={() => setEditMenuVisible(true)}
               style={({ pressed }) => [styles.actionButton, pressed && styles.actionPressed]}
             >
               <Pencil size={20} color="#536238" />
@@ -905,6 +911,57 @@ export default function Mapping() {
 
         </View>
       </BlurView>}
+
+      <Modal visible={editMenuVisible} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setEditMenuVisible(false)}>
+        <Pressable style={styles.editMenuBackdrop} onPress={() => setEditMenuVisible(false)} accessibilityLabel={t('cancel')}>
+          <Pressable style={[styles.editMenuCard, { marginBottom: panelBottom }]} onPress={() => {}}>
+            <Text style={styles.editMenuTitle}>{t('editMenuTitle')}</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setEditMenuVisible(false);
+                mapRef.current?.editDrawing();
+                setEditingBoundary(true);
+                setNotice(t('editingBoundary'));
+              }}
+              style={({ pressed }) => [styles.editMenuItem, pressed && styles.actionPressed]}
+            >
+              <View style={styles.editMenuIcon}><Spline size={20} color="#064B2C" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.editMenuItemTitle}>{t('editOutline')}</Text>
+                <Text style={styles.editMenuItemSub}>{t('editOutlineSub')}</Text>
+              </View>
+              <ChevronRight size={18} color="#536238" />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => { setEditMenuVisible(false); setZoneEditorVisible(true); }}
+              style={({ pressed }) => [styles.editMenuItem, pressed && styles.actionPressed]}
+            >
+              <View style={styles.editMenuIcon}><LayoutGrid size={20} color="#064B2C" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.editMenuItemTitle}>{t('editZones')}</Text>
+                <Text style={styles.editMenuItemSub}>{t('editZonesSub')}</Text>
+              </View>
+              <ChevronRight size={18} color="#536238" />
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {zoneEditorVisible && selectedOrchard && auth.currentUser?.email ? (
+        <ZoneEditor
+          orchard={selectedOrchard}
+          userEmail={auth.currentUser.email}
+          onClose={() => setZoneEditorVisible(false)}
+          onSaved={saved => {
+            setOrchards(current => current.map(item => (item.id === saved.id ? saved : item)));
+            setSelectedOrchard(saved);
+            setZoneEditorVisible(false);
+            setNotice(t('zonesSaved'));
+          }}
+        />
+      ) : null}
 
       <Modal
         visible={orchardsOpen && !isWide}
@@ -1234,6 +1291,20 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   bottomPanelWide: { right: 306 },
+  editMenuBackdrop: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 14, backgroundColor: 'rgba(6,20,15,0.45)' },
+  editMenuCard: {
+    alignSelf: 'center', width: '100%', maxWidth: 520, padding: 14, gap: 8, borderRadius: 24,
+    backgroundColor: '#F5F3E8', borderWidth: 1, borderColor: '#D9DBCB',
+    shadowColor: '#102D22', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 20, elevation: 16,
+  },
+  editMenuTitle: { color: '#1F2A1C', fontSize: 15, fontWeight: '800', marginLeft: 4, marginBottom: 2 },
+  editMenuItem: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 18,
+    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(83,98,56,0.18)',
+  },
+  editMenuIcon: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E5F8C8' },
+  editMenuItemTitle: { color: '#1F2A1C', fontSize: 15, fontWeight: '700' },
+  editMenuItemSub: { color: '#6B7260', fontSize: 12, marginTop: 1 },
   mobileOrchardsButton: {
     position: 'absolute',
     top: 112,

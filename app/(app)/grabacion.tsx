@@ -191,7 +191,7 @@ function GrabacionScreen() {
   };
 
   const orchard = typeof choice === 'string' ? orchards.find(o => o.id === choice) ?? null : null;
-  const zonas = useMemo<ZonaSnapshot[] | null>(() => (orchard ? zonasDeHuerta(orchard.coordinates, orchard.id) : null), [orchard]);
+  const zonas = useMemo<ZonaSnapshot[] | null>(() => (orchard ? zonasDeHuerta(orchard.coordinates, orchard.id, orchard.zonas_cortes) : null), [orchard]);
   const outline = useMemo(() => (orchard ? orchard.coordinates.map(p => ({ lat: p.latitude, lng: p.longitude })) : null), [orchard]);
   const withZones = !!zonas;
 
@@ -294,7 +294,7 @@ function GrabacionScreen() {
   useEffect(() => {
     const list = orchard ? [orchard] : orchards.slice(0, 6);
     for (const o of list) {
-      const z = zonasDeHuerta(o.coordinates, o.id);
+      const z = zonasDeHuerta(o.coordinates, o.id, o.zonas_cortes);
       if (!z) continue;
       const ol = o.coordinates.map(p => ({ lat: p.latitude, lng: p.longitude }));
       for (const f of orchard ? [false, true] : [false]) {

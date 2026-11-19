@@ -485,9 +485,12 @@ function GrabacionScreen() {
                 <View style={s.trackSm}><View style={[s.fillSm, { width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }]} /></View>
               )}
               {hasFrames ? (
-                <PressableScale onPress={proceed} disabled={busy} style={[s.primary, busy && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ disabled: busy, busy: phase === 'resolving' }}>
-                  {phase === 'resolving' ? <ActivityIndicator color="#FFFFFF" /> : null}
-                  <Text style={s.primaryText}>{phase === 'resolving' ? t('finding') : t('processN', { n: live.length })}</Text>
+                <PressableScale onPress={proceed} disabled={busy} style={[s.primary, phase === 'resolving' && s.primaryResolving, busy && { opacity: 0.7 }]} accessibilityRole="button" accessibilityState={{ disabled: busy, busy: phase === 'resolving' }}>
+                  {phase === 'resolving' ? <ActivityIndicator color="#FFFFFF" size="small" /> : null}
+                  {/* «Buscando la huerta donde estás…» es largo: letra más chica y margen para que no toque los bordes. */}
+                  <Text style={[s.primaryText, phase === 'resolving' && s.primaryTextLong]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                    {phase === 'resolving' ? t('finding') : t('processN', { n: live.length })}
+                  </Text>
                   {phase === 'resolving' ? null : <ChevronRight size={20} color="#FFFFFF" />}
                 </PressableScale>
               ) : (
@@ -716,8 +719,11 @@ const s = StyleSheet.create({
   limitRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   limitText: { fontFamily: 'Poppins_400Regular', fontSize: 13.5, color: C.muted },
   bottom: { paddingHorizontal: 16, paddingTop: 10, backgroundColor: C.bg },
-  primary: { height: 56, borderRadius: 18, backgroundColor: C.deep, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  primaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#FFFFFF' },
+  primary: { height: 56, borderRadius: 18, backgroundColor: C.deep, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 18 },
+  primaryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: '#FFFFFF', flexShrink: 1 },
+  // Medido con Poppins: a 13 ocupa ~223 px; el botón en un celular de 360 dp deja ~232 px para el texto.
+  primaryTextLong: { fontSize: 13 },
+  primaryResolving: { gap: 8 },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   track: { flex: 1, height: 12, borderRadius: 6, backgroundColor: '#D7DCD3', overflow: 'hidden' },
   fill: { height: 12, borderRadius: 6, backgroundColor: C.limeStrong },

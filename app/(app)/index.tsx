@@ -161,6 +161,15 @@ const haText = (m2: number, locale: string) =>
   `${(m2 / 10000).toLocaleString(locale, { minimumFractionDigits: m2 < 100000 ? 1 : 0, maximumFractionDigits: m2 < 10000 ? 2 : 1 })} ha`;
 
 /** Tarjeta blanca de Estado del cultivo. */
+/** Indicador de carga del valor de una tarjeta (mismo alto que el número para que la tarjeta no salte). */
+function StatSpinner({ label }: { label: string }) {
+  return (
+    <View style={s.statSpinner} accessibilityRole="progressbar" accessibilityLabel={label}>
+      <ActivityIndicator size="small" color={C.bright} />
+    </View>
+  );
+}
+
 function StatCard({ icon, label, children, style }: { icon: React.ReactNode; label: string; children: React.ReactNode; style?: object }) {
   return (
     <View style={[s.stat, style]}>
@@ -194,6 +203,10 @@ export default function Home() {
   const [temperature, setTemperature] = useState<number | null>(null);
   const [humidity, setHumidity] = useState<number | null>(null);
   const [windSpeed, setWindSpeed] = useState<number | null>(null);
+  // Cargando ubicación + clima (Temperatura, Humedad, Viento) y escaneos (Salud): las tarjetas muestran un
+  // indicador en vez de «—» hasta saber si hay datos.
+  const [weatherLoading, setWeatherLoading] = useState(true);
+  const [scansLoading, setScansLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [scans, setScans] = useState<Scan[]>([]);
@@ -206,17 +219,24 @@ export default function Home() {
   const requestAndSetLocation = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
+      if (status !== 'granted') { setWeatherLoading(false); return; }
       setLocation(await Location.getCurrentPositionAsync({}));
-    } catch { /* sin ubicación: se muestran estados vacíos */ }
+    } catch { setWeatherLoading(false); /* sin ubicación: se muestran estados vacíos */ }
   };
+
+  // Si el GPS o el clima tardan demasiado, se deja de mostrar el indicador (quedan los estados vacíos).
+  useEffect(() => {
+    if (!weatherLoading) return;
+    const id = setTimeout(() => setWeatherLoading(false), 25000);
+    return () => clearTimeout(id);
+  }, [weatherLoading]);
 
   useFocusEffect(useCallback(() => {
     let active = true;
     AsyncStorage.getItem('avotex_share_location').then(saved => {
       if (!active) return;
       if (saved !== 'false') requestAndSetLocation();
-      else { setLocation(null); setTemperature(null); setHumidity(null); setWindSpeed(null); }
+      else { setLocation(null); setTemperature(null); setHumidity(null); setWindSpeed(null); setWeatherLoading(false); }
     });
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -239,16 +259,19 @@ export default function Home() {
         setTemperature(r.data.main.temp);
         setHumidity(r.data.main.humidity);
         setWindSpeed(r.data.wind?.speed ?? null);
-      } catch { /* sin clima */ }
+      } catch { /* sin clima */ } finally { setWeatherLoading(false); }
     })();
   }, [location, language]);
 
   useEffect(() => onAuthStateChanged(auth, u => { setUser(u); setLoadingUser(false); }), []);
 
   useEffect(() => {
-    if (isGuest) { setLoadingUser(false); return; }
-    if (!user) { setScans([]); return; }
-    supabase.from('scans').select('label, created_at').eq('user_id', user.uid).then(({ data }) => { if (data) setScans(data); });
+    if (isGuest) { setLoadingUser(false); setScansLoading(false); return; }
+    if (!user) { setScans([]); setScansLoading(false); return; }
+    setScansLoading(true);
+    supabase.from('scans').select('label, created_at').eq('user_id', user.uid)
+      .then(({ data }) => { if (data) setScans(data); }, () => {})
+      .then(() => setScansLoading(false));
   }, [user, isGuest]);
 
   const loadTokens = useCallback(() => {
@@ -391,29 +414,35 @@ export default function Home() {
           <View style={s.grid}>
             <StatCard icon={<Sun size={21} color={C.bright} />} label={t('temperature')}>
               <View style={s.statRow}>
-                <Text style={[s.statValue, compactStats && s.statValueCompact]} numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1.1}>
-                  {temperature !== null ? `${temperature.toFixed(1)}°C` : '—'}
-                </Text>
+                {temperature === null && weatherLoading ? <StatSpinner label={t('loading')} /> : (
+                  <Text style={[s.statValue, compactStats && s.statValueCompact]} numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1.1}>
+                    {temperature !== null ? `${temperature.toFixed(1)}°C` : '—'}
+                  </Text>
+                )}
                 <VerticalGauge value={temperature} min={0} max={45} labels={[{ value: 20, text: '20°' }, { value: 30, text: '30°' }, { value: 35, text: '35°' }]} />
               </View>
-              {temperature === null && <Text style={s.statEmpty}>{t('noLocation')}</Text>}
+              {temperature === null && !weatherLoading && <Text style={s.statEmpty}>{t('noLocation')}</Text>}
             </StatCard>
             <StatCard icon={<Droplets size={21} color={C.bright} />} label={t('humidity')}>
               <View style={s.statRow}>
-                <Text style={[s.statValue, compactStats && s.statValueCompact]} numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1.1}>
-                  {humidity !== null ? `${humidity}%` : '—'}
-                </Text>
+                {humidity === null && weatherLoading ? <StatSpinner label={t('loading')} /> : (
+                  <Text style={[s.statValue, compactStats && s.statValueCompact]} numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1.1}>
+                    {humidity !== null ? `${humidity}%` : '—'}
+                  </Text>
+                )}
                 <VerticalGauge value={humidity} min={0} max={100} labels={[{ value: 30, text: '30%' }, { value: 60, text: '60%' }, { value: 90, text: '90%' }]} />
               </View>
-              {humidity === null && <Text style={s.statEmpty}>{t('noLocation')}</Text>}
+              {humidity === null && !weatherLoading && <Text style={s.statEmpty}>{t('noLocation')}</Text>}
             </StatCard>
             <StatCard icon={<Leaf size={21} color={C.bright} />} label={t('health')}>
-              <Text style={[s.statValue, compactStats && s.statValueCompact]} numberOfLines={1} maxFontSizeMultiplier={1.1}>{isGuest || healthPct === null ? '—' : `${healthPct.toFixed(0)}%`}</Text>
+              {!isGuest && healthPct === null && scansLoading ? <StatSpinner label={t('loading')} /> : (
+                <Text style={[s.statValue, compactStats && s.statValueCompact]} numberOfLines={1} maxFontSizeMultiplier={1.1}>{isGuest || healthPct === null ? '—' : `${healthPct.toFixed(0)}%`}</Text>
+              )}
               <View style={s.healthTrack}>
                 <LinearGradient colors={['#EF4444', '#F97316', '#FACC15', '#84CC16', '#22C55E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
                 {!isGuest && healthPct !== null && <View style={[s.healthMarker, { left: `${Math.max(2, Math.min(98, healthPct))}%` as `${number}%` }]} />}
               </View>
-              {isGuest || healthPct === null ? <Text style={s.statEmpty}>{t('noScans')}</Text> : (
+              {!isGuest && healthPct === null && scansLoading ? null : isGuest || healthPct === null ? <Text style={s.statEmpty}>{t('noScans')}</Text> : (
                 <View style={s.legend}>
                   {([['#EF4444', t('critical')], ['#F97316', t('attention')], ['#22C55E', t('healthy')]] as const).map(([c, l]) => (
                     <View key={l} style={s.legendItem}><View style={[s.legendDot, { backgroundColor: c }]} /><Text style={s.legendText} numberOfLines={1}>{l}</Text></View>
@@ -422,10 +451,12 @@ export default function Home() {
               )}
             </StatCard>
             <StatCard icon={<Wind size={21} color={C.bright} />} label={t('wind')}>
-              <Text style={[s.statValue, compactStats && s.statValueCompact]} numberOfLines={1} maxFontSizeMultiplier={1.1}>
-                {windSpeed !== null ? windSpeed.toFixed(1) : '—'}{windSpeed !== null && <Text style={s.statUnit}> m/s</Text>}
-              </Text>
-              {windSpeed === null ? <Text style={s.statEmpty}>{t('noLocation')}</Text> : (
+              {windSpeed === null && weatherLoading ? <StatSpinner label={t('loading')} /> : (
+                <Text style={[s.statValue, compactStats && s.statValueCompact]} numberOfLines={1} maxFontSizeMultiplier={1.1}>
+                  {windSpeed !== null ? windSpeed.toFixed(1) : '—'}{windSpeed !== null && <Text style={s.statUnit}> m/s</Text>}
+                </Text>
+              )}
+              {windSpeed === null ? (weatherLoading ? null : <Text style={s.statEmpty}>{t('noLocation')}</Text>) : (
                 <View style={[s.pill, windSpeed > 8 && s.pillWarn]}>
                   <Text style={[s.pillText, windSpeed > 8 && s.pillTextWarn]} numberOfLines={1}>{windSpeed <= 8 ? t('stableWind') : t('strongWind')}</Text>
                 </View>
@@ -561,6 +592,7 @@ const s = StyleSheet.create({
   statIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: C.soft },
   statLabel: { fontFamily: 'Poppins_400Regular', fontSize: 12.5, color: C.muted },
   statRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
+  statSpinner: { height: 27, justifyContent: 'center', alignItems: 'flex-start', paddingLeft: 2 },
   statValue: { flexShrink: 1, fontFamily: 'Poppins_600SemiBold', fontSize: 21, lineHeight: 27, letterSpacing: -0.6, color: C.ink },
   statValueCompact: { fontSize: 18.5, lineHeight: 24, letterSpacing: -0.8 },
   statUnit: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: C.muted },

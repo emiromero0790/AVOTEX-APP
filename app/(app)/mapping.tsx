@@ -672,8 +672,8 @@ export default function Mapping() {
           <View style={styles.locationLoading}>
             <View style={styles.locationLoadingIcon}>
               {locationEnabled
-                ? <ActivityIndicator size="large" color="#0D756B" />
-                : <MapPinOff size={31} color="#0D756B" />}
+                ? <ActivityIndicator size="large" color="#176A45" />
+                : <MapPinOff size={31} color="#176A45" />}
             </View>
             <Text style={styles.locationLoadingTitle}>
                {locationEnabled ? t('searching') : t('disabled')}
@@ -689,14 +689,14 @@ export default function Mapping() {
 
       {!orchardsOpen || isWide ? <View style={[styles.locationCard, isWide && styles.locationCardWide]}>
         <View style={styles.locationIcon}>
-          <Navigation size={20} color="#FFFFFF" fill="#FFFFFF" />
+          <Navigation size={20} color="#B9F62F" fill="#B9F62F" />
         </View>
         <View style={styles.locationCopy}>
             <Text style={styles.locationEyebrow}>{selectedOrchard ? t('currentOrchard') : t('eyebrow')}</Text>
           <Text style={styles.locationCardTitle} numberOfLines={1}>{locationTitle}</Text>
           <Text style={styles.locationCardDetail} numberOfLines={1}>{locationDetail}</Text>
         </View>
-        <MapPin size={19} color="#9EE7D2" />
+        <MapPin size={19} color="#B9F62F" />
       </View> : null}
 
       {!isWide && !orchardsOpen && (
@@ -706,9 +706,9 @@ export default function Mapping() {
           onPress={openOrchardsSelector}
           style={({ pressed }) => [styles.mobileOrchardsButton, pressed && styles.actionPressed]}
         >
-          <Sprout size={17} color="#FFFFFF" />
+          <Sprout size={17} color="#D8FF79" />
           <Text style={styles.mobileOrchardsButtonText}>{t('orchards')}</Text>
-          <ChevronRight size={16} color="#9EE7D2" />
+          <ChevronRight size={16} color="#B9F62F" />
         </Pressable>
       )}
 
@@ -721,7 +721,7 @@ export default function Mapping() {
             </View>
             {!isWide && (
               <Pressable onPress={() => setOrchardsOpen(false)} style={styles.panelClose}>
-                <X size={16} color="#173E36" />
+                <X size={16} color="#102D22" />
               </Pressable>
             )}
           </View>
@@ -730,12 +730,12 @@ export default function Mapping() {
             <Text style={styles.newOrchardButtonText}>{t('newOrchard')}</Text>
           </Pressable>
           {loadingOrchards ? (
-            <ActivityIndicator color="#0D756B" style={styles.orchardsLoader} />
+            <ActivityIndicator color="#176A45" style={styles.orchardsLoader} />
           ) : orchardsError ? (
             <Text style={styles.orchardsError}>{orchardsError}</Text>
           ) : orchards.length === 0 ? (
             <View style={styles.emptyOrchards}>
-              <Sprout size={24} color="#70A496" />
+              <Sprout size={24} color="#8FA897" />
               <Text style={styles.emptyOrchardsTitle}>{t('noOrchards')}</Text>
               <Text style={styles.emptyOrchardsText}>{t('createFirst')}</Text>
             </View>
@@ -753,7 +753,7 @@ export default function Mapping() {
                     onPress={() => selectOrchard(orchard)}
                     style={({ pressed }) => [styles.orchardSelectArea, pressed && styles.actionPressed]}
                   >
-                    <View style={styles.orchardIcon}><Sprout size={15} color="#0D756B" /></View>
+                    <View style={styles.orchardIcon}><Sprout size={15} color="#176A45" /></View>
                     <View style={styles.orchardCopy}>
                       <Text style={styles.orchardName} numberOfLines={1}>{orchard.nombre}</Text>
                       <Text style={styles.orchardArea}>{t('area', { area: (orchard.area_m2 / 10000).toFixed(2) })}</Text>
@@ -835,7 +835,7 @@ export default function Mapping() {
               pressed && styles.actionPressed,
             ]}
           >
-            <Pencil size={20} color="#176B62" />
+            <Pencil size={20} color="#176A45" />
              <Text style={styles.actionLabel}>{t('draw')}</Text>
           </Pressable>
 
@@ -850,7 +850,7 @@ export default function Mapping() {
               }}
               style={({ pressed }) => [styles.actionButton, pressed && styles.actionPressed]}
             >
-              <Pencil size={20} color="#176B62" />
+              <Pencil size={20} color="#176A45" />
               <Text style={styles.actionLabel}>{t('editBoundary')}</Text>
             </Pressable>
           )}
@@ -924,9 +924,9 @@ export default function Mapping() {
               accessibilityRole="button"
               accessibilityLabel={t('newOrchard')}
               onPress={createNewOrchard}
-              style={({ pressed }) => [styles.newOrchardTile, pressed && styles.actionPressed]}
+              style={({ pressed }) => [styles.newOrchardTile, pressed && styles.actionPressed, pressed && styles.newOrchardTilePressed]}
             >
-              <View style={styles.newOrchardTileMark}><Plus size={23} color="#173E36" /></View>
+              <View style={styles.newOrchardTileMark}><Plus size={23} color="#176A45" /></View>
               <Text style={styles.newOrchardTileTitle}>{t('newOrchard')}</Text>
               <Text style={styles.newOrchardTileHint}>{t('selectorNewHint')}</Text>
             </Pressable>
@@ -936,7 +936,7 @@ export default function Mapping() {
                   <Text style={styles.savedOrchardsLabel}>{t('savedOrchards')}</Text>
                   <Text style={styles.savedOrchardsCount}>{orchards.length}</Text>
                 </View>
-                <Sprout size={19} color="#FFFFFF" />
+                <Sprout size={19} color="#D8FF79" />
               </View>
               {loadingOrchards ? (
                 <ActivityIndicator color="#FFFFFF" style={styles.selectorLoader} />
@@ -954,12 +954,12 @@ export default function Mapping() {
                       onPress={() => selectOrchard(orchard, true)}
                       style={({ pressed }) => [styles.selectorOrchardRow, pressed && styles.actionPressed]}
                     >
-                      <View style={styles.selectorOrchardDot}><Sprout size={13} color="#173E36" /></View>
+                      <View style={styles.selectorOrchardDot}><Sprout size={13} color="#083D25" /></View>
                       <View style={styles.selectorOrchardCopy}>
                         <Text style={styles.selectorOrchardName} numberOfLines={1}>{orchard.nombre}</Text>
                         <Text style={styles.selectorOrchardArea}>{t('area', { area: (orchard.area_m2 / 10000).toFixed(2) })}</Text>
                       </View>
-                      <ChevronRight size={15} color="rgba(255,255,255,0.78)" />
+                      <ChevronRight size={15} color="#B9F62F" />
                     </Pressable>
                   ))}
                 </ScrollView>
@@ -979,7 +979,7 @@ export default function Mapping() {
         <View style={styles.permissionBackdrop}>
           <View style={styles.permissionCard}>
             <View style={styles.permissionIcon}>
-              <ShieldCheck size={28} color="#0D756B" />
+              <ShieldCheck size={28} color="#176A45" />
             </View>
             <Text style={styles.permissionTitle}>{t('savePermissionTitle')}</Text>
             <Text style={styles.permissionBody}>{t('savePermissionBody')}</Text>
@@ -1023,7 +1023,7 @@ export default function Mapping() {
                 onPress={() => setPreviewVisible(false)}
                 style={({ pressed }) => [styles.previewClose, pressed && styles.actionPressed]}
               >
-                <X size={20} color="#173E36" />
+                <X size={20} color="#102D22" />
               </Pressable>
             </View>
 
@@ -1054,7 +1054,7 @@ export default function Mapping() {
               value={orchardName}
               onChangeText={setOrchardName}
               placeholder={t('orchardPlaceholder')}
-              placeholderTextColor="#8A9995"
+              placeholderTextColor="#8A968F"
               maxLength={80}
               returnKeyType="done"
               onSubmitEditing={() => requestSavePermission('boundary')}
@@ -1065,7 +1065,7 @@ export default function Mapping() {
               value={orchardDetails}
               onChangeText={setOrchardDetails}
               placeholder={t('detailsPlaceholder')}
-              placeholderTextColor="#8A9995"
+              placeholderTextColor="#8A968F"
               maxLength={1000}
               multiline
               textAlignVertical="top"
@@ -1095,13 +1095,13 @@ export default function Mapping() {
             <View style={styles.permissionCard}>
               <View style={styles.commentsModalHeader}>
                 <Text style={styles.permissionTitle}>{t('commentsTitle')}</Text>
-                <Pressable onPress={() => setCommentsVisible(false)} style={styles.previewClose}><X size={19} color="#173E36" /></Pressable>
+                <Pressable onPress={() => setCommentsVisible(false)} style={styles.previewClose}><X size={19} color="#102D22" /></Pressable>
               </View>
               <TextInput
                 value={orchardDetails}
                 onChangeText={setOrchardDetails}
                 placeholder={t('detailsPlaceholder')}
-                placeholderTextColor="#8A9995"
+                placeholderTextColor="#8A968F"
                 maxLength={1000}
                 multiline
                 autoFocus
@@ -1183,7 +1183,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: 'rgba(5,7,7,0.94)',
+    backgroundColor: 'rgba(7,31,23,0.94)',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.28,
@@ -1197,12 +1197,12 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#137B6D',
+    backgroundColor: '#176A45',
   },
   locationCopy: { flex: 1, minWidth: 0 },
-  locationEyebrow: { color: '#84C9B7', fontSize: 8, fontWeight: '800', letterSpacing: 1.5 },
+  locationEyebrow: { color: '#D8FF79', fontSize: 8, fontWeight: '800', letterSpacing: 1.5 },
   locationCardTitle: { color: '#FFFFFF', fontSize: 17, lineHeight: 22, fontWeight: '800', marginTop: 1 },
-  locationCardDetail: { color: '#B9C4C1', fontSize: 10, lineHeight: 14, marginTop: 1 },
+  locationCardDetail: { color: '#B7C4BC', fontSize: 10, lineHeight: 14, marginTop: 1 },
   bottomPanel: {
     position: 'absolute',
     left: 14,
@@ -1214,9 +1214,9 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.72)',
-    backgroundColor: 'rgba(255,255,255,0.66)',
-    shadowColor: '#102D27',
+    borderColor: 'rgba(247,247,240,0.78)',
+    backgroundColor: 'rgba(247,247,240,0.68)',
+    shadowColor: '#102D22',
     shadowOffset: { width: 0, height: 9 },
     shadowOpacity: 0.22,
     shadowRadius: 20,
@@ -1233,14 +1233,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    backgroundColor: 'rgba(5,7,7,0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(56,163,74,0.45)',
+    backgroundColor: 'rgba(7,31,23,0.94)',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 9,
   },
-  mobileOrchardsButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  mobileOrchardsButtonText: { color: '#F7F7F0', fontSize: 11, fontWeight: '700' },
   orchardsPanel: {
     position: 'absolute',
     top: 18,
@@ -1249,10 +1251,10 @@ const styles = StyleSheet.create({
     maxHeight: 430,
     padding: 14,
     borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.96)',
+    backgroundColor: 'rgba(247,247,240,0.96)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.8)',
-    shadowColor: '#102D27',
+    borderColor: 'rgba(220,234,207,0.9)',
+    shadowColor: '#102D22',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.2,
     shadowRadius: 20,
@@ -1270,15 +1272,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 11,
   },
-  orchardsEyebrow: { color: '#70A496', fontSize: 8, fontWeight: '800', letterSpacing: 1.4 },
-  orchardsTitle: { color: '#112B26', fontSize: 19, lineHeight: 24, fontWeight: '800' },
+  orchardsEyebrow: { color: '#238B45', fontSize: 8, fontWeight: '800', letterSpacing: 1.4 },
+  orchardsTitle: { color: '#102D22', fontSize: 19, lineHeight: 24, fontWeight: '800' },
   panelClose: {
     width: 30,
     height: 30,
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EEF4F2',
+    backgroundColor: '#F0F3E8',
   },
   newOrchardButton: {
     minHeight: 42,
@@ -1287,14 +1289,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
-    backgroundColor: '#0D756B',
+    backgroundColor: '#064B2C',
   },
   newOrchardButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
   orchardsLoader: { marginVertical: 28 },
   orchardsError: { color: '#A64A43', fontSize: 10, lineHeight: 15, marginTop: 13 },
   emptyOrchards: { alignItems: 'center', paddingHorizontal: 10, paddingVertical: 23 },
-  emptyOrchardsTitle: { color: '#25443D', fontSize: 11, fontWeight: '700', textAlign: 'center', marginTop: 8 },
-  emptyOrchardsText: { color: '#738A84', fontSize: 9, lineHeight: 14, textAlign: 'center', marginTop: 3 },
+  emptyOrchardsTitle: { color: '#102D22', fontSize: 11, fontWeight: '700', textAlign: 'center', marginTop: 8 },
+  emptyOrchardsText: { color: '#718078', fontSize: 9, lineHeight: 14, textAlign: 'center', marginTop: 3 },
   orchardsList: { marginTop: 9 },
   orchardRow: {
     minHeight: 56,
@@ -1305,10 +1307,10 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: '#E3ECE9',
-    backgroundColor: '#F8FBFA',
+    borderColor: '#E4EADB',
+    backgroundColor: '#FAFAF4',
   },
-  orchardRowSelected: { borderColor: '#85CDBA', backgroundColor: '#E5F5F0' },
+  orchardRowSelected: { borderColor: '#B9F62F', backgroundColor: '#F1FBDA' },
   orchardSelectArea: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
   orchardDeleteButton: {
     width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
@@ -1321,35 +1323,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 9,
-    backgroundColor: '#DDF1EB',
+    backgroundColor: '#EAF4DF',
   },
   orchardCopy: { flex: 1, minWidth: 0, marginRight: 6 },
-  orchardName: { color: '#173E36', fontSize: 11, fontWeight: '800' },
-  orchardArea: { color: '#70847F', fontSize: 9, marginTop: 2 },
+  orchardName: { color: '#102D22', fontSize: 11, fontWeight: '800' },
+  orchardArea: { color: '#718078', fontSize: 9, marginTop: 2 },
   panelCopy: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
   },
-  title: { color: '#000000', fontFamily: 'Poppins_400Regular', fontSize: 19, lineHeight: 25, letterSpacing: -0.2 },
+  title: { color: '#102D22', fontFamily: 'Poppins_400Regular', fontSize: 19, lineHeight: 25, letterSpacing: -0.2 },
   pointBadge: {
     minWidth: 48,
     paddingHorizontal: 9,
     paddingVertical: 6,
     borderRadius: 14,
     alignItems: 'center',
-    backgroundColor: '#EEF3F1',
+    backgroundColor: '#EEF1E8',
   },
-  pointBadgeReady: { backgroundColor: '#DDF4EC' },
-  pointBadgeText: { color: '#87928E', fontSize: 10, fontWeight: '700' },
-  pointBadgeTextReady: { color: '#0D756B' },
+  pointBadgeReady: { backgroundColor: '#EAF4DF' },
+  pointBadgeText: { color: '#7F8C84', fontSize: 10, fontWeight: '700' },
+  pointBadgeTextReady: { color: '#176A45' },
   locationLoading: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 38,
-    backgroundColor: '#E9F3EF',
+    backgroundColor: '#EAF4DF',
   },
   locationLoadingIcon: {
     width: 68,
@@ -1359,17 +1361,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 14,
     backgroundColor: '#FFFFFF',
-    shadowColor: '#173E36',
+    shadowColor: '#102D22',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 4,
   },
-  locationLoadingTitle: { color: '#173E36', fontSize: 17, fontWeight: '800' },
+  locationLoadingTitle: { color: '#102D22', fontSize: 17, fontWeight: '800' },
   locationLoadingText: {
     maxWidth: 300,
     marginTop: 6,
-    color: '#657D76',
+    color: '#718078',
     fontSize: 12,
     lineHeight: 18,
     textAlign: 'center',
@@ -1394,12 +1396,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
-    backgroundColor: '#F0F5F3',
+    backgroundColor: '#F3F6EA',
   },
   actionPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
   actionButtonDisabled: { opacity: 0.42 },
-  actionLabel: { color: '#455E58', fontSize: 9, fontWeight: '700' },
-  saveChangesButton: { backgroundColor: '#0D756B' },
+  actionLabel: { color: '#4E5F56', fontSize: 9, fontWeight: '700' },
+  saveChangesButton: { backgroundColor: '#064B2C' },
   saveChangesLabel: { color: '#FFFFFF', maxWidth: '100%', textAlign: 'center', lineHeight: 11 },
   saveButtonPressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
   keyboardAvoiding: { flex: 1 },
@@ -1408,7 +1410,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: 'rgba(8,18,15,0.62)',
+    backgroundColor: 'rgba(4,24,14,0.62)',
   },
   permissionCard: {
     width: '100%',
@@ -1432,10 +1434,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignSelf: 'center',
     marginBottom: 14,
-    backgroundColor: '#DDF4EC',
+    backgroundColor: '#EAF4DF',
   },
   permissionTitle: {
-    color: '#132E28',
+    color: '#102D22',
     fontSize: 20,
     lineHeight: 26,
     fontWeight: '800',
@@ -1443,14 +1445,14 @@ const styles = StyleSheet.create({
   },
   permissionBody: {
     marginTop: 11,
-    color: '#536B65',
+    color: '#4E5F56',
     fontSize: 12,
     lineHeight: 19,
     textAlign: 'center',
   },
   permissionNote: {
     marginTop: 11,
-    color: '#173E36',
+    color: '#102D22',
     fontSize: 11,
     lineHeight: 17,
     fontWeight: '700',
@@ -1467,9 +1469,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EDF3F1',
+    backgroundColor: '#EEF1E8',
   },
-  permissionCancelText: { color: '#455E58', fontSize: 11, fontWeight: '800' },
+  permissionCancelText: { color: '#4E5F56', fontSize: 11, fontWeight: '800' },
   permissionConfirm: {
     flex: 1.5,
     minHeight: 48,
@@ -1479,7 +1481,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
-    backgroundColor: '#0D756B',
+    backgroundColor: '#064B2C',
   },
   permissionConfirmText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800', textAlign: 'center' },
   previewBackdrop: {
@@ -1487,7 +1489,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     paddingHorizontal: 12,
     paddingBottom: 18,
-    backgroundColor: 'rgba(8,18,15,0.46)',
+    backgroundColor: 'rgba(4,24,14,0.46)',
   },
   previewSheet: {
     width: '100%',
@@ -1510,7 +1512,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 12,
     borderRadius: 2,
-    backgroundColor: '#D5DBD9',
+    backgroundColor: '#D6DCCF',
   },
   previewHeader: {
     flexDirection: 'row',
@@ -1519,21 +1521,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
     marginBottom: 12,
   },
-  previewEyebrow: { color: '#6B817B', fontSize: 8, fontWeight: '700', letterSpacing: 1.5 },
-  previewTitle: { color: '#101817', fontSize: 21, lineHeight: 27, fontWeight: '500', marginTop: 1 },
+  previewEyebrow: { color: '#718078', fontSize: 8, fontWeight: '700', letterSpacing: 1.5 },
+  previewTitle: { color: '#102D22', fontSize: 21, lineHeight: 27, fontWeight: '500', marginTop: 1 },
   previewClose: {
     width: 38,
     height: 38,
     borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EDF3F1',
+    backgroundColor: '#EEF1E8',
   },
   previewMap: {
     height: 205,
     overflow: 'hidden',
     borderRadius: 20,
-    backgroundColor: '#DCE9E3',
+    backgroundColor: '#E3EDD9',
   },
   previewInfo: {
     flexDirection: 'row',
@@ -1542,8 +1544,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingTop: 13,
   },
-  previewInfoLabel: { color: '#82908C', fontSize: 8, fontWeight: '700', letterSpacing: 1.1 },
-  previewInfoValue: { color: '#172E29', fontSize: 15, fontWeight: '500', marginTop: 2 },
+  previewInfoLabel: { color: '#718078', fontSize: 8, fontWeight: '700', letterSpacing: 1.1 },
+  previewInfoValue: { color: '#102D22', fontSize: 15, fontWeight: '500', marginTop: 2 },
   previewStatus: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1551,20 +1553,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 14,
-    backgroundColor: '#E3F5EF',
+    backgroundColor: '#EAF4DF',
   },
-  previewStatusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#0D9B78' },
-  previewStatusText: { color: '#16745F', fontSize: 10, fontWeight: '600' },
+  previewStatusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#238B45' },
+  previewStatusText: { color: '#176A45', fontSize: 10, fontWeight: '600' },
   orchardNameInput: {
     minHeight: 46,
     marginTop: 13,
     paddingHorizontal: 14,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: '#DDE7E4',
-    color: '#173E36',
+    borderColor: '#DCE5D3',
+    color: '#102D22',
     fontSize: 12,
-    backgroundColor: '#F5F9F8',
+    backgroundColor: '#F7F7F0',
   },
   previewSaveButton: {
     minHeight: 48,
@@ -1574,8 +1576,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#0D756B',
-    shadowColor: '#0D756B',
+    backgroundColor: '#064B2C',
+    shadowColor: '#064B2C',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
@@ -1586,7 +1588,7 @@ const styles = StyleSheet.create({
   commentsFloatingButton: {
     position: 'absolute', left: 18, top: 112, minHeight: 38, paddingHorizontal: 12,
     borderRadius: 15, flexDirection: 'row', alignItems: 'center', gap: 7,
-    backgroundColor: '#0D756B', shadowColor: '#000', shadowOffset: { width: 0, height: 5 },
+    backgroundColor: '#064B2C', shadowColor: '#000', shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.22, shadowRadius: 10, elevation: 10,
   },
   commentsFloatingText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
@@ -1596,7 +1598,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     paddingTop: 54,
     paddingHorizontal: 14,
-    backgroundColor: 'rgba(16,49,39,0.08)',
+    backgroundColor: 'rgba(8,61,37,0.08)',
   },
   selectorExit: {
     position: 'absolute',
@@ -1607,7 +1609,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(8,22,18,0.68)',
+    backgroundColor: 'rgba(6,46,28,0.66)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.34)',
   },
@@ -1624,13 +1626,16 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFDF9',
-    shadowColor: '#173E36',
+    backgroundColor: '#F7F7F0',
+    borderWidth: 1,
+    borderColor: '#E1EBD3',
+    shadowColor: '#102D22',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2,
     shadowRadius: 16,
     elevation: 9,
   },
+  newOrchardTilePressed: { backgroundColor: '#F1FBDA' },
   newOrchardTileMark: {
     width: 47,
     height: 47,
@@ -1638,10 +1643,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 15,
-    backgroundColor: '#E8F1E8',
+    backgroundColor: '#EAF4DF',
   },
-  newOrchardTileTitle: { color: '#173E36', fontSize: 14, fontWeight: '800', textAlign: 'center' },
-  newOrchardTileHint: { color: '#73827B', fontSize: 10, lineHeight: 14, textAlign: 'center', marginTop: 7 },
+  newOrchardTileTitle: { color: '#102D22', fontSize: 14, fontWeight: '800', textAlign: 'center' },
+  newOrchardTileHint: { color: '#718078', fontSize: 10, lineHeight: 14, textAlign: 'center', marginTop: 7 },
   savedOrchardsTile: {
     flex: 1.15,
     minHeight: 224,
@@ -1651,9 +1656,9 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
-    backgroundColor: '#176B55',
-    shadowColor: '#173E36',
+    borderColor: 'rgba(185,246,47,0.28)',
+    backgroundColor: '#064B2C',
+    shadowColor: '#102D22',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18,
     shadowRadius: 16,
@@ -1665,10 +1670,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: 11,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.25)',
+    borderBottomColor: 'rgba(255,255,255,0.18)',
   },
   savedOrchardsLabel: { color: 'rgba(255,255,255,0.92)', fontSize: 11, lineHeight: 15, fontWeight: '800' },
-  savedOrchardsCount: { color: '#FFFFFF', fontSize: 25, lineHeight: 28, fontWeight: '800', marginTop: 1 },
+  savedOrchardsCount: { color: '#D8FF79', fontSize: 25, lineHeight: 28, fontWeight: '800', marginTop: 1 },
   selectorLoader: { marginVertical: 28 },
   selectorError: { color: '#FFF1EE', fontSize: 10, lineHeight: 15, marginTop: 14 },
   selectorEmpty: { color: 'rgba(255,255,255,0.8)', fontSize: 10, lineHeight: 15, marginTop: 18 },
@@ -1679,7 +1684,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 7,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.18)',
+    borderBottomColor: 'rgba(255,255,255,0.14)',
   },
   selectorOrchardDot: {
     width: 27,
@@ -1688,11 +1693,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 7,
-    backgroundColor: 'rgba(255,255,255,0.78)',
+    backgroundColor: 'rgba(234,244,223,0.94)',
   },
   selectorOrchardCopy: { flex: 1, minWidth: 0, marginRight: 4 },
   selectorOrchardName: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
-  selectorOrchardArea: { color: 'rgba(255,255,255,0.72)', fontSize: 9, marginTop: 2 },
+  selectorOrchardArea: { color: 'rgba(214,228,208,0.88)', fontSize: 9, marginTop: 2 },
   deleteModalIcon: {
     width: 54, height: 54, borderRadius: 18, alignSelf: 'center', alignItems: 'center',
     justifyContent: 'center', marginBottom: 14, backgroundColor: '#FCECEB',

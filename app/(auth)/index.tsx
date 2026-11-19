@@ -23,6 +23,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../firebaseConfig';
 import { useGuest } from '../../context/GuestContext';
 import { TranslationResource, useTranslations } from '../../context/LanguageContext';
+import { noOverscroll } from '../../components/ui/noOverscroll';
 
 const REGISTER_URL = 'https://vex-mx.com/avotex.html';
 const ERROR_DURATION_MS = 4000;
@@ -284,7 +285,7 @@ export default function Login() {
               <X size={21} color="#E6F4F0" />
               <Text style={s.backText}>{t('back')}</Text>
             </TouchableOpacity>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={[s.formContent, isTablet && s.formContentTablet]}>
+            <ScrollView {...noOverscroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={[s.formContent, isTablet && s.formContentTablet]}>
             <Text style={[s.title, isTablet && s.titleTablet]}>{t('welcome')}</Text>
             <Text style={[s.subtitle, isTablet && s.subtitleTablet]}>{t('smartCrops')}</Text>
 

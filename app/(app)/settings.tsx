@@ -24,6 +24,7 @@ import { useFonts, Poppins_400Regular, Poppins_600SemiBold } from '@expo-google-
 import { getAuth } from 'firebase/auth';
 import { useGuest } from '../../context/GuestContext';
 import { TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
+import { noOverscroll } from '../../components/ui/noOverscroll';
 
 const LOCATION_SETTING_KEY = 'avotex_share_location';
 const translations: TranslationResource = {
@@ -113,6 +114,7 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView
+        {...noOverscroll}
         contentContainerStyle={[styles.content, isTablet && styles.contentTablet]}
         showsVerticalScrollIndicator={false}
       >

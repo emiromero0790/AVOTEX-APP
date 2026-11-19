@@ -7,8 +7,13 @@ import { LogBox } from 'react-native';
 import { AccessibilityProvider } from '../context/AccessibilityContext';
 import { GuestProvider } from '../context/GuestContext';
 import { LanguageProvider } from '../context/LanguageContext';
+import { CrashScreen, installFatalErrorAlert } from '../components/CrashScreen';
 
 LogBox.ignoreAllLogs(true);
+installFatalErrorAlert();
+
+// Si una pantalla falla al dibujarse se muestra el error en lugar de cerrar la app.
+export const ErrorBoundary = CrashScreen;
 
 const toastConfig = {
   avotexError: ({ props }: any) => (

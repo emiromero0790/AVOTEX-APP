@@ -17,6 +17,7 @@ import { TranslationResource, useTranslations } from '../../context/LanguageCont
 import type { FotoLocal } from '../../services/recorridos';
 import { CSS_EASE_OUT, PressableScale } from './motion';
 import { LIME_GRADIENT, SCAN } from './theme';
+import { noOverscroll } from '../ui/noOverscroll';
 
 const translations: TranslationResource = {
   title: { es: 'Elige qué analizar', en: 'Choose what to analyze' },
@@ -88,6 +89,7 @@ export default function WalkReview({ fotos, onConfirm, onDiscard }: {
         </View>
       </View>
       <FlatList
+        {...noOverscroll}
         data={fotos}
         key={cols}
         numColumns={cols}

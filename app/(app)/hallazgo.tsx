@@ -42,6 +42,7 @@ import PhotoViewer from '../../components/hallazgo/PhotoViewer';
 import ScansMap from '../../components/ScansMap';
 import { FINDING_COLOR, type ScansMapData, type ScansMapDetail } from '../../components/scansMapHtml';
 import { EASE_OUT } from '../../components/scan/motion';
+import { noOverscroll } from '../../components/ui/noOverscroll';
 
 const auth = firebaseAuth as Auth;
 
@@ -278,7 +279,7 @@ export default function HallazgoScreen() {
 
   return (
     <View style={st.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: barH + 20 }} showsVerticalScrollIndicator={false}>
+      <ScrollView {...noOverscroll} contentContainerStyle={{ paddingBottom: barH + 20 }} showsVerticalScrollIndicator={false}>
         {/* ── Hero fotográfico ── */}
         <View style={{ height: heroH }}>
           {images.length ? (

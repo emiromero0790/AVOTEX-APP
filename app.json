@@ -66,13 +66,8 @@
       "expo-font",
       "expo-web-browser",
       "expo-status-bar",
-      [
-        "expo-notifications",
-        {
-          "color": "#0f766e"
-        }
-      ],
-      "expo-video"
+      "expo-video",
+      "./plugins/withoutIosPush"
     ],
     "experiments": {
       "typedRoutes": true

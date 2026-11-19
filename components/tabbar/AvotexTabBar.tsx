@@ -56,15 +56,25 @@ export function useAvotexTabBarMetrics() {
   const bottom = insets.bottom + (tablet ? 16 : 12);
   const unit = (barW - ROW_PAD * 2) / (AVOTEX_TABS.length - 1 + SCAN_WEIGHT);
   const scanW = unit * SCAN_WEIGHT;
-  const avoW = Math.min(scanW - 2, tablet ? 104 : 88);
+  const avoW = Math.min(scanW - 2, tablet ? 100 : 84);
   const avoH = (avoW * AVOCADO_VIEWBOX.h) / AVOCADO_VIEWBOX.w;
-  const avoBottom = 8;
-  // Lo que sobresale el aguacate sobre la barra + margen para la elevación activa.
-  const topRoom = Math.ceil(avoH + avoBottom - barH + 6);
+  // El aguacate cuelga por debajo de la barra (la punta inferior sobresale abajo) en lugar de
+  // levantarse sobre ella: así no tapa los paneles que las pantallas ponen encima de la barra.
+  // Nunca baja más que el espacio libre bajo la barra (deja 4 dp hasta el borde de la pantalla).
+  const avoBottom = -Math.max(0, Math.min(Math.round(avoH * 0.2), bottom - 4));
+  // Lo que el aguacate (con sus hojas) sobresale por encima del cuerpo de la barra.
+  const avoAbove = Math.max(0, Math.ceil(avoH + avoBottom - barH));
+  // Alto reservado sobre la barra: lo que sobresale + margen para la elevación activa.
+  const topRoom = avoAbove + 6;
   return {
-    width, tablet, narrow, barW, barH, bottom, unit, scanW, avoW, avoH, avoBottom, topRoom,
+    width, tablet, narrow, barW, barH, bottom, unit, scanW, avoW, avoH, avoBottom, avoAbove, topRoom,
+    /** Lo que el aguacate cuelga bajo la barra; la vista raíz se extiende eso hacia abajo para que se pueda tocar. */
+    drop: -avoBottom,
     /** Distancia desde el borde inferior de la pantalla hasta el borde superior del cuerpo de la barra. */
     barTop: bottom + barH,
+    /** Distancia desde el borde inferior hasta lo más alto de la barra (incluye la punta del aguacate).
+     *  Lo que se coloque encima de la barra debe quedar arriba de esta altura. */
+    clearTop: bottom + barH + avoAbove,
     labelSize: tablet ? 13 : narrow ? 9.5 : width < 400 ? 10.5 : 11,
     iconSize: tablet ? 27 : narrow ? 21 : 24,
   };
@@ -125,7 +135,7 @@ export function AvotexTabBar({ state, emitter, navigateToTab, hidden, locked, on
       pointerEvents="box-none"
       style={[
         styles.root,
-        { left: (m.width - m.barW) / 2, width: m.barW, bottom: m.bottom, height: m.topRoom + m.barH },
+        { left: (m.width - m.barW) / 2, width: m.barW, bottom: m.bottom - m.drop, height: m.topRoom + m.barH + m.drop },
       ]}
     >
       {/* 1–3. Sombra, cuerpo vegetal, relieve y divisiones */}
@@ -224,7 +234,7 @@ function NavTab({
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
       pressRetentionOffset={16}
-      style={[styles.tab, { width: m.unit, height: m.barH }]}
+      style={[styles.tab, { width: m.unit, height: m.barH, marginBottom: m.drop }]}
     >
       <Reanimated.View
         style={{
@@ -279,7 +289,9 @@ function ScanTab({
   onLongPress: () => void;
 }) {
   const [pressed, setPressed] = useState(false);
-  const { avoW, avoH, avoBottom } = m;
+  const { avoW, avoH, drop } = m;
+  // La vista raíz ya llega hasta la punta del aguacate: aquí el aguacate se apoya en su borde inferior.
+  const avoBottom = 0;
   const k = avoW / AVOCADO_VIEWBOX.w;
   const pitX = AVOCADO_PIT.cx * k;
   const pitY = AVOCADO_PIT.cy * k;
@@ -299,7 +311,7 @@ function ScanTab({
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
       pressRetentionOffset={16}
-      style={{ width: m.scanW, height: m.topRoom + m.barH, alignItems: 'center' }}
+      style={{ width: m.scanW, height: m.topRoom + m.barH + drop, alignItems: 'center' }}
     >
       {/* halo verde suave detrás del aguacate */}
       <Reanimated.View

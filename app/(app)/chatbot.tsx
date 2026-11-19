@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Modal,
   Linking,
+  useWindowDimensions,
 } from "react-native";
 import { Stack, router } from "expo-router";
 import { ChevronLeft, Send, Shield, Flag, Sparkles, Bot, User } from "lucide-react-native";
@@ -20,9 +21,21 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import emailjs from '@emailjs/browser';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import GlassOrb from '../../components/chat/GlassOrb';
+
 import { auth } from '../../firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 import { TranslationResource, useTranslations, useLanguage } from '../../context/LanguageContext';
+
+/** Paleta del Asistente: marfil, verde bosque, salvia y lima (solo para Enviar y los destellos). */
+const CHAT = {
+  ivory: '#F7F7EF',
+  forest: '#103824',
+  muted: '#566B55',
+  sage: '#E9EFD7',
+  lime: '#B9F62F',
+  warmWhite: '#FFFDF2',
+};
 
 const translations: TranslationResource = {
   'chat.guest': { es: 'Invitado', en: 'Guest' }, 'chat.reportSubject': { es: 'Reporte de respuesta — Asistente Avotex', en: 'Response report — Avotex Assistant' }, 'chat.reportBody': { es: 'Hola equipo VEX,\n\nQuiero reportar la siguiente respuesta del asistente:\n\n"{message}"\n\nMotivo del reporte: [describe aquí el problema]\n\nGracias.', en: 'Hello VEX team,\n\nI would like to report the following assistant response:\n\n"{message}"\n\nReport reason: [describe the issue here]\n\nThank you.' }, 'chat.sending': { es: 'Enviando tu consulta al equipo de VEX...', en: 'Sending your request to the VEX team...' }, 'chat.sent': { es: 'Perfecto. Tu consulta ha sido enviada.\n\nTe responderán pronto a: {email}\n\n¿Hay algo más en lo que pueda ayudarte?', en: 'Perfect. Your request has been sent.\n\nThey will reply soon at: {email}\n\nIs there anything else I can help you with?' }, 'chat.sendError': { es: 'Hubo un problema al enviar el correo.\n\nContacta directamente a:\n{email}', en: 'There was a problem sending the email.\n\nContact directly:\n{email}' }, 'chat.cancelled': { es: 'Entendido. ¿En qué más puedo ayudarte?', en: 'Understood. What else can I help you with?' }, 'chat.invalidEmail': { es: "Correo no válido. Intenta de nuevo o escribe 'cancelar'.", en: "Invalid email. Try again or type 'cancel'." }, 'chat.contact': { es: "Para esa consulta necesito conectarte con el equipo.\n\nPor favor escribe tu correo electrónico aquí (o escribe 'cancelar').", en: "For that request, I need to connect you with the team.\n\nPlease enter your email here (or type 'cancel')." }, 'chat.connection': { es: 'Error de conexión. Intenta de nuevo.', en: 'Connection error. Try again.' }, 'chat.title': { es: 'Asistente Avotex', en: 'Avotex Assistant' }, 'chat.hello': { es: '¡Hola! Soy Avotex', en: 'Hi! I am Avotex' }, 'chat.modalBody': { es: 'Soy un asistente inteligente impulsado por Inteligencia Artificial diseñado para ayudarte a entender el estado de tus cultivos y sacarle el máximo provecho a la app.', en: 'I am an AI-powered assistant designed to help you understand the state of your crops and get the most out of the app.' }, 'chat.before': { es: 'Antes de continuar, toma en cuenta lo siguiente:', en: 'Before continuing, please note the following:' }, 'chat.bullet1': { es: 'Mis respuestas se basan en el análisis de imágenes, datos de la app y mi base de conocimientos', en: 'My answers are based on image analysis, app data, and my knowledge base' }, 'chat.bullet2': { es: 'Los diagnósticos y recomendaciones son orientativos y no sustituyen la asesoría de un especialista agrícola', en: 'Diagnoses and recommendations are guidance only and do not replace advice from an agricultural specialist' }, 'chat.bullet3': { es: 'Puedo utilizar información como imágenes capturadas y tu ubicación para ofrecer resultados más precisos.', en: 'I may use information such as captured images and your location to provide more accurate results.' }, 'chat.bullet4': { es: 'Tu información puede ser procesada por servicios externos únicamente para el funcionamiento de la app', en: 'Your information may be processed by external services solely for the app to function' }, 'chat.bullet5': { es: 'No vendemos ni compartimos tu información personal con terceros con fines comerciales.', en: 'We do not sell or share your personal information with third parties for commercial purposes.' }, 'chat.bullet6': { es: 'Aunque estoy diseñado para ayudarte, puedo cometer errores', en: 'Although I am designed to help, I can make mistakes' }, 'chat.footnote': { es: 'Al continuar, aceptas usar este asistente bajo tu propia responsabilidad.', en: 'By continuing, you agree to use this assistant at your own risk.' }, 'chat.cancel': { es: 'Cancelar', en: 'Cancel' }, 'chat.continue': { es: 'Continuar', en: 'Continue' }, 'chat.back': { es: 'Volver', en: 'Back' }, 'chat.welcome': { es: 'Bienvenido', en: 'Welcome' }, 'chat.discover': { es: '¿Qué quieres\ndescubrir hoy?', en: 'What do you want to\ndiscover today?' }, 'chat.subtitle': { es: 'Pregunta sobre la app, tus cultivos o el siguiente paso.', en: 'Ask about the app, your crops, or the next step.' }, 'chat.s1': { es: '¿Cómo funciona Escanear?', en: 'How does Scan work?' }, 'chat.s2': { es: '¿Qué muestra Mapeo?', en: 'What does Mapping show?' }, 'chat.s3': { es: 'Ayúdame con una recomendación', en: 'Help me with a recommendation' }, 'chat.accept': { es: 'Acepta los términos para escribir...', en: 'Accept the terms to write...' }, 'chat.email': { es: 'Escribe tu correo...', en: 'Enter your email...' }, 'chat.ask': { es: 'Pregunta algo o describe tu idea', en: 'Ask something or describe your idea' }, 'chat.write': { es: 'Escribe algo...', en: 'Write something...' }, 'chat.hint': { es: 'Avotex · asistente inteligente', en: 'Avotex · intelligent assistant' }, 'chat.report': { es: 'Reportar respuesta', en: 'Report response' },
@@ -95,6 +108,11 @@ export default function ChatbotScreen() {
     return () => { show.remove(); hide.remove(); };
   }, []);
   const inputBottom = keyboardOpen ? 10 : Math.max(insets.bottom, 12);
+  const { width: winW, height: winH } = useWindowDimensions();
+  // Alto real de la barra superior: el círculo de arriba nace justo debajo de ella.
+  const [headerH, setHeaderH] = useState(insets.top + 52);
+  // Una tarjeta completa y ~¾ de la siguiente, como en el boceto (el contenido mide el ancho menos 36 dp de margen).
+  const suggestionW = Math.round(Math.max(168, Math.min(260, (Math.min(winW, 1100) - 48) * 0.55)));
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold });
 
   const [waitingForEmail, setWaitingForEmail] = useState(false);
@@ -258,7 +276,7 @@ export default function ChatbotScreen() {
            title: t('chat.title'),
           headerTitleStyle: { fontFamily: 'Poppins_600SemiBold' },
           headerStyle: { backgroundColor: '#FFFFFF' },
-          headerTintColor: '#174E43',
+          headerTintColor: CHAT.forest,
           headerShadowVisible: false,
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 10, padding: 5 }}>
@@ -277,10 +295,10 @@ export default function ChatbotScreen() {
         statusBarTranslucent
       >
         <View style={styles.modalOverlay}>
-          <LinearGradient colors={['#FFFFFF', '#E7F7F2']} style={styles.modalCard}>
+          <LinearGradient colors={['#FFFFFF', CHAT.ivory]} style={styles.modalCard}>
             <View style={styles.modalIconRow}>
               <View style={styles.modalIconCircle}>
-                <Shield size={24} color="#79d7c1" />
+                <Shield size={24} color={CHAT.forest} />
               </View>
             </View>
 
@@ -341,7 +359,7 @@ export default function ChatbotScreen() {
                 style={styles.acceptBtn}
                 onPress={() => { setAccepted(true); setModalVisible(false); }}
               >
-                <LinearGradient colors={['#34d399', '#0f766e']} style={styles.acceptBtnGrad}>
+                <LinearGradient colors={['#2E6B3E', CHAT.forest]} style={styles.acceptBtnGrad}>
                    <Text style={styles.acceptBtnText}>{t('chat.continue')}</Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -352,14 +370,19 @@ export default function ChatbotScreen() {
 
       {/* Fondo de TODA la pantalla (también detrás del campo de texto): antes terminaba arriba del campo y
           debajo quedaba el blanco del contenedor, cortando el círculo decorativo. */}
-      <LinearGradient colors={['#BFEFDF', '#EAF8F3', '#FFFFFF']} locations={[0, 0.38, 0.9]} style={StyleSheet.absoluteFill} pointerEvents="none" />
-      <View style={styles.atmosphereTop} pointerEvents="none" />
-      <View style={styles.atmosphereBottom} pointerEvents="none" />
+      <LinearGradient colors={[CHAT.ivory, '#F3F5E8', CHAT.ivory]} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      {/* Dos círculos de vidrio recortados por los bordes, con destellos lima (decorativos). */}
+      <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]} pointerEvents="none">
+        <GlassOrb id="orbTop" cx={winW * 0.19} cy={headerH - winW * 0.105} r={winW * 0.39} lightAngle={70}
+          glints={[{ angle: 113, span: 34 }, { angle: 18, span: 22, power: 0.7 }]} />
+        <GlassOrb id="orbBottom" cx={winW * 0.81} cy={winH + winW * 0.072} r={winW * 0.545} lightAngle={-110}
+          glints={[{ angle: -100, span: 30 }, { angle: -142, span: 20, power: 0.65 }]} />
+      </View>
       <View style={styles.background}>
       {!modalVisible && (
-        <View style={[styles.persistentHeader, { paddingTop: insets.top + 8 }]}>
+        <View style={[styles.persistentHeader, { paddingTop: insets.top + 8 }]} onLayout={e => setHeaderH(e.nativeEvent.layout.height)}>
           <TouchableOpacity onPress={() => router.back()} accessibilityLabel={t('chat.back')} style={styles.backButton}>
-            <ChevronLeft size={20} color="#174E43" />
+            <ChevronLeft size={22} color={CHAT.forest} />
           </TouchableOpacity>
           <Text style={styles.persistentHeaderTitle}>{t('chat.title')}</Text>
         </View>
@@ -376,7 +399,7 @@ export default function ChatbotScreen() {
         {messages.length === 0 && !modalVisible && (
           <View style={styles.welcomeContainer}>
             <View style={styles.profileHeader}>
-              <View style={styles.userCircle}><User size={17} color="#174E43" /></View>
+              <View style={styles.userCircle}><User size={17} color={CHAT.forest} /></View>
               <View>
                  <Text style={styles.welcomeLabel}>{t('chat.welcome')}</Text>
                 <Text style={styles.emailLabel} numberOfLines={1}>{userEmail}</Text>
@@ -388,8 +411,10 @@ export default function ChatbotScreen() {
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsScroll} contentContainerStyle={styles.suggestions}>
                {[t('chat.s1'), t('chat.s2'), t('chat.s3')].map((suggestion) => (
-                <TouchableOpacity key={suggestion} style={styles.suggestionCard} onPress={() => setInput(suggestion)} activeOpacity={0.8}>
-                  <Sparkles size={14} color="#79d7c1" />
+                <TouchableOpacity key={suggestion} style={[styles.suggestionCard, { width: suggestionW }]} onPress={() => setInput(suggestion)} activeOpacity={0.8}>
+                  {/* Cristal: reflejo cerca de la arista superior. */}
+                  <LinearGradient pointerEvents="none" colors={['rgba(255,253,242,0.85)', 'rgba(255,253,242,0)']} locations={[0, 0.45]} style={styles.glassSheen} />
+                  <Sparkles size={17} color={CHAT.forest} strokeWidth={2.2} />
                   <Text style={styles.suggestionText}>{suggestion}</Text>
                 </TouchableOpacity>
               ))}
@@ -399,7 +424,7 @@ export default function ChatbotScreen() {
 
         {messages.map((m, i) => (
           <View key={i} style={[styles.messageRow, m.role === 'user' && styles.messageRowUser]}>
-            {m.role === 'bot' && <View style={styles.botAvatar}><Bot size={17} color="#79d7c1" /></View>}
+            {m.role === 'bot' && <View style={styles.botAvatar}><Bot size={17} color={CHAT.forest} /></View>}
             <View style={styles.messageBubbleWrapper}>
               <View style={[styles.messageBubble, m.role === "user" ? styles.userMsg : styles.botMsg]}>
                 <Text style={m.role === 'user' ? styles.userMsgText : styles.botMsgText}>{m.text}</Text>
@@ -410,7 +435,7 @@ export default function ChatbotScreen() {
                   onPress={() => handleReportMessage(m.text)}
                   activeOpacity={0.7}
                 >
-                  <Flag size={11} color="#94a3b8" />
+                  <Flag size={11} color={CHAT.muted} />
                    <Text style={styles.reportBtnText}>{t('chat.report')}</Text>
                 </TouchableOpacity>
               )}
@@ -420,9 +445,9 @@ export default function ChatbotScreen() {
 
         {loading && (
           <View style={styles.messageRow}>
-            <View style={styles.botAvatar}><Bot size={17} color="#79d7c1" /></View>
+            <View style={styles.botAvatar}><Bot size={17} color={CHAT.forest} /></View>
             <View style={[styles.messageBubble, styles.botMsg]}>
-              <ActivityIndicator color="#79d7c1" />
+              <ActivityIndicator color={CHAT.muted} />
             </View>
           </View>
         )}
@@ -431,11 +456,12 @@ export default function ChatbotScreen() {
 
       {messages.length === 0 && !modalVisible && (
         <View style={[styles.inputContainer, styles.initialInput, { marginBottom: inputBottom }, !accepted && styles.inputContainerDisabled]}>
+          <LinearGradient pointerEvents="none" colors={['rgba(255,253,242,0.9)', 'rgba(255,253,242,0)']} locations={[0, 0.5]} style={styles.glassSheen} />
           <TextInput
             value={input}
             onChangeText={setInput}
             placeholder={!accepted ? t('chat.accept') : waitingForEmail ? t('chat.email') : t('chat.ask')}
-            placeholderTextColor="#91b8ad"
+            placeholderTextColor={CHAT.muted}
             style={[styles.input, styles.initialInputText, !accepted && styles.inputDisabled]}
             onSubmitEditing={sendMessage}
             multiline={!waitingForEmail}
@@ -451,8 +477,8 @@ export default function ChatbotScreen() {
               disabled={loading}
             >
               {!accepted
-                ? <View style={styles.sendBtnPlain}><Shield size={20} color="#b9ffe9" /></View>
-                : <View style={styles.sendBtnGradient}><Send size={19} color="#05231b" /></View>}
+                ? <View style={styles.sendBtnPlain}><Shield size={20} color={CHAT.forest} /></View>
+                : <View style={styles.sendBtnGradient}><Send size={19} color={CHAT.forest} /></View>}
             </TouchableOpacity>
           </View>
         </View>
@@ -463,7 +489,7 @@ export default function ChatbotScreen() {
           value={input}
           onChangeText={setInput}
            placeholder={!accepted ? t('chat.accept') : waitingForEmail ? t('chat.email') : t('chat.write')}
-          placeholderTextColor="#aaa"
+          placeholderTextColor={CHAT.muted}
           style={[styles.input, !accepted && styles.inputDisabled]}
           onSubmitEditing={sendMessage}
           multiline={!waitingForEmail}
@@ -479,11 +505,11 @@ export default function ChatbotScreen() {
         >
           {!accepted ? (
             <View style={styles.sendBtnPlain}>
-              <Shield size={22} color="#0f766e" />
+              <Shield size={22} color={CHAT.forest} />
             </View>
           ) : (
             <View style={styles.sendBtnGradient}>
-              <Send size={20} color="#ffffff" />
+              <Send size={20} color={CHAT.forest} />
             </View>
           )}
         </TouchableOpacity>
@@ -493,24 +519,16 @@ export default function ChatbotScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#EAF8F3" },
+  container: { flex: 1, backgroundColor: CHAT.ivory },
   background: { flex: 1 },
-  atmosphereTop: {
-    position: 'absolute', top: -90, left: -80, width: 280, height: 260,
-    borderRadius: 140, backgroundColor: '#FFFFFF', opacity: 0.55,
-  },
-  atmosphereBottom: {
-    position: 'absolute', bottom: -140, right: -90, width: 330, height: 300,
-    borderRadius: 170, backgroundColor: '#A7E9D4', opacity: 0.28,
-  },
   chatArea: { flex: 1, backgroundColor: 'transparent' },
   chatContent: { padding: 18, paddingBottom: 20, maxWidth: 1100, width: '100%', alignSelf: 'center' },
   persistentHeader: {
     paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'row',
-    alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: '#DCECE7',
-    backgroundColor: 'rgba(255,255,255,0.9)', zIndex: 10,
+    alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(16,56,36,0.06)',
+    backgroundColor: CHAT.ivory, zIndex: 10,
   },
-  persistentHeaderTitle: { color: '#174E43', fontFamily: 'Poppins_600SemiBold', fontSize: 17 },
+  persistentHeaderTitle: { color: CHAT.forest, fontFamily: 'Poppins_600SemiBold', fontSize: 17 },
 
   modalOverlay: {
     flex: 1,
@@ -524,7 +542,7 @@ const styles = StyleSheet.create({
   modalCard: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#B8DED3',
+    borderColor: CHAT.sage,
     borderRadius: 28,
     paddingHorizontal: 22,
     paddingTop: 20,
@@ -553,21 +571,21 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#DDF4ED',
+    backgroundColor: CHAT.sage,
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalTitle: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 20,
-    color: '#174E43',
+    color: CHAT.forest,
     textAlign: 'center',
     marginBottom: 10,
   },
   modalBody: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 13,
-    color: '#526C65',
+    color: CHAT.muted,
     lineHeight: 20,
     textAlign: 'center',
     marginBottom: 14,
@@ -575,7 +593,7 @@ const styles = StyleSheet.create({
   modalSubheading: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 13,
-    color: '#174E43',
+    color: CHAT.forest,
     marginBottom: 10,
   },
   modalBullets: {
@@ -589,25 +607,25 @@ const styles = StyleSheet.create({
   modalBulletDot: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 14,
-    color: '#0f766e',
+    color: CHAT.forest,
     marginRight: 7,
     marginTop: 1,
   },
   modalBulletText: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 12,
-    color: '#526C65',
+    color: CHAT.muted,
     flex: 1,
     lineHeight: 18,
   },
   modalBold: {
     fontFamily: 'Poppins_600SemiBold',
-    color: '#0F766E',
+    color: CHAT.forest,
   },
   modalFootnote: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 12,
-    color: '#71857F',
+    color: CHAT.muted,
     textAlign: 'center',
     marginBottom: 18,
     fontStyle: 'italic',
@@ -621,14 +639,14 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     borderRadius: 50,
     borderWidth: 1.5,
-    borderColor: '#B8D8D0',
+    borderColor: CHAT.sage,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelBtnText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 15,
-    color: '#54736B',
+    color: CHAT.muted,
   },
   acceptBtn: {
     flex: 1,
@@ -657,18 +675,19 @@ const styles = StyleSheet.create({
   },
   backButton: {
     width: 32, height: 32, borderRadius: 16, justifyContent: 'center',
-    alignItems: 'center', marginRight: 8, backgroundColor: 'rgba(255,255,255,0.72)',
+    alignItems: 'center', marginRight: 8, backgroundColor: 'transparent',
   },
   userCircle: {
-    width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.74)',
+    width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,253,242,0.85)',
     justifyContent: 'center', alignItems: 'center', marginRight: 9,
-    borderWidth: 1, borderColor: 'rgba(47,125,105,0.18)',
+    borderWidth: 1, borderColor: CHAT.warmWhite,
+    shadowColor: '#7E9566', shadowOpacity: 0.16, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1,
   },
   welcomeLabel: {
-    color: '#174E43', fontFamily: 'Poppins_600SemiBold', fontSize: 12,
+    color: CHAT.forest, fontFamily: 'Poppins_600SemiBold', fontSize: 12,
   },
   emailLabel: {
-    color: '#668079', fontFamily: 'Poppins_400Regular', fontSize: 10,
+    color: CHAT.muted, fontFamily: 'Poppins_400Regular', fontSize: 10,
     maxWidth: 230,
   },
   suggestions: {
@@ -680,24 +699,28 @@ const styles = StyleSheet.create({
   suggestionCard: {
     width: 176, height: 112, justifyContent: 'space-between', alignItems: 'flex-start',
     paddingVertical: 15, paddingHorizontal: 14, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.88)',
+    // Cristal: marfil translúcido con tinte salvia, borde fino blanco cálido y sombra difusa abajo.
+    backgroundColor: 'rgba(233,239,215,0.42)',
     borderWidth: 1,
-    borderColor: 'rgba(47,125,105,0.16)',
+    borderColor: 'rgba(255,253,242,0.95)',
+    shadowColor: '#7E9566', shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 6 }, elevation: 2,
+    overflow: 'hidden',
   },
+  glassSheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '100%' },
   suggestionText: {
-    color: '#315F54',
+    color: CHAT.forest,
     fontFamily: 'Poppins_400Regular',
-    fontSize: 12, lineHeight: 17,
+    fontSize: 13, lineHeight: 18,
   },
   welcomeTitle: {
     fontSize: 35,
     fontFamily: 'Poppins_600SemiBold',
-    color: '#174E43',
+    color: CHAT.forest,
     marginBottom: 8, letterSpacing: -1.4, lineHeight: 40,
   },
   welcomeSubtitle: {
     fontSize: 15,
-    color: '#648079',
+    color: CHAT.muted,
     textAlign: 'left',
     fontFamily: 'Poppins_400Regular',
     lineHeight: 22,
@@ -706,6 +729,11 @@ const styles = StyleSheet.create({
     minHeight: 92, marginHorizontal: 12, marginTop: 8,
     borderRadius: 22, paddingHorizontal: 17, paddingTop: 12, paddingBottom: 10,
     alignItems: 'stretch', flexDirection: 'column',
+    // Vidrio esmerilado claro, con más contraste que las sugerencias.
+    backgroundColor: 'rgba(250,250,242,0.78)',
+    borderColor: 'rgba(255,253,242,1)', borderWidth: 1.5,
+    shadowColor: '#7E9566', shadowOpacity: 0.2, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 4,
+    overflow: 'hidden',
   },
   initialInputText: {
     minHeight: 44, maxHeight: 100, textAlignVertical: 'top', paddingHorizontal: 0,
@@ -714,7 +742,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
   inputHint: {
-    color: '#718B84', fontFamily: 'Poppins_400Regular', fontSize: 10,
+    color: CHAT.muted, fontFamily: 'Poppins_400Regular', fontSize: 10,
   },
 
   messageRow: {
@@ -731,9 +759,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     marginRight: 8,
     marginBottom: 2,
-    backgroundColor: '#DDF4ED',
+    backgroundColor: CHAT.sage,
     borderWidth: 1,
-    borderColor: '#B7DDD2',
+    borderColor: CHAT.warmWhite,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -750,16 +778,16 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   userMsg: {
-    backgroundColor: "#0F766E",
+    backgroundColor: CHAT.forest,
     borderWidth: 1,
-    borderColor: '#0B655E',
+    borderColor: CHAT.forest,
     borderBottomRightRadius: 4,
   },
   botMsg: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: 'rgba(255,253,242,0.92)',
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: '#D5E7E2',
+    borderColor: CHAT.sage,
   },
   userMsgText: {
     color: "#FFFFFF",
@@ -767,7 +795,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_400Regular',
   },
   botMsgText: {
-    color: "#294D45",
+    color: CHAT.forest,
     fontSize: 15,
     fontFamily: 'Poppins_400Regular',
   },
@@ -780,7 +808,7 @@ const styles = StyleSheet.create({
   },
   reportBtnText: {
     fontSize: 11,
-    color: '#7C928C',
+    color: CHAT.muted,
     fontFamily: 'Poppins_400Regular',
   },
 
@@ -790,41 +818,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     margin: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(250,250,242,0.86)',
     borderRadius: 30,
     borderWidth: 1.5,
-    borderColor: '#BBDDD4',
-    shadowColor: '#1bb98e',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    borderColor: CHAT.warmWhite,
+    shadowColor: '#7E9566',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
     elevation: 3,
   },
   inputContainerDisabled: {
-    backgroundColor: '#F0F5F3',
-    borderColor: '#D5E3DF',
+    backgroundColor: 'rgba(233,239,215,0.6)',
+    borderColor: 'rgba(255,253,242,0.9)',
   },
   input: {
     flex: 1,
     paddingHorizontal: 10,
     fontSize: 15,
     fontFamily: 'Poppins_400Regular',
-    color: '#224B42',
+    color: CHAT.forest,
     maxHeight: 100,
   },
   inputDisabled: {
-    color: '#91A39E',
+    color: CHAT.muted,
   },
   sendBtn: {
     marginLeft: 6,
   },
   sendBtnGradient: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#27c79b',
+    backgroundColor: CHAT.lime,
+    shadowColor: '#7FB01A', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3,
   },
   sendBtnPlain: {
     width: 40,

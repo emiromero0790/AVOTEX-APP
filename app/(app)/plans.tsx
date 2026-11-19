@@ -167,24 +167,26 @@ export default function PlansScreen() {
                   accessibilityLabel={t('plans.selectLabel', { plan: name(p), price: p.price, tokens: `${tokens(p.key)} ${t('plans.tokens')} ${t('plans.monthly')}` }) + (isCurrent ? `. ${t('plans.current')}` : '')}
                   style={({ pressed }) => [{ flex: 1 }, pressed && !reduced && { transform: [{ scale: 0.97 }] }]}>
                   <Reanimated.View style={[s.card, on && s.cardOn, reduced ? null : ({ transitionProperty: ['borderColor', 'backgroundColor'], transitionDuration: 180, transitionTimingFunction: CSS_OUT } as object)]}>
-                    {p.popular && (
+                    {/* Etiqueta flotante del borde superior: «Plan actual» tiene prioridad sobre «Más popular». */}
+                    {isCurrent ? (
+                      <View style={[s.popular, s.currentPill]}>
+                        <Text style={s.currentBadgeText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t('plans.current')}</Text>
+                      </View>
+                    ) : p.popular ? (
                       <View style={s.popular}>
                         <Star size={10} color={P.forest} fill={P.forest} />
                         <Text style={s.popularText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t('plans.popular')}</Text>
                       </View>
-                    )}
-                    <View style={[s.planIcon, on && { backgroundColor: 'rgba(185,246,47,0.3)' }]}><p.Icon size={22} color={P.agri} strokeWidth={2.2} /></View>
-                    <Text style={s.planName} numberOfLines={2} maxFontSizeMultiplier={1.15}>{name(p)}</Text>
-                    <Text style={[s.price, compact && { fontSize: 22 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} maxFontSizeMultiplier={1.1}>{p.price}</Text>
+                    ) : null}
+                    {/* Selección en la esquina (antes ocupaba una fila más abajo). */}
+                    {!isCurrent && <View style={[s.radio, on && s.radioOn]}>{on && <View style={s.radioDot} />}</View>}
+                    <View style={[s.planIcon, on && { backgroundColor: 'rgba(185,246,47,0.3)' }]}><p.Icon size={18} color={P.agri} strokeWidth={2.2} /></View>
+                    <Text style={s.planName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} maxFontSizeMultiplier={1.15}>{name(p)}</Text>
+                    <Text style={[s.price, compact && { fontSize: 20 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} maxFontSizeMultiplier={1.1}>{p.price}</Text>
                     <View style={[s.tokens, on && { backgroundColor: '#E6F7D2' }]}>
                       <Text style={s.tokensValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} maxFontSizeMultiplier={1.1}>{tokens(p.key)}</Text>
-                      <Text style={s.tokensUnit} numberOfLines={2} maxFontSizeMultiplier={1.1}>{t('plans.tokens')} {t('plans.monthly')}</Text>
+                      <Text style={s.tokensUnit} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} maxFontSizeMultiplier={1.1}>{t('plans.tokens')} {t('plans.monthly')}</Text>
                     </View>
-                    {isCurrent ? (
-                      <View style={s.currentBadge}><Text style={s.currentBadgeText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t('plans.current')}</Text></View>
-                    ) : (
-                      <View style={[s.radio, on && s.radioOn]}>{on && <View style={s.radioDot} />}</View>
-                    )}
                   </Reanimated.View>
                 </Pressable>
               );
@@ -259,7 +261,7 @@ const s = StyleSheet.create({
 
   cards: { flexDirection: 'row', alignItems: 'stretch', gap: 8, marginTop: -10 },
   card: {
-    flex: 1, alignItems: 'center', paddingTop: 22, paddingBottom: 14, paddingHorizontal: 8, borderRadius: 22, gap: 4,
+    flex: 1, alignItems: 'center', paddingTop: 16, paddingBottom: 10, paddingHorizontal: 7, borderRadius: 22, gap: 2,
     backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#EAEFE3', ...shadow,
   },
   cardOn: { borderColor: P.lime, backgroundColor: '#FBFFF2', shadowColor: '#5C9B12', shadowOpacity: 0.22 },
@@ -268,16 +270,16 @@ const s = StyleSheet.create({
     paddingHorizontal: 9, paddingVertical: 3, borderRadius: 11, backgroundColor: P.lime,
   },
   popularText: { fontFamily: 'Poppins_600SemiBold', fontSize: 10.5, color: P.forest },
-  planIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEF7E4', marginBottom: 2 },
-  planName: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, lineHeight: 18, color: P.ink, textAlign: 'center' },
-  price: { fontFamily: 'Poppins_700Bold', fontSize: 25, lineHeight: 31, color: P.deep, letterSpacing: -0.6 },
-  tokens: { alignSelf: 'stretch', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 4, borderRadius: 12, backgroundColor: '#F2F5EE' },
-  tokensValue: { fontFamily: 'Poppins_700Bold', fontSize: 13.5, color: P.ink },
-  tokensUnit: { fontFamily: 'Poppins_400Regular', fontSize: 10.5, lineHeight: 13, color: P.muted, textAlign: 'center' },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#B9C8B2', alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  planIcon: { width: 32, height: 32, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEF7E4', marginBottom: 2 },
+  planName: { alignSelf: 'stretch', fontFamily: 'Poppins_600SemiBold', fontSize: 13.5, lineHeight: 18, color: P.ink, textAlign: 'center' },
+  price: { fontFamily: 'Poppins_700Bold', fontSize: 22, lineHeight: 27, color: P.deep, letterSpacing: -0.6 },
+  tokens: { alignSelf: 'stretch', alignItems: 'center', paddingVertical: 4, paddingHorizontal: 4, marginTop: 4, borderRadius: 11, backgroundColor: '#F2F5EE' },
+  tokensValue: { fontFamily: 'Poppins_700Bold', fontSize: 13, lineHeight: 17, color: P.ink },
+  tokensUnit: { alignSelf: 'stretch', fontFamily: 'Poppins_400Regular', fontSize: 9.5, lineHeight: 12, color: P.muted, textAlign: 'center' },
+  radio: { position: 'absolute', top: 9, right: 9, width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#B9C8B2', alignItems: 'center', justifyContent: 'center' },
   radioOn: { borderColor: P.agri },
-  radioDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: P.agri },
-  currentBadge: { marginTop: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: P.deep, maxWidth: '100%' },
+  radioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: P.agri },
+  currentPill: { backgroundColor: P.deep },
   currentBadgeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 10.5, color: P.limeSoft },
 
   benefits: { marginTop: 18, padding: 18, borderRadius: 26, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#EDF1E6', ...shadow },

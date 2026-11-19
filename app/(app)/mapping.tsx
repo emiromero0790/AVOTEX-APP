@@ -689,14 +689,14 @@ export default function Mapping() {
 
       {!orchardsOpen || isWide ? <View style={[styles.locationCard, isWide && styles.locationCardWide]}>
         <View style={styles.locationIcon}>
-          <Navigation size={20} color="#B9F62F" fill="#B9F62F" />
+          <Navigation size={20} color="#FAF9F4" fill="#FAF9F4" />
         </View>
         <View style={styles.locationCopy}>
             <Text style={styles.locationEyebrow}>{selectedOrchard ? t('currentOrchard') : t('eyebrow')}</Text>
           <Text style={styles.locationCardTitle} numberOfLines={1}>{locationTitle}</Text>
           <Text style={styles.locationCardDetail} numberOfLines={1}>{locationDetail}</Text>
         </View>
-        <MapPin size={19} color="#B9F62F" />
+        <MapPin size={19} color="#FAF9F4" />
       </View> : null}
 
       {!isWide && !orchardsOpen && (
@@ -706,9 +706,9 @@ export default function Mapping() {
           onPress={openOrchardsSelector}
           style={({ pressed }) => [styles.mobileOrchardsButton, pressed && styles.actionPressed]}
         >
-          <Sprout size={17} color="#D8FF79" />
+          <Sprout size={17} color="#536238" />
           <Text style={styles.mobileOrchardsButtonText}>{t('orchards')}</Text>
-          <ChevronRight size={16} color="#B9F62F" />
+          <ChevronRight size={16} color="#536238" />
         </Pressable>
       )}
 
@@ -721,12 +721,12 @@ export default function Mapping() {
             </View>
             {!isWide && (
               <Pressable onPress={() => setOrchardsOpen(false)} style={styles.panelClose}>
-                <X size={16} color="#102D22" />
+                <X size={16} color="#3C493B" />
               </Pressable>
             )}
           </View>
           <Pressable onPress={createNewOrchard} style={({ pressed }) => [styles.newOrchardButton, pressed && styles.actionPressed]}>
-            <Plus size={16} color="#FFFFFF" />
+            <Plus size={16} color="#354635" />
             <Text style={styles.newOrchardButtonText}>{t('newOrchard')}</Text>
           </Pressable>
           {loadingOrchards ? (
@@ -753,7 +753,7 @@ export default function Mapping() {
                     onPress={() => selectOrchard(orchard)}
                     style={({ pressed }) => [styles.orchardSelectArea, pressed && styles.actionPressed]}
                   >
-                    <View style={styles.orchardIcon}><Sprout size={15} color="#176A45" /></View>
+                    <View style={styles.orchardIcon}><Sprout size={15} color="#536238" /></View>
                     <View style={styles.orchardCopy}>
                       <Text style={styles.orchardName} numberOfLines={1}>{orchard.nombre}</Text>
                       <Text style={styles.orchardArea}>{t('area', { area: (orchard.area_m2 / 10000).toFixed(2) })}</Text>
@@ -835,7 +835,7 @@ export default function Mapping() {
               pressed && styles.actionPressed,
             ]}
           >
-            <Pencil size={20} color="#176A45" />
+            <Pencil size={20} color="#536238" />
              <Text style={styles.actionLabel}>{t('draw')}</Text>
           </Pressable>
 
@@ -850,7 +850,7 @@ export default function Mapping() {
               }}
               style={({ pressed }) => [styles.actionButton, pressed && styles.actionPressed]}
             >
-              <Pencil size={20} color="#176A45" />
+              <Pencil size={20} color="#536238" />
               <Text style={styles.actionLabel}>{t('editBoundary')}</Text>
             </Pressable>
           )}
@@ -912,7 +912,7 @@ export default function Mapping() {
             hitSlop={12}
             style={({ pressed }) => [styles.selectorExit, pressed && styles.actionPressed]}
           >
-            <X size={21} color="#FFFFFF" />
+            <X size={21} color="#3C493B" />
           </Pressable>
           <View style={styles.selectorIntro}>
             <Text style={styles.selectorEyebrow}>AVOTEX</Text>
@@ -926,7 +926,7 @@ export default function Mapping() {
               onPress={createNewOrchard}
               style={({ pressed }) => [styles.newOrchardTile, pressed && styles.actionPressed, pressed && styles.newOrchardTilePressed]}
             >
-              <View style={styles.newOrchardTileMark}><Plus size={23} color="#176A45" /></View>
+              <View style={styles.newOrchardTileMark}><Plus size={23} color="#354635" /></View>
               <Text style={styles.newOrchardTileTitle}>{t('newOrchard')}</Text>
               <Text style={styles.newOrchardTileHint}>{t('selectorNewHint')}</Text>
             </Pressable>
@@ -936,10 +936,10 @@ export default function Mapping() {
                   <Text style={styles.savedOrchardsLabel}>{t('savedOrchards')}</Text>
                   <Text style={styles.savedOrchardsCount}>{orchards.length}</Text>
                 </View>
-                <Sprout size={19} color="#D8FF79" />
+                <Sprout size={19} color="#536238" />
               </View>
               {loadingOrchards ? (
-                <ActivityIndicator color="#FFFFFF" style={styles.selectorLoader} />
+                <ActivityIndicator color="#536238" style={styles.selectorLoader} />
               ) : orchardsError ? (
                 <Text style={styles.selectorError}>{orchardsError}</Text>
               ) : orchards.length === 0 ? (
@@ -954,12 +954,12 @@ export default function Mapping() {
                       onPress={() => selectOrchard(orchard, true)}
                       style={({ pressed }) => [styles.selectorOrchardRow, pressed && styles.actionPressed]}
                     >
-                      <View style={styles.selectorOrchardDot}><Sprout size={13} color="#083D25" /></View>
+                      <View style={styles.selectorOrchardDot}><Sprout size={13} color="#536238" /></View>
                       <View style={styles.selectorOrchardCopy}>
                         <Text style={styles.selectorOrchardName} numberOfLines={1}>{orchard.nombre}</Text>
                         <Text style={styles.selectorOrchardArea}>{t('area', { area: (orchard.area_m2 / 10000).toFixed(2) })}</Text>
                       </View>
-                      <ChevronRight size={15} color="#B9F62F" />
+                      <ChevronRight size={15} color="#536238" />
                     </Pressable>
                   ))}
                 </ScrollView>
@@ -1183,7 +1183,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: 'rgba(7,31,23,0.94)',
+    backgroundColor: 'rgba(32,37,33,0.86)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,243,232,0.28)',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.28,
@@ -1197,12 +1199,12 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#176A45',
+    backgroundColor: '#428875',
   },
   locationCopy: { flex: 1, minWidth: 0 },
-  locationEyebrow: { color: '#D8FF79', fontSize: 8, fontWeight: '800', letterSpacing: 1.5 },
-  locationCardTitle: { color: '#FFFFFF', fontSize: 17, lineHeight: 22, fontWeight: '800', marginTop: 1 },
-  locationCardDetail: { color: '#B7C4BC', fontSize: 10, lineHeight: 14, marginTop: 1 },
+  locationEyebrow: { color: '#E8E4D7', fontSize: 8, fontWeight: '800', letterSpacing: 1.5 },
+  locationCardTitle: { color: '#FAF9F4', fontSize: 17, lineHeight: 22, fontWeight: '800', marginTop: 1 },
+  locationCardDetail: { color: '#D9DBD1', fontSize: 10, lineHeight: 14, marginTop: 1 },
   bottomPanel: {
     position: 'absolute',
     left: 14,
@@ -1214,8 +1216,8 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(247,247,240,0.78)',
-    backgroundColor: 'rgba(247,247,240,0.68)',
+    borderColor: 'rgba(245,243,232,0.9)',
+    backgroundColor: 'rgba(245,243,232,0.82)',
     shadowColor: '#102D22',
     shadowOffset: { width: 0, height: 9 },
     shadowOpacity: 0.22,
@@ -1234,15 +1236,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 7,
     borderWidth: 1,
-    borderColor: 'rgba(56,163,74,0.45)',
-    backgroundColor: 'rgba(7,31,23,0.94)',
+    borderColor: 'rgba(83,98,56,0.22)',
+    backgroundColor: 'rgba(245,243,232,0.96)',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 9,
   },
-  mobileOrchardsButtonText: { color: '#F7F7F0', fontSize: 11, fontWeight: '700' },
+  mobileOrchardsButtonText: { color: '#354427', fontSize: 11, fontWeight: '700' },
   orchardsPanel: {
     position: 'absolute',
     top: 18,
@@ -1251,9 +1253,9 @@ const styles = StyleSheet.create({
     maxHeight: 430,
     padding: 14,
     borderRadius: 24,
-    backgroundColor: 'rgba(247,247,240,0.96)',
+    backgroundColor: '#F5F3E8',
     borderWidth: 1,
-    borderColor: 'rgba(220,234,207,0.9)',
+    borderColor: '#D9DBCB',
     shadowColor: '#102D22',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.2,
@@ -1273,14 +1275,14 @@ const styles = StyleSheet.create({
     marginBottom: 11,
   },
   orchardsEyebrow: { color: '#238B45', fontSize: 8, fontWeight: '800', letterSpacing: 1.4 },
-  orchardsTitle: { color: '#102D22', fontSize: 19, lineHeight: 24, fontWeight: '800' },
+  orchardsTitle: { color: '#122D22', fontSize: 19, lineHeight: 24, fontWeight: '800' },
   panelClose: {
     width: 30,
     height: 30,
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F0F3E8',
+    backgroundColor: '#E3E5D1',
   },
   newOrchardButton: {
     minHeight: 42,
@@ -1289,9 +1291,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
-    backgroundColor: '#064B2C',
+    backgroundColor: '#EFF0E0',
+    borderWidth: 1.5,
+    borderColor: '#667851',
   },
-  newOrchardButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
+  newOrchardButtonText: { color: '#354635', fontSize: 11, fontWeight: '800' },
   orchardsLoader: { marginVertical: 28 },
   orchardsError: { color: '#A64A43', fontSize: 10, lineHeight: 15, marginTop: 13 },
   emptyOrchards: { alignItems: 'center', paddingHorizontal: 10, paddingVertical: 23 },
@@ -1307,7 +1311,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: '#E4EADB',
+    borderColor: '#D9DBCB',
     backgroundColor: '#FAFAF4',
   },
   orchardRowSelected: { borderColor: '#B9F62F', backgroundColor: '#F1FBDA' },
@@ -1323,29 +1327,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 9,
-    backgroundColor: '#EAF4DF',
+    backgroundColor: '#ECEBD9',
   },
   orchardCopy: { flex: 1, minWidth: 0, marginRight: 6 },
-  orchardName: { color: '#102D22', fontSize: 11, fontWeight: '800' },
-  orchardArea: { color: '#718078', fontSize: 9, marginTop: 2 },
+  orchardName: { color: '#122D22', fontSize: 11, fontWeight: '800' },
+  orchardArea: { color: '#505A48', fontSize: 9, marginTop: 2 },
   panelCopy: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
   },
-  title: { color: '#102D22', fontFamily: 'Poppins_400Regular', fontSize: 19, lineHeight: 25, letterSpacing: -0.2 },
+  title: { color: '#122D22', fontFamily: 'Poppins_400Regular', fontSize: 19, lineHeight: 25, letterSpacing: -0.2 },
   pointBadge: {
     minWidth: 48,
     paddingHorizontal: 9,
     paddingVertical: 6,
     borderRadius: 14,
     alignItems: 'center',
-    backgroundColor: '#EEF1E8',
+    backgroundColor: '#EFF0E0',
   },
-  pointBadgeReady: { backgroundColor: '#EAF4DF' },
-  pointBadgeText: { color: '#7F8C84', fontSize: 10, fontWeight: '700' },
-  pointBadgeTextReady: { color: '#176A45' },
+  pointBadgeReady: { backgroundColor: '#ECEBD9' },
+  pointBadgeText: { color: '#656B49', fontSize: 10, fontWeight: '700' },
+  pointBadgeTextReady: { color: '#354635' },
   locationLoading: {
     flex: 1,
     alignItems: 'center',
@@ -1396,11 +1400,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
-    backgroundColor: '#F3F6EA',
+    backgroundColor: '#F5F3E8',
   },
   actionPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
   actionButtonDisabled: { opacity: 0.42 },
-  actionLabel: { color: '#4E5F56', fontSize: 9, fontWeight: '700' },
+  actionLabel: { color: '#354635', fontSize: 9, fontWeight: '700' },
   saveChangesButton: { backgroundColor: '#064B2C' },
   saveChangesLabel: { color: '#FFFFFF', maxWidth: '100%', textAlign: 'center', lineHeight: 11 },
   saveButtonPressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
@@ -1609,9 +1613,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(6,46,28,0.66)',
+    backgroundColor: '#E3E5D1',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.34)',
+    borderColor: '#D9DBCB',
   },
   selectorIntro: { marginBottom: 17, paddingHorizontal: 3 },
   selectorEyebrow: { color: 'rgba(255,255,255,0.82)', fontSize: 9, fontWeight: '800', letterSpacing: 2.1 },
@@ -1626,9 +1630,9 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F7F7F0',
+    backgroundColor: '#EFF0E0',
     borderWidth: 1,
-    borderColor: '#E1EBD3',
+    borderColor: '#667851',
     shadowColor: '#102D22',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2,
@@ -1643,10 +1647,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 15,
-    backgroundColor: '#EAF4DF',
+    backgroundColor: '#ECEBD9',
   },
-  newOrchardTileTitle: { color: '#102D22', fontSize: 14, fontWeight: '800', textAlign: 'center' },
-  newOrchardTileHint: { color: '#718078', fontSize: 10, lineHeight: 14, textAlign: 'center', marginTop: 7 },
+  newOrchardTileTitle: { color: '#354635', fontSize: 14, fontWeight: '800', textAlign: 'center' },
+  newOrchardTileHint: { color: '#656B49', fontSize: 10, lineHeight: 14, textAlign: 'center', marginTop: 7 },
   savedOrchardsTile: {
     flex: 1.15,
     minHeight: 224,
@@ -1656,8 +1660,8 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(185,246,47,0.28)',
-    backgroundColor: '#064B2C',
+    borderColor: '#D9DBCB',
+    backgroundColor: '#F5F3E8',
     shadowColor: '#102D22',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18,
@@ -1672,11 +1676,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.18)',
   },
-  savedOrchardsLabel: { color: 'rgba(255,255,255,0.92)', fontSize: 11, lineHeight: 15, fontWeight: '800' },
-  savedOrchardsCount: { color: '#D8FF79', fontSize: 25, lineHeight: 28, fontWeight: '800', marginTop: 1 },
+  savedOrchardsLabel: { color: '#122D22', fontSize: 11, lineHeight: 15, fontWeight: '800' },
+  savedOrchardsCount: { color: '#656B49', fontSize: 25, lineHeight: 28, fontWeight: '800', marginTop: 1 },
   selectorLoader: { marginVertical: 28 },
-  selectorError: { color: '#FFF1EE', fontSize: 10, lineHeight: 15, marginTop: 14 },
-  selectorEmpty: { color: 'rgba(255,255,255,0.8)', fontSize: 10, lineHeight: 15, marginTop: 18 },
+  selectorError: { color: '#A64A43', fontSize: 10, lineHeight: 15, marginTop: 14 },
+  selectorEmpty: { color: '#656B49', fontSize: 10, lineHeight: 15, marginTop: 18 },
   selectorList: { marginTop: 10 },
   selectorOrchardRow: {
     minHeight: 50,
@@ -1684,7 +1688,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 7,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.14)',
+    borderBottomColor: '#D9DBCB',
   },
   selectorOrchardDot: {
     width: 27,
@@ -1693,11 +1697,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 7,
-    backgroundColor: 'rgba(234,244,223,0.94)',
+    backgroundColor: '#ECEBD9',
   },
   selectorOrchardCopy: { flex: 1, minWidth: 0, marginRight: 4 },
-  selectorOrchardName: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
-  selectorOrchardArea: { color: 'rgba(214,228,208,0.88)', fontSize: 9, marginTop: 2 },
+  selectorOrchardName: { color: '#122D22', fontSize: 10, fontWeight: '800' },
+  selectorOrchardArea: { color: '#505A48', fontSize: 9, marginTop: 2 },
   deleteModalIcon: {
     width: 54, height: 54, borderRadius: 18, alignSelf: 'center', alignItems: 'center',
     justifyContent: 'center', marginBottom: 14, backgroundColor: '#FCECEB',

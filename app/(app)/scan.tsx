@@ -58,6 +58,7 @@ const scanTranslations: TranslationResource = {
   guestLimitDetail: { es: "Crea una cuenta para continuar escaneando.", en: "Create an account to keep scanning." },
   noTokens: { es: "Sin Tokens disponibles", en: "No Tokens available" },
   noTokensDetail: { es: "Contacta a VEX para obtener más Tokens.", en: "Contact VEX to get more Tokens." },
+  walkNoTokens: { es: "Cada foto analizada de un recorrido o grabación consume 100 Tokens. Contacta a VEX para recargar.", en: "Each analyzed photo from a walk or recording uses 100 Tokens. Contact VEX to recharge." },
   analyzeError: { es: "No se pudo analizar la imagen", en: "The image could not be analyzed" },
   tryAgain: { es: "Intenta de nuevo.", en: "Try again." },
   captureError: { es: "Error de captura", en: "Capture error" },
@@ -249,6 +250,13 @@ export default function Scan() {
       }
     }, [user?.email, isGuest])
   );
+
+  // Recorrido o grabación sin saldo: aviso en lugar de abrirlos (el servidor tampoco analizaría fotos).
+  const blockedByTokens = () => {
+    if (isGuest || userTokens === null || userTokens > 0) return false;
+    Toast.show({ type: "error", text1: t("noTokens"), text2: t("walkNoTokens") });
+    return true;
+  };
 
   const choosePhoto = async () => {
     if (!permission?.granted) {
@@ -473,8 +481,10 @@ export default function Scan() {
         onPhoto={choosePhoto}
         // `open`/`fuente` y `n` hacen que la pantalla destino (que sigue montada entre visitas)
         // abra el paso pedido cada vez que se pulsa el botón.
-        onWalk={modo => router.push({ pathname: "/(app)/recorrido", params: { open: "prepare", modo: modo ?? "celular", n: String(Date.now()) } })}
-        onUploadRecording={() => router.push({ pathname: "/(app)/grabacion", params: { n: String(Date.now()) } })}
+        // Recorridos y grabaciones cobran 1 token (100 en pantalla) por foto analizada en el servidor
+        // (processor/procesar_recorridos.py). Sin saldo no se inician: no se analizaría ninguna foto.
+        onWalk={modo => { if (blockedByTokens()) return; router.push({ pathname: "/(app)/recorrido", params: { open: "prepare", modo: modo ?? "celular", n: String(Date.now()) } }); }}
+        onUploadRecording={() => { if (blockedByTokens()) return; router.push({ pathname: "/(app)/grabacion", params: { n: String(Date.now()) } }); }}
         onOpenScans={() => router.push({ pathname: "/(app)/escaneos", params: { n: String(Date.now()) } })}
         busyLabel={checkingOrchard ? t("checkingOrchard") : null}
       />
@@ -672,7 +682,7 @@ export default function Scan() {
       {limitReached ? (
         <View style={styles.limitContainer}>
              <View style={StyleSheet.absoluteFill} />
-          {/* Sin saldo: se puede volver al selector (el recorrido no usa tokens). */}
+          {/* Sin saldo: se puede volver al selector (desde ahí el recorrido también avisa si no hay tokens). */}
           <PressableScale
             style={[styles.modesButton, styles.limitModes, { top: insets.top + 8 }]}
             onPress={() => setMode("choose")}

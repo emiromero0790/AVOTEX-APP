@@ -2,7 +2,6 @@
 
 | Archivo | Original |
 |---|---|
-| `plan-bg.jpg` | Imagen proporcionada por AVOTEX para el fondo del Plan de trabajo (huerta de aguacate al atardecer). Redimensionada a 900×1599 y comprimida (JPEG). |
 | `actividad-header.jpg` | Imagen proporcionada por AVOTEX para el encabezado de Actividad (`source/avotex_actividad_header_1920x640.png`). Redimensionada a 1280×427, JPEG calidad 80 (~139 KB). |
 | `actividad-hero.jpg` | Imagen proporcionada por AVOTEX para el hero de Resumen (`source/avotex_actividad_hero_1600x900.png`). Redimensionada a 1200×675, JPEG calidad 80 (~176 KB). |
 

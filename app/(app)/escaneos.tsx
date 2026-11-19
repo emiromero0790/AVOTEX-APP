@@ -36,6 +36,7 @@ import { useGuest } from '../../context/GuestContext';
 import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 import { listOrchards, Orchard } from '../../services/orchards';
 import { parseZonas, puntosEnZona, ZONE_UI, zonasDeHuerta, type ZonaSnapshot } from '../../services/grabacion';
+import { contornoGrabacion } from '../../services/grabacionContorno';
 import ZoneMap3D from '../../components/grabacion/ZoneMap3D';
 import { Fuente, RecorridoLocal, RecorridoRemoto, listLocal, listRemote, recoverInterrupted, uploadPending } from '../../services/recorridos';
 import {
@@ -620,7 +621,8 @@ export default function MisEscaneos() {
         return hs.map((h, i) => ({ id: h.id, lat: spots[i].lat, lng: spots[i].lng, cat: categoria(h) }));
       });
       const zones = zonasSel.map(z => ({ key: z.id, label: t('zoneLabel', { z: z.id }), color: ZONE_UI[z.color].fill, ring: z.ring, at: z.label, count: cnt[z.id] ?? 0 }));
-      const ring = orchard.length >= 3 ? orchard : zonasSel.flatMap(z => z.ring);
+      // Contorno de cuando se subió la grabación (de su copia de zonas), aunque la huerta se haya redibujado.
+      const ring = contornoGrabacion(selected.zonas, orchard) ?? zonasSel.flatMap(z => z.ring);
       return { id: selected.id, route: [], photos: [], findings: placed, orchard: ring, speedRange: null, zones, zoneOf };
     }
     if (selected.route.length < 2 && !photos.length && !findings.length) return null;
@@ -870,7 +872,7 @@ export default function MisEscaneos() {
       </View>
       {selZonas.length ? (
         <>
-          <ZoneMap3D zonas={selZonas} outline={selected.orchardId ? (orchardById[selected.orchardId]?.coordinates ?? []).map(c => ({ lat: c.latitude, lng: c.longitude })) : null}
+          <ZoneMap3D zonas={selZonas} outline={contornoGrabacion(selected.zonas, selected.orchardId ? (orchardById[selected.orchardId]?.coordinates ?? []).map(c => ({ lat: c.latitude, lng: c.longitude })) : [])}
             width={zoneMapW} height={Math.round(Math.min(240, zoneMapW * 0.62))} counts={zoneCounts} activeZone={pointZone} dropTick={0}
             activeText={(z, n) => t('zoneFindings', { z, n, h: n === 1 ? t('hallazgo1') : t('hallazgoN') })} onZonePress={pickZone} />
           {selected.status === 'listo' ? (

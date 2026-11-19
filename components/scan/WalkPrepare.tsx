@@ -29,6 +29,7 @@ import { supabase } from '../../supabaseConfig';
 import ScanHeader from './ScanHeader';
 import { EASE_IN_OUT, EASE_OUT, PressableScale } from './motion';
 import { CARD_SHADOW, SCAN } from './theme';
+import { noOverscroll } from '../ui/noOverscroll';
 
 // Foto del héroe (aguacates al atardecer) proporcionada por AVOTEX; vista aérea de Pexels (ver CREDITOS.md).
 const IMG_HERO = require('../../assets/images/escanear/hero-recorrido-aguacates.jpg');
@@ -265,7 +266,7 @@ export default function WalkPrepare(props: Props) {
 
   return (
     <View style={s.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: bottomInset + 120 }} showsVerticalScrollIndicator={false}>
+      <ScrollView {...noOverscroll} contentContainerStyle={{ paddingBottom: bottomInset + 120 }} showsVerticalScrollIndicator={false}>
         {/* ── Héroe fotográfico ── */}
         <View style={[s.hero, { height: heroH + topInset }]}>
           <Image source={IMG_HERO} style={s.img} resizeMode="cover" accessibilityIgnoresInvertColors />

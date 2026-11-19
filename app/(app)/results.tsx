@@ -37,6 +37,8 @@ import { supabase } from '../../supabaseConfig';
 import { useAccessibility } from '../../context/AccessibilityContext';
 import { localizeDomainLabel, TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 import { fruitImage, isHealthyLabel } from '../../components/fruitImage';
+import { noOverscroll } from '../../components/ui/noOverscroll';
+import { useAvotexTabBarMetrics } from '../../components/tabbar/AvotexTabBar';
 
 type Scan = { id: number; created_at: string; user_id: string; label: string; score: number; fruto?: string; huerta_id?: string | null };
 type Period = PeriodKey;
@@ -223,6 +225,7 @@ export default function ResultsScreen() {
   const [selectedDay, setSelectedDay] = useState((new Date().getDay() + 6) % 7);
   // Resumen: hallazgos de recorridos y huertas, con filtros propios (no afectan Historial ni Plan).
   const insets = useSafeAreaInsets();
+  const nav = useAvotexTabBarMetrics();
   const reduced = useReducedMotion();
   const [hallazgos, setHallazgos] = useState<HallazgoMapa[]>([]);
   const [orchards, setOrchards] = useState<Orchard[]>([]);
@@ -628,13 +631,15 @@ export default function ResultsScreen() {
   };
   const filtersActive = orchardF !== 'all' || crop !== null || period !== null;
   const emptyTitle = records.length === 0 ? t('noScansTitle') : orchardF === 'none' ? t('emptyNone') : orchardId ? t('emptyOrchard') : t('emptyPeriod');
-  const bottomPad = 150 + insets.bottom;
+  // Espacio final para que lo último quede por encima de la barra de navegación y del aguacate.
+  const bottomPad = nav.clearTop + 32;
 
   return (
     <KeyboardAvoidingView style={[styles.screen, (summary || plan) && { backgroundColor: P.ivory }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Stack.Screen options={{ title: t('activity') }} />
       <ScrollView
-        contentContainerStyle={[styles.content, tablet && styles.contentTablet, { backgroundColor: pageBg }, summary && { paddingBottom: bottomPad }, plan && { paddingBottom: bottomPad }]}
+        {...noOverscroll}
+        contentContainerStyle={[styles.content, tablet && styles.contentTablet, { backgroundColor: pageBg }, { paddingBottom: bottomPad }]}
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={200}
         onScroll={e => {

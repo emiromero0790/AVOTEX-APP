@@ -12,6 +12,7 @@ import { router } from 'expo-router';
 import { ChevronLeft, Shield } from 'lucide-react-native';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import { TranslationResource, useTranslations } from '../../context/LanguageContext';
+import { noOverscroll } from '../../components/ui/noOverscroll';
 
 const translations: TranslationResource = {
   'privacy.title': { es: 'Aviso de Privacidad', en: 'Privacy Notice' }, 'privacy.heroTitle': { es: 'Aviso de Privacidad de Avotex', en: 'Avotex Privacy Notice' }, 'privacy.updated': { es: 'Última actualización: 04/05/2026', en: 'Last updated: 05/04/2026' }, 'privacy.hero': { es: 'Avotex es una aplicación desarrollada por VEX, enfocada en brindar herramientas inteligentes para el análisis de cultivos mediante el uso de Inteligencia Artificial.\\n\\nLa privacidad de nuestros usuarios es una prioridad. Este Aviso de Privacidad explica qué información se recopila, cómo se utiliza y cómo se protege.', en: 'Avotex is an application developed by VEX that provides intelligent tools for crop analysis using Artificial Intelligence.\\n\\nOur users’ privacy is a priority. This Privacy Notice explains what information is collected, how it is used, and how it is protected.' }, 'privacy.full': { es: 'Aviso de Privacidad completo', en: 'Full Privacy Notice' }, 'privacy.online': { es: 'Ver aviso completo en línea', en: 'View full notice online' }, 'privacy.footer': { es: 'Al usar Avotex, aceptas este Aviso de Privacidad.', en: 'By using Avotex, you accept this Privacy Notice.' },
@@ -65,7 +66,7 @@ export default function PrivacyScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView {...noOverscroll} contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         <View style={s.heroCard}>
           <View style={s.shieldCircle}>
             <Shield size={32} color="#FFFFFF" />

@@ -26,6 +26,7 @@ import { TranslationResource, useTranslations } from '../context/LanguageContext
 import ScanHeader from './scan/ScanHeader';
 import { CSS_EASE_OUT, EASE_OUT, PressableScale } from './scan/motion';
 import { LIME_GRADIENT, SCAN } from './scan/theme';
+import { noOverscroll } from './ui/noOverscroll';
 
 // Huerta de aguacate al atardecer (proporcionada por AVOTEX).
 const IMG_HERO = require('../assets/images/escanear/hero-escanear.jpg');
@@ -220,7 +221,7 @@ export default function ScanHome({ isGuest, tokensRemaining, email = null, pendi
 
   return (
     <View style={s.screen}>
-      <ScrollView contentContainerStyle={{ paddingBottom: bottomSpace }} showsVerticalScrollIndicator={false}>
+      <ScrollView {...noOverscroll} contentContainerStyle={{ paddingBottom: bottomSpace }} showsVerticalScrollIndicator={false}>
         {/* ── Héroe: foto de la huerta; arriba se funde con el cielo para el título, abajo con el blanco ── */}
         <View style={[s.hero, { height: heroH }]} pointerEvents="none">
           <Image source={IMG_HERO} style={s.heroImg} resizeMode="cover" accessibilityIgnoresInvertColors />

@@ -38,6 +38,7 @@ import { PressableScale, EASE_OUT } from '../../components/scan/motion';
 import { useGuest } from '../../context/GuestContext';
 import { TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
 import { listOrchards, Orchard } from '../../services/orchards';
+import { noOverscroll } from '../../components/ui/noOverscroll';
 
 /** Huerta virtual en la página web de AVOTEX (sección de acceso). */
 const VIRTUAL_ORCHARD_URL = 'https://vex-mx.com/avotex.html#acceso';
@@ -308,7 +309,7 @@ export default function Home() {
       {/* iOS: sin rebote. Con el rebote, al volver arriba con impulso se veía el fondo claro sobre el héroe
           (un hueco blanco arriba de la pantalla). Android no rebota (overScrollMode never por si acaso). */}
       <ScrollView contentContainerStyle={{ paddingBottom: bottomSpace }} showsVerticalScrollIndicator={false}
-        bounces={false} overScrollMode="never" contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false}>
+        {...noOverscroll}>
         {/* ── Héroe ── */}
         <View style={[s.hero, { height: heroH }]}>
           <Image source={IMG.hero} style={s.fill} resizeMode="cover" accessibilityIgnoresInvertColors />

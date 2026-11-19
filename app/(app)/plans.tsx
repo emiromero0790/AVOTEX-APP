@@ -30,6 +30,7 @@ import { AvocadoArt, AvocadoHalo } from '../../components/tabbar/AvocadoArt';
 import { BotanicalCardDecoration, P } from '../../components/actividad/charts/core';
 import { CSS_OUT } from '../../components/actividad/charts/GrowBar';
 import { PressableScale } from '../../components/scan/motion';
+import { noOverscroll } from '../../components/ui/noOverscroll';
 
 const LOGO = require('../../assets/images/inicio/avotex-logo-blanco.png');
 const PRICING_URL = 'https://vex-mx.com/avotex.html#pricing';
@@ -106,7 +107,7 @@ export default function PlansScreen() {
   return (
     <View style={s.root}>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}
-        bounces={false} overScrollMode="never">
+        {...noOverscroll}>
         {/* ── Hero verde bosque ── */}
         <View style={[s.hero, { height: heroH }]}>
           <LinearGradient colors={['#0E6B36', P.deep, P.forest]} locations={[0, 0.5, 1]} start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }} style={StyleSheet.absoluteFill} />

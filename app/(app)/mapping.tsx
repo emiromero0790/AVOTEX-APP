@@ -8,6 +8,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import PolygonMap, { PolygonMapHandle } from '../../components/PolygonMap';
 import ProximityAlert, { type GpsIssue } from '../../components/mapping/ProximityAlert';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAvotexTabBarMetrics } from '../../components/tabbar/AvotexTabBar';
 import { useReducedMotion } from 'react-native-reanimated';
 import { evaluateProximity, type Proximity } from '../../services/proximity';
 import { TranslationResource, useLanguage, useTranslations } from '../../context/LanguageContext';
@@ -148,6 +150,13 @@ export default function Mapping() {
   const { locale } = useLanguage();
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
+  // Las tarjetas flotantes se diseñaron con 18 dp de margen superior; en celulares con muesca o
+  // isla dinámica se recorren hacia abajo lo que ocupe la barra de estado.
+  const insets = useSafeAreaInsets();
+  const topShift = Math.max(0, insets.top - 8);
+  // El panel inferior queda por encima de la barra de navegación y de la punta del aguacate.
+  const nav = useAvotexTabBarMetrics();
+  const panelBottom = nav.clearTop + 10;
   useFonts({ Poppins_400Regular });
   const mapRef = useRef<PolygonMapHandle>(null);
   const selectedOrchardRef = useRef<string | null>(null);
@@ -687,7 +696,7 @@ export default function Mapping() {
         )}
       </View>
 
-      {!orchardsOpen || isWide ? <View style={[styles.locationCard, isWide && styles.locationCardWide]}>
+      {!orchardsOpen || isWide ? <View style={[styles.locationCard, { top: 18 + topShift }, isWide && styles.locationCardWide]}>
         <View style={styles.locationIcon}>
           <Navigation size={20} color="#FAF9F4" fill="#FAF9F4" />
         </View>
@@ -704,7 +713,7 @@ export default function Mapping() {
           accessibilityRole="button"
           accessibilityLabel={t('openOrchards')}
           onPress={openOrchardsSelector}
-          style={({ pressed }) => [styles.mobileOrchardsButton, pressed && styles.actionPressed]}
+          style={({ pressed }) => [styles.mobileOrchardsButton, { top: 112 + topShift }, pressed && styles.actionPressed]}
         >
           <Sprout size={17} color="#536238" />
           <Text style={styles.mobileOrchardsButtonText}>{t('orchards')}</Text>
@@ -713,7 +722,7 @@ export default function Mapping() {
       )}
 
       {isWide && (
-        <View style={[styles.orchardsPanel, !isWide && styles.orchardsPanelMobile]}>
+        <View style={[styles.orchardsPanel, !isWide && styles.orchardsPanelMobile, { top: (isWide ? 18 : 158) + topShift }]}>
           <View style={styles.orchardsHeader}>
             <View>
               <Text style={styles.orchardsEyebrow}>AVOTEX</Text>
@@ -778,7 +787,7 @@ export default function Mapping() {
       {selectedOrchard && (!orchardsOpen || isWide) && (
         <Pressable
           onPress={() => setCommentsVisible(true)}
-          style={({ pressed }) => [styles.commentsFloatingButton, pressed && styles.actionPressed]}
+          style={({ pressed }) => [styles.commentsFloatingButton, { top: 112 + topShift }, pressed && styles.actionPressed]}
           accessibilityRole="button"
           accessibilityLabel={t('editComments')}
         >
@@ -788,10 +797,10 @@ export default function Mapping() {
       )}
 
       {(!orchardsOpen || isWide) && (
-        <ProximityAlert proximity={proximity} gpsIssue={gpsIssue} onRetry={retryGps} reduced={reducedMotion} top={164} wide={isWide} />
+        <ProximityAlert proximity={proximity} gpsIssue={gpsIssue} onRetry={retryGps} reduced={reducedMotion} top={164 + topShift} wide={isWide} />
       )}
 
-      {(!orchardsOpen || isWide) && <BlurView intensity={55} tint="light" style={[styles.bottomPanel, isWide && styles.bottomPanelWide]}>
+      {(!orchardsOpen || isWide) && <BlurView intensity={55} tint="light" style={[styles.bottomPanel, { bottom: panelBottom }, isWide && styles.bottomPanelWide]}>
         <View style={styles.panelCopy}>
           <View>
            <Text style={styles.title}>{t('title')}</Text>

@@ -45,7 +45,8 @@ const EMAILJS_SERVICE_ID = process.env.EXPO_PUBLIC_EMAILJS_SERVICE_ID!;
 const EMAILJS_TEMPLATE_ID = process.env.EXPO_PUBLIC_EMAILJS_TEMPLATE_ID!;
 const EMAILJS_PUBLIC_KEY = process.env.EXPO_PUBLIC_EMAILJS_PUBLIC_KEY!;
 const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY!;
-const MODEL = "gemini-2.5-flash";
+// gemini-2.5-flash ya no está disponible para proyectos nuevos (y desde el 1 dic 2026 se redirige a este).
+const MODEL = "gemini-3.5-flash-lite";
 const REPORT_EMAIL = 'vexmxoficial@gmail.com';
 
 const genAI = new GoogleGenerativeAI(API_KEY);

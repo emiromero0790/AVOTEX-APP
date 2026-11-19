@@ -94,7 +94,7 @@ export default function ProximityAlert({ proximity, gpsIssue, onRetry, reduced, 
   return (
     <Reanimated.View key={proximity.state} entering={reduced ? IN_REDUCED : FadeIn.duration(220)} exiting={OUT} pointerEvents="none"
       style={[s.chip, { top }, wide ? s.chipWide : s.chipPos]} accessible accessibilityLabel={label}>
-      {isNear ? <Navigation size={13} color="#99F6E4" fill="#99F6E4" /> : <LocateFixed size={13} color="#FDE68A" />}
+      {isNear ? <Navigation size={13} color="#D8FF79" fill="#D8FF79" /> : <LocateFixed size={13} color="#FDE68A" />}
       <Text style={s.chipText} maxFontSizeMultiplier={1.15}>{label}</Text>
     </Reanimated.View>
   );
@@ -109,7 +109,7 @@ const s = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 10,
   },
   cardFar: { backgroundColor: 'rgba(110,14,14,0.88)', borderWidth: 0, paddingVertical: 10, paddingHorizontal: 12, gap: 10, borderRadius: 18 },
-  cardUnknown: { backgroundColor: 'rgba(5,7,7,0.9)', borderColor: 'rgba(253,230,138,0.45)', gap: 12 },
+  cardUnknown: { backgroundColor: 'rgba(7,31,23,0.9)', borderColor: 'rgba(253,230,138,0.45)', gap: 12 },
   iconFar: {
     width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E5302F',
     shadowColor: '#FF4545', shadowOpacity: 0.7, shadowRadius: 7, shadowOffset: { width: 0, height: 0 }, elevation: 6,
@@ -125,7 +125,7 @@ const s = StyleSheet.create({
   retryText: { fontFamily: 'Poppins_600SemiBold', fontSize: 12.5, color: '#14231A' },
   chip: {
     position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 7, height: 32, paddingHorizontal: 12, borderRadius: 16,
-    backgroundColor: 'rgba(5,7,7,0.82)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(7,31,23,0.82)', borderWidth: 1, borderColor: 'rgba(56,163,74,0.35)',
   },
   chipPos: { left: 18 },
   chipWide: { left: 18 },
